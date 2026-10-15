@@ -2,11 +2,12 @@ import { NavLink } from 'react-router-dom'
 import Icon from '../components/Icon'
 import Calendar from './Calendar'
 import Wanted from './Wanted'
+import Following from '../home/Following' // home fork
 import { t } from '../i18n'
 
 // Upcoming: what is coming (the calendar) and what is still missing or could
 // be better (wanted), as two tabs of one page.
-export default function Upcoming({ tab }: { tab: 'calendar' | 'wanted' }) {
+export default function Upcoming({ tab }: { tab: 'calendar' | 'wanted' | 'following' }) {
   return (
     <div>
       <nav className="page-tabs" aria-label={t('Upcoming')} style={{ ['--tc' as string]: 'var(--c-calendar)' }}>
@@ -16,8 +17,12 @@ export default function Upcoming({ tab }: { tab: 'calendar' | 'wanted' }) {
         <NavLink to="/wanted" className={({ isActive }) => (isActive ? 'active' : '')}>
           <Icon name="bookmark" size={15} /> {t('Wanted')}
         </NavLink>
+        {/* home fork: the people you follow */}
+        <NavLink to="/following" className={({ isActive }) => (isActive ? 'active' : '')}>
+          <Icon name="user" size={15} /> {t('Following')}
+        </NavLink>
       </nav>
-      {tab === 'calendar' ? <Calendar /> : <Wanted />}
+      {tab === 'calendar' ? <Calendar /> : tab === 'following' ? <Following /> : <Wanted />}
     </div>
   )
 }

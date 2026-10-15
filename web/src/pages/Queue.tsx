@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import ReleaseSpecTags from '../home/ReleaseSpecs' // home fork
+import ExplainFailure from '../home/ExplainFailure' // home fork
 import { Link } from 'react-router-dom'
 import { api, can, isAdmin, type ActivityEntry, type BlocklistEntry, type QueueItem, type TitleEvent, type WantedItem } from '../api'
 import { useAuth } from '../AuthContext'
 import Cover from '../components/Cover'
+import Countdown, { stepLabel } from '../components/Elapsed'
 import Icon, { type IconName } from '../components/Icon'
 import Loading from '../components/Loading'
 import InfoTip from '../components/InfoTip'
@@ -292,27 +295,42 @@ function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProp
           )}
         </div>
         <div className="qrelease">{q.releaseTitle}</div>
-        {(q.resolution || q.source || q.codec || q.language) && (
-          <div className="qspecs">
-            {[q.resolution, q.source, q.codec].filter(Boolean).map((x) => (
-              <span key={x} className="badge qspec">
-                {x}
-              </span>
-            ))}
-            {q.language && (
-              <span className="badge qspec" title={t('The audio language the release name gives')}>
-                {q.language}
-              </span>
-            )}
-          </div>
+        {/* home fork: the fork's fuller tags (HDR, audio, edition, group…), else upstream's */}
+        {q.specs ? (
+          <ReleaseSpecTags specs={q.specs} />
+        ) : (
+          (q.resolution || q.source || q.codec || q.language) && (
+            <div className="qspecs">
+              {[q.resolution, q.source, q.codec].filter(Boolean).map((x) => (
+                <span key={x} className="badge qspec">
+                  {x}
+                </span>
+              ))}
+              {q.language && (
+                <span className="badge qspec" title={t('The audio language the release name gives')}>
+                  {q.language}
+                </span>
+              )}
+            </div>
+          )
         )}
         {showBar && (
           <div className="qprogress">
             <div className={`bar ${animated && !q.pending ? 'active' : ''} ${barTone}`}>
               <span style={{ width: `${Math.max(2, q.progressPct)}%` }} />
             </div>
-            <small className="sr-only">
-              {q.sizeBytes ? t('{pct}% of {size}', { pct: q.progressPct.toFixed(0), size: formatBytes(q.sizeBytes) }) : `${q.progressPct.toFixed(0)}%`}
+            <small className={q.stage ? undefined : 'sr-only'}>
+              {q.stage ? (
+                // home fork: the step a finished download is on, and its timer
+                <>
+                  {stepLabel(q, q.sizeBytes ? formatBytes(q.sizeBytes) : '')}
+                  <Countdown ends={q.stageEnds} prefix=" · " />
+                </>
+              ) : q.sizeBytes ? (
+                t('{pct}% of {size}', { pct: q.progressPct.toFixed(0), size: formatBytes(q.sizeBytes) })
+              ) : (
+                `${q.progressPct.toFixed(0)}%`
+              )}
             </small>
           </div>
         )}
@@ -324,6 +342,7 @@ function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProp
         {note && <div className="qnote">{note}</div>}
         {q.error && <div className="error-text qerror">{q.error}</div>}
         {q.status === 'failed' && <FailureTips q={q} link={link} />}
+        {(q.status === 'failed' || q.status === 'stopped') && q.error && <ExplainFailure id={q.id} />} {/* home fork */}
         {q.status === 'conflict' && q.destPath && <div className="qrelease">{t('A file already exists at {path}', { path: q.destPath })}</div>}
         <QueueDetails q={q} admin={admin} />
         {(q.status === 'completed' || q.status === 'failed' || q.status === 'stopped') && (

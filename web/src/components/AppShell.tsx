@@ -1,4 +1,6 @@
+import { BRAND, USAGE_STATS } from '../brand' // Usherr
 import SidebarScrollMark from './SidebarScrollMark'
+import TourGate from '../home/tourGate' // home fork
 import { MiniPlayer, MusicPlayerProvider } from './MusicPlayer'
 import { Fragment, useCallback, useEffect, useRef, useState, Suspense } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
@@ -21,6 +23,8 @@ import Icon, { type IconName } from './Icon'
 import ProfileMenu from './ProfileMenu'
 import ReportHost from './ReportHost'
 import SideTools from './SideTools'
+import { PlayerHost } from '../home/Player' // play hook (home fork)
+import '../home/look.css' // home fork: its pages in the v3 look
 import SearchBox from './SearchBox'
 import ThemeToggle from './ThemeToggle'
 import UsageStatsPrompt from './UsageStats'
@@ -34,6 +38,7 @@ const NAV: { to: string; label: string; icon: IconName; sec: SectionKey; end?: b
   { to: '/discover', label: t('Discover'), icon: 'compass', sec: 'discover' },
   { to: '/library', label: t('Library'), icon: 'film', sec: 'library' },
   { to: '/calendar', label: t('Upcoming'), icon: 'calendar', sec: 'calendar' },
+  { to: '/tv', label: t('Live TV'), icon: 'tv', sec: 'live' }, // Mediarium TV (home fork): the one kind of media outside the Library
   { to: '/queue', label: t('Activity'), icon: 'activity', sec: 'activity' },
   { to: '/settings/media', label: t('Settings'), icon: 'sliders', sec: 'settings' },
 ]
@@ -54,10 +59,31 @@ function backFallback(path: string): string | undefined {
 // Persistent left sidebar plus an always-visible search bar that looks up
 // movies and TV shows live as you type. On phones the sidebar slides in from
 // the left.
+
+// home fork: where each page was left, for the session, by its address.
+const MAIN_PAGES = new Set(['/', '/discover', '/library', '/comics', '/scenes', '/calendar', '/queue', '/music/playlists', '/upcoming'])
+const spotKey = (path: string, search: string) => `page:${path}${search}`
+function spotOf(key: string): number {
+  try {
+    return Number(sessionStorage.getItem(key)) || 0
+  } catch {
+    return 0
+  }
+}
+function keepSpot(key: string, y: number) {
+  try {
+    if (y > 0) sessionStorage.setItem(key, String(Math.round(y)))
+    else sessionStorage.removeItem(key)
+  } catch {
+    // remembering is optional
+  }
+}
+
 export default function AppShell() {
   return (
     <MusicPlayerProvider>
       <Shell />
+      <TourGate /> {/* home fork: the first-visit tour */}
     </MusicPlayerProvider>
   )
 }
@@ -89,15 +115,29 @@ function Shell() {
     const el = document.querySelector('.content')
     if (!el) return
     const key = location.key
-    const onScroll = () => scrolled.current.set(key, el.scrollTop)
+    // home fork: the spot is also kept for the session by address, so a main page opens where you left it
+    const spot = spotKey(location.pathname, location.search)
+    let pending = 0
+    const onScroll = () => {
+      scrolled.current.set(key, el.scrollTop)
+      window.clearTimeout(pending)
+      pending = window.setTimeout(() => {
+        keepSpot(spot, el.scrollTop)
+        keepSpot(spotKey(location.pathname, ''), el.scrollTop) // the menu opens a page without its tab in the address
+      }, 150)
+    }
     el.addEventListener('scroll', onScroll, { passive: true })
-    return () => el.removeEventListener('scroll', onScroll)
-  }, [location.key])
+    return () => {
+      window.clearTimeout(pending)
+      el.removeEventListener('scroll', onScroll)
+    }
+  }, [location.key, location.pathname, location.search])
   useEffect(() => {
     const samePath = lastPath.current === location.pathname
     lastPath.current = location.pathname
-    if (navType === 'POP') {
-      const y = scrolled.current.get(location.key) ?? 0
+    // home fork: main pages (Dashboard, Discover, Library…) also come back to their spot when opened from the menu
+    if (navType === 'POP' || (!samePath && MAIN_PAGES.has(location.pathname))) {
+      const y = (navType === 'POP' ? scrolled.current.get(location.key) : undefined) ?? (spotOf(spotKey(location.pathname, location.search)) || spotOf(spotKey(location.pathname, '')))
       if (y === 0) return scrollToTop()
       // The list may still be loading, so keep trying for a moment until the page is tall enough.
       const el = document.querySelector('.content')
@@ -134,7 +174,9 @@ function Shell() {
   const ebooksOn = moduleOn('ebooks')
   const audiobooksOn = moduleOn('audiobooks')
   const musicOn = moduleOn('music')
-  const inUpcoming = location.pathname.startsWith('/wanted') || location.pathname.startsWith('/calendar')
+  // home fork: Comics, NSFW 18+ and the streamed sheet are inside the Library.
+  const inLibraryPages = /^\/(comics|scenes|streamed)(\/|$)/.test(location.pathname)
+  const inUpcoming = location.pathname.startsWith('/wanted') || location.pathname.startsWith('/calendar') || location.pathname.startsWith('/following') /* home fork */
   // Errors from the last day that nobody has marked as read (administrators only).
   const unreadErrors = useUnreadErrors(admin)
   const errorDot = <span className="nav-dot" role="img" aria-label={t('New errors')} title={t('New errors. See Settings, System, Logs and errors.')} />
@@ -251,17 +293,18 @@ function Shell() {
       >
         {t('Skip to content')}
       </a>
+      <PlayerHost /> {/* play hook (home fork) */}
       <div className={`sidebar-backdrop${menuOpen ? ' open' : ''}`} onClick={() => setMenuOpen(false)} />
       <nav ref={navRef} className={`sidebar${menuOpen ? ' open' : ''}`} aria-label={tc('menu', 'Main')}>
         <div className="brand">
           <BrandMark />
           <span className="brand-text">
-            <span className="brand-name">Mediarium</span>
+            <span className="brand-name">{BRAND}</span>
           </span>
         </div>
         {nav.map((n) => (
           <Fragment key={n.to}>
-          <NavLink to={n.to} end={n.end} style={{ ['--nc' as string]: `var(--c-${n.sec})` }} className={({ isActive }) => (n.sec === 'settings' ? (inSettings ? 'active parent-open' : '') : isActive || (n.sec === 'calendar' && inUpcoming) ? 'active' : '')}>
+          <NavLink to={n.to} end={n.end} style={{ ['--nc' as string]: `var(--c-${n.sec})` }} className={({ isActive }) => (n.sec === 'settings' ? (inSettings ? 'active parent-open' : '') : isActive || (n.sec === 'calendar' && inUpcoming) || (n.sec === 'library' && inLibraryPages) ? 'active' : '')}>
             <span className="nav-ico">
               <Icon name={n.icon} size={17} />
             </span>
@@ -406,7 +449,7 @@ function Shell() {
         </main>
         <MiniPlayer />
         {!demoEnabled() && <WhatsNew version={version} />}
-        {!demoEnabled() && admin && <UsageStatsPrompt />}
+        {!demoEnabled() && admin && USAGE_STATS && <UsageStatsPrompt />}
         <FeedbackNudge />
         <ReportHost />
       </div>

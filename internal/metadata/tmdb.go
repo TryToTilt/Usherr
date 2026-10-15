@@ -172,6 +172,8 @@ type Movie struct {
 	Genres       []Genre `json:"genres"` // only on the single-movie endpoint
 	// OriginalTitle is the title in the film's own language.
 	OriginalTitle string `json:"original_title"`
+	// OriginalLanguage is that language ("en"); home fork: "Not English" recipes.
+	OriginalLanguage string `json:"original_language"`
 	// BelongsToCollection is the collection (a series of films) this film is
 	// part of, on the single-movie endpoint; nil for a film that is on its own.
 	BelongsToCollection *CollectionRef `json:"belongs_to_collection"`

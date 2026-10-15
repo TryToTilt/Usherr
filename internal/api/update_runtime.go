@@ -94,7 +94,7 @@ func (s *Server) imageVersion() string { return s.cfg.ImageVersion }
 // update: it must have been started by the container image's entrypoint (which
 // sets the image version and picks the newest program), on Linux.
 func (s *Server) canInstallUpdates() bool {
-	return s.cfg.ImageVersion != "" && runtime.GOOS == "linux"
+	return !homeForkBuild && s.cfg.ImageVersion != "" && runtime.GOOS == "linux" // home fork: never
 }
 
 // installKind is "docker" or "native", for the steps the update card shows.

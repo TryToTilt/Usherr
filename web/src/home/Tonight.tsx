@@ -1,0 +1,123 @@
+// Home fork: Tonight, on the Dashboard. One tap asks the AI for three things
+// to watch tonight, from what you're in the middle of, the next episodes of
+// your shows and films you have but haven't seen (from Jellyfin or Emby).
+// Nothing is asked until you tap, and the answer is kept for the evening.
+import RouletteButton from './RouletteButton'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import Icon from '../components/Icon'
+import { currentLanguage, t } from '../i18n'
+
+interface Pick {
+  kind: 'movie' | 'tv'
+  tmdbId: number
+  title: string
+  year?: number
+  posterUrl?: string
+  label: 'Continue' | 'Next' | 'Unwatched' | 'New show'
+  episode?: string
+  why: string
+  to: string
+}
+
+interface Answer {
+  note: string
+  items: Pick[]
+}
+
+const KEY = 'tonight-answer'
+
+function labelOf(p: Pick): string {
+  switch (p.label) {
+    case 'Continue':
+      return t('Pick up where you left off')
+    case 'Next':
+      return t('Next episode')
+    case 'New show':
+      return t('A show you haven’t started')
+    default:
+      return t('A film you haven’t seen')
+  }
+}
+
+export default function Tonight({ autoAsk }: { autoAsk?: boolean } = {}) {
+  const [on, setOn] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [answer, setAnswer] = useState<Answer | null>(() => {
+    try {
+      const v = sessionStorage.getItem(KEY)
+      return v ? (JSON.parse(v) as Answer) : null
+    } catch {
+      return null
+    }
+  })
+  useEffect(() => {
+    fetch('/api/home/ai/on', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : { on: false }))
+      .then((d: { on: boolean }) => setOn(d.on))
+      .catch(() => undefined)
+  }, [])
+  const ask = async (again: boolean) => {
+    setBusy(true)
+    setError('')
+    try {
+      const r = await fetch('/api/home/ai/tonight', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lang: currentLanguage(), again }),
+      })
+      const d = await r.json().catch(() => null)
+      if (!r.ok) throw new Error(d?.error ?? t('Something went wrong (error {status}).', { status: r.status }))
+      setAnswer(d as Answer)
+      try {
+        sessionStorage.setItem(KEY, JSON.stringify(d))
+      } catch {
+        // remembering is optional
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  // Opened from the AI bar: ask straight away (an answer from this evening is reused).
+  useEffect(() => {
+    if (autoAsk && on && !answer) void ask(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoAsk, on])
+  if (!on) return null
+
+  return (
+    <section className="card tonight-card" aria-labelledby="tonight-title">
+      <div className="tonight-head">
+        <Icon name="sparkles" size={18} />
+        <h2 id="tonight-title">{t('Tonight')}</h2>
+        {answer?.note && <p className="hint">{answer.note}</p>}
+        <RouletteButton />
+        <button className={`btn-sm btn-with-icon${answer ? '' : ' primary'}`} onClick={() => void ask(!!answer)} disabled={busy}>
+          <Icon name={answer ? 'shuffle' : 'sparkles'} size={14} /> {busy ? t('Thinking…') : answer ? t('Something else') : t('What should I watch tonight?')}
+        </button>
+      </div>
+      {error && <p className="error-text">{error}</p>}
+      {answer && answer.items.length > 0 && (
+        <div className="tonight-list">
+          {answer.items.map((p) => (
+            <Link key={`${p.kind}-${p.tmdbId}`} to={p.to} className="tonight-item">
+              {p.posterUrl ? <img src={p.posterUrl} alt="" loading="lazy" /> : <span className="tonight-noposter" />}
+              <span className="tonight-body">
+                <small>{labelOf(p)}</small>
+                <b>
+                  {p.title} {p.year ? <span className="hint">({p.year})</span> : null}
+                </b>
+                {p.episode && <span className="tonight-ep">{p.episode}</span>}
+                <span className="tonight-why">{p.why}</span>
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}

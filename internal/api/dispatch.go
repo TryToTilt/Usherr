@@ -98,7 +98,7 @@ func (s *Server) newDispatcher() *queue.Dispatcher {
 		ManualOnly:   func() bool { return s.cfg.PauseAutomation },
 		Start:        s.startQueued,
 		OnStartError: s.startRefused,
-		Hold:         func() bool { return s.diskTooFull() || s.outsideDownloadHours() },
+		Hold:         func() bool { return s.diskTooFull() || s.outsideDownloadHours() || s.scheduleHoldsNewDownloads() }, // schedules hook (home fork)
 	})
 }
 

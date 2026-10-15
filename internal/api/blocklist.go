@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/blocklist"
@@ -184,7 +185,10 @@ func (s *Server) handleListBlocklist(w http.ResponseWriter, r *http.Request) {
 	}
 	out := []blocklistPayload{}
 	for _, e := range entries {
-		p := blocklistPayload{ID: e.ID, ReleaseTitle: e.ReleaseTitle, Protocol: e.Protocol, Reason: e.Reason}
+		if hideBlocklistEntry(r, e.Reason) { // scenes hook (home fork)
+			continue
+		}
+		p := blocklistPayload{ID: e.ID, ReleaseTitle: e.ReleaseTitle, Protocol: e.Protocol, Reason: strings.TrimPrefix(e.Reason, sceneBlocklistTag)}
 		if !e.CreatedAt.IsZero() {
 			p.CreatedAt = e.CreatedAt.Format(time.RFC3339)
 		}

@@ -13,6 +13,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"io"
 	"net/http"
 	"net/url"
@@ -91,7 +92,7 @@ func (c *Client) Ping(ctx context.Context) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("trakt-api-version", "2")
 	req.Header.Set("trakt-api-key", c.clientID)
-	req.Header.Set("User-Agent", "Mediarium (+https://github.com/rdborg/Mediarium)")
+	req.Header.Set("User-Agent", brand.Name+" (+"+brand.URL+")") // Usherr
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("trakt request: %w", err)
@@ -182,7 +183,7 @@ func (c *Client) ListMovies(ctx context.Context, user, listID string) ([]ListIte
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("trakt-api-version", "2")
 	req.Header.Set("trakt-api-key", c.clientID)
-	req.Header.Set("User-Agent", "Mediarium (+https://github.com/rdborg/Mediarium)")
+	req.Header.Set("User-Agent", brand.Name+" (+"+brand.URL+")") // Usherr
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

@@ -105,6 +105,10 @@ func (s *Server) handleDiscoverList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	list := r.URL.Query().Get("list")
+	page0, _ := queryInt(r, "page")
+	if s.homeDiscoverList(w, r, kind, list, metadata.ClampPage(page0)) { // home fork: watched, collections, season
+		return
+	}
 	if list != listSimilar && !metadata.ValidList(list) {
 		writeError(w, http.StatusBadRequest, `list must be "trending", "popular", "upcoming" or "similar"`)
 		return

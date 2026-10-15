@@ -103,6 +103,8 @@ func (s *Server) notice() noticePayload {
 	if n.Available {
 		ok, why := updatecheck.Installable(*latest, runtime.GOOS, runtime.GOARCH)
 		switch {
+		case homeForkBuild: // home fork
+			n.InstallNote = homeForkUpdateNote
 		case !s.canInstallUpdates():
 			n.InstallNote = "Update the way you installed Mediarium, using the steps below."
 		case len(pub) == 0:

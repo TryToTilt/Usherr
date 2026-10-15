@@ -235,12 +235,19 @@ func (s *Server) importOneBook(res bookImportResult) bookImportResult {
 	if res.Kind == books.Ebook && books.ComicFormat(res.Format) {
 		return s.importOneComic(res) // a comic isn't on Open Library: it goes in as it is
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute) // home fork: room for retries
 	defer cancel()
 	match, err := s.matchLocalBook(ctx, res.LocalBook)
 	if err != nil {
 		res.Status, res.Message = bookUnmatched, "Open Library didn't answer. Run the import again later."
 		return res
+	}
+	var hcMatch *books.HardcoverMatch
+	if match == nil { // home fork: author and title swapped, then Hardcover
+		match, hcMatch = s.matchLocalBookWider(ctx, res.LocalBook)
+		if hcMatch != nil {
+			match = &hcMatch.Found
+		}
 	}
 	if match == nil {
 		// An audiobook Open Library doesn't carry is often on Audible: ask
@@ -253,10 +260,10 @@ func (s *Server) importOneBook(res bookImportResult) bookImportResult {
 				return res
 			}
 		}
-		res.Status, res.Message = bookUnmatched, "Not found on Open Library. Check the folder is named Author/Title."
+		res.Status, res.Message = bookUnmatched, "Not found on Open Library or Hardcover. Check the folder is named Author/Title."
 		return res
 	}
-	return s.attachOpenLibraryBook(ctx, res, *match, false)
+	return s.attachBook(ctx, res, *match, false, hcMatch)
 }
 
 // attachOpenLibraryBook adds the Open Library book match to the library (when
@@ -265,6 +272,12 @@ func (s *Server) importOneBook(res bookImportResult) bookImportResult {
 // of that book would go. It is the end of an automatic match and the whole of
 // one picked by hand.
 func (s *Server) attachOpenLibraryBook(ctx context.Context, res bookImportResult, match books.Found, rename bool) bookImportResult {
+	return s.attachBook(ctx, res, match, rename, nil)
+}
+
+// attachBook is attachOpenLibraryBook with the Hardcover match it came from,
+// when it did (home fork: its description and cover are used).
+func (s *Server) attachBook(ctx context.Context, res bookImportResult, match books.Found, rename bool, hcMatch *books.HardcoverMatch) bookImportResult {
 	res.Matched = match.Title
 	b, ok, err := s.BookRepo.GetByKey(match.Key)
 	if err != nil {
@@ -274,13 +287,18 @@ func (s *Server) attachOpenLibraryBook(ctx context.Context, res bookImportResult
 	if !ok {
 		nb := books.Book{OLKey: match.Key, Title: match.Title, Author: match.Author, AuthorKey: match.AuthorKey, Year: match.Year, CoverID: match.CoverID,
 			WantEbook: res.Kind == books.Ebook, WantAudiobook: res.Kind == books.Audiobook}
-		if work, err := s.OpenLibrary.GetWork(ctx, match.Key); err == nil {
+		if hcMatch != nil {
+			nb.Description = hcMatch.Description
+		} else if work, err := s.OpenLibrary.GetWork(ctx, match.Key); err == nil {
 			nb.Description = work.Description
 			if nb.CoverID == 0 {
 				nb.CoverID = work.CoverID
 			}
 		}
 		b, err = s.BookRepo.Add(nb)
+		if err == nil && hcMatch != nil {
+			s.setHardcoverCover(b.ID, hcMatch.ImageURL)
+		}
 		if errors.Is(err, books.ErrExists) {
 			b, _, err = s.BookRepo.GetByKey(match.Key)
 		}
@@ -361,28 +379,7 @@ func (s *Server) importOneBookViaAudnexus(ctx context.Context, res bookImportRes
 // result with the same title (and author, when the folder names one), or
 // failing that the first whose title words are all in the name on disk.
 func (s *Server) matchLocalBook(ctx context.Context, lb books.LocalBook) (*books.Found, error) {
-	query := lb.Title
-	if lb.Author != "" {
-		query += " " + lb.Author
-	}
-	found, err := s.OpenLibrary.Search(ctx, query, 10)
-	if err != nil {
-		return nil, err
-	}
-	if len(found) == 0 && lb.Author != "" {
-		// The folder name may not be the author after all.
-		if found, err = s.OpenLibrary.Search(ctx, lb.Title, 10); err != nil {
-			return nil, err
-		}
-	}
-	for _, exact := range []bool{true, false} {
-		for i := range found {
-			if books.SameTitle(lb.Title, found[i].Title, exact) && (lb.Author == "" || books.SameAuthor(lb.Author, found[i].Author)) {
-				return &found[i], nil
-			}
-		}
-	}
-	return nil, nil
+	return s.OpenLibrary.MatchLocal(ctx, lb) // home fork: cleaned titles, field search, co-authors, retries (books/home_match.go)
 }
 
 // importOneComic adds a comic file as it is: no lookup, a library entry keyed

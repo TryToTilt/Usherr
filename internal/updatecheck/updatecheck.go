@@ -31,7 +31,7 @@ import (
 // fork can change it with
 //
 //	-ldflags "-X github.com/rdborg/mediarium/internal/updatecheck.DefaultRepo=owner/name"
-var DefaultRepo = "rdborg/Mediarium"
+var DefaultRepo = "TryToTilt/Usherr" // Usherr: its own releases
 
 // DefaultBaseURL is the GitHub API.
 const DefaultBaseURL = "https://api.github.com"

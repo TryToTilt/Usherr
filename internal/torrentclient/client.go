@@ -403,3 +403,7 @@ func SeedUntilGoalOf(ctx context.Context, t *torrent.Torrent, size int64, starte
 		}
 	}
 }
+
+// AllTorrents lists every torrent in the engine, including ones still
+// waiting for their metadata (home fork: diagnostics).
+func (c *Client) AllTorrents() []*torrent.Torrent { return c.tc.Torrents() }

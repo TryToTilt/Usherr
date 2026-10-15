@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"log"
 	"net/http"
 
@@ -24,7 +25,7 @@ func (s *Server) setupPush() {
 	}
 	if raw != "" {
 		if k, err := notify.DecodeVAPID(raw); err == nil {
-			notify.SetVAPID(notify.VAPID{Private: k, Subject: pushSubject})
+			notify.SetVAPID(notify.VAPID{Private: k, Subject: brand.URL})
 			return
 		}
 		log.Printf("push: the saved key can't be read; making a new one (devices need to allow notifications again)")
@@ -43,7 +44,7 @@ func (s *Server) setupPush() {
 		log.Printf("push: save the key: %v", err)
 		return
 	}
-	notify.SetVAPID(notify.VAPID{Private: k, Subject: pushSubject})
+	notify.SetVAPID(notify.VAPID{Private: k, Subject: brand.URL})
 }
 
 // handlePushKey answers the public key a browser subscribes with.

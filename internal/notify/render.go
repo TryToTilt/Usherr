@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"html"
 	"mime"
 	"mime/quotedprintable"
@@ -52,7 +53,10 @@ func httpsURL(u string) string {
 
 // RenderEmailHTML draws the message as an HTML page for email clients: a
 // table layout with inline styles, which is all they agree on.
-func RenderEmailHTML(ev Event) string {
+// RenderEmailHTML is the email's HTML, with the app's name as Usherr.
+func RenderEmailHTML(ev Event) string { return brand.Text(renderEmailHTML(ev)) }
+
+func renderEmailHTML(ev Event) string {
 	e := html.EscapeString
 	accent := kindAccent(ev)
 	var b strings.Builder
@@ -66,7 +70,7 @@ func RenderEmailHTML(ev Event) string {
 
 	// Header: the full Mediarium logo (sent inside the email, so nothing is
 	// fetched from anywhere) over a stripe in the colour of the message.
-	b.WriteString(`<tr><td style="padding:22px 32px 18px 32px;background:#ffffff;"><img src="cid:` + logoCID + `" width="200" alt="Mediarium" style="display:block;width:200px;height:auto;border:0;"></td></tr>`)
+	b.WriteString(`<tr><td style="padding:22px 32px 18px 32px;background:#ffffff;"><img src="cid:` + logoCID + `" width="200" alt="` + brand.Name + `" style="display:block;width:200px;height:auto;border:0;"></td></tr>`)
 	b.WriteString(`<tr><td style="height:4px;line-height:4px;font-size:0;background:` + accent + `;">&nbsp;</td></tr>`)
 
 	// Body: the poster on one half, the words and the facts stacked on the other.
@@ -111,7 +115,10 @@ func buttonInk(bg string) string {
 }
 
 // RenderEmailText is the plain-text alternative of the same message.
-func RenderEmailText(ev Event) string {
+// RenderEmailText is the email's plain text, with the app's name as Usherr.
+func RenderEmailText(ev Event) string { return brand.Text(renderEmailText(ev)) }
+
+func renderEmailText(ev Event) string {
 	var b strings.Builder
 	b.WriteString(ev.Title + "\n\n" + ev.Lead + "\n")
 	if len(ev.Details) > 0 {

@@ -19,6 +19,15 @@ func split(pattern string) (method, path string) {
 
 // A viewer may only look. These are the few things a viewer may do with a
 // method that changes something, all of them about their own account.
+// viewerAsks (home fork): AI questions a viewer may ask; they change nothing.
+var viewerAsks = map[string]bool{
+	"POST /api/home/ai/ask": true, "POST /api/home/ai/search": true, "POST /api/home/ai/room": true, "POST /api/home/ai/recap": true,
+	"POST /api/home/ai/tonight": true, "POST /api/home/ai/explain": true, "POST /api/home/ai/comic-recap": true, "POST /api/home/ai/similar-artists": true,
+	"POST /api/home/ai/book-search": true, "POST /api/home/ai/read-alikes": true, "POST /api/home/ai/book-recap": true, "POST /api/home/ai/vibe": true,
+	"POST /api/home/ai/skip-guide": true, "POST /api/home/ai/comic-guide": true,
+	"POST /api/home/recipes": true, "PUT /api/home/recipes/{id}": true, "DELETE /api/home/recipes/{id}": true, "POST /api/home/recipes/{id}/copy": true, "PUT /api/home/my-services": true, "POST /api/home/gaps/ignore": true,
+}
+
 var viewerMayWrite = map[string]bool{
 	"PUT /api/auth/profile": true, "POST /api/auth/change-password": true,
 	"POST /api/auth/two-step/setup": true, "POST /api/auth/two-step/enable": true,
@@ -66,7 +75,7 @@ func TestViewerAndReadOnlyKeyCannotReachAChangingOrAdminRoute(t *testing.T) {
 		level := routes[pattern]
 
 		// --- the viewer account ---
-		mustBlock := level == "admin" || (!isRead(method) && !viewerMayWrite[pattern]) || viewerMayNotRead[pattern]
+		mustBlock := level == "admin" || (!isRead(method) && !viewerMayWrite[pattern] && !viewerAsks[pattern]) || viewerMayNotRead[pattern]
 		if mustBlock {
 			status, out := e.call(viewer, method, path, map[string]any{})
 			if status != http.StatusForbidden {

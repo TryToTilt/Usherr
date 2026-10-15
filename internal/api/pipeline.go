@@ -228,6 +228,9 @@ func (s *Server) prepareDownload(ctx context.Context, queueID int64, downloadURL
 	if !reused && protocol != indexers.ProtocolTorrent && keptResume(incompleteDir) {
 		s.queueEvent(queueID, "retried", queue.LevelInfo, "Carrying on from the part already downloaded")
 	}
+	if !reused {
+		setQueueStage(queueID, "Downloading") // home fork
+	}
 	switch {
 	case reused:
 	case protocol == indexers.ProtocolTorrent && s.downloadClientOn():
@@ -237,6 +240,8 @@ func (s *Server) prepareDownload(ctx context.Context, queueID int64, downloadURL
 		downloadErr = s.downloadDebrid(ctx, queueID, downloadURL, incompleteDir)
 	case protocol == indexers.ProtocolTorrent:
 		downloadErr = s.downloadTorrent(ctx, queueID, downloadURL, incompleteDir)
+	case protocol == indexers.ProtocolDirect: // home fork: GetComics
+		downloadErr = s.downloadDirect(ctx, queueID, downloadURL, incompleteDir)
 	default:
 		missing, downloadErr = s.downloadUsenet(ctx, queueID, downloadURL, incompleteDir)
 	}
@@ -257,6 +262,9 @@ func (s *Server) prepareDownload(ctx context.Context, queueID int64, downloadURL
 		return "", err // paused or stopped: leave the files as they are
 	}
 	if err := s.QueueRepo.SetStatus(queueID, queue.StatusImporting, ""); err != nil {
+		return "", err
+	}
+	if err := s.waitForPostprocess(ctx, queueID); err != nil { // schedules hook (home fork)
 		return "", err
 	}
 	// A download client's files are never repaired here: that would write to
@@ -280,6 +288,7 @@ func (s *Server) prepareDownload(ctx context.Context, queueID int64, downloadURL
 	if err := s.checkUnpackedSafe(incompleteDir); err != nil {
 		return "", err
 	}
+	setQueueStage(queueID, "Moving into the library") // home fork; copying reports its progress
 	return incompleteDir, nil
 }
 
@@ -872,7 +881,7 @@ func fetchURLLimit(ctx context.Context, url string, maxBytes int64) ([]byte, err
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", indexers.UserAgent)
+	req.Header.Set("User-Agent", indexers.Agent()) // Usherr
 	// Through the address check (no cloud metadata or link-local targets,
 	// even via a redirect), and the proxy when one is set for indexers;
 	// errors and messages never carry the link's query string, which holds

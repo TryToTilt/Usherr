@@ -76,7 +76,7 @@ RUN set -e; \
 FROM ${FLARESOLVERR_IMAGE} AS full
 USER root
 ARG VERSION=
-LABEL org.opencontainers.image.version="${VERSION}"       org.opencontainers.image.source="https://github.com/rdborg/mediarium"       org.opencontainers.image.licenses="AGPL-3.0"       org.opencontainers.image.description="Mediarium with a built-in Cloudflare helper (FlareSolverr)"
+LABEL org.opencontainers.image.version="${VERSION}"       org.opencontainers.image.source="https://github.com/TryToTilt/Usherr"       org.opencontainers.image.licenses="AGPL-3.0"       org.opencontainers.image.description="Usherr with a built-in Cloudflare helper (FlareSolverr)"
 RUN apt-get update  && apt-get install -y --no-install-recommends ca-certificates tzdata par2 p7zip-full  && rm -rf /var/lib/apt/lists/*
 ENV PUID=1000     PGID=1000     TZ=Etc/UTC     APP_PORT=8264     BUNDLED_FLARESOLVERR=1
 # The program inside this image. The entrypoint may start a newer installed one
@@ -106,7 +106,7 @@ FROM alpine:3.24
 # build stage. Release builds pass it explicitly, so the label is exact there.
 ARG VERSION=
 LABEL org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.source="https://github.com/rdborg/mediarium" \
+      org.opencontainers.image.source="https://github.com/TryToTilt/Usherr" \
       org.opencontainers.image.licenses="AGPL-3.0"
 # par2cmdline (PAR2 verify/repair) and p7zip are the tools internal/organizer
 # shells out to. p7zip is only used for .7z archives: RAR and
@@ -115,6 +115,10 @@ LABEL org.opencontainers.image.version="${VERSION}" \
 # tini runs as process 1 and cleans up processes that end without a parent
 # (for example ones a post-import script left behind).
 RUN apk add --no-cache ca-certificates tzdata su-exec par2cmdline p7zip tini
+# home fork: adb, to start playback on the living-room TV (Android TV / Shield)
+RUN apk add --no-cache android-tools
+# home fork: ffmpeg/ffprobe for Mediarium TV (program lengths; later the Live TV tuner)
+RUN apk add --no-cache ffmpeg
 
 # Default UID/GID, overridable via PUID/PGID at runtime
 ENV PUID=1000 \

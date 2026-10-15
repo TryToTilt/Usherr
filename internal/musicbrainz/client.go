@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"io"
 	"net/http"
 	"net/url"
@@ -100,7 +101,7 @@ func UserAgent(version string) string {
 	if version == "" {
 		version = "dev"
 	}
-	return fmt.Sprintf("Mediarium/%s ( https://github.com/rdborg/Mediarium )", version)
+	return brand.Agent(version) // Usherr: identifies itself
 }
 
 // New returns a client for the public MusicBrainz server that identifies

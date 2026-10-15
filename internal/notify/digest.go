@@ -2,6 +2,7 @@ package notify
 
 import (
 	"fmt"
+	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"time"
 )
 
@@ -22,7 +23,7 @@ type Digest struct {
 // ComposeDigest builds the weekly summary.
 func ComposeDigest(d Digest, links Links, at time.Time) Event {
 	arrived := d.Movies + d.Episodes + d.Albums + d.Books
-	ev := Event{Type: EventDigest, Timestamp: at, Title: "Mediarium this week", LinkURL: links.to("/")}
+	ev := Event{Type: EventDigest, Timestamp: at, Title: brand.Name + " this week", LinkURL: links.to("/")}
 	switch {
 	case arrived == 0 && d.Failed == 0:
 		ev.Lead = "Nothing new came in this week."

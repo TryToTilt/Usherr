@@ -53,7 +53,7 @@ func (s *Server) handleManualImportList(w http.ResponseWriter, r *http.Request) 
 		}
 		name := d.Name()
 		if d.IsDir() {
-			if path != root && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "@")) {
+			if path != root && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "@") || s.isSceneWorkDir(path)) { // scenes hook (home fork)
 				return filepath.SkipDir
 			}
 			return nil

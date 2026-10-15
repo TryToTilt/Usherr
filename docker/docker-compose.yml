@@ -14,10 +14,10 @@
 
 services:
   mediarium:
-    # For sites behind a Cloudflare check, use ghcr.io/rdborg/mediarium:latest-full
+    # For sites behind a Cloudflare check, use ghcr.io/trytotilt/usherr:latest-full
     # instead (bigger, but has the helper built in). See docs/INSTALL.md.
-    image: ghcr.io/rdborg/mediarium:latest
-    container_name: mediarium
+    image: ghcr.io/trytotilt/usherr:latest
+    container_name: usherr
     restart: unless-stopped
     # Nothing running in the container can gain more privileges than it starts with.
     security_opt:
@@ -32,6 +32,8 @@ services:
       - "58264:58264/tcp"
       - "58264:58264/udp"
     environment:
+      # Usherr: the NSFW 18+ module is locked unless this is set (see the README).
+      # - USHERR_ALLOW_ADULT=1
       # CHANGE: the user and group that own your media folders.
       # On the server, run "id" and use the uid and gid numbers it prints.
       # (On a Synology, copy them from another container's Environment tab.)

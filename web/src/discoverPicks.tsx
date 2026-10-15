@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { reloadLeanings } from './home/leanings' // home fork
 import { api, isViewer } from './api'
 import { useAuth } from './AuthContext'
 import type { AddTarget } from './components/AddDialog'
@@ -48,7 +49,10 @@ export function PicksProvider({ children }: { children: ReactNode }) {
       setExcluded((s) => new Set(s).add(key))
       api
         .addExclusion({ kind: item.kind, tmdbId: item.tmdbId, title: item.title, year: item.year })
-        .then(() => toast.success(t("{title} won't be shown again. Undo it under Not interested at the top of Discover.", { title: item.title })))
+        .then(() => {
+          toast.success(t("{title} won't be shown again. Undo it under Not interested at the top of Discover.", { title: item.title }))
+          reloadLeanings() // home fork: Discover learns from it
+        })
         .catch((e) => toast.error(e instanceof Error ? e.message : String(e)))
     },
     [toast],

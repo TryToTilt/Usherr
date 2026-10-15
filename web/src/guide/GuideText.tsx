@@ -77,9 +77,14 @@ function Inlines({ nodes, file, linker, inLink = false }: { nodes: Inline[]; fil
             )
           case 'br':
             return <br key={i} />
-          case 'img':
+          case 'img': {
             // The guide carries no pictures; the words of the caption are kept out of the flow too.
-            return null
+            // home fork: except the fork's own pages (docs/home), whose pictures the build
+            // copies to /guide-images; they load as they scroll into view.
+            const name = /^images\/([\w.-]+\.(?:png|jpe?g|webp))$/i.exec(n.src)?.[1]
+            if (!file.startsWith('home/') || !name) return null
+            return <img key={i} className="guide-img" src={`/guide-images/${name}`} alt={n.alt} loading="lazy" decoding="async" />
+          }
           case 'link': {
             const inner = <Inlines nodes={n.c} file={file} linker={linker} inLink />
             if (inLink) return <Fragment key={i}>{inner}</Fragment>

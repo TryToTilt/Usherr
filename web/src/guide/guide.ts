@@ -124,13 +124,15 @@ export function resolveDocLink(href: string, fromFile: string, guide: GuideIndex
     }
     if (rest === '') file = fromFile
     else {
-      const p = repoPath(rest)
+      // home fork: a link is relative to the page's own folder (docs/home/…)
+      const dir = fromFile.includes('/') ? fromFile.slice(0, fromFile.lastIndexOf('/') + 1) : ''
+      const p = repoPath(dir + rest)
       if (p === null) return { kind: 'none' }
       if (p.startsWith('docs/')) file = p.slice('docs/'.length)
       else return { kind: 'external', url: REPO_BLOB + p + (anchor ? '#' + anchor : '') }
     }
   }
-  if (file.endsWith('.md') && !file.includes('/')) {
+  if (file.endsWith('.md') && (!file.includes('/') || file.startsWith('home/'))) { // home fork: docs/home pages are topics too
     // Prefer a topic that holds the whole page, and the one that has the anchor when it is named.
     const candidates = guide.topics.filter((t) => t.byFile.has(file))
     if (anchor) {

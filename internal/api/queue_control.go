@@ -200,7 +200,7 @@ func (s *Server) preparePipeline(item queue.Item) (func(), error) {
 		if err != nil {
 			return nil, errors.New("That show isn't in your library any more.")
 		}
-		season, episodes := resolveTVTarget(item.ReleaseTitle, item.Season, item.Episode)
+		season, episodes := s.queuedTVTarget(series, item.ReleaseTitle, item.Season, item.Episode) // home fork: the show's own numbering
 		if season == 0 && len(episodes) == 0 {
 			return nil, errors.New("Couldn't tell which season this download is for.")
 		}
@@ -253,6 +253,12 @@ func (s *Server) preparePipeline(item queue.Item) (func(), error) {
 			}
 		}, nil
 	}
+	if run, ok, err := s.prepareScenePipeline(item, protocol); ok { // scenes hook (home fork)
+		return run, err
+	}
+	if run, ok, err := s.prepareComicPipeline(item, protocol); ok { // comics hook (home fork)
+		return run, err
+	}
 	return nil, errors.New("This download isn't linked to a movie, show, album or book.")
 }
 
@@ -303,6 +309,9 @@ func (s *Server) releaseTitleClaims(item queue.Item) {
 			return
 		}
 		season, episodes := resolveTVTarget(item.ReleaseTitle, item.Season, item.Episode)
+		if series, err := s.MovieRepo.GetSeries(item.SeriesID); err == nil {
+			season, episodes = s.queuedTVTarget(series, item.ReleaseTitle, item.Season, item.Episode) // home fork: the show's own numbering
+		}
 		others := s.otherOpenDownloads(item.SeriesID, item.ID)
 		for _, ep := range eps {
 			if ep.Status != library.StatusDownloading || ep.Season != season || !coversEpisode(season, episodes, ep) {
@@ -663,6 +672,13 @@ func (s *Server) tidyOrphans() tidyResult {
 		if !(it.Status == queue.StatusQueued || (it.Status == queue.StatusPaused && it.Interrupted)) {
 			continue
 		}
+		// Home fork: never throw away what someone picked by hand, or a
+		// download that already finished (a 4K remux grabbed for a film in
+		// the library, fully downloaded and unpacked, was removed, files and
+		// all, by a restart during its import).
+		if it.Priority >= queue.PriorityManual || fileExists(filepath.Join(s.workDirFor(it.ID), downloadedMarker)) {
+			continue
+		}
 		noUpgrade := false
 		switch {
 		case it.MovieID > 0:
@@ -785,6 +801,7 @@ func (s *Server) recoverAtStartup() {
 	if paused > 0 || tidy.any() {
 		slog.Info("queue: start-up check", "pausedDownloads", paused, "moviesFixed", tidy.Movies, "episodesFixed", tidy.Episodes, "albumsFixed", tidy.Albums, "booksFixed", tidy.Books, "upgradesRemoved", tidy.Upgrades)
 	}
+	paused -= s.pausedSceneDownloads() // scenes hook (home fork): scene downloads aren't counted in shared activity
 	if paused > 0 {
 		_ = s.QueueRepo.LogActivity(0, "paused", fmt.Sprintf("Mediarium was restarted, so %s that was downloading is now paused. Press Resume in Activity to carry on.", plural(int(paused), "download")))
 	}

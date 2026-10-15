@@ -9,6 +9,7 @@ import { TagChips, TagInput } from './Tags'
 import { PosterFallback } from './PosterCard'
 import { useToast } from './Toast'
 import { useFocusTrap } from '../useFocusTrap'
+import AddAsStream from '../home/AddAsStream' // home fork: add as stream
 import { t, st } from '../i18n'
 import { defaultProfileFor } from '../profileDefaults'
 import InfoTip from './InfoTip'
@@ -320,6 +321,7 @@ function AddForm({
 
         <div className="modal-foot">
           <button onClick={onClose} disabled={busy}>{t('Cancel')}</button>
+          <AddAsStream kind={target.kind} tmdbId={target.tmdbId} title={target.title} disabled={busy} onDone={onClose} />
           <button className="primary btn-with-icon" onClick={submit} disabled={busy}>
             <Icon name="plus" size={16} /> {busy ? (asks ? t('Sending…') : t('Adding…')) : asks ? (isMovie ? t('Request movie') : t('Request show')) : isMovie ? t('Add movie') : t('Add show')}
           </button>

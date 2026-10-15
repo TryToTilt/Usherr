@@ -147,6 +147,36 @@ func TestOnePar2FilePerSet(t *testing.T) {
 	}
 }
 
+// A release posted with only its recovery volumes and no main index still
+// gets one PAR2 file per set, so a release with missing articles can be
+// repaired instead of failing with "no PAR2 files".
+func TestVolumesOnlyReleaseStillHasPar2(t *testing.T) {
+	dir := t.TempDir()
+	a := bytes.Repeat([]byte{4}, 16)
+	vol := par2Packet(a, "PAR 2.0\x00Main\x00\x00\x00\x00", make([]byte, 12))
+	for _, name := range []string{"Movie.2021.vol-01.par2", "Movie.2021.vol-02.par2", "Movie.2021.vol-010.par2"} {
+		if err := os.WriteFile(filepath.Join(dir, name), vol, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := FindMainPar2Files(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("want one volume to repair from, got %v", got)
+	}
+
+	// With a main index present, the volumes are left to par2 as before.
+	if err := os.WriteFile(filepath.Join(dir, "Movie.2021.par2"), vol, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err = FindMainPar2Files(dir)
+	if err != nil || len(got) != 1 || filepath.Base(got[0]) != "Movie.2021.par2" {
+		t.Fatalf("want the main index, got %v (%v)", got, err)
+	}
+}
+
 func TestPar2ProblemIsOneSentence(t *testing.T) {
 	out := "Loading \"x.par2\".\nLoading: 11.6%\rLoading: 11.7%\rLoading: 24.1%\n\nRepair is not possible.\nYou need 12 more recovery blocks to be able to repair.\n"
 	if got := par2Problem([]byte(out)); got != "PAR2 can't repair this download: it needs 12 more recovery blocks than the release has" {
@@ -208,7 +238,7 @@ func TestObfuscatedReleaseRepairsRealBinary(t *testing.T) {
 
 // A release posted with only its recovery volumes and no main index can still
 // be repaired from one of the volumes (GitHub #20).
-func TestVolumesOnlyReleaseStillHasPar2(t *testing.T) {
+func TestVolumesOnlyReleaseStillHasPar2Upstream(t *testing.T) {
 	dir := t.TempDir()
 	a := bytes.Repeat([]byte{4}, 16)
 	vol := par2Packet(a, "PAR 2.0\x00Main\x00\x00\x00\x00", make([]byte, 12))

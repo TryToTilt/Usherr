@@ -1,22 +1,22 @@
 import KindGlyph, { type GlyphKind } from '../components/KindGlyph'
+import OmniBar from '../home/OmniBar' // home fork
+import DashCalendar from '../home/DashCalendar' // home fork
+import Tonight from '../home/Tonight' // home fork
+import News from '../home/News' // home fork
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { api, displayName, isAdmin, type LibraryStats, type CalendarEntry, type DashboardData, type DashFolder, type DashRecent, type HealthItem, type QueueItem } from '../api'
+import { api, displayName, isAdmin, type CalendarEntry, type DashboardData, type DashRecent, type HealthItem, type QueueItem } from '../api'
 import { useAuth } from '../AuthContext'
-import CalendarGrid, { KindBadge } from '../components/CalendarGrid'
+import { KindBadge } from '../components/CalendarGrid'
 import Icon, { type IconName } from '../components/Icon'
 import InfoTip from '../components/InfoTip'
-import HelpLink from '../components/HelpLink'
 import Loading from '../components/Loading'
-import PosterCard, { PosterFallback } from '../components/PosterCard'
+import PosterCard from '../components/PosterCard'
 import { describeState, type ItemStateKey } from '../components/state'
-import { formatBytes, qualityText, timeAgo } from '../format'
+import { timeAgo } from '../format'
 import { locale, plural, t, tx } from '../i18n'
-import { linePlace } from '../queueView'
-import { ServerInfoCard, useServerStats } from '../components/ServerStats'
 import { useModules } from '../ModulesContext'
 import SetupGaps from '../components/SetupGaps'
-import { DashboardUpdate } from '../components/UpdateCards'
 import { dismiss, factsFromDashboard, isDismissed, setupGaps } from '../setupStatus'
 import { useGridColumns } from '../useGridColumns'
 import { useLive } from '../useLive'
@@ -150,113 +150,7 @@ function Health({ items, showOptional, errors = 0 }: { items: HealthItem[]; show
   )
 }
 
-function FolderCard({ f }: { f: DashFolder }) {
-  const used = f.totalBytes > 0 ? 1 - f.freeBytes / f.totalBytes : 0
-  const tone = !f.exists || !f.writable ? 'bad' : used > 0.95 ? 'bad' : used > 0.85 ? 'warn' : ''
-  const icon: IconName = f.key === 'movies' ? 'film' : f.key === 'tv' ? 'tv' : f.key === 'music' ? 'music' : f.key === 'ebooks' ? 'book' : f.key === 'audiobooks' ? 'headphones' : 'download'
-  if (f.off) {
-    return (
-      <div className="folder-card is-off" title={t('Switched off in Settings > Media types')}>
-        <div className="folder-head">
-          <span className="stat-icon">
-            <Icon name={icon} size={18} />
-          </span>
-          <div style={{ minWidth: 0 }}>
-            <strong>{f.label}</strong>
-            {f.path && <code title={f.path}>{f.path}</code>}
-          </div>
-          <span className="badge">{t('Off')}</span>
-        </div>
-      </div>
-    )
-  }
-  return (
-    <div className={`folder-card${!f.exists || !f.writable ? ' broken' : ''}`}>
-      <div className="folder-head">
-        <span className="stat-icon">
-          <Icon name={icon} size={18} />
-        </span>
-        <div style={{ minWidth: 0 }}>
-          <strong>{f.label}</strong>
-          {f.path && <code title={f.path}>{f.path}</code>}
-        </div>
-      </div>
-      <div className="folder-badges">
-        {!f.exists ? (
-          <span className="badge failed">{t('not found')}</span>
-        ) : (
-          <>
-            <span className={`badge ${f.writable ? 'downloaded' : 'failed'}`}>{f.writable ? t('writable') : t('read-only')}</span>
-            {f.mountKnown && <span className={`badge ${f.mounted ? 'downloaded' : 'missing'}`}>{f.mounted ? t('Mapped to your device') : t('not a mapped folder')}</span>}
-            {f.hardlinks !== undefined && (
-              <span className={`badge ${f.hardlinks ? 'downloaded' : ''}`} title={f.hardlinks ? t('Same drive as Downloads: imports use hardlinks, no extra space') : t('Different drive from Downloads: imports copy the file')}>
-                {f.hardlinks ? t('hardlinks on') : t('copies on import')}
-              </span>
-            )}
-          </>
-        )}
-      </div>
-      {f.exists && f.totalBytes > 0 && (
-        <>
-          <div className={`bar ${tone}`} title={t('{pct}% of the drive used', { pct: Math.round(used * 100) })}>
-            <span style={{ width: `${Math.max(2, used * 100)}%` }} />
-          </div>
-          <div className="folder-meta">
-            <span>{t('{free} free of {total}', { free: formatBytes(f.freeBytes), total: formatBytes(f.totalBytes) })}</span>
-            {f.key !== 'downloads' && (
-              <span>
-                {f.items.toLocaleString(locale())} {f.itemsLabel}
-                {f.libraryBytes > 0 ? ` · ${formatBytes(f.libraryBytes)}` : ''}
-              </span>
-            )}
-            {f.key === 'downloads' && <span>{t('{n} downloading', { n: f.items })}</span>}
-          </div>
-        </>
-      )}
-      {f.warnings.map((w) => (
-        <p key={w} className="folder-warn">
-          {w}
-        </p>
-      ))}
-    </div>
-  )
-}
 
-function ActiveDownloads({ items }: { items: QueueItem[] }) {
-  if (items.length === 0) {
-    return (
-      <div className="empty-inline">
-        <Icon name="download" size={22} /> {t('Nothing is downloading right now.')}
-      </div>
-    )
-  }
-  return (
-    <ul className="mini-list">
-      {items.slice(0, 6).map((q) => (
-        <li key={q.id}>
-          <div className="mini-thumb">{q.posterUrl ? <img src={q.posterUrl} alt="" loading="lazy" /> : <PosterFallback />}</div>
-          <div className="mini-main">
-            <div className="mini-title">
-              <strong>{q.title}</strong>
-              {q.subtitle && <span className="badge">{q.subtitle}</span>}
-              <span className={`badge ${q.status}`}>{q.status === 'queued' ? linePlace(q.queuePosition) : q.status}</span>
-            </div>
-            {q.status !== 'queued' && (
-              <div className="qprogress">
-                <div className="bar active">
-                  <span style={{ width: `${Math.max(3, q.progressPct)}%` }} />
-                </div>
-                <small>
-                  {q.progressPct.toFixed(0)}%{q.sizeBytes ? ` · ${formatBytes(q.sizeBytes)}` : ''}
-                </small>
-              </div>
-            )}
-          </div>
-        </li>
-      ))}
-    </ul>
-  )
-}
 
 // Where a recently added or downloaded entry opens: a movie, a show, or the
 // artist page of an album.
@@ -343,7 +237,6 @@ function Tile({ tone, icon, title, link, to, tip, children }: { tone?: string; i
 }
 
 export default function Dashboard() {
-  const server = useServerStats()
   const { user } = useAuth()
   const { on } = useModules()
   const [data, setData] = useState<DashboardData | null>(null)
@@ -416,7 +309,6 @@ export default function Dashboard() {
   const inLine = active.filter((i) => i.status === 'queued').length
   const running = active.length - inLine
   const problems = data.health.filter((h) => h.level !== 'info').length
-  const qualityTotal = lib.qualities.reduce((n, q) => n + q.count, 0)
 
   // Downloading, wanted, all good: with the server panel when there is one.
   const heroPills = (
@@ -436,7 +328,7 @@ export default function Dashboard() {
               <Icon name="check" size={15} /> {t('All good')}
             </span>
           )}
-          {data.health.some((h) => h.level === 'info') && (
+          {admin && data.health.some((h) => h.level === 'info') && ( // home fork: setting things up is for administrators
             <button className="hero-pill" style={{ ['--pc' as string]: 'var(--c-settings)' }} onClick={() => setShowOptional((v) => !v)} aria-expanded={showOptional}>
               <Icon name="sliders" size={15} /> {t('{n} optional', { n: data.health.filter((h) => h.level === 'info').length })}
             </button>
@@ -446,7 +338,8 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard">
-      <section className={`hero-welcome${server.denied ? '' : ' with-server'}`}>
+      <OmniBar page="dashboard" /> {/* home fork: search and AI at the top */}
+      <section className="hero-welcome">
         <div className="hero-drift" aria-hidden="true">
           {DRIFT.map((d, i) => (
             <span key={i} className={`drift-item${d.far ? ' far' : ''}`} style={{ left: d.x, top: d.y, color: `var(--c-${d.c})`, animationDelay: `${-i * 3.7}s` }}>
@@ -475,18 +368,13 @@ export default function Dashboard() {
                   : t('Everything is up to date.')}
           </p>
         </div>
-          {server.denied && heroPills}
+          {heroPills} {/* home fork: server details live in Settings > System */}
         </div>
-        {!server.denied && (
-          <div className="hero-server">
-            {heroPills}
-            <ServerInfoCard stats={server.stats} denied={server.denied} to={admin ? '/settings/system' : undefined} />
-          </div>
-        )}
       </section>
 
-      {admin && <DashboardUpdate />}
       <TwoStepTip />
+      <Tonight /> {/* home fork: what to watch tonight */}
+      <News /> {/* home fork: entertainment news */}
 
       {admin && !startedClosed && startedGaps.length > 0 && (
         <section className="card started-card" aria-labelledby="started-title">
@@ -506,6 +394,10 @@ export default function Dashboard() {
             </button>
           </div>
           <SetupGaps gaps={startedGaps} />
+          {/* home fork: every part, not just the basics */}
+          <p className="hint setup-gaps-more">
+            <Link to="/settings/setup">{t('See the whole setup checklist')}</Link>
+          </p>
         </section>
       )}
 
@@ -516,8 +408,8 @@ export default function Dashboard() {
       )}
 
       <div className="dash-cards">
-        <ModuleCard icon="film" glyph="movie" label={t('Movies')} value={lib.movies.total} sub={t('{downloaded} downloaded · {missing} missing', { downloaded: lib.movies.downloaded, missing: lib.movies.missing })} to="/library?kind=movie" color="var(--c-movie)" off={!on('movies')} />
-        <ModuleCard icon="tv" glyph="tv" label={t('TV shows')} value={lib.series.total} sub={t('{have} of {total} episodes', { have: lib.series.episodesDownloaded, total: lib.series.episodes })} to="/library?kind=tv" color="var(--c-tv)" off={!on('tv')} />
+        <ModuleCard icon="film" glyph="movie" label={t('Movies')} value={lib.movies.total} sub={[t('{n} on disk', { n: lib.movies.downloaded }), lib.movies.streams ? t('{n} stream', { n: lib.movies.streams }) : '', t('{n} missing', { n: lib.movies.missing })].filter(Boolean).join(' · ')} to="/library?kind=movie" color="var(--c-movie)" off={!on('movies')} />
+        <ModuleCard icon="tv" glyph="tv" label={t('TV shows')} value={lib.series.total} sub={[plural(lib.series.episodes, '{n} episode', '{n} episodes'), t('{n} on disk', { n: lib.series.episodesDownloaded }), lib.series.episodesStreams ? t('{n} stream', { n: lib.series.episodesStreams }) : ''].filter(Boolean).join(' · ')} to="/library?kind=tv" color="var(--c-tv)" off={!on('tv')} />
         <ModuleCard
           icon="music"
           glyph="music"
@@ -577,10 +469,6 @@ export default function Dashboard() {
       )}
 
       <div className="bento">
-        <Tile tone="activity" icon="download" title={t('Downloading now')} tip={t('Downloads that are running or waiting in line. Open Activity to pause, stop or retry one.')} link={t('Activity')} to="/queue">
-          <ActiveDownloads items={active} />
-        </Tile>
-
         <Tile tone="calendar" icon="calendar" title={t('Coming up')} tip={t('Releases and episodes due soon for the titles in your library.')} link={t('Calendar')} to="/calendar">
           {data.upcoming.length === 0 ? (
             <div className="empty-inline">
@@ -595,7 +483,13 @@ export default function Dashboard() {
                     <b>{new Date(`${e.releaseDate}T00:00:00`).getDate()}</b>
                     {new Date(`${e.releaseDate}T00:00:00`).toLocaleString(locale(), { month: 'short' })}
                   </span>
-                  <KindBadge kind={e.kind} subtitle={e.subtitle} />
+                  {e.posterUrl ? ( // home fork: the poster v3 sends with each entry
+                    <div className="mini-thumb">
+                      <img src={e.posterUrl} alt="" loading="lazy" decoding="async" />
+                    </div>
+                  ) : (
+                    <KindBadge kind={e.kind} subtitle={e.subtitle} />
+                  )}
                   <div className="mini-main">
                     <strong>{e.title}</strong>
                     {e.subtitle && <small className="qwhen">{e.subtitle.split(' · ')[0]}</small>}
@@ -609,126 +503,9 @@ export default function Dashboard() {
         </Tile>
       </div>
 
-      <section className="tile tone-settings wide-tile folders-tile">
-        <div className="tile-head">
-          <span className="tile-ico">
-            <Icon name="folder" size={18} />
-          </span>
-          <h2>{t('Connected folders')}</h2>
-          <HelpLink topic="install-docker#why-one-data-folder-hardlinks" text={t('The folders Mediarium uses, whether it can write to them and how much room is left. "Hardlinks on" means an import takes no extra space, because Downloads and the library are on the same drive.')} />
-          {admin && (
-            <Link className="tile-link" to="/settings/media">
-              {t('Change')} <Icon name="open" size={13} />
-            </Link>
-          )}
-        </div>
-        <div className="folder-grid">
-          {data.folders.map((f) => (
-            <FolderCard key={f.key} f={f} />
-          ))}
-        </div>
-      </section>
+      <DashCalendar entries={cal} /> {/* home fork: folded, Month / Week / Day */}
 
-      <section className="tile tone-calendar wide-tile">
-        <div className="tile-head">
-          <span className="tile-ico">
-            <Icon name="calendar" size={18} />
-          </span>
-          <h2>{t('Calendar')}</h2>
-          <Link className="tile-link" to="/calendar">
-            {t('Full page')} <Icon name="open" size={13} />
-          </Link>
-        </div>
-        <CalendarGrid entries={cal} compact />
-      </section>
-
-      <div className="dash-pair">
-      {qualityTotal > 0 && (
-        <section className="tile tone-library">
-          <div className="tile-head">
-            <span className="tile-ico">
-              <Icon name="star" size={18} />
-            </span>
-            <h2>{t('Quality breakdown')}</h2>
-            <InfoTip text={t('How many of the files in your library are in each quality.')} />
-            {admin && (
-              <Link className="tile-link" to="/settings/quality">
-                {t('Profiles')} <Icon name="open" size={13} />
-              </Link>
-            )}
-          </div>
-          <ul className="quality-bars">
-            {lib.qualities.slice(0, 7).map((q) => (
-              <li key={q.tier}>
-                <span>{qualityText(q.tier)}</span>
-                <div className="bar">
-                  <span style={{ width: `${(q.count / qualityTotal) * 100}%` }} />
-                </div>
-                <b>{q.count}</b>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <StatsTile />
-      </div>
     </div>
   )
 }
 
-// A look at the statistics page: the space the library takes, how much
-// came from Usenet, and downloads over the last six months.
-function StatsTile() {
-  const [s, setS] = useState<LibraryStats | null>(null)
-  const [failed, setFailed] = useState(false)
-  useEffect(() => {
-    api
-      .libraryStats()
-      .then(setS)
-      .catch(() => setFailed(true))
-  }, [])
-  const months = (s?.months ?? []).slice(-6)
-  const top = Math.max(1, ...months.map((m) => m.completed))
-  return (
-    <section className="tile tone-activity stats-tile">
-      <div className="tile-head">
-        <span className="tile-ico">
-          <Icon name="activity" size={18} />
-        </span>
-        <h2>{t('Statistics')}</h2>
-        <InfoTip text={t('The space your library takes, the share that came from Usenet, and downloads over the last six months.')} />
-        <Link className="tile-link" to="/settings/statistics">
-          {t('Full page')} <Icon name="open" size={13} />
-        </Link>
-      </div>
-      {failed ? (
-        <p className="hint">{t('The numbers could not be loaded. Try the full page.')}</p>
-      ) : !s ? (
-        <div className="skeleton" style={{ height: 120 }} />
-      ) : (
-        <div className="stats-glance">
-          <div className="stats-figures">
-            <div>
-              <span className="mono">{t('Space used')}</span>
-              <b>{formatBytes(s.movieBytes + s.episodeBytes)}</b>
-            </div>
-            <div>
-              <span className="mono">{t('From Usenet')}</span>
-              <b>{s.usenetShare}%</b>
-            </div>
-          </div>
-          {months.length > 0 && (
-            <div className="stats-months" role="img" aria-label={t('Downloads in the last six months')}>
-              {months.map((m) => (
-                <div key={m.month} className="stats-month" title={plural(m.completed, '{n} download', '{n} downloads')}>
-                  <span className="stats-bar" style={{ height: `${Math.max(4, (m.completed / top) * 100)}%` }} />
-                  <small className="mono">{new Date(`${m.month}-01T00:00:00`).toLocaleString(locale(), { month: 'short' })}</small>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </section>
-  )
-}

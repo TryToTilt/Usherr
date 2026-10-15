@@ -1,4 +1,6 @@
+import { brandText } from '../brand' // Usherr
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { startTour } from '../home/tourGate' // home fork
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Icon from '../components/Icon'
 import PageLoading from '../components/PageLoading'
@@ -255,7 +257,13 @@ function Landing({ guide, unknown }: { guide: GuideIndex; unknown: boolean }) {
           <h1>{t('User guide')}</h1>
           <p className="g-lede">{t('How to do the everyday things. It is the same documentation as on the website, built into this version of Mediarium, so it works without an internet connection.')}</p>
         </div>
-        <OnlineLink />
+        <span className="g-head-links">
+          {/* home fork: play the first-visit tour again */}
+          <button className="btn-sm" onClick={startTour}>
+            {t('Take the tour')}
+          </button>
+          <OnlineLink />
+        </span>
       </header>
       {unknown && (
         <p className="g-note" role="status">
@@ -287,7 +295,7 @@ function Landing({ guide, unknown }: { guide: GuideIndex; unknown: boolean }) {
 
 export function Article({ ti, guide, jump, popup = false }: { ti: TopicIndex; guide: GuideIndex; jump: (id: string) => void; popup?: boolean }) {
   const location = useLocation()
-  const parsed = useMemo(() => ti.topic.sources.map((s) => parseMarkdown(s.md)), [ti])
+  const parsed = useMemo(() => ti.topic.sources.map((s) => parseMarkdown(brandText(s.md))), [ti]) // Usherr: the app's name in the guide
   const linker: Linker = useMemo(
     () => ({
       resolve: (href, file) => resolveDocLink(href, file, guide),

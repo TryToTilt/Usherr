@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"net/mail"
 	"regexp"
 	"strconv"
@@ -144,7 +145,7 @@ func Types() []TypeInfo {
 				Help: "Usually your full email address. Empty if no login is needed."},
 			{Name: "password", Label: "Password", Kind: "password",
 				Help: "Gmail and Outlook need an \"app password\" from your account's security settings."},
-			{Name: "fromName", Label: "From name", Kind: "text", Placeholder: "Mediarium", Default: "Mediarium",
+			{Name: "fromName", Label: "From name", Kind: "text", Placeholder: brand.Name, Default: brand.Name,
 				Help: "The name your emails show as coming from. Leave it empty to use Mediarium."},
 			{Name: "from", Label: "From address", Kind: "text", Required: true, Placeholder: "you@example.com",
 				Help: "The address emails are sent from. Most providers need your own address."},

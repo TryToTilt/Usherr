@@ -745,16 +745,39 @@ func (s *cgSession) siteRelated(host string) bool {
 	if host == "" {
 		return false
 	}
-	k := strings.ToLower(strings.TrimSuffix(s.base.Hostname(), "."))
-	if k == host {
-		return true
+	known := []string{s.base.Hostname()}
+	// Home fork: also an API host the definition itself declares as a URL
+	// setting's default (The Pirate Bay searches apibay.org). Only the
+	// definition's own default counts, never a value someone typed in, and
+	// never the definition's other links.
+	if s.def != nil {
+		for _, f := range s.def.Settings {
+			if !strings.HasSuffix(strings.ToLower(f.Name), "url") || f.Default == "" {
+				continue
+			}
+			d := f.Default
+			if !strings.Contains(d, "://") {
+				d = "https://" + d
+			}
+			if u, err := url.Parse(d); err == nil && u.Hostname() != "" && strings.Contains(u.Hostname(), ".") {
+				known = append(known, u.Hostname())
+			}
+		}
 	}
-	hostDomain, err := publicsuffix.EffectiveTLDPlusOne(host)
-	if err != nil {
-		return false // an IP address or a name without a registered domain: only an exact match counts
+	hostDomain, hostErr := publicsuffix.EffectiveTLDPlusOne(host)
+	for _, k := range known {
+		k = strings.ToLower(strings.TrimSuffix(k, "."))
+		if k == host {
+			return true
+		}
+		if hostErr != nil {
+			continue // an IP address or a name without a registered domain: only an exact match counts
+		}
+		if d, err := publicsuffix.EffectiveTLDPlusOne(k); err == nil && d == hostDomain {
+			return true
+		}
 	}
-	d, err := publicsuffix.EffectiveTLDPlusOne(k)
-	return err == nil && d == hostDomain
+	return false
 }
 
 // checkPageAddress refuses an address a page handed out (a redirect, a

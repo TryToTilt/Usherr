@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"io"
 	"math"
 	"net/http"
@@ -55,7 +56,7 @@ func UserAgent(version string) string {
 	if version == "" {
 		version = "dev"
 	}
-	return fmt.Sprintf("Mediarium/%s ( https://github.com/rdborg/Mediarium )", version)
+	return brand.Agent(version) // Usherr: identifies itself
 }
 
 // New returns a client for the public server that identifies itself as this

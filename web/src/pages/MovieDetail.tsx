@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import VoteButtons from '../home/VoteButtons' // home fork
+import { WhatsItLike } from '../home/AIGuides' // home fork
+import { StreamingOn } from '../home/Recipes' // home fork
+import { ScoresLine } from '../home/scores' // home fork
 import { useNavigate, useParams } from 'react-router-dom'
 import AddDialog from '../components/AddDialog'
 import Icon from '../components/Icon'
@@ -23,6 +27,8 @@ import SearchStatus from '../components/SearchStatus'
 import { describeState } from '../components/state'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../AuthContext'
+import { playTitle } from '../home/Player' // play hook (home fork)
+import StreamButton, { streamRelease } from '../home/StreamButton' // stream hook (home fork)
 import { useModules } from '../ModulesContext'
 import { formatBytes, qualityText } from '../format'
 import { rescanMessage } from '../rescanMessage'
@@ -195,6 +201,16 @@ function MoviePage() {
     }
   }
 
+  // Stream now (home fork): one release from the list; Keep it grabs it.
+  const [streaming, setStreaming] = useState<string | null>(null)
+  function streamFromList(r: SearchResult) {
+    if (!movie) return
+    setStreaming(r.downloadUrl)
+    streamRelease(r, movie.title, () => void grab(r))
+      .catch((e: Error) => toast.error(e.message))
+      .finally(() => setStreaming(null))
+  }
+
   async function grab(r: SearchResult) {
     if (!libraryId) return
     setGrabbing(r.downloadUrl)
@@ -246,6 +262,7 @@ function MoviePage() {
   return (
     <div>
       <TitleHero
+        onPlay={movie.status === 'downloaded' && movie.libraryId && can(me, 'play') ? () => playTitle('movie', movie.libraryId!, movie.title) : undefined} /* play hook (home fork) */
         info={{
           ...movie,
           kind: 'movie',
@@ -295,7 +312,19 @@ function MoviePage() {
                 </button>
               )}
               {can(me, 'releases') && <InfoTip text={t('Lists every release your indexers found for this movie, so you can pick one yourself instead of letting Mediarium choose.')} />}
+              {movie.status === 'downloaded' && movie.libraryId && can(me, 'play') && (
+                // play hook (home fork)
+                <button className="primary btn-with-icon" onClick={() => playTitle('movie', movie.libraryId!, movie.title)}>
+                  <Icon name="play" size={16} /> {t('Play')}
+                </button>
+              )}
+              {movie.status !== 'downloaded' && can(me, 'play') && (
+                // stream hook (home fork)
+                <StreamButton target={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title }} onKeep={can(me, 'manage') ? () => void searchNow() : undefined} />
+              )}
               {movie.status === 'downloaded' && <WatchLinks tmdbId={movie.tmdbId} kind="movie" />}
+              <WhatsItLike kind="movie" tmdbId={movie.tmdbId} title={movie.title} /> {/* home fork */}
+              <VoteButtons kind="movie" refId={movie.tmdbId} meta={{ title: movie.title, year: movie.year, image: movie.posterUrl }} /> {/* home fork */}
               {admin && movie.status === 'downloaded' && movie.filePath && (
                 <button className="btn-with-icon" onClick={() => void rescan()} disabled={rescanning} title={t('Looks at the file on your disk again: if it was deleted by hand the movie is wanted again, and a renamed file is found.')}>
                   <Icon name="folder" size={16} /> {rescanning ? t('Checking…') : t('Rescan files')}
@@ -313,9 +342,17 @@ function MoviePage() {
               )}
             </>
           ) : (
-            <button className="primary btn-with-icon big" onClick={() => setAdding(true)}>
-              <Icon name="plus" size={18} /> {t('Add to library')}
-            </button>
+            <>
+              <button className="primary btn-with-icon big" onClick={() => setAdding(true)}>
+                <Icon name="plus" size={18} /> {t('Add to library')}
+              </button>
+              {can(me, 'play') && (
+                // stream hook (home fork): watch it now, add it later if you like it
+                <StreamButton target={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title }} onKeep={() => setAdding(true)} />
+              )}
+              <WhatsItLike kind="movie" tmdbId={movie.tmdbId} title={movie.title} /> {/* home fork */}
+              <VoteButtons kind="movie" refId={movie.tmdbId} meta={{ title: movie.title, year: movie.year, image: movie.posterUrl }} /> {/* home fork */}
+            </>
           )
         }
       >
@@ -330,6 +367,8 @@ function MoviePage() {
           </div>
         )}
         {inLibrary && movie.libraryId && <WatchedLine kind="movie" id={movie.libraryId} />}
+        <ScoresLine kind="movie" tmdbId={movie.tmdbId} /> {/* home fork */}
+        <StreamingOn kind="movie" tmdbId={movie.tmdbId} /> {/* home fork */}
       </TitleHero>
 
       {!inLibrary && <CastCard cast={movie.cast ?? []} />}
@@ -354,7 +393,9 @@ function MoviePage() {
               {t('Close')}
             </button>
           )}
-          {results.length > 0 && <ReleaseTable results={results} grabbing={grabbing} onGrab={grab} onClose={() => setResults(null)} />}
+          {results.length > 0 && (
+            <ReleaseTable results={results} grabbing={grabbing} onGrab={grab} onClose={() => setResults(null)} onStream={can(me, 'play') ? streamFromList : undefined} streaming={streaming} />
+          )}
         </section>
       )}
 

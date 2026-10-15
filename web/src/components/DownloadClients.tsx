@@ -1,3 +1,4 @@
+import { BRAND } from '../brand' // Usherr
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type ClientTorrent, type ClientTorrentsAnswer, type DebridTorrent, type DebridTorrentsAnswer } from '../api'
@@ -138,7 +139,7 @@ function TorrentRow({ tor, label, reload }: { tor: ClientTorrent; label: string;
         <div className="qtitle">
           <span className="client-name" title={tor.name}>{tor.name}</span>
           <span className={`badge ${tor.stage === 'problem' ? 'failed' : tor.stage === 'downloading' ? 'downloading' : ''}`}>{tor.stageText}</span>
-          {tor.mine && <span className="qproto">Mediarium</span>}
+          {tor.mine && <span className="qproto">{BRAND}</span>}
           {tor.category && !tor.mine && <span className="qproto">{tor.category}</span>}
         </div>
         {(active || tor.stage === 'paused') && (

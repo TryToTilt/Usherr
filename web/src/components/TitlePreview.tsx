@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom' // home fork
 import type { CastMember, SeasonInfo } from '../api'
 import { plural, t } from '../i18n'
 import './TitlePreview.css'
@@ -23,13 +24,15 @@ function initials(name: string): string {
 
 function Person({ p }: { p: CastMember }) {
   const [broken, setBroken] = useState(false)
-  return (
-    <li className="preview-person">
+  const inner = (
+    <>
       <span className="preview-photo">{p.profileUrl && !broken ? <img src={p.profileUrl} alt="" loading="lazy" onError={() => setBroken(true)} /> : initials(p.name)}</span>
       <strong>{p.name}</strong>
       {p.character && <small>{p.character}</small>}
-    </li>
+    </>
   )
+  // home fork: a photo opens the person's page, with more of their films and shows
+  return <li className="preview-person">{p.id ? <Link to={`/person/${p.id}`} className="preview-person-link" title={t('More with {name}', { name: p.name })}>{inner}</Link> : inner}</li>
 }
 
 // Who is in it, in billing order, with their photos.

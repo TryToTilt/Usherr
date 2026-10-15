@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"io"
 	"net/http"
 	"net/url"
@@ -109,7 +110,7 @@ func (c *NewznabClient) Search(ctx context.Context, query string, categories []i
 	if err != nil {
 		return nil, fmt.Errorf("build newznab request: %w", netguard.CleanError(err))
 	}
-	req.Header.Set("User-Agent", UserAgent)
+	req.Header.Set("User-Agent", Agent())
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		// net/http's error carries the full request URL, which holds the API
@@ -140,6 +141,9 @@ func (c *NewznabClient) Search(ctx context.Context, query string, categories []i
 // search or an NZB. Go's own default ("Go-http-client") is on the block lists
 // of many sites' Cloudflare rules, which answer it with a 403 page.
 const UserAgent = "Mediarium (+https://github.com/rdborg/Mediarium)"
+
+// Agent is the User-Agent sent to indexers: the app's name and page (Usherr).
+func Agent() string { return brand.Name + " (+" + brand.URL + ")" }
 
 // maxNewznabBytes is the largest search reply that is read. A page of a
 // hundred results is well under a megabyte.

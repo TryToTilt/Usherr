@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -121,7 +122,7 @@ func (s *Server) newWebAuthn() (*webauthn.WebAuthn, error) {
 	}
 	timeouts := webauthn.TimeoutConfig{Enforce: true, Timeout: ceremonyTTL, TimeoutUVD: ceremonyTTL}
 	return webauthn.New(&webauthn.Config{
-		RPID: rpID, RPDisplayName: waDisplay, RPOrigins: []string{origin},
+		RPID: rpID, RPDisplayName: brand.Text(waDisplay), RPOrigins: []string{origin}, // Usherr: the name shown
 		AttestationPreference: protocol.PreferNoAttestation,
 		AuthenticatorSelection: protocol.AuthenticatorSelection{
 			RequireResidentKey: protocol.ResidentKeyRequired(),

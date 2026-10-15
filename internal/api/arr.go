@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"net/http"
 	"net/url"
 	"strconv"
@@ -370,7 +371,7 @@ func (s *Server) arrSystemStatus(app arrApp) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"appName":                app.name(),
-			"instanceName":           "Mediarium",
+			"instanceName":           brand.Name,
 			"version":                arrVersions[app],
 			"buildTime":              started,
 			"isDebug":                false,

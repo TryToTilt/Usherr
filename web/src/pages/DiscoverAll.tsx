@@ -9,7 +9,8 @@ import { KIND_LABEL, useKinds } from '../ModulesContext'
 import { sourceFromQuery, sourceTitle, sourceToQuery } from '../discoverSources'
 import { useOwned } from '../useOwned'
 import { useIncludeOlder } from '../useIncludeOlder'
-import { useHideOwned } from '../useHideOwned'
+import HideOwned from '../home/HideOwned' // home fork
+import FamilyFilter from '../home/FamilyFilter' // home fork
 import { t } from '../i18n'
 
 // One Discover list on its own page, split into pages you can step through
@@ -17,7 +18,6 @@ import { t } from '../i18n'
 export default function DiscoverAll() {
   const [params, setParams] = useSearchParams()
   const [includeOlder, setIncludeOlder] = useIncludeOlder()
-  const [hideOwned, setHideOwned] = useHideOwned()
   const kindsOn = useKinds().filter((k) => k !== 'music')
   const parsed = useMemo(() => sourceFromQuery(params), [params])
   const similar = parsed.list === 'similar'
@@ -43,7 +43,8 @@ export default function DiscoverAll() {
           <Icon name="chevron-left" size={16} /> {t('Discover')}
         </Link>
         <h2 style={{ margin: 0 }}>{sourceTitle(source, genreName)}</h2>
-        <Switch checked={hideOwned} onChange={setHideOwned} label={t('Hide what I have')} />
+        <HideOwned label={t('Hide what I have')} /> {/* home fork: choose on disk, streamed, wanted */}
+        <FamilyFilter /> {/* home fork */}
         {similar && (
           <>
             {kindsOn.length > 1 && (

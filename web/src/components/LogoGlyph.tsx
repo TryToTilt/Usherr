@@ -1,10 +1,16 @@
 import { useId } from 'react'
+import { withBase } from '../base' // Usherr
 
 // The Mediarium arch as a solid object: lit from the top, a darker edge, and a
 // slab of depth behind it, so it sits with the media shapes (KindGlyph's
 // "solid" variant) instead of looking like a flat sticker. Takes its colour
 // from the current text colour; the .g-logo class sets it to the accent.
 export default function LogoGlyph({ size = 64, className = '' }: { size?: number; className?: string }) {
+  // Usherr: its icon, in place of upstream's arch.
+  return <img className={`usherr-glyph ${className}`.trim()} src={withBase('/usherr-mark.png')} width={size} height={size} alt="" aria-hidden="true" draggable={false} />
+}
+
+export function UpstreamLogoGlyph({ size = 64, className = '' }: { size?: number; className?: string }) {
   const id = useId().replace(/:/g, '')
   const arch = 'M5 28V15a11 11 0 0 1 22 0v13h-6l-5-11-5 11z'
   return (

@@ -271,7 +271,10 @@ export interface Permissions {
   movies: boolean
   tv: boolean
   music: boolean
-  books: boolean
+  books: boolean // ebooks
+  audiobooks: boolean // home fork
+  comics: boolean // home fork
+  nsfw: boolean // home fork: the NSFW 18+ section (off unless switched on)
   releases: boolean // search indexers and pick releases
   manage: boolean // search now, monitoring, tags, following
   retry: boolean
@@ -280,7 +283,7 @@ export interface Permissions {
 }
 export type Permission = keyof Permissions
 
-export const DEFAULT_PERMISSIONS: Permissions = { addDirect: true, movies: true, tv: true, music: true, books: true, releases: true, manage: true, retry: true, subtitles: true, play: true }
+export const DEFAULT_PERMISSIONS: Permissions = { addDirect: true, movies: true, tv: true, music: true, books: true, audiobooks: true, comics: true, nsfw: false, releases: true, manage: true, retry: true, subtitles: true, play: true }
 
 export interface User {
   id: number
@@ -1319,10 +1322,14 @@ export interface QueueItem {
   pending?: 'pausing' | 'stopping' // still winding down
   keptFiles?: boolean // the partly downloaded files are still in the downloads folder
   queuePosition?: number // waiting in line: 1 is next
+  stage?: string // home fork: the step a running download is on
+  stageSince?: string // home fork: when that step began
+  stageEnds?: string // home fork: when it should be done (estimate)
   indexerName?: string
   peers?: number // peers the built-in torrent client is connected to
   seeds?: number // seeds among them // where the release came from, when that indexer is still set up
   category?: string // the torrent category the built-in client filed it under
+  specs?: import('./home/ReleaseSpecs').ReleaseSpecs // what the release is (home fork)
   resolution?: string // what the release name says: 1080p, 2160p...
   source?: string // WEB-DL, BluRay...
   codec?: string // x264, x265...
@@ -1659,6 +1666,7 @@ export interface Trailer {
 }
 
 export interface CastMember {
+  id?: number // TMDB's person id (home fork: the person page)
   name: string
   character?: string
   profileUrl?: string
@@ -1996,6 +2004,10 @@ export interface DashActive {
   progressPct: number
   sizeBytes: number
   release: string
+  stage?: string // home fork
+  stageSince?: string
+  stageEnds?: string
+  queuePosition?: number
 }
 
 export interface DashRecent {
@@ -2018,8 +2030,8 @@ export interface DashRecent {
 
 export interface DashboardData {
   library: {
-    movies: { total: number; downloaded: number; missing: number; downloading: number }
-    series: { total: number; episodes: number; episodesDownloaded: number; episodesMissing: number }
+    movies: { total: number; downloaded: number; missing: number; downloading: number; streams?: number }
+    series: { total: number; episodes: number; episodesDownloaded: number; episodesMissing: number; streams?: number; episodesStreams?: number }
     // What the Wanted page lists under Missing (monitored, no file, already aired).
     wanted: { movies: number; episodes: number }
     // Always present, zeros when there is no music (or the module is off).
@@ -2042,7 +2054,7 @@ export interface DashboardData {
 }
 
 export interface CalendarEntry {
-  kind: 'movie' | 'episode' | 'album' | 'book'
+  kind: 'movie' | 'episode' | 'album' | 'book' | 'comic' // comic: home fork
   id: number
   movieId?: number
   tmdbId?: number
@@ -2057,6 +2069,8 @@ export interface CalendarEntry {
   releaseDate: string
   status: 'missing' | 'downloading' | 'downloaded'
   posterUrl?: string // the poster or cover, when there is one
+  formats?: ('ebook' | 'audiobook')[] // a book's wanted formats (home fork)
+  comicSeriesId?: number // home fork
   backdropUrl?: string // a wide still, once it has been fetched (the calendar's Backdrops view)
   logoUrl?: string // the title's logo, once it has been fetched
 }
@@ -3233,9 +3247,10 @@ export const api = {
   movieFiles: (id: number) => get<{ folder: string; files: TitleFile[] }>(`/movies/${id}/files`),
   seriesFiles: (id: number) => get<{ folder: string; files: TitleFile[] }>(`/series/${id}/files`),
   streamUrl: (kind: 'movie' | 'series', id: number, path: string) => withBase(`/api/files/stream?${kind}=${id}&path=${encodeURIComponent(path)}`),
-  discoverList: (kind: 'movie' | 'tv', list: 'trending' | 'popular' | 'upcoming' | 'similar', page = 1, older = false) =>
+  // list: also the home fork's watched, collections and season; who: whose watching (watched only).
+  discoverList: (kind: 'movie' | 'tv', list: 'trending' | 'popular' | 'upcoming' | 'similar' | 'watched' | 'collections' | 'season' | 'anime-airing' | 'anime-popular' | 'anime-top' | 'anime-new' | 'foryou', page = 1, older = false, who?: string) =>
     get<{ page: number; totalPages: number; totalResults?: number; results: DiscoverMovie[] }>(
-      `/discover/list?kind=${kind}&list=${list}&page=${page}${older ? '&older=true' : ''}`,
+      `/discover/list?kind=${kind}&list=${list}&page=${page}${older ? '&older=true' : ''}${who ? `&who=${encodeURIComponent(who)}` : ''}`,
     ),
   discoverGenres: (kind: 'movie' | 'tv') => get<{ id: number; name: string }[]>(`/discover/genres?kind=${kind}`),
   discoverBrowse: (q: { kind: 'movie' | 'tv'; genre?: string; yearFrom?: string; yearTo?: string; sort?: string; page?: number }) =>

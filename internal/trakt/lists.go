@@ -95,8 +95,18 @@ const maxPages = 20
 
 // fetch makes one call and decodes the JSON array it answers with.
 func (c *Client) fetch(ctx context.Context, path string, q url.Values) ([]entry, http.Header, error) {
+	var items []entry
+	h, err := c.getJSON(ctx, path, q, &items)
+	if err != nil {
+		return nil, nil, err
+	}
+	return items, h, nil
+}
+
+// getJSON makes one call and decodes its JSON answer into out.
+func (c *Client) getJSON(ctx context.Context, path string, q url.Values, out any) (http.Header, error) {
 	if c.clientID == "" {
-		return nil, nil, ErrNoClientID
+		return nil, ErrNoClientID
 	}
 	target := c.baseURL + path
 	if len(q) > 0 {
@@ -104,7 +114,7 @@ func (c *Client) fetch(ctx context.Context, path string, q url.Values) ([]entry,
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("build trakt request: %w", err)
+		return nil, fmt.Errorf("build trakt request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("trakt-api-version", "2")
@@ -112,29 +122,28 @@ func (c *Client) fetch(ctx context.Context, path string, q url.Values) ([]entry,
 	req.Header.Set("User-Agent", UserAgent)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, nil, fmt.Errorf("trakt request %s: %w", path, err)
+		return nil, fmt.Errorf("trakt request %s: %w", path, err)
 	}
 	defer resp.Body.Close()
 	switch resp.StatusCode {
 	case http.StatusOK:
 	case http.StatusNotFound:
-		return nil, nil, ErrNotFound
+		return nil, ErrNotFound
 	case http.StatusUnauthorized, http.StatusForbidden:
 		if strings.Contains(path, "/users/") || strings.HasPrefix(path, "/lists/") {
-			return nil, nil, ErrPrivate
+			return nil, ErrPrivate
 		}
-		return nil, nil, ErrInvalidClientID
+		return nil, ErrInvalidClientID
 	case http.StatusTooManyRequests:
 		secs, _ := strconv.Atoi(strings.TrimSpace(resp.Header.Get("Retry-After")))
-		return nil, nil, &RateLimitError{RetryAfter: time.Duration(secs) * time.Second}
+		return nil, &RateLimitError{RetryAfter: time.Duration(secs) * time.Second}
 	default:
-		return nil, nil, fmt.Errorf("trakt request %s: unexpected status %d", path, resp.StatusCode)
+		return nil, fmt.Errorf("trakt request %s: unexpected status %d", path, resp.StatusCode)
 	}
-	var items []entry
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxAPIResponse)).Decode(&items); err != nil {
-		return nil, nil, fmt.Errorf("decode trakt response %s: %w", path, err)
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxAPIResponse)).Decode(out); err != nil {
+		return nil, fmt.Errorf("decode trakt response %s: %w", path, err)
 	}
-	return items, resp.Header, nil
+	return resp.Header, nil
 }
 
 func collect(items []entry, chartKind string) []Media {

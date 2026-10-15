@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/fileperms"
@@ -345,7 +346,15 @@ func copyFile(src, dest string, srcInfo os.FileInfo) (err error) {
 		}
 	}()
 
-	if _, err = io.Copy(out, in); err != nil {
+	// home fork: plain 128 KB reads and writes, retrying a write that fails
+	// for want of resources. On Docker Desktop's Windows folder mounts (9p)
+	// writes intermittently fail with "cannot allocate memory" (a 4.7 GB
+	// copy failed at different points with 4 MB, 1 MB and 128 KB writes,
+	// while the same copy also succeeded); a short wait and a retry gets
+	// past it. io.Copy would also hand the copy to the kernel
+	// (copy_file_range, sendfile) in large pieces.
+	// home fork: report how far the copy is.
+	if err = copyChunks(out, &progressReader{r: in, path: src, phase: "Copying into the library", total: srcInfo.Size()}); err != nil {
 		return fmt.Errorf("copy contents: %w", err)
 	}
 	if err = out.Sync(); err != nil {
@@ -362,3 +371,41 @@ func copyFile(src, dest string, srcInfo os.FileInfo) (err error) {
 // real video. Pass the path below the folder that was scanned, so a folder
 // the scan started in cannot make every file in it a sample.
 func IsSample(path string) bool { return isSample(path) }
+
+// copyChunks copies in to out in 128 KB pieces, retrying writes that fail
+// with a temporary resource error (ENOMEM, EAGAIN, EINTR) for up to about a
+// minute per piece.
+func copyChunks(out io.Writer, in io.Reader) error {
+	buf := make([]byte, 128<<10)
+	for {
+		n, rerr := in.Read(buf)
+		if n > 0 {
+			if err := writeRetrying(out, buf[:n]); err != nil {
+				return err
+			}
+		}
+		if rerr == io.EOF {
+			return nil
+		}
+		if rerr != nil {
+			return rerr
+		}
+	}
+}
+
+func writeRetrying(out io.Writer, p []byte) error {
+	tries := 0
+	for len(p) > 0 {
+		n, err := out.Write(p)
+		p = p[n:]
+		if err == nil {
+			continue
+		}
+		if !(errors.Is(err, syscall.ENOMEM) || errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EINTR)) || tries >= 60 {
+			return err
+		}
+		tries++
+		time.Sleep(time.Duration(min(tries, 8)) * 250 * time.Millisecond)
+	}
+	return nil
+}

@@ -403,7 +403,7 @@ func (s *Server) handleTestNotifyTarget(w http.ResponseWriter, r *http.Request) 
 			}
 		}
 	}
-	err = sender.Send(ctx, testEvent)
+	err = sender.Send(ctx, notify.Branded(testEvent)) // Usherr
 	if err != nil {
 		failedAlready := false
 		for _, st := range steps.List() {

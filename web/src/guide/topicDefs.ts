@@ -9,6 +9,8 @@
 //
 // The guide is in English only for now, so these texts are not translated.
 
+import { HOME_TOPICS } from './homeTopics.ts' // home fork
+
 export interface SourceDef {
   // The file in docs/.
   file: string
@@ -30,13 +32,14 @@ export interface TopicDef {
   sources: SourceDef[]
 }
 
-export const GROUPS = ['Start here', 'Your media', 'Downloading', 'People and apps', 'Looking after it', 'Installing'] as const
+export const GROUPS = ['Home fork', 'Start here', 'Your media', 'Downloading', 'People and apps', 'Looking after it', 'Installing'] as const
 
 // Notes for people who script against the API and similar developer parts are
 // left out of the guide; they stay in the full documentation.
 export const DROP_HEADINGS = /^(for scripts|for developers|scripts|api|contents)$/i
 
 export const TOPICS: TopicDef[] = [
+  ...HOME_TOPICS, // home fork: docs/home (guide/homeTopics.ts)
   {
     id: 'getting-started',
     title: 'Getting started',

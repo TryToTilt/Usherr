@@ -134,7 +134,7 @@ func (s *Server) handleLibraryStats(w http.ResponseWriter, r *http.Request) {
 			SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END),
 			SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END),
 			COALESCE(SUM(CASE WHEN status = 'completed' THEN size_bytes ELSE 0 END), 0)
-		FROM download_queue GROUP BY month ORDER BY month DESC LIMIT 12`)
+		FROM download_queue WHERE id NOT IN (SELECT queue_id FROM scene_downloads) GROUP BY month ORDER BY month DESC LIMIT 12`) // scenes hook (home fork)
 	if err == nil {
 		for rows.Next() {
 			var m statMonth
@@ -145,7 +145,7 @@ func (s *Server) handleLibraryStats(w http.ResponseWriter, r *http.Request) {
 		rows.Close()
 	}
 	var usenet, total int
-	_ = s.db.QueryRow(`SELECT COALESCE(SUM(CASE WHEN protocol = 'usenet' THEN 1 ELSE 0 END), 0), COUNT(*) FROM download_queue WHERE status = 'completed'`).Scan(&usenet, &total)
+	_ = s.db.QueryRow(`SELECT COALESCE(SUM(CASE WHEN protocol = 'usenet' THEN 1 ELSE 0 END), 0), COUNT(*) FROM download_queue WHERE status = 'completed' AND id NOT IN (SELECT queue_id FROM scene_downloads)`).Scan(&usenet, &total) // scenes hook (home fork)
 	if total > 0 {
 		out.UsenetShare = usenet * 100 / total
 	}

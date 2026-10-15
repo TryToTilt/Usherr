@@ -4,7 +4,7 @@
 // src/guide/guide.generated.json, is not saved in the repository.
 //
 //   node --experimental-strip-types tools/build-guide.mjs
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { buildGuide } from '../src/guide/build.ts'
@@ -23,4 +23,14 @@ if (!existsSync(docs)) {
   const json = JSON.stringify(data)
   writeFileSync(out, json)
   console.log(`guide: ${data.topics.length} topics, ${(json.length / 1024).toFixed(0)} KB`)
+  // home fork: the fork's pages show their pictures (docs/home/images), served
+  // as plain files rather than bundled; names starting with _ are left out.
+  const pics = join(docs, 'home', 'images')
+  const served = join(here, '..', 'public', 'guide-images')
+  if (existsSync(pics)) {
+    mkdirSync(served, { recursive: true })
+    const list = readdirSync(pics).filter((f) => /\.(png|jpe?g|webp)$/i.test(f) && !f.startsWith('_'))
+    for (const f of list) copyFileSync(join(pics, f), join(served, f))
+    console.log(`guide: ${list.length} pictures for the home fork's pages`)
+  }
 }

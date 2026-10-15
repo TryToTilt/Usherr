@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/problems"
@@ -109,7 +110,32 @@ func (g *serverGate) setConfigured(n int) {
 	}
 }
 
-func (g *serverGate) limitLocked() int { return max(min(g.configured, g.learned), 1) }
+func (g *serverGate) limitLocked() int {
+	n := min(g.configured, g.learned)
+	if c := int(connectionCap.Load()); c > 0 {
+		n = min(n, c)
+	}
+	return max(n, 1)
+}
+
+// connectionCap is the most connections per server login, 0 for no cap
+// (home fork: schedules can lower it for some hours).
+var connectionCap atomic.Int64
+
+// SetConnectionCap caps every server login at n connections (0 removes the
+// cap). Connections above the cap close as their articles finish.
+func SetConnectionCap(n int) {
+	if int64(n) == connectionCap.Swap(int64(n)) {
+		return
+	}
+	gatesMu.Lock()
+	defer gatesMu.Unlock()
+	for _, g := range gates {
+		g.mu.Lock()
+		g.cond.Broadcast()
+		g.mu.Unlock()
+	}
+}
 
 // troubledLocked is the "give up" error once the provider has been refusing
 // connections for tooManyGiveUp with no success in between.

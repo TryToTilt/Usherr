@@ -1,3 +1,4 @@
+import { BRAND } from '../brand' // Usherr
 import { useEffect, useState, type FormEvent } from 'react'
 import { api, isTwoStepChallenge, type SignInMethods } from '../api'
 import { getPasskey, passkeyProblem, passkeysSupported } from '../passkey'
@@ -106,7 +107,7 @@ export default function Login() {
         <h1 className="sr-only">{t('Sign in to Mediarium')}</h1>
         <div className="auth-logo">
           <BrandMark className="auth-mark" />
-          <span>Mediarium</span>
+          <span>{BRAND}</span>
         </div>
         <p className="auth-sub">{t('Sign in to continue')}</p>
         {error && <p className="error-text">{error}</p>}
@@ -240,7 +241,7 @@ function CodeStep({ challenge, onSignedIn, onStartOver }: { challenge: string; o
         <h1 className="sr-only">{t('Two-step sign-in')}</h1>
         <div className="auth-logo">
           <BrandMark className="auth-mark" />
-          <span>Mediarium</span>
+          <span>{BRAND}</span>
         </div>
         <p className="auth-sub">{useRecovery ? t('Enter a recovery code') : t('Enter the code from your authenticator app')}</p>
         {error && <p className="error-text">{error}</p>}

@@ -37,7 +37,8 @@ function buildSource(file: string, md: string, def: TopicDef['sources'][number])
     // The page's own title is shown by the topic, so its line is dropped; the introduction under it stays.
     lines.push(...(p.level === 1 ? p.lines.slice(1) : p.lines))
   }
-  let body = cleanBody(lines).join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  // home fork: the fork's own pages (docs/home) keep their pictures
+  let body = cleanBody(lines, file.startsWith('home/')).join('\n').replace(/\n{3,}/g, '\n\n').trim()
   if (def.title) body = shiftHeadings(body, 1)
   return { file, title: def.title, md: body }
 }

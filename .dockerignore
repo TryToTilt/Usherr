@@ -26,5 +26,11 @@ web/dist
 # so those pages reach the build. Pictures and the generated reference stay out.
 docs/*
 !docs/*.md
+# home fork: the fork's guide pages and their pictures (shown in the app)
+!docs/home/
+docs/home/*
+!docs/home/*.md
+!docs/home/images/
+docs/home/images/_*
 
 website/

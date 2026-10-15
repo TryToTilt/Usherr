@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { MoreSentinel, useNarrow } from '../home/swipeRows' // home fork
+import { useRowMemory } from '../home/rowMemory' // home fork
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { api, can, isRequested, isViewer, type BookFormat, type BookFound } from '../api'
@@ -95,7 +97,10 @@ function BookRail({
   onShown?: (keys: string) => void
 }) {
   const grid = useRef<HTMLDivElement>(null)
-  const cols = useGridColumns(grid)
+  const measured = useGridColumns(grid)
+  const narrow = useNarrow() // home fork: one swipe row on a phone
+  useRowMemory(grid, `books:${title}`, narrow) // home fork
+  const cols = narrow ? 8 : measured
   // The book lists come from Open Library, which is slow and asks for patience: they start by themselves, spread over several seconds.
   const [warm] = useState(() => 3000 + Math.random() * 9000)
   const near = useNearViewport(grid, 1600, warm)
@@ -137,7 +142,7 @@ function BookRail({
     return () => window.removeEventListener('mediarium:book-added', onAdded)
   }, [])
 
-  const visible = shown.length >= want || done ? shown.slice(0, want) : shown.slice(0, Math.max(0, Math.floor(shown.length / cols) * cols))
+  const visible = narrow ? shown : shown.length >= want || done ? shown.slice(0, want) : shown.slice(0, Math.max(0, Math.floor(shown.length / cols) * cols))
   const visibleKeys = visible.map((b) => b.key).join('|')
   useEffect(() => onShown?.(visibleKeys), [visibleKeys, onShown])
   // On the overview a list Open Library can't give right now is left out.
@@ -166,13 +171,14 @@ function BookRail({
         {hint && <span>{hint}</span>}
       </div>
       {error && <p className="error-text">{error}</p>}
-      <div className="poster-grid" ref={grid}>
+      <div className={narrow ? 'poster-scroll' : 'poster-grid'} ref={grid}>
         {visible.map((b) => (
           <BookCard key={b.key} book={b} onAdd={onAdd} />
         ))}
-        {visible.length === 0 && !error && Array.from({ length: cols * rows }, (_, i) => <div key={i} className="skeleton" style={{ aspectRatio: '2 / 3' }} />)}
+        {visible.length === 0 && !error && Array.from({ length: narrow ? 3 : cols * rows }, (_, i) => <div key={i} className="skeleton" style={{ aspectRatio: '2 / 3' }} />)}
+        {narrow && visible.length > 0 && !done && !error && <MoreSentinel onSeen={() => setExtra((x) => x + 1)} busy={loading} ratio="2 / 3" />}
       </div>
-      {!error && !(done && shown.length <= want) && visible.length > 0 && (
+      {!narrow && !error && !(done && shown.length <= want) && visible.length > 0 && (
         <div className="rail-foot">
           <button className="btn-sm btn-with-icon" onClick={() => setExtra((x) => x + 2)} disabled={loading}>
             <Icon name="plus" size={15} /> {t('Load more')}

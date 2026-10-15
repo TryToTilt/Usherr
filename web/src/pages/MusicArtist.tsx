@@ -1,4 +1,6 @@
 import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import VoteButtons from '../home/VoteButtons' // home fork
+import { MoreLikeArtist } from '../home/AIMusic' // home fork
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { api, can, isAdmin, type MusicAlbum, type MusicArtist as MusicArtistData, type MusicProfile, type MusicRelease, type QueueItem, type SearchResult } from '../api'
 import { useAuth } from '../AuthContext'
@@ -278,6 +280,7 @@ function ArtistPage() {
             </span>
           </div>
           <h1>{artist.name}</h1>
+          <MoreLikeArtist artistId={artist.id} name={artist.name} /> {/* home fork */}
           {artist.disambiguation && <p className="title-tagline">{artist.disambiguation}</p>}
           <div className="title-chips">
             <span className="chip-plain">
@@ -303,6 +306,7 @@ function ArtistPage() {
             )}
           </div>
           <div className="title-links">
+            {artist.mbid && <VoteButtons kind="artist" refId={artist.mbid} meta={{ title: artist.name }} />} {/* home fork */}
             <a className="link-pill" href={`https://musicbrainz.org/artist/${artist.mbid}`} target="_blank" rel="noreferrer">
               <Icon name="external" size={13} /> {t('More about this artist')}
             </a>

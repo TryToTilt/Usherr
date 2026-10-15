@@ -99,6 +99,7 @@ func toEpisodePayload(e library.Episode) episodePayload {
 	return episodePayload{
 		ID: e.ID, Season: e.Season, Episode: e.Episode, Title: e.Title, Overview: e.Overview,
 		AirDate: e.AirDate, Status: string(e.Status), Quality: e.Quality, FilePath: e.FilePath, Monitored: e.Monitored,
+		SizeBytes: cachedFileSize(e.FilePath, time.Now()),
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 )
 
 type castPayload struct {
+	ID         int    `json:"id,omitempty"` // home fork: the person page
 	Name       string `json:"name"`
 	Character  string `json:"character"`
 	ProfileURL string `json:"profileUrl,omitempty"`
@@ -21,7 +22,7 @@ const detailCastCount = 12
 func castPayloads(cast []metadata.CastMember) []castPayload {
 	out := make([]castPayload, len(cast))
 	for i, c := range cast {
-		out[i] = castPayload{Name: c.Name, Character: c.Character, ProfileURL: metadata.ProfileURL(c.ProfilePath)}
+		out[i] = castPayload{ID: c.ID, Name: c.Name, Character: c.Character, ProfileURL: metadata.ProfileURL(c.ProfilePath)}
 	}
 	return out
 }

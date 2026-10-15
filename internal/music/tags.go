@@ -30,7 +30,11 @@ func (FileTagReader) ReadTags(path string) (info FileInfo, ok bool, err error) {
 		return FileInfo{}, false, fmt.Errorf("open %s: %w", path, err)
 	}
 	defer f.Close()
-	m, err := tag.ReadFrom(f)
+	st, err := f.Stat()
+	if err != nil {
+		return FileInfo{}, false, fmt.Errorf("stat %s: %w", path, err)
+	}
+	m, err := tag.ReadFrom(newReadSeekBuffer(f, st.Size())) // home fork: buffered (see home_tagbuf.go)
 	if errors.Is(err, tag.ErrNoTagsFound) {
 		return FileInfo{}, false, nil
 	}

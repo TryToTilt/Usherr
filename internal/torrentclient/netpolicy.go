@@ -44,6 +44,15 @@ func applyNetworkPolicy(tcfg *torrent.ClientConfig, tunnel TunnelDialer, allowLo
 		// tracker would end the whole program), so a UDP tracker gets a stand-in
 		// that opens no socket and fails every announce instead.
 		tcfg.TrackerListenPacket = func(network, addr string) (net.PacketConn, error) {
+			// Home fork: UDP trackers go through the tunnel when it can carry
+			// them (wireguard-go netstack can); otherwise the stand-in.
+			if lp, ok := tunnel.(interface {
+				ListenPacket(network, addr string) (net.PacketConn, error)
+			}); ok {
+				if pc, err := lp.ListenPacket(network, addr); err == nil {
+					return pc, nil
+				}
+			}
 			return newUDPOffConn(), nil
 		}
 		return

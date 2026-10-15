@@ -260,7 +260,8 @@ func New(db *sql.DB, cfg config.Config, box *crypto.Box, defaultTMDBAPIKey, vers
 	s.mediaFinder = mediaservers.NewFinder(s.mediaClient)
 	s.mediaRefresher = mediaservers.NewRefresher(s.MediaServers, s.mediaClient)
 	s.mediaRefresher.OnDone = s.mediaFinder.Invalidate
-	s.rebuildSubtitles() // picks up a saved OpenSubtitles account
+	s.mediaRefresher.Hold = func() bool { return !s.taskAllowed(taskMediaRefresh) } // schedules hook (home fork)
+	s.rebuildSubtitles()                                                            // picks up a saved OpenSubtitles account
 	s.migrator = s.newMigrator()
 	if err := s.initProfiles(); err != nil {
 		return nil, fmt.Errorf("init quality profiles: %w", err)
@@ -390,6 +391,10 @@ func (s *Server) Routes() http.Handler {
 	public.HandleFunc("POST /api/auth/passkey/login/finish", s.handlePasskeyLoginFinish)
 	// Calendar apps read the feed without signing in; the secret address is the key.
 	public.HandleFunc("GET /api/calendar/feed/{file}", s.handleCalendarFeed)
+	s.registerTVFeedRoutes(public)   // Mediarium TV feeds for Jellyfin (home fork)
+	s.registerTVLiveRoutes(public)   // Mediarium TV live channel relay (home fork)
+	s.registerTVLogoRoutes(public)   // Mediarium TV channel logos for Jellyfin (home fork)
+	s.registerStreamedRoutes(public) // streamed library pointers (home fork)
 
 	public.Handle("/api/", s.signedIn(s.protectedRoutes()))
 
@@ -486,6 +491,93 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("GET /api/discover/list", revalidatedFor(discoverCacheSeconds, s.handleDiscoverList))
 	member.HandleFunc("GET /api/discover/import-list", s.handleImportList)
 	member.HandleFunc("GET /api/discover/for-you", revalidated(s.handleForYou))
+	member.HandleFunc("GET /api/home/discover/people", s.handleDiscoverPeople)      // Discover: whose watching (home fork)
+	member.HandleFunc("GET /api/home/discover/watched-seeds", s.handleWatchedSeeds) // home fork
+	member.HandleFunc("GET /api/home/discover/season", s.handleDiscoverSeason)      // home fork
+	member.HandleFunc("GET /api/home/ai/on", s.handleAIOn)                          // AI (home fork)
+	member.HandleFunc("POST /api/home/ai/search", s.handleAISearch)                 // home fork
+	member.HandleFunc("POST /api/home/ai/room", s.handleAIRoom)                     // home fork
+	member.HandleFunc("POST /api/home/ai/recap", s.handleAIRecap)                   // home fork
+	member.HandleFunc("GET /api/home/discover/why", s.handleDiscoverWhy)            // home fork
+	member.HandleFunc("POST /api/home/ai/tonight", s.handleAITonight)               // home fork
+	member.HandleFunc("POST /api/home/ai/explain", s.handleAIExplain)               // home fork
+	member.HandleFunc("POST /api/home/ai/comic-recap", s.handleAIComicRecap)        // home fork
+	member.HandleFunc("GET /api/home/discover/leanings", s.handleDiscoverLeanings)  // home fork
+
+	// home fork: AI for music, books, comics and TV
+	member.HandleFunc("POST /api/home/ai/playlist", s.handleAIPlaylist)
+	member.HandleFunc("POST /api/home/ai/similar-artists", s.handleAISimilarArtists)
+	member.HandleFunc("POST /api/home/ai/book-search", s.handleAIBookSearch)
+	member.HandleFunc("POST /api/home/ai/read-alikes", s.handleAIReadAlikes)
+	member.HandleFunc("POST /api/home/ai/book-recap", s.handleAIBookRecap)
+	member.HandleFunc("POST /api/home/ai/vibe", s.handleAIVibe)
+	member.HandleFunc("POST /api/home/ai/skip-guide", s.handleAISkipGuide)
+	member.HandleFunc("POST /api/home/ai/comic-guide", s.handleAIComicGuide)
+	member.HandleFunc("POST /api/home/ai/ask", s.handleAIAsk)
+
+	admin.HandleFunc("GET /api/home/ai", s.handleGetAI)                // home fork
+	admin.HandleFunc("PUT /api/home/ai", s.handlePutAI)                // home fork
+	admin.HandleFunc("POST /api/home/ai/test", s.handleTestAI)         // home fork
+	member.HandleFunc("GET /api/home/news", s.handleNews)              // home fork: entertainment news
+	member.HandleFunc("GET /api/home/moods", s.handleMoods)            // home fork: Library shelves by mood
+	member.HandleFunc("GET /api/home/book-genres", s.handleBookGenres) // home fork: Library shelves by genre
+
+	// home fork: Discover recipes and the services each person pays for
+	member.HandleFunc("GET /api/home/recipes", s.handleListRecipes)
+	member.HandleFunc("GET /api/home/recipes/titles", s.handleRecipeTitles)
+	member.HandleFunc("POST /api/home/recipes", s.handleAddRecipe)
+	member.HandleFunc("PUT /api/home/recipes/{id}", s.handleUpdateRecipe)
+	member.HandleFunc("DELETE /api/home/recipes/{id}", s.handleDeleteRecipe)
+	member.HandleFunc("POST /api/home/recipes/{id}/copy", s.handleCopyRecipe)
+	member.HandleFunc("GET /api/home/providers", s.handleProviders)
+	member.HandleFunc("PUT /api/home/my-services", s.handlePutMyServices)
+	member.HandleFunc("GET /api/home/watch/{kind}/{id}", s.handleTitleProviders)
+	member.HandleFunc("GET /api/home/search/people", s.handleSearchPeople)
+	member.HandleFunc("GET /api/home/search/keywords", s.handleSearchKeywords)
+	member.HandleFunc("GET /api/home/scores", s.handleScores)
+	member.HandleFunc("GET /api/home/gaps", s.handleGaps)
+	member.HandleFunc("GET /api/home/person/{id}", s.handlePerson)
+	member.HandleFunc("POST /api/home/gaps/ignore", s.handleGapsIgnore)
+	member.HandleFunc("GET /api/home/have", revalidated(s.handleHave))
+	member.HandleFunc("POST /api/home/family", s.handleFamily)
+	member.HandleFunc("GET /api/home/roulette", s.handleRoulette)
+	member.HandleFunc("GET /api/home/votes", s.handleVotes)
+	member.HandleFunc("PUT /api/home/votes", s.handlePutVote)
+	member.HandleFunc("GET /api/home/votes/deck", s.handleVoteDeck)
+	member.HandleFunc("GET /api/home/taste", s.handleTaste) // home fork: the taste engine
+	member.HandleFunc("GET /api/home/taste/why", s.handleTasteWhy)
+	member.HandleFunc("GET /api/home/taste/title", s.handleTasteTitle)
+	member.HandleFunc("POST /api/home/taste/scores", s.handleTasteScores)
+	member.HandleFunc("GET /api/home/you", s.handleYou) // home fork: the You page
+	member.HandleFunc("PUT /api/home/you/share", s.handleYouShare)
+	member.HandleFunc("GET /api/home/you/votes", s.handleYouVotes)
+	member.HandleFunc("GET /api/home/you/household", s.handleYouHousehold)
+	member.HandleFunc("GET /api/home/diary", s.handleDiary) // home fork: the Diary
+	member.HandleFunc("POST /api/home/diary", s.handleDiaryLog)
+	member.HandleFunc("PUT /api/home/diary/{id}", s.handleDiaryEdit)
+	member.HandleFunc("DELETE /api/home/diary/{id}", s.handleDiaryDelete)
+	member.HandleFunc("GET /api/home/diary/import", s.handleDiaryImportState)
+	member.HandleFunc("POST /api/home/diary/import/letterboxd", s.handleDiaryImportLetterboxd)
+	member.HandleFunc("POST /api/home/diary/import/trakt", s.handleDiaryImportTrakt)
+	member.HandleFunc("GET /api/home/wrapped", s.handleWrapped)
+	member.HandleFunc("GET /api/home/autostream", s.handleAutostream) // home fork: Streams for you
+	member.HandleFunc("PUT /api/home/autostream", s.handleAutostreamSet)
+	member.HandleFunc("DELETE /api/home/autostream/{id}", s.handleAutostreamRemove)
+	member.HandleFunc("GET /api/home/ready-rows", s.handleReadyRows)
+	member.HandleFunc("PUT /api/home/ready-rows", s.handlePutReadyRows)
+	member.HandleFunc("GET /api/home/follows", s.handleFollows)
+	member.HandleFunc("GET /api/home/follows/work", revalidated(s.handleFollowWork))
+	member.HandleFunc("PUT /api/home/follows/{id}", s.handleFollow)
+	member.HandleFunc("DELETE /api/home/follows/{id}", s.handleUnfollow)
+	admin.HandleFunc("POST /api/home/gaps/scan", s.handleGapsScan)
+	admin.HandleFunc("GET /api/home/mdblist", s.handleGetMDBList)
+	admin.HandleFunc("PUT /api/home/mdblist", s.handlePutMDBList)
+	admin.HandleFunc("PUT /api/home/autostream/household", s.handleAutostreamHousehold) // home fork: Streams for you
+	admin.HandleFunc("POST /api/home/mdblist/test", s.handleTestMDBList)
+	admin.HandleFunc("GET /api/home/news/settings", s.handleGetNewsSettings) // home fork
+	admin.HandleFunc("PUT /api/home/news/settings", s.handlePutNewsSettings) // home fork
+	admin.HandleFunc("POST /api/home/news/test", s.handleTestNewsSource)     // home fork
+	admin.HandleFunc("POST /api/home/news/refresh", s.handleRefreshNews)     // home fork
 	member.HandleFunc("GET /api/tv/search", s.handleSearchTV)
 	member.HandleFunc("GET /api/tmdb/search", s.handleTMDBSearch)
 	member.HandleFunc("GET /api/tmdb/movies/{tmdbId}", s.handleTMDBMovieDetail)
@@ -530,7 +622,7 @@ func (s *Server) protectedRoutes() *routeTable {
 
 	// Books: ebooks and audiobooks (404 while both are off).
 	member.HandleFunc("GET /api/books", revalidated(s.handleListBooks))
-	member.Need(auth.PermBooks).HandleFunc("POST /api/books", s.handleAddBook)
+	member.HandleFunc("POST /api/books", s.handleAddBook) // home fork: ebooks and audiobooks are checked apart, in the handler
 	member.HandleFunc("GET /api/books/search", s.handleBookSearch)
 	member.HandleFunc("GET /api/book-covers/{file}", s.handleBookCover)
 	member.HandleFunc("GET /api/books/discover", s.handleBookDiscover)
@@ -598,6 +690,11 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("GET /api/movies/{id}/events", s.handleMovieEvents)
 	member.HandleFunc("GET /api/series/{id}/events", s.handleSeriesEvents)
 	play.HandleFunc("GET /api/files/stream", s.handleStreamFile)
+	s.registerPlayRoutes(play)               // play hook (home fork)
+	s.registerTVChannelRoutes(play, admin)   // Mediarium TV (home fork)
+	s.registerStreamedAppRoutes(play, admin) // streamed library (home fork)
+	s.registerExtrasRoutes(admin)            // Settings > Extras (home fork)
+	s.registerStreamedAddRoutes(play, admin) // Add as stream (home fork)
 
 	// "Watch in Plex/Jellyfin/Emby" and "Open my media server" links.
 	member.HandleFunc("GET /api/media-servers/links", s.handleMediaServerLinks)
@@ -744,6 +841,8 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("GET /api/system/backups/cloud/list", s.handleListCloudBackups)
 	admin.HandleFunc("GET /api/rename", s.handleRenamePreview)
 	admin.HandleFunc("POST /api/rename", s.handleRename)
+	s.registerSceneRoutes(admin, member) // scenes hook (home fork)
+	s.registerComicRoutes(admin, member) // comics hook (home fork)
 	admin.HandleFunc("POST /api/downloads/manual", s.handleManualDownload)
 	admin.HandleFunc("GET /api/manual-import", s.handleManualImportList)
 	admin.HandleFunc("POST /api/manual-import", s.handleManualImport)

@@ -37,7 +37,7 @@ function runtimeLabel(min?: number): string {
 // The top of a movie or show page: poster on the left, everything worth
 // knowing stacked on the right (title, rating, age rating, genres, summary,
 // trailer links, cast), with the page's own action buttons passed in.
-export default function TitleHero({ info, status, actions, children }: { info: HeroInfo; status?: ReactNode; actions?: ReactNode; children?: ReactNode }) {
+export default function TitleHero({ info, status, actions, children, onPlay }: { info: HeroInfo; status?: ReactNode; actions?: ReactNode; children?: ReactNode; onPlay?: () => void }) {
   const side = useRef<HTMLDivElement>(null)
   // The poster turns a little towards the pointer and catches the light.
   function tilt(e: PointerEvent<HTMLDivElement>) {
@@ -289,9 +289,17 @@ export default function TitleHero({ info, status, actions, children }: { info: H
         info.posterUrl && <div className="title-hero-bg" style={{ backgroundImage: `url("${encodeURI(info.posterUrl).replace(/"/g, '%22')}")` }} aria-hidden="true" />
       )}
       <div className="title-side" ref={side} onPointerMove={tilt} onPointerLeave={untilt}>
-        <div className="title-poster">
-          {info.posterUrl ? <img src={info.posterUrl} alt={info.title} /> : <PosterFallback />}
-        </div>
+        {/* play hook (home fork): the poster plays the title when onPlay is given */}
+        {onPlay ? (
+          <button type="button" className="title-poster hp-poster" onClick={onPlay} aria-label={t('Play {title}', { title: info.title })}>
+            {info.posterUrl ? <img src={info.posterUrl} alt={info.title} /> : <PosterFallback />}
+            <span className="hp-playicon" aria-hidden="true">
+              <Icon name="play" size={44} />
+            </span>
+          </button>
+        ) : (
+          <div className="title-poster">{info.posterUrl ? <img src={info.posterUrl} alt={info.title} /> : <PosterFallback />}</div>
+        )}
         {info.kind === 'tv' && (
           <div className="title-chin" aria-hidden="true">
             <span className="grille" />

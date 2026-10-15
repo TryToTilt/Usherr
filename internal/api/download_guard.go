@@ -168,6 +168,7 @@ func (s *Server) reuseDownloaded(queueID int64, incompleteDir string) bool {
 		missing, _ = strconv.Atoi(strings.TrimSpace(string(b)))
 	}
 	s.queueEvent(queueID, "retried", queue.LevelInfo, "Reusing the files already downloaded instead of downloading again. Checking them first.")
+	setQueueStage(queueID, "Checking the downloaded files") // home fork
 	if err := verifyAndRepair(incompleteDir, missing); err != nil {
 		s.queueEvent(queueID, "retried", queue.LevelWarn, fmt.Sprintf("The files already downloaded didn't pass the check (%v). Downloading again.", err))
 		if err := os.RemoveAll(incompleteDir); err != nil {
@@ -192,8 +193,10 @@ func (s *Server) verifyStep(queueID int64, dir string, missing int) error {
 	}
 	if missing > 0 {
 		s.queueEvent(queueID, "postprocess", queue.LevelInfo, fmt.Sprintf("Repairing %s with PAR2", plural(missing, "missing article")))
+		setQueueStage(queueID, "Repairing damaged files") // home fork
 	} else {
 		s.queueEvent(queueID, "postprocess", queue.LevelInfo, "Verifying with PAR2")
+		setQueueStage(queueID, "Checking files, repairing if needed") // home fork
 	}
 	if err := verifyAndRepair(dir, missing); err != nil {
 		s.queueEvent(queueID, "postprocess", queue.LevelError, fmt.Sprintf("PAR2 repair failed (%v)", err))
@@ -211,6 +214,7 @@ func (s *Server) unpackStep(queueID int64, dir string) error {
 		return unpackArchives(dir)
 	}
 	s.queueEvent(queueID, "postprocess", queue.LevelInfo, fmt.Sprintf("Unpacking %s", plural(len(archives), "archive")))
+	setQueueStage(queueID, "Unpacking") // home fork
 	if err := unpackArchives(dir); err != nil {
 		s.queueEvent(queueID, "postprocess", queue.LevelError, fmt.Sprintf("Unpacking failed (%v)", err))
 		return err

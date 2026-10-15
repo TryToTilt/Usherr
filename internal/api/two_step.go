@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"log/slog"
 	"net/http"
 	"net/netip"
@@ -308,7 +309,7 @@ func (s *Server) handleTwoStepSetup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	uri := totp.URI("Mediarium", user.Username, secret)
+	uri := totp.URI(brand.Name, user.Username, secret)
 	code, err := qr.Encode([]byte(uri))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

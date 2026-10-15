@@ -1,0 +1,174 @@
+/* Usherr: the cinema palette, over upstream's colours (loaded last, so
+   upstream's style sheets stay as they are).
+     Cinema Noir #100509 · Deep Wine #4B0D23 · Marquee Burgundy #821A3B
+     Antique Gold #C99A42 · Champagne Gold #F6D783 · Theater Cream #FFF0D0
+   Burgundy fills buttons and the chosen page; a lighter rose of the same wine
+   is the accent for links and small icons (burgundy is too dark to read as
+   text on noir); gold is kept for the logo, focus, stars and fine borders. */
+
+:root,
+:root[data-theme='dark'] {
+  --u-noir: #100509;
+  --u-wine: #4b0d23;
+  --u-burgundy: #821a3b;
+  --u-burgundy-hover: #9a2449;
+  --u-gold: #c99a42;
+  --u-champagne: #f6d783;
+  --u-cream: #fff0d0;
+
+  --bg: #100509;
+  --surface: #1c0a12;
+  --surface-2: #28101b;
+  --border: #3e1828;
+  --text: #fff0d0;
+  --text-dim: #e3cdb4;
+  --text-faint: #b89b8b;
+
+  --accent: #e3809a;
+  --accent-hover: #ec9bb0;
+  --accent-pressed: #c9607c;
+  --accent-subtle: rgba(227, 128, 154, 0.13);
+  --on-accent: #2a0612;
+  --focus-ring: rgba(246, 215, 131, 0.55);
+
+  --accent-2: #f6d783;
+  --accent-2-subtle: rgba(246, 215, 131, 0.13);
+
+  --success: #8fcf7a;
+  --warning: #f0a35a;
+  --danger: #ff7a5c;
+  --info: #d9b86b;
+
+  --paper: #fff0d0;
+  --paper-2: #e9d3a3;
+
+  --c-dashboard: #f6d783;
+  --c-discover: #e3809a;
+  --c-library: #d9b36b;
+  --c-wanted: #f0a35a;
+  --c-calendar: #e3809a;
+  --c-activity: #e8a07a;
+  --c-settings: #c4a9a2;
+  --c-profile: #f6d783;
+  --c-about: #f6d783;
+  --c-movie: #f6d783;
+  --c-tv: #e3809a;
+  --c-music: #ff9a8a;
+  --c-book: #d9b36b;
+  --c-audiobook: #e8a07a;
+  --on-sec: #1a060d;
+  --on-kind: #1a060d;
+}
+
+/* Light: cream paper, wine ink. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --bg: #fbf3e2;
+    --surface: #fffaf0;
+    --surface-2: #f5ead2;
+    --border: #e6d3b1;
+    --text: #2a0a15;
+    --text-dim: #5b3640;
+    --text-faint: #7d5a5f;
+    --accent: #821a3b;
+    --accent-hover: #6e1431;
+    --accent-pressed: #5a1028;
+    --accent-subtle: rgba(130, 26, 59, 0.1);
+    --on-accent: #fff0d0;
+    --focus-ring: rgba(201, 154, 66, 0.55);
+    --accent-2: #8a6420;
+    --success: #2f6b1f;
+    --warning: #9a4a07;
+    --danger: #b3261e;
+    --info: #7a5a14;
+    --c-dashboard: #8a6420;
+    --c-discover: #821a3b;
+    --c-library: #7a5a14;
+    --c-movie: #8a6420;
+    --c-tv: #821a3b;
+    --on-sec: #fff0d0;
+    --on-kind: #fff0d0;
+  }
+}
+:root[data-theme='light'] {
+  --bg: #fbf3e2;
+  --surface: #fffaf0;
+  --surface-2: #f5ead2;
+  --border: #e6d3b1;
+  --text: #2a0a15;
+  --text-dim: #5b3640;
+  --text-faint: #7d5a5f;
+  --accent: #821a3b;
+  --accent-hover: #6e1431;
+  --accent-pressed: #5a1028;
+  --accent-subtle: rgba(130, 26, 59, 0.1);
+  --on-accent: #fff0d0;
+  --focus-ring: rgba(201, 154, 66, 0.55);
+  --accent-2: #8a6420;
+  --success: #2f6b1f;
+  --warning: #9a4a07;
+  --danger: #b3261e;
+  --info: #7a5a14;
+  --c-dashboard: #8a6420;
+  --c-discover: #821a3b;
+  --c-library: #7a5a14;
+  --c-movie: #8a6420;
+  --c-tv: #821a3b;
+  --on-sec: #fff0d0;
+  --on-kind: #fff0d0;
+}
+
+/* Burgundy fills: primary buttons and what's chosen. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) button.primary,
+  :root:not([data-theme='light']) .btn.primary,
+  :root:not([data-theme='light']) .room-chip.on {
+    background: var(--u-burgundy);
+    border-color: var(--u-burgundy);
+    color: var(--u-cream);
+  }
+  :root:not([data-theme='light']) button.primary:hover:not(:disabled) { background: var(--u-burgundy-hover); }
+  :root:not([data-theme='light']) .sidebar { background: var(--u-wine); }
+}
+:root[data-theme='dark'] button.primary,
+:root[data-theme='dark'] .btn.primary,
+:root[data-theme='dark'] .room-chip.on {
+  background: var(--u-burgundy);
+  border-color: var(--u-burgundy);
+  color: var(--u-cream);
+}
+:root[data-theme='dark'] button.primary:hover:not(:disabled) { background: var(--u-burgundy-hover); }
+:root[data-theme='dark'] .sidebar { background: var(--u-wine); }
+
+/* The name, in the logo's gold serif. */
+.sidebar .brand-name,
+.splash-name,
+.about-hero h1 span,
+.auth-logo span {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--u-champagne);
+}
+:root[data-theme='light'] .sidebar .brand-name,
+:root[data-theme='light'] .splash-name { color: var(--u-burgundy); }
+img.brand-mark { border-radius: 22%; object-fit: cover; }
+.splash { background: var(--u-noir); }
+.about-credit { color: var(--text-dim); font-size: 0.92rem; }
+.about-credit a { color: var(--u-champagne); }
+:root[data-theme='light'] .about-credit a { color: var(--u-burgundy); }
+/* Panels (sidebar, header, the filter bar) in wine instead of navy. */
+:root { --panel-top: #2a0e1b; --panel-bottom: #1a0810; }
+@media (prefers-color-scheme: light) { :root:not([data-theme='dark']) { --panel-top: #fffaf0; --panel-bottom: #f8eedb; } }
+:root[data-theme='light'] { --panel-top: #fffaf0; --panel-bottom: #f8eedb; }
+img.usherr-glyph { border-radius: 22%; object-fit: cover; }
+/* The welcome panel: the projection beam over wine, and the spotlight's star
+   (from the logo) punched out of its corner instead of upstream's arch. */
+:root { --arch-cut: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2032%2032%27%3E%3Cpath%20d%3D%27M16%201.5%2018.8%2013.2%2030.5%2016%2018.8%2018.8%2016%2030.5%2013.2%2018.8%201.5%2016%2013.2%2013.2z%27%20fill%3D%27black%27/%3E%3C/svg%3E"); }
+.hero-welcome {
+  background:
+    conic-gradient(from 198deg at 100% 0%, transparent 0deg, rgba(246, 215, 131, 0.1) 16deg, rgba(246, 215, 131, 0.04) 32deg, transparent 50deg),
+    radial-gradient(60% 90% at 92% 0%, color-mix(in srgb, var(--u-burgundy) 30%, transparent), transparent 62%),
+    radial-gradient(50% 70% at 0% 100%, color-mix(in srgb, var(--u-gold) 8%, transparent), transparent 70%),
+    linear-gradient(160deg, color-mix(in srgb, var(--panel-top) 85%, var(--u-wine)), var(--panel-bottom) 70%);
+}

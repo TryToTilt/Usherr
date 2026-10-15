@@ -25,6 +25,8 @@ type Show struct {
 	// TMDB's kind of show ("Scripted", "Talk Show", "News", ...).
 	OriginCountry []string `json:"origin_country"`
 	Type          string   `json:"type"`
+	// The show's own language ("en"); home fork: "Not English" recipes.
+	OriginalLanguage string `json:"original_language"`
 }
 
 // Year extracts the 4-digit first-air year, or 0 if unknown.
@@ -62,6 +64,7 @@ type EpisodeInfo struct {
 	Name     string `json:"name"`
 	Overview string `json:"overview"`
 	AirDate  string `json:"air_date"`
+	Runtime  int    `json:"runtime"` // minutes; 0 when TMDB doesn't know
 }
 
 type pagedShows struct {

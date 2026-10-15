@@ -132,6 +132,11 @@ func (n *queueNamer) book(id int64) (books.Book, bool) {
 // describe is describeQueueItem for a namer: the same words, from the
 // remembered lookups.
 func (n *queueNamer) describe(it queue.Item) (title, subtitle, poster string) {
+	if it.MovieID == 0 && it.SeriesID == 0 && it.AlbumID == 0 && it.BookID == 0 && n.s != nil {
+		if t, sub, img, ok := n.s.describeSceneItem(it.ID); ok { // scenes hook (home fork)
+			return t, sub, img
+		}
+	}
 	title = it.ReleaseTitle
 	switch {
 	case it.AlbumID > 0:

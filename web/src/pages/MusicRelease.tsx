@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import VoteButtons from '../home/VoteButtons' // home fork
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, type MusicPreview } from '../api'
 import AddMusicDialog from '../components/AddMusicDialog'
@@ -83,6 +84,9 @@ export default function MusicRelease() {
             </span>
           </div>
           <h1>{album.title}</h1>
+          <div className="title-votes">
+            <VoteButtons kind="album" refId={mbid} meta={{ title: `${album.title} · ${album.artistName}`, image: album.coverUrl }} /> {/* home fork */}
+          </div>
           <p className="title-tagline">
             {album.artistName}
             {coming ? (

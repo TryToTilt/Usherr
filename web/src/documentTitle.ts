@@ -5,7 +5,7 @@ import { useEffect, useSyncExternalStore } from 'react'
 // name; a page that knows more (a movie's name) offers it with
 // useDocumentTitle and the shell uses it instead.
 
-export const APP_NAME = 'Mediarium'
+export const APP_NAME = 'Usherr' // Usherr (brand.ts)
 
 // "Library · Mediarium". An empty name is just the app name.
 export function titleFor(name: string): string {

@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"fmt"
+	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"io/fs"
 	"log/slog"
 	"mime"
@@ -207,7 +208,7 @@ func (s *Server) opdsRootFeed(w http.ResponseWriter, r *http.Request, v opdsView
 			Links: []opds.Link{{Rel: rel, Href: v.href(p), Type: typ}}}
 	}
 	f := opds.Feed{
-		ID: "urn:mediarium:opds:root", Title: "Mediarium books", Updated: updated, Kind: opds.Navigation,
+		ID: "urn:mediarium:opds:root", Title: brand.Name + " books", Updated: updated, Kind: opds.Navigation,
 		Links: v.startAndSearch(opds.Link{Rel: opds.RelSelf, Href: v.href("/"), Type: v.navType()}),
 		Entries: []opds.Entry{
 			nav("new", "Recently added", "The newest books in the library.", opds.RelNew, "/new", opds.Acquisition),

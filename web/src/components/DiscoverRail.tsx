@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useVotes } from '../home/useVotes' // home fork
+import { voteActions } from '../home/VoteButtons' // home fork
+import { CardScores } from '../home/scores' // home fork
+import { MoreSentinel, useNarrow } from '../home/swipeRows' // home fork
+import { useRowMemory } from '../home/rowMemory' // home fork
+import { leanOrder, useFewer } from '../home/leanings' // home fork
 import { Link, useNavigate } from 'react-router-dom'
 import type { DiscoverMovie } from '../api'
 import { comingLabel, fetchPage, sourceToQuery, type Kind, type Source } from '../discoverSources'
 import { useGridColumns } from '../useGridColumns'
 import { useHideOwned } from '../useHideOwned'
+import { useIsHad } from '../home/useHave' // home fork: on disk, streamed, wanted
+import { useFamilyOk } from '../home/useFamily' // home fork: the family filter
 import { useNearViewport } from '../useNearViewport'
 import type { Owned } from '../useOwned'
 import type { AddTarget } from './AddDialog'
@@ -14,9 +22,10 @@ import { t } from '../i18n'
 
 // The posters of one Discover list. Titles you already own say so and open
 // their page; the rest offer Add, which opens the usual add dialog.
-export function DiscoverCards({ items, kind, owned, onAdd }: { items: DiscoverMovie[]; kind: Kind; owned: Owned; onAdd: (t: AddTarget) => void }) {
+export function DiscoverCards({ items, kind, owned, onAdd, why }: { items: DiscoverMovie[]; kind: Kind; owned: Owned; onAdd: (t: AddTarget) => void; why?: Record<number, string> }) {
   const navigate = useNavigate()
   const picks = usePicks()
+  const votes = useVotes() // home fork
   const map = kind === 'movie' ? owned.movies : owned.shows
   return (
     <>
@@ -31,11 +40,12 @@ export function DiscoverCards({ items, kind, owned, onAdd }: { items: DiscoverMo
             to={path}
             poster={m.posterUrl}
             title={m.title}
-            meta={coming ? <span className="coming-soon">{coming}</span> : m.year || undefined}
+            meta={coming ? <><span className="coming-soon">{coming}</span>{why?.[m.tmdbId] && <span className="card-why">{why[m.tmdbId]}</span>}</> : why?.[m.tmdbId] ? <>{m.year || ''}<span className="card-why">{why[m.tmdbId]}</span></> : <>{m.year || ''}<CardScores kind={kind} tmdbId={m.tmdbId} /></>} // scores: home fork
             genres={m.genres}
             rating={coming ? undefined : m.rating}
             kind={kind}
             state={own?.state}
+            actions={voteActions(votes, kind, m.tmdbId, { title: m.title, year: m.year, image: m.posterUrl })} // home fork: votes
             footer={
               <div className="pcard-footer">
                 {libraryId ? (
@@ -71,6 +81,9 @@ export function DiscoverCards({ items, kind, owned, onAdd }: { items: DiscoverMo
   )
 }
 
+const NO_GENRES = new Set<string>()
+
+
 // Most pages read to fill a row while titles in the library are hidden.
 const MAX_PAGES_WHEN_HIDING = 8
 
@@ -88,14 +101,25 @@ interface RailProps {
   // something to put in the heading, such as a switch.
   moreLabel?: string
   headExtra?: ReactNode
+  // A line under each title, by TMDB id (home fork: "Because you watched…").
+  why?: Record<number, string>
+  // Show titles you have even with "Hide what I have" on (home fork: picks from the library).
+  keepOwned?: boolean
+  // One row that scrolls sideways with every title in it (home fork: AI answers on phones).
+  scroll?: boolean
 }
 
 // A Discover section that always shows whole rows: it measures how many
 // posters fit across and loads just enough pages to fill `rows` of them.
 // "Load more" adds rows in place; "Browse all" opens the list with pages.
-export default function DiscoverRail({ title, hint, kind, owned, onAdd, source, items: fixed, rows = 2, moreLabel = t('Browse all'), headExtra }: RailProps) {
+export default function DiscoverRail({ title, hint, kind, owned, onAdd, source, items: fixed, rows = 2, moreLabel = t('Browse all'), headExtra, why, keepOwned, scroll }: RailProps) {
   const grid = useRef<HTMLDivElement>(null)
-  const cols = useGridColumns(grid)
+  const measured = useGridColumns(grid)
+  // home fork: on a phone every row scrolls sideways (and loads more near its end)
+  const narrow = useNarrow()
+  const strip = scroll || (narrow && !!source)
+  useRowMemory(grid, `rail:${kind}:${title}`, strip) // home fork: back to where you swiped
+  const cols = strip ? 10 : measured
   // Starts a screen or two before it is seen, and by itself within a few seconds of the page opening.
   const [warm] = useState(() => 400 + Math.random() * 3000)
   const near = useNearViewport(grid, 1600, warm)
@@ -106,12 +130,17 @@ export default function DiscoverRail({ title, hint, kind, owned, onAdd, source, 
   const [totalPages, setTotalPages] = useState(1)
   const [failed, setFailed] = useState(false)
   const busy = useRef(false)
-  const [hideOwned] = useHideOwned()
-  const ownedMap = kind === 'movie' ? owned.movies : owned.shows
+  const [hideSetting] = useHideOwned()
+  const hideOwned = hideSetting && !keepOwned
+  const isHad = useIsHad(kind, owned) // home fork: also streamed and media-server titles
   // With "Hide what I have" on, titles in the library are left out and more
   // pages are read to still fill the rows (but not without end).
-  const visible = useMemo(() => (hideOwned ? items.filter((m) => !ownedMap.has(m.tmdbId)) : items), [hideOwned, items, ownedMap])
-  const pageLimit = hideOwned ? Math.min(totalPages, MAX_PAGES_WHEN_HIDING) : totalPages
+  // home fork: genres the Not interested list keeps dismissing go to the end of list rows
+  const fewer = useFewer()
+  const family = useFamilyOk(kind, items) // home fork
+  const votes = useVotes() // home fork: a thumbs down hides it from your Discover (not from a person's or library picks)
+  const visible = useMemo(() => leanOrder((hideOwned ? items.filter((m) => !isHad(m.tmdbId)) : items).filter((m) => family.ok(m.tmdbId) && (keepOwned || votes.get(kind, m.tmdbId) !== -1)), source ? fewer : NO_GENRES), [hideOwned, items, isHad, source, fewer, family, votes, kind, keepOwned])
+  const pageLimit = hideOwned || family.on ? Math.min(totalPages, MAX_PAGES_WHEN_HIDING) : totalPages
 
   useEffect(() => {
     if (fixed) setItems(fixed)
@@ -155,11 +184,18 @@ export default function DiscoverRail({ title, hint, kind, owned, onAdd, source, 
           </Link>
         )}
       </div>
+      {strip ? (
+        <div className="poster-scroll" ref={grid}>
+          {loading ? Array.from({ length: 4 }, (_, i) => <div key={i} className="skeleton" style={{ aspectRatio: '2 / 3.5' }} />) : <DiscoverCards items={visible} kind={kind} owned={owned} onAdd={onAdd} why={why} />}
+          {!loading && source && (page < pageLimit && !failed) && <MoreSentinel onSeen={() => setExtra((x) => x + 1)} busy={fetching} />}
+        </div>
+      ) : (
       <div className="poster-grid" ref={grid}>
-        {loading ? Array.from({ length: want }, (_, i) => <div key={i} className="skeleton" style={{ aspectRatio: '2 / 3.5' }} />) : <DiscoverCards items={shown} kind={kind} owned={owned} onAdd={onAdd} />}
+        {loading ? Array.from({ length: want }, (_, i) => <div key={i} className="skeleton" style={{ aspectRatio: '2 / 3.5' }} />) : <DiscoverCards items={shown} kind={kind} owned={owned} onAdd={onAdd} why={why} />}
         {!loading && fetching && Array.from({ length: Math.max(0, want - shown.length) }, (_, i) => <div key={`s${i}`} className="skeleton" style={{ aspectRatio: '2 / 3.5' }} />)}
       </div>
-      {more && (
+      )}
+      {more && !strip && (
         <div className="rail-foot">
           <button
             className="btn-sm btn-with-icon"

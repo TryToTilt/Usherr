@@ -1,0 +1,104 @@
+/* Home fork: the fork's pages in Mediarium 3's look. Live TV gets a colour
+   of its own (rose, a sibling of the brand teal like v3's section colours),
+   and the Library's tab row on Comics and NSFW 18+ (links there) looks like
+   the Library's own kind tabs. */
+
+:root { --c-live: var(--c-rose); --c-comics: var(--c-wanted); --c-nsfw: var(--c-rose); }
+/* Secondary text in fork pages: v3 calls it --text-faint. (--muted was never
+   defined, so captions showed at full strength.) */
+:root { --muted: var(--text-faint); }
+.app-shell[data-section='live'] { --sec: var(--c-live); }
+
+/* Kind tabs as links (the Library's tabs on the pages of their own). */
+.seg.kind-tabs a {
+  --kc: var(--text);
+  display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 15px;
+  border: 1px solid var(--border); border-radius: 12px; background: transparent;
+  color: var(--text-dim); font-weight: 600; text-decoration: none; white-space: nowrap;
+}
+.seg.kind-tabs a:hover { color: var(--text); border-color: color-mix(in srgb, var(--kc) 50%, var(--border)); }
+.seg.kind-tabs a.active { background: var(--kc); border-color: var(--kc); color: var(--on-kind, var(--bg)); box-shadow: 0 6px 20px color-mix(in srgb, var(--kc) 30%, transparent); }
+.lib-tabs-row { margin-bottom: 18px; }
+
+/* Our page headings sit in v3's heading (title with the section bar). */
+.page-header.tv-head, .page-header.sl-head, .page-header.cx-head, .page-header.sc-head { display: flex; flex-wrap: wrap; }
+@media (max-width: 900px) { .seg.kind-tabs > a { flex: none; } }
+
+/* Discover: whose watching "Because you watched" follows */
+.disc-who { height: 32px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 600; }
+
+/* AI Search on Discover */
+.ai-search { margin-bottom: 22px; }
+.ai-search-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--sec) 45%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--sec) 6%, var(--surface)); }
+.ai-search-bar > input:not([type=file]) { flex: 1 1 260px; min-width: 0; border: 0; background: transparent; font-size: 1rem; }
+.ai-search-bar > input:focus { outline: none; }
+.ai-search-results { margin-top: 12px; }
+.ai-note { margin: 0 0 8px; }
+/* AI: Ask / Pick for the Room, and the "why" under a poster */
+.ai-modes { display: flex; gap: 6px; margin-bottom: 8px; }
+.ai-modes button { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-weight: 600; }
+.ai-modes button.on { color: var(--text); border-color: color-mix(in srgb, var(--sec) 55%, var(--border)); background: color-mix(in srgb, var(--sec) 10%, var(--surface)); }
+.room-pick { display: grid; gap: 8px; padding: 10px; border: 1px solid color-mix(in srgb, var(--sec) 45%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--sec) 6%, var(--surface)); }
+.room-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.room-label { font-size: .85rem; color: var(--muted); margin-right: 4px; }
+.room-chip { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: .9rem; }
+.room-chip.on { border-color: var(--sec); background: color-mix(in srgb, var(--sec) 18%, var(--surface)); font-weight: 600; }
+.room-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+.room-wish { flex: 1 1 240px; min-width: 0; }
+.card-why { display: block; margin-top: 3px; font-size: .78rem; line-height: 1.3; color: var(--muted); white-space: normal; }
+.recap-dialog { max-width: 620px; width: calc(100% - 32px); }
+.recap-head { display: flex; align-items: flex-start; gap: 10px; }
+.recap-head h2 { margin: 0; font-size: 1.15rem; }
+.recap-head p { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
+.recap-head .icon-btn { margin-left: auto; }
+.recap-text { white-space: pre-wrap; line-height: 1.55; margin: 14px 0; }
+.recap-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.card:has(> .rel-tools), .rel-tools { scroll-margin-top: 84px; }
+.pcard .pcard-ribbon.tone-ended { top: auto; right: auto; bottom: 8px; left: 8px; width: auto; padding: 3px 8px; border-radius: 6px; transform: none; font-size: 0.68rem; background: #d64545; color: #fff; }
+/* Tonight (Dashboard) */
+.tonight-card { margin-bottom: 18px; }
+.tonight-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.tonight-head h2 { margin: 0; font-size: 1.1rem; }
+.tonight-head .hint { margin: 0; flex: 1 1 240px; }
+.tonight-head > button { margin-left: auto; }
+.tonight-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-top: 12px; }
+.tonight-item { display: flex; gap: 10px; padding: 8px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: inherit; text-decoration: none; }
+.tonight-item:hover { border-color: color-mix(in srgb, var(--sec) 55%, var(--border)); }
+.tonight-item img, .tonight-noposter { width: 64px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; flex: 0 0 auto; background: var(--border); }
+.tonight-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tonight-body small { color: var(--sec); font-weight: 700; font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; }
+.tonight-ep { font-size: .85rem; color: var(--muted); }
+.tonight-why { font-size: .85rem; line-height: 1.35; }
+/* Explain (Activity) */
+.explain-row { margin-top: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.explain-box { display: flex; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--sec) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--sec) 35%, var(--border)); }
+.explain-box p { margin: 0; line-height: 1.45; font-size: .9rem; }
+/* What Not interested taught Discover */
+.leanings-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 10px; }
+.leanings-bar .room-chip { height: 26px; font-size: .82rem; }
+
+/* What a download is: tags under its release name on Activity */
+.rel-specs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 4px 0 2px; }
+.rel-spec { font-size: .72rem; font-weight: 600; line-height: 1; padding: 4px 7px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); white-space: nowrap; }
+.rel-spec.tone-res { border-color: color-mix(in srgb, var(--sec) 60%, var(--border)); color: var(--sec); }
+.rel-spec.tone-hdr { border-color: color-mix(in srgb, #f2c14e 60%, var(--border)); color: #f2c14e; }
+.rel-spec.tone-audio { border-color: color-mix(in srgb, #a78bfa 60%, var(--border)); color: #c4b5fd; }
+.rel-spec.tone-lang { border-color: color-mix(in srgb, #60a5fa 60%, var(--border)); color: #93c5fd; }
+.rel-spec.warn { border-color: var(--danger); color: var(--danger); }
+.rel-spec-group { font-size: .72rem; color: var(--muted); margin-left: 2px; }
+
+/* Discover: "Hide what I have" with its menu (on disk, streamed, wanted) */
+.hide-owned { display: inline-flex; align-items: center; gap: 6px; }
+.hide-owned-pick .dropdown-btn { min-width: 0; }
+.hide-owned-pick .dropdown-list { min-width: 250px; }
+.hide-owned-pick .dropdown-list li { padding: 0; }
+.hide-owned-opt { display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; cursor: pointer; }
+.hide-owned-opt input { margin-top: 3px; accent-color: var(--accent); }
+.hide-owned-opt span { display: grid; gap: 1px; font-weight: 600; }
+.hide-owned-opt small { color: var(--text-faint); font-weight: 400; font-size: .8rem; }
+
+/* User guide: pictures on the home fork's pages */
+.guide-img { display: block; max-width: min(100%, 860px); height: auto; margin: 14px 0 6px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28); }
+
+/* Help links in fork toolbars sit level with the buttons */
+.tv-seg .info-tip, .sl-head > .info-tip { align-self: center; }

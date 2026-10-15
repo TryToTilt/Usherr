@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { Book as EpubBook, NavItem, Rendition } from 'epubjs'
+import { installPageTurn, pageTurnOn, setPageTurn, setTurnSpeed, turnSpeed, turnSpeeds } from './pageTurn' // page-turn hook (home fork)
 import { api, type Book } from '../api'
 import Icon from '../components/Icon'
 import { useDocumentTitle } from '../documentTitle'
@@ -199,6 +200,7 @@ function EpubReader({ book, src }: { book: Book; src: string }) {
         epub.current = b
         const r = b.renderTo(viewer.current, { width: '100%', height: '100%', flow: 'paginated', spread: 'auto', allowScriptedContent: false })
         rendition.current = r
+        installPageTurn(r, viewer.current) // page-turn hook (home fork)
         for (const [name, t] of Object.entries(THEMES)) {
           r.themes.register(name, { body: { background: `${t.bg} !important`, color: `${t.fg} !important` }, a: { color: `${t.link} !important` } })
         }
@@ -412,6 +414,7 @@ function EpubReader({ book, src }: { book: Book; src: string }) {
               </button>
             ))}
           </div>
+          <PageTurnRow />
         </div>
       )}
 
@@ -494,5 +497,48 @@ function TocList({ items, onPick }: { items: NavItem[]; onPick: (href: string) =
         </li>
       ))}
     </ul>
+  )
+}
+
+// Home fork: switch the page-turn effect on or off, and its speed (kept in
+// this browser).
+function PageTurnRow() {
+  const [on, setOn] = useState(pageTurnOn)
+  const [speed, setSpeed] = useState(turnSpeed)
+  return (
+    <>
+    <div className="rdr-row">
+      <span>{t('Turn')}</span>
+      {[true, false].map((v) => (
+        <button
+          key={String(v)}
+          className={`btn-sm${on === v ? ' primary' : ''}`}
+          onClick={() => {
+            setPageTurn(v)
+            setOn(v)
+          }}
+        >
+          {v ? t('Page turn') : t('Instant')}
+        </button>
+      ))}
+    </div>
+    {on && (
+      <div className="rdr-row">
+        <span>{t('Speed')}</span>
+        {turnSpeeds.map((s) => (
+          <button
+            key={s.id}
+            className={`btn-sm${speed === s.id ? ' primary' : ''}`}
+            onClick={() => {
+              setTurnSpeed(s.id)
+              setSpeed(s.id)
+            }}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+    )}
+    </>
   )
 }

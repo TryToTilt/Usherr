@@ -165,6 +165,9 @@ func (s *Server) applySpeedLimit(now time.Time) {
 	if scheduled, ok := scheduledLimit(s.speedSchedule(), now); ok {
 		mb = scheduled
 	}
+	if sm := s.scheduleSpeedMB(); sm > 0 && (mb == 0 || sm < mb) { // the fork's schedules can only slow it further (home fork)
+		mb = sm
+	}
 	speed.Set(int64(mb) << 20)
 	speed.SetUpload(int64(upKB) << 10)
 }

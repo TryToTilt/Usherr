@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { AIPlaylist } from '../home/AIMusic' // home fork
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, isViewer, type MusicPlaylist, type MusicPlaylistDetail, type MusicPlaylistTrack } from '../api'
 import { useAuth } from '../AuthContext'
@@ -180,6 +181,7 @@ export function MusicPlaylists() {
           </form>
         )}
       </div>
+      {!viewer && <AIPlaylist />} {/* home fork: a playlist from a mood */}
 
       {error && <p className="error-text">{error}</p>}
       {lists === null && !error && <div className="skeleton" style={{ height: 180, borderRadius: 18 }} />}

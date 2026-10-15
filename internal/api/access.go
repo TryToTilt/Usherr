@@ -81,7 +81,7 @@ func readOnlyAllows(u *auth.User, method, pattern string) (bool, string) {
 		if viewerHidden[pattern] {
 			return false, forbiddenMessage
 		}
-		if !read && !viewerWritable[pattern] {
+		if !read && !viewerWritable[pattern] && !viewerAsks[pattern] && !viewerOwn[pattern] { // viewerAsks, viewerOwn: home fork
 			return false, readOnlyMessage
 		}
 	}

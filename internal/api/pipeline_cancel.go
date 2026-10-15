@@ -38,6 +38,7 @@ func (r *pipelineRegistry) begin(queueID int64) (context.Context, *pipelineRun) 
 	}
 	r.running[queueID] = run
 	r.mu.Unlock()
+	setQueueStage(queueID, "Starting") // home fork: step and timer
 	return ctx, run
 }
 
@@ -48,6 +49,7 @@ func (r *pipelineRegistry) end(queueID int64, run *pipelineRun) {
 	r.mu.Lock()
 	if r.running[queueID] == run {
 		delete(r.running, queueID)
+		clearQueueStage(queueID) // home fork
 	}
 	r.mu.Unlock()
 	close(run.done)

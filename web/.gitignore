@@ -28,3 +28,5 @@ e2e/.auth/
 test-results/
 playwright-report/
 src/guide/guide.generated.json
+# home fork: copied from docs/home/images by tools/build-guide.mjs
+public/guide-images/

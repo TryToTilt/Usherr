@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { isAdmin } from '../../api'
 import { useAuth } from '../../AuthContext'
@@ -27,7 +28,9 @@ export default function SettingsLayout() {
           {help ? <TipLabel help={help} label={t('Open the user guide for this page')}>{blurb}</TipLabel> : blurb}
         </p>
       )}
-      <Outlet />
+      <Suspense fallback={null}>
+        <Outlet />
+      </Suspense>
     </div>
   )
 }

@@ -142,6 +142,9 @@ type dashActive struct {
 	ProgressPct float64 `json:"progressPct"`
 	SizeBytes   int64   `json:"sizeBytes"`
 	Release     string  `json:"release"`
+	Stage       string  `json:"stage,omitempty"`      // home fork: step and timer
+	StageSince  string  `json:"stageSince,omitempty"` // home fork
+	StageEnds   string  `json:"stageEnds,omitempty"`  // home fork
 }
 
 type dashBookCounts struct {
@@ -187,12 +190,15 @@ type dashboardPayload struct {
 			Downloaded  int `json:"downloaded"`
 			Missing     int `json:"missing"`
 			Downloading int `json:"downloading"`
+			Streams     int `json:"streams"` // home fork: streamed, nothing on disk
 		} `json:"movies"`
 		Series struct {
 			Total              int `json:"total"`
 			Episodes           int `json:"episodes"`
 			EpisodesDownloaded int `json:"episodesDownloaded"`
 			EpisodesMissing    int `json:"episodesMissing"`
+			Streams            int `json:"streams"`         // home fork: streamed shows not in the library
+			EpisodesStreams    int `json:"episodesStreams"` // home fork: streamed episodes with nothing on disk
 		} `json:"series"`
 		// Wanted is what the Wanted page lists under Missing: monitored, no
 		// file and (for episodes) already aired. Movies.Missing and
@@ -348,6 +354,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	hideScene := s.sceneHider(r) // scenes hook (home fork)
 	recentDone, recentErr := s.QueueRepo.RecentCompleted(8)
 	doneItems := make([]queue.Item, len(recentDone))
 	for i, c := range recentDone {
@@ -355,11 +362,18 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	namer := s.newQueueNamer(queueItems, doneItems)
 	for _, it := range queueItems {
+		if hideScene(it.ID) { // scenes hook (home fork)
+			continue
+		}
 		title, subtitle, poster := namer.describe(it)
 		out.Active = append(out.Active, dashActive{
 			ID: it.ID, Title: title, Subtitle: subtitle, PosterURL: poster, Status: string(it.Status),
 			Protocol: string(it.Protocol), ProgressPct: it.ProgressPct, SizeBytes: it.SizeBytes, Release: it.ReleaseTitle,
 		})
+		if it.Status == queue.StatusDownloading || it.Status == queue.StatusImporting {
+			last := &out.Active[len(out.Active)-1]
+			last.Stage, last.StageSince, last.StageEnds = queueStage(it.ID, it.ProgressPct)
+		}
 	}
 	for i := range out.Folders {
 		if out.Folders[i].Key == "downloads" {
@@ -393,6 +407,9 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	out.RecentDownloads = []dashRecent{}
 	if recentErr == nil {
 		for _, c := range recentDone {
+			if hideScene(c.ID) { // scenes hook (home fork)
+				continue
+			}
 			title, subtitle, poster := namer.describe(c.Item)
 			d := dashRecent{Kind: "movie", ID: c.ID, Title: title, Subtitle: subtitle, PosterURL: poster, SizeBytes: c.SizeBytes, At: c.CompletedAt}
 			if c.SeriesID > 0 {
@@ -451,6 +468,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		out.Setup.MediaServers = len(list)
 	}
 
+	s.addStreamedToDashboard(r.Context(), &out) // home fork: the streamed layer
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -458,5 +476,8 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 // (falling back to the release title) and finds its poster. A list of entries
 // uses a queueNamer instead, so the lookups are shared (queue_describe.go).
 func (s *Server) describeQueueItem(it queue.Item) (title, subtitle, poster string) {
+	if t, sub, img, ok := s.describeSceneItem(it.ID); ok { // scenes hook (home fork)
+		return t, sub, img
+	}
 	return s.newQueueNamer([]queue.Item{it}).describe(it)
 }

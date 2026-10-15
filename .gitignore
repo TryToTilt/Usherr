@@ -35,3 +35,11 @@ Thumbs.db
 
 # Agent and editor tooling stays out of the repo
 /music/
+
+# home fork: pictures that failed in tools/home/screenshots
+docs/home/images/_*
+# home fork: the printable guide, built by tools/home/screenshots/pdf.sh
+docs/home/mediarium-home-guide.pdf
+docs/home/mediarium-home-guide.pdf.html
+docs/home/usherr-guide.pdf
+docs/home/usherr-guide.pdf.html

@@ -71,6 +71,9 @@ export default function ProfileMenu() {
             <strong>{displayName(user)}</strong>
             <small>{user.email || `@${user.username}`}</small>
           </div>
+          <Link to="/you" role="menuitem" onClick={() => setOpen(false)}>
+            <Icon name="heart" size={16} /> {t('You: taste and votes')} {/* home fork */}
+          </Link>
           <Link to="/settings/profile" role="menuitem" onClick={() => setOpen(false)}>
             <Icon name="user" size={16} /> {t('Your profile')}
           </Link>

@@ -1,6 +1,6 @@
 import CleanupCard from '../../components/CleanupCard'
 import ServerStatsCard from '../../components/ServerStats'
-import { RestartCard } from '../../components/UpdateCards'
+import { RestartCard, UpdatesCard } from '../../components/UpdateCards'
 
 // The server itself: how it is doing, restarting and clean-up. Updates, the
 // address you open Mediarium at and the legal notice are on General, help for a
@@ -10,6 +10,7 @@ export default function SystemSettings() {
   return (
     <div className="settings-stack">
       <ServerStatsCard />
+      <UpdatesCard /> {/* home fork: updates live on System, not the Dashboard */}
       <RestartCard />
       <CleanupCard />
     </div>

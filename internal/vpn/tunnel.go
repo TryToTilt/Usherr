@@ -49,6 +49,7 @@ type Config struct {
 // optionally, Usenet/general app traffic) through the tunnel
 // instead of the host network directly.
 type Tunnel struct {
+	local4 netip.Addr // the tunnel's own IPv4 address (home fork: UDP sockets bind to it)
 	dev  *device.Device
 	tnet *netstack.Net
 }
@@ -66,6 +67,13 @@ func Up(cfg Config) (*Tunnel, error) {
 	dnsAddrs, err := parseAddrs(cfg.DNS)
 	if err != nil {
 		return nil, fmt.Errorf("parse dns addresses: %w", err)
+	}
+	if len(dnsAddrs) == 0 {
+		// Home fork: the VPN form has no DNS field, and netstack with no
+		// server fails every lookup ("cannot marshal DNS message"), so
+		// trackers by name and the IP check never worked. Public resolvers,
+		// asked through the tunnel, don't leak to the ISP.
+		dnsAddrs, _ = parseAddrs(defaultTunnelDNS)
 	}
 	mtu := cfg.MTU
 	if mtu == 0 {
@@ -93,14 +101,44 @@ func Up(cfg Config) (*Tunnel, error) {
 		return nil, fmt.Errorf("bring wireguard device up: %w", err)
 	}
 
-	return &Tunnel{dev: dev, tnet: tnet}, nil
+	t := &Tunnel{dev: dev, tnet: tnet}
+	for _, a := range localAddrs {
+		if a.Is4() {
+			t.local4 = a
+			break
+		}
+	}
+	return t, nil
 }
+
+// defaultTunnelDNS is used when a connection names no DNS server.
+var defaultTunnelDNS = []string{"1.1.1.1", "9.9.9.9"}
 
 // DialContext dials addr through the tunnel — use this as the dialer for
 // anything that should go over the VPN (torrent traffic by
 // default, Usenet/general traffic optionally).
 func (t *Tunnel) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	return t.tnet.DialContext(ctx, network, addr)
+}
+
+// ListenPacket opens a UDP socket inside the tunnel (home fork: UDP torrent
+// trackers go through the VPN like everything else). Only IPv4 is offered.
+func (t *Tunnel) ListenPacket(network, addr string) (net.PacketConn, error) {
+	if network == "udp6" {
+		return nil, fmt.Errorf("the tunnel has no IPv6 UDP")
+	}
+	// Bound to the unspecified address the netstack can't route ("no route
+	// to host"); the tunnel's own address works.
+	local := t.local4
+	if !local.IsValid() {
+		local = netip.IPv4Unspecified()
+	}
+	return t.tnet.ListenUDPAddrPort(netip.AddrPortFrom(local, 0))
+}
+
+// LookupHost resolves host with the tunnel's DNS (home fork).
+func (t *Tunnel) LookupHost(ctx context.Context, host string) ([]string, error) {
+	return t.tnet.LookupContextHost(ctx, host)
 }
 
 // ListenTCP listens on addr within the tunnel's own virtual network stack

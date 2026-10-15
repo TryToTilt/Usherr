@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useVotes } from '../home/useVotes' // home fork
 import { useUrlState } from '../useUrlState'
 import type { DiscoverMovie } from '../api'
 import { fetchPage, sourceToQuery, type Kind, type Source } from '../discoverSources'
 import { useGridColumns } from '../useGridColumns'
 import { useHideOwned } from '../useHideOwned'
+import { useIsHad } from '../home/useHave' // home fork: on disk, streamed, wanted
+import { useFamilyOk } from '../home/useFamily' // home fork: the family filter
 import type { Owned } from '../useOwned'
 import type { AddTarget } from './AddDialog'
 import { DiscoverCards } from './DiscoverRail'
@@ -35,6 +38,7 @@ export default function PagedGrid({ source, kind, owned, onAdd, rows = 3, title,
   const cols = useGridColumns(grid)
   const size = cols * rows
   const [hideOwned] = useHideOwned()
+  const isHad = useIsHad(kind, owned)
   const [fetched, setFetched] = useState<Map<number, DiscoverMovie[]>>(new Map())
   const [total, setTotal] = useState<number | undefined>()
   // Where you are, in pages of `size` titles, so a change in the number of
@@ -96,6 +100,8 @@ export default function PagedGrid({ source, kind, owned, onAdd, rows = 3, title,
     }
     return { items: out, waiting }
   }, [fetched, start, end])
+  const family = useFamilyOk(kind, items) // home fork
+  const votes = useVotes() // home fork: thumbs down hides it
 
   const pageCount = total !== undefined ? Math.max(1, Math.ceil(total / size)) : undefined
   const hasMore = pageCount === undefined || current < pageCount
@@ -159,7 +165,7 @@ export default function PagedGrid({ source, kind, owned, onAdd, rows = 3, title,
         </p>
       )}
       <div className="poster-grid" ref={grid}>
-        <DiscoverCards items={hideOwned ? items.filter((m) => !(kind === 'movie' ? owned.movies : owned.shows).has(m.tmdbId)) : items} kind={kind} owned={owned} onAdd={onAdd} />
+        <DiscoverCards items={(hideOwned ? items.filter((m) => !isHad(m.tmdbId)) : items).filter((m) => family.ok(m.tmdbId) && votes.get(kind, m.tmdbId) !== -1)} kind={kind} owned={owned} onAdd={onAdd} />
         {!error && Array.from({ length: waiting }, (_, i) => (
           <div key={`s${i}`} className="skeleton" style={{ aspectRatio: '2 / 3.5' }} />
         ))}

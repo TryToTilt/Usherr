@@ -1,11 +1,12 @@
 import type { IconName } from './Icon'
 import type { QueueItem, TitleResult } from '../api'
 import { t } from '../i18n.ts'
+import { stageName } from '../home/stageName.ts'
 
 // One vocabulary for "where is this title at" used by every poster, list row
 // and search result, so Library, Wanted, Discover and search all say the same
 // thing in the same colour.
-export type ItemStateKey = 'downloaded' | 'downloading' | 'paused' | 'searching' | 'pending' | 'added' | 'failed' | 'partial' | 'details' | 'nodetails'
+export type ItemStateKey = 'downloaded' | 'downloading' | 'paused' | 'searching' | 'pending' | 'added' | 'failed' | 'partial' | 'details' | 'nodetails' | 'streams' // streams: home fork, played through StreamNZB
 
 export interface ItemState {
   key: ItemStateKey
@@ -24,6 +25,7 @@ const META: Record<ItemStateKey, Omit<ItemState, 'key'>> = {
   failed: { label: t('Failed'), icon: 'warning', hint: t('The last download attempt failed.') },
   partial: { label: t('Partial'), icon: 'download', hint: t('Some episodes are downloaded.') },
   details: { label: t('Getting details…'), icon: 'refresh', hint: t('Mediarium is still getting the poster, summary and episodes for this title.') },
+  streams: { label: t('Streams'), icon: 'play', hint: t('Not on disk: plays through StreamNZB.') }, // home fork
   nodetails: { label: t('Details missing'), icon: 'warning', hint: t("Mediarium couldn't get the details for this title yet. It will try again.") },
 }
 
@@ -38,7 +40,7 @@ export function describeState(key: ItemStateKey, extra?: string, hint?: string):
 export function movieState(m: { id: number; status: string; monitored?: boolean }, queue: QueueItem[]): ItemState {
   const q = queue.filter((x) => x.movieId === m.id && !x.seriesId)
   const running = q.find((x) => x.status === 'downloading' || x.status === 'importing')
-  if (running) return describeState('downloading', `${Math.round(running.progressPct)}%`)
+  if (running) return runningState(running)
   if (q.some((x) => x.status === 'queued')) return describeState('pending')
   if (q.some((x) => x.status === 'paused')) return describeState('paused')
   if (m.status === 'downloaded') return describeState('downloaded')
@@ -52,7 +54,7 @@ export function movieState(m: { id: number; status: string; monitored?: boolean 
 export function seriesState(s: { id: number; episodeCount: number; downloadedCount: number; monitored: boolean }, queue: QueueItem[]): ItemState {
   const q = queue.filter((x) => x.seriesId === s.id)
   const running = q.find((x) => x.status === 'downloading' || x.status === 'importing')
-  if (running) return describeState('downloading', `${Math.round(running.progressPct)}%`)
+  if (running) return runningState(running)
   if (q.some((x) => x.status === 'queued')) return describeState('pending')
   if (q.some((x) => x.status === 'paused')) return describeState('paused')
   if (s.episodeCount > 0 && s.downloadedCount >= s.episodeCount) return describeState('downloaded')
@@ -67,6 +69,15 @@ export function detailsState(t: { detailsState?: string; detailsNote?: string })
   if (t.detailsState === 'pending') return describeState('details')
   if (t.detailsState === 'problem') return { ...describeState('nodetails'), hint: t.detailsNote || describeState('nodetails').hint }
   return undefined
+}
+
+// runningState is the badge of a title whose download is running: its step
+// when past downloading ("Unpacking"), else the download percentage (home fork).
+function runningState(q: QueueItem): ItemState {
+  if (q.stage && q.stage !== 'Downloading' && q.stage !== 'Starting') {
+    return { ...describeState('downloading'), label: stageName(q.stage), hint: t('{step}. The download itself is done.', { step: stageName(q.stage) }) }
+  }
+  return describeState('downloading', `${Math.round(q.progressPct)}%`)
 }
 
 export function progressFor(queue: QueueItem[], match: (q: QueueItem) => boolean): QueueItem | undefined {

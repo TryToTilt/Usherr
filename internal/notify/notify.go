@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"html"
 	"io"
 	"net/http"
@@ -71,7 +72,7 @@ func doJSONSend(ctx context.Context, client *http.Client, method, target string,
 		if err != nil {
 			return fmt.Errorf("marshal payload: %w", err)
 		}
-		raw = b
+		raw = []byte(brand.Text(string(b))) // Usherr: "Open in Mediarium" buttons and footers
 	}
 	steps := stepsFrom(ctx)
 	host := "the server"
@@ -286,7 +287,7 @@ func discordEmbed(ev Event) map[string]any {
 		"title":       clip(ev.Title, 250),
 		"description": clip(ev.Lead, 2000),
 		"color":       eventColor(ev),
-		"footer":      map[string]any{"text": "Mediarium"},
+		"footer":      map[string]any{"text": brand.Name},
 	}
 	if !ev.Timestamp.IsZero() {
 		embed["timestamp"] = ev.Timestamp.UTC().Format(time.RFC3339)
@@ -371,6 +372,7 @@ func telegramHTML(ev Event) string {
 // others, mirroring the indexer search engine's tolerate-one-failure
 // design.
 func NotifyAll(ctx context.Context, senders []Sender, event Event) []error {
+	event = Branded(event) // Usherr
 	var errs []error
 	for _, s := range senders {
 		if err := s.Send(ctx, event); err != nil {
@@ -378,4 +380,19 @@ func NotifyAll(ctx context.Context, senders []Sender, event Event) []error {
 		}
 	}
 	return errs
+}
+
+// Branded is the event with the app's name shown as Usherr (brand.Text): its
+// subject, text and table. Usherr.
+func Branded(ev Event) Event {
+	ev.Title, ev.Message, ev.Lead = brand.Text(ev.Title), brand.Text(ev.Message), brand.Text(ev.Lead)
+	if len(ev.Details) > 0 {
+		d := make([]Detail, len(ev.Details))
+		for i, x := range ev.Details {
+			x.Label, x.Value = brand.Text(x.Label), brand.Text(x.Value)
+			d[i] = x
+		}
+		ev.Details = d
+	}
+	return ev
 }

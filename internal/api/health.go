@@ -318,7 +318,7 @@ func (s *Server) recentFailures(within time.Duration) int {
 	if err != nil {
 		return 0
 	}
-	return list
+	return max(0, list-s.sceneFailuresSince(time.Now().Add(-within))) // scenes hook (home fork)
 }
 
 // handleHealth lists setup problems for administrators. Members cannot fix

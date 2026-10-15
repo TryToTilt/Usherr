@@ -151,8 +151,9 @@ func (s *Server) runBookPipeline(queueID int64, b books.Book, f books.Format, re
 	}
 	var placed []string
 	fileFormat := ""
+	strict := books.MatchRelease(releaseTitle, b) == books.SeriesPack // home fork: pick the book out of a pack
 	if f == books.Ebook {
-		src, format := books.EbookFile(dir, bookFindOptions(dir)...)
+		src, format := books.EbookFileFor(dir, b, strict, bookFindOptions(dir)...) // home fork: the book out of a pack
 		if src == "" {
 			return fail(badRelease(errors.New("the download has no ebook file (epub, azw3, mobi or pdf)")))
 		}
@@ -169,7 +170,7 @@ func (s *Server) runBookPipeline(queueID int64, b books.Book, f books.Format, re
 		}
 		placed, fileFormat = []string{res.DestPath}, format
 	} else {
-		files, format := books.AudioFiles(dir, bookFindOptions(dir)...)
+		files, format := books.AudioFilesFor(dir, b, strict, bookFindOptions(dir)...) // home fork
 		if len(files) == 0 {
 			return fail(badRelease(errors.New("the download has no audiobook files (m4b, mp3 and the like)")))
 		}

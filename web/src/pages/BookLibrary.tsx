@@ -12,8 +12,33 @@ import FilterToggle from '../components/FilterToggle'
 import { t } from '../i18n'
 import { useUrlState } from '../useUrlState'
 import { useModules } from '../ModulesContext'
+import Shelves from '../home/Shelves' // home fork
+import { groupShelves, letterShelves, monthShelves, RowsByPick, ShelfControls, useShelfView } from '../home/shelfKit' // home fork
 
 type Sort = 'added' | 'title' | 'author'
+type BookRows = 'author' | 'genre' | 'series' | 'narrator' | 'az' | 'added' // home fork
+const BOOK_ROWS = ['author', 'genre', 'series', 'narrator', 'az', 'added'] as const
+// The AI's book genres (home fork), by their English name.
+const GENRE_NAME: Record<string, string> = {
+  "Fantasy": t("Fantasy"),
+  "Science fiction": t("Science fiction"),
+  "Mystery": t("Mystery"),
+  "Thriller": t("Thriller"),
+  "Horror": t("Horror"),
+  "Romance": t("Romance"),
+  "Historical fiction": t("Historical fiction"),
+  "Literary fiction": t("Literary fiction"),
+  "Humor": t("Humor"),
+  "Young adult": t("Young adult"),
+  "Children's": t("Children's"),
+  "Biography & memoir": t("Biography & memoir"),
+  "History": t("History"),
+  "Science & nature": t("Science & nature"),
+  "Self-help": t("Self-help"),
+  "Business": t("Business"),
+  "True crime": t("True crime"),
+  "Other nonfiction": t("Other nonfiction"),
+}
 
 export const FORMAT_WORD: Record<BookFormat, string> = { ebook: 'ebook', audiobook: 'audiobook' }
 export const FORMAT_PLURAL: Record<BookFormat, string> = { ebook: 'ebooks', audiobook: 'audiobooks' }
@@ -87,6 +112,61 @@ export default function BookLibrary({
     return list
   }, [books, mine, filter, text, sort, format, queue])
 
+  // home fork: shelves, rows that scroll sideways, by author, series…
+  const shelfView = useShelfView<BookRows>(`books-${format}`, BOOK_ROWS, 'author')
+  const rowsBy = format === 'ebook' && shelfView.by === 'narrator' ? 'author' : shelfView.by
+  const [genres, setGenres] = useState<Record<number, string[]> | null>(null)
+  useEffect(() => {
+    if (!shelfView.on || rowsBy !== 'genre' || genres) return
+    fetch('/api/home/book-genres', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((g: Record<number, string[]>) => setGenres(g))
+      .catch(() => setGenres({}))
+  }, [shelfView.on, rowsBy, genres])
+  const shelves = useMemo(() => {
+    if (!shown || !shelfView.on) return []
+    const byYear = (a: Book, b: Book) => (a.year ?? 0) - (b.year ?? 0) || a.title.localeCompare(b.title)
+    const inSeries = (a: Book, b: Book) => parseFloat(a.seriesPosition ?? '') - parseFloat(b.seriesPosition ?? '') || byYear(a, b)
+    switch (rowsBy) {
+      case 'series':
+        return groupShelves(shown, (b) => [b.seriesName ?? ''], { prefix: 'series', min: 2, rest: t('Standalone books'), order: inSeries })
+      case 'genre':
+        return groupShelves(shown, (b) => (genres?.[b.id] ?? []).map((g) => GENRE_NAME[g] ?? g), { prefix: 'genre', rest: genres ? t('Genre not known yet') : undefined, order: byYear })
+      case 'narrator':
+        return groupShelves(shown, (b) => (b.narrators ?? '').split(',').map((n) => n.trim()), { prefix: 'narrator', min: 2, rest: t('More narrators'), order: byYear })
+      case 'az':
+        return letterShelves(shown, (b) => b.title)
+      case 'added':
+        return monthShelves(shown, (b) => b.addedAt)
+      default:
+        return groupShelves(shown, (b) => [b.author], { prefix: 'author', min: 2, rest: t('More authors'), order: inSeries })
+    }
+  }, [shown, shelfView.on, rowsBy, genres])
+  const card = (b: Book) => {
+    const st = b[format]
+    return (
+      <PosterCard
+        key={b.id}
+        to={`/book/${b.id}`}
+        kind={format === 'audiobook' ? 'audiobook' : 'book'}
+        poster={b.coverUrl}
+        title={b.title}
+        meta={[b.author || null, b.year ? String(b.year) : null, st.format ? st.format.toUpperCase() : null].filter(Boolean).join(' · ')}
+        state={bookState(b, format, queue)}
+        dim={!st.wanted && st.status !== 'downloaded'}
+        actions={
+          st.status === 'downloaded'
+            ? [
+                format === 'ebook'
+                  ? { icon: 'book', label: t('Read'), onClick: () => openBookApp(readPath(b.id)) }
+                  : { icon: 'play', label: t('Listen'), onClick: () => openBookApp(listenPath(b.id)) },
+              ]
+            : undefined
+        }
+      />
+    )
+  }
+
   return (
     <div>
       <div className={`toolbar lib-toolbar collapsible${filtersOpen ? ' filters-open' : ''}`}>
@@ -104,6 +184,7 @@ export default function BookLibrary({
             { value: 'author', label: t('Author') },
           ]}
         />
+        <ShelfControls view={shelfView} />
         <div className="toolbar-end">
           {admin && (
             <button className="btn-with-icon" onClick={() => setImporting((v) => !v)} aria-expanded={importing}>
@@ -163,33 +244,17 @@ export default function BookLibrary({
             </>
           )}
         </div>
+      ) : shelfView.on ? (
+        <Shelves key={`${format}-${rowsBy}`} memory={format} shelves={shelves} render={card} itemKey={(b) => String(b.id)} bar={<RowsByPick value={shelfView.by} onChange={shelfView.setBy} options={[
+            { value: 'author', label: t('Author') },
+            { value: 'genre', label: t('Genre') },
+            { value: 'series', label: t('Series') },
+            ...(format === 'audiobook' ? [{ value: 'narrator' as const, label: t('Narrator') }] : []),
+            { value: 'az', label: t('A–Z') },
+            { value: 'added', label: t('Recently added') },
+          ]} />} />
       ) : (
-        <div className="poster-grid">
-          {shown.map((b) => {
-            const st = b[format]
-            return (
-              <PosterCard
-                key={b.id}
-                to={`/book/${b.id}`}
-                kind={format === 'audiobook' ? 'audiobook' : 'book'}
-                poster={b.coverUrl}
-                title={b.title}
-                meta={[b.author || null, b.year ? String(b.year) : null, st.format ? st.format.toUpperCase() : null].filter(Boolean).join(' · ')}
-                state={bookState(b, format, queue)}
-                dim={!st.wanted && st.status !== 'downloaded'}
-                actions={
-                  st.status === 'downloaded'
-                    ? [
-                        format === 'ebook'
-                          ? { icon: 'book', label: t('Read'), onClick: () => openBookApp(readPath(b.id)) }
-                          : { icon: 'play', label: t('Listen'), onClick: () => openBookApp(listenPath(b.id)) },
-                      ]
-                    : undefined
-                }
-              />
-            )
-          })}
-        </div>
+        <div className="poster-grid">{shown.map(card)}</div>
       )}
     </div>
   )

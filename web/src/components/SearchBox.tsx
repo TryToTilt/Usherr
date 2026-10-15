@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, type BookFound, type MusicArtistResult, type TitleResult } from '../api'
 import { useModules } from '../ModulesContext'
@@ -19,7 +19,10 @@ export function capitalizeFirst(v: string): string {
   return v.length > 0 ? v.charAt(0).toUpperCase() + v.slice(1) : v
 }
 
-export default function SearchBox() {
+// home fork: the AI bar reuses it on pages, with its own placeholder, a slot
+// for its Search/AI switch, and without the "/" shortcut (the header keeps it).
+export default function SearchBox({ placeholderText, extra, noShortcut, autoFocus, onQuery }: { placeholderText?: string; extra?: ReactNode; noShortcut?: boolean; autoFocus?: boolean; onQuery?: (q: string) => void } = {}) {
+  const panelId = `searchbox-results${useId().replace(/:/g, '')}`
   const navigate = useNavigate()
   const location = useLocation()
   const [q, setQ] = useState('')
@@ -132,6 +135,7 @@ export default function SearchBox() {
   // "/" jumps to the search box from anywhere, unless you are typing in a
   // field or a window is open.
   useEffect(() => {
+    if (noShortcut) return
     const onKeyDown = (e: globalThis.KeyboardEvent) => {
       if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return
       if (isTypingTarget(e.target) || document.querySelector('[role="dialog"], [role="alertdialog"]')) return
@@ -141,7 +145,7 @@ export default function SearchBox() {
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [noShortcut])
 
   const openItem = (r: TitleResult) => {
     setOpen(false)
@@ -237,7 +241,7 @@ export default function SearchBox() {
   }
 
   const kinds = [on('movies') && t('movies'), on('tv') && (on('movies') ? t('shows') : t('TV shows')), musicOn && t('artists'), booksOn && t('books')].filter((k): k is string => !!k)
-  const placeholder = t('Search {what}', {
+  const placeholder = placeholderText ?? t('Search {what}', {
     what: kinds.length > 1 ? t('{list} and {last}', { list: kinds.slice(0, -1).join(', '), last: kinds[kinds.length - 1] }) : kinds[0] || 'Mediarium',
   })
 
@@ -248,17 +252,19 @@ export default function SearchBox() {
       </span>
       <input
         ref={input}
+        autoFocus={autoFocus}
         type="search"
         aria-label={placeholder}
         aria-keyshortcuts="/"
         title={t('Press / to search')}
         role="combobox"
         aria-expanded={showPanel}
-        aria-controls="searchbox-results"
+        aria-controls={panelId}
         placeholder={placeholder}
         value={q}
         onChange={(e) => {
           setQ(capitalizeFirst(e.target.value))
+          onQuery?.(capitalizeFirst(e.target.value))
           setOpen(true)
         }}
         autoCapitalize="sentences"
@@ -266,8 +272,9 @@ export default function SearchBox() {
         onKeyDown={onKey}
         autoComplete="off"
       />
+      {extra}
       {showPanel && (
-        <div className="searchbox-panel" id="searchbox-results" role="listbox">
+        <div className="searchbox-panel" id={panelId} role="listbox">
           {loading && !results && (
             <>
               {[0, 1, 2].map((i) => (

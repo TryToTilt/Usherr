@@ -26,6 +26,10 @@ type calendarEntryPayload struct {
 	ReleaseDate string `json:"releaseDate"`
 	Status      string `json:"status"`
 	PosterURL   string `json:"posterUrl,omitempty"` // the poster or cover the calendar shows next to the title
+	// home fork: a book's wanted formats ("ebook", "audiobook"), and a comic
+	// issue's series in the library.
+	Formats       []string `json:"formats,omitempty"`
+	ComicSeriesID int64    `json:"comicSeriesId,omitempty"`
 	// BackdropURL and LogoURL are the wide still and the title logo of a movie or
 	// show, for the Backdrops view. They appear once they have been fetched in
 	// the background (see artwork.go). For an episode, TMDBID is the show's.
@@ -72,7 +76,8 @@ func (s *Server) moduleCalendarEntries() ([]calendarEntryPayload, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(albums, bookEntries...), nil
+	out := append(albums, bookEntries...)
+	return append(out, s.comicCalendarEntries()...), nil // home fork: comics too
 }
 
 // bookCalendarEntries lists the library's books with a release date in the
@@ -99,7 +104,7 @@ func (s *Server) bookCalendarEntries() ([]calendarEntryPayload, error) {
 		if b.Author != "" {
 			title = b.Author + " — " + b.Title
 		}
-		out = append(out, calendarEntryPayload{Kind: "book", ID: b.ID, BookID: b.ID, Title: title, Subtitle: subtitle, ReleaseDate: b.ReleaseDate, Status: bookCalendarStatus(b), PosterURL: books.LocalCoverURL(b.CoverID, "M")})
+		out = append(out, calendarEntryPayload{Kind: "book", ID: b.ID, BookID: b.ID, Title: title, Subtitle: subtitle, ReleaseDate: b.ReleaseDate, Status: bookCalendarStatus(b), PosterURL: books.LocalCoverURL(b.CoverID, "M"), Formats: bookFormats(b)})
 	}
 	return out, nil
 }

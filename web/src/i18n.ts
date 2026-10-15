@@ -9,6 +9,7 @@
 // - pass t(), tc(), tx() and plural() a plain string literal, never a variable;
 // - put changing parts in {braces}: t('{name} was added', { name });
 // - plural(n, '{n} movie', '{n} movies') picks the right form for the language.
+import { brandText } from './brand' // Usherr
 import { Fragment, createElement, type ReactNode } from 'react'
 
 export type Lang = 'en' | 'es' | 'de' | 'fr' | 'it' | 'nl' | 'pl' | 'pt' | 'pt-PT' | 'ru' | 'uk'
@@ -77,7 +78,7 @@ export async function loadLanguage(): Promise<void> {
   if (want !== 'en') {
     try {
       const mod = await CATALOGUES[want]()
-      setCatalogue(want, mod.default as Record<string, string>)
+      setCatalogue(want, { ...(mod.default as Record<string, string>), ...(await (await import('./home/i18n')).homeCatalogue(want)) }) // + the fork's own phrases (home fork)
     } catch {
       // A failed download leaves the app in English rather than broken.
       setCatalogue('en', {})
@@ -113,7 +114,8 @@ export function locale(): string | undefined {
   return lang === 'pt' ? 'pt-BR' : lang
 }
 
-function fill(text: string, vars?: Record<string, string | number>): string {
+function fill(phrase: string, vars?: Record<string, string | number>): string {
+  const text = brandText(phrase) // Usherr: the app's name (brand.ts)
   if (!vars) return text
   return text.replace(/\{(\w+)\}/g, (whole, name: string) => {
     if (!(name in vars)) return whole
@@ -137,7 +139,7 @@ export function tc(context: string, text: string, vars?: Record<string, string |
 // tx('Press {save} when done', { save: <b>{t('Save')}</b> }).
 export function tx(text: string, parts: Record<string, ReactNode>): ReactNode {
   const out: ReactNode[] = []
-  const src = table[text] || text
+  const src = brandText(table[text] || text) // Usherr: the app's name (brand.ts)
   const re = /\{(\w+)\}/g
   let last = 0
   for (let m = re.exec(src); m; m = re.exec(src)) {
@@ -200,6 +202,10 @@ function compileServerPatterns(): ServerPattern[] {
 }
 
 export function st(text: string | undefined | null): string {
+  return brandText(serverText(text)) // Usherr: the app's name (brand.ts)
+}
+
+function serverText(text: string | undefined | null): string {
   if (!text) return text ?? ''
   if (lang === 'en') return text
   const exact = table[text]

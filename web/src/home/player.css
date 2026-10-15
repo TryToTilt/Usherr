@@ -1,0 +1,22 @@
+/* Home fork: the app-wide video player (Player.tsx). */
+.hp-player { position: fixed; inset: 0; z-index: 2000; background: rgba(0, 0, 0, 0.9); display: grid; place-items: center; padding: 16px; }
+.hp-box { width: min(1400px, 100%); display: flex; flex-direction: column; gap: 8px; }
+.hp-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #fff; }
+.hp-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hp-player video { width: 100%; max-height: calc(100vh - 90px); max-height: calc(100dvh - 90px); background: #000; border-radius: var(--radius); }
+.hp-msg { background: var(--surface); padding: 16px; border-radius: var(--radius); }
+.hp-poster { all: unset; cursor: pointer; position: relative; display: block; }
+.hp-poster:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hp-poster .hp-playicon { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; background: rgba(0, 0, 0, 0.3); opacity: 0; transition: opacity 0.15s; border-radius: inherit; }
+.hp-poster:hover .hp-playicon, .hp-poster:focus-visible .hp-playicon { opacity: 1; }
+@media (hover: none) { .hp-poster .hp-playicon { opacity: 0.85; background: transparent; } }
+.hp-note { color: rgba(255, 255, 255, 0.65); font-size: 0.85em; margin: 0; }
+
+/* Stream now: what is playing, and keep it */
+.hp-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 12px; }
+.hp-release { flex: 1 1 200px; min-width: 0; font-size: 0.8rem; opacity: 0.7; word-break: break-all; }
+.hp-sub { opacity: 0.7; font-weight: 400; }
+/* the TV guide's preview (ChannelPreview) */
+.hp-inline { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 10px; overflow: hidden; display: grid; place-items: center; }
+.hp-inline video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+.hp-inline-msg { position: absolute; inset: auto 12px 12px 12px; margin: 0; color: #e5e7eb; font-size: 0.85rem; text-shadow: 0 1px 2px #000; }

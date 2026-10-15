@@ -37,8 +37,17 @@ func (s *Server) statsChoice() string {
 // statsEnabled is true only when the administrator said yes and the
 // environment does not forbid it.
 func (s *Server) statsEnabled() bool {
+	// Usherr: never. Upstream's numbers are about Mediarium installs; a fork
+	// sending them would only muddle them.
+	if usherrNoStats {
+		return false
+	}
 	return !s.cfg.DisableStats && !s.cfg.PauseAutomation && s.statsChoice() == "yes"
 }
+
+// usherrNoStats switches the anonymous usage numbers off (a variable so
+// upstream's tests of them still run).
+var usherrNoStats = true
 
 func (s *Server) statsID() string {
 	v, _ := s.Settings.Get(settings.KeyStatsInstallID)

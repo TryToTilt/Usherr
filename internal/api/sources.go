@@ -52,7 +52,7 @@ func filterSources(results []indexers.Result, sources string) []indexers.Result 
 	want := indexers.Protocol(sources)
 	out := make([]indexers.Result, 0, len(results))
 	for _, r := range results {
-		if r.Protocol == want {
+		if r.Protocol == want || r.Protocol == indexers.ProtocolDirect { // home fork: direct downloads aren't Usenet or torrent
 			out = append(out, r)
 		}
 	}

@@ -1,0 +1,166 @@
+/* Home fork: Comics */
+.cx-page { display: grid; gap: 14px; }
+.cx-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cx-head h1 { margin: 0; }
+.cx-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.cx-toolbar input { flex: 1 1 240px; max-width: 420px; }
+.cx-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.cx-card { display: grid; gap: 4px; color: inherit; text-decoration: none; }
+.cx-card img, .cx-noimg { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; background: var(--surface-2, rgba(127,127,127,0.12)); }
+.cx-noimg { display: grid; place-items: center; color: var(--text-dim, inherit); }
+.cx-noimg.small { width: 56px; }
+.cx-card strong { font-size: 0.95em; line-height: 1.25; }
+.cx-count { font-size: 0.85em; color: var(--text-dim, inherit); }
+.cx-empty { display: grid; gap: 10px; justify-items: start; }
+.cx-add { display: grid; gap: 10px; }
+.cx-add > input { max-width: 560px; }
+.cx-radios { display: flex; gap: 14px; flex-wrap: wrap; }
+.cx-radios label, .cx-check { display: inline-flex; gap: 6px; align-items: center; }
+.cx-results { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cx-results li { display: flex; gap: 12px; align-items: flex-start; padding: 10px; border: 1px solid var(--border, rgba(127,127,127,0.25)); border-radius: 14px; }
+.cx-results img { width: 56px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 6px; }
+.cx-result-main { flex: 1; display: grid; gap: 2px; min-width: 0; }
+.cx-desc { margin: 4px 0 0; font-size: 0.9em; color: var(--text-dim, inherit); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cx-settings { display: grid; gap: 10px; max-width: 640px; }
+.cx-field { display: grid; gap: 4px; }
+.cx-field > span { font-size: 0.85em; color: var(--text-dim, inherit); }
+.cx-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.cx-switch { display: flex; gap: 12px; align-items: center; }
+.cx-back { text-decoration: none; }
+.cx-series-head { display: flex; gap: 16px; align-items: flex-start; }
+.cx-series-head img { width: 140px; border-radius: 8px; flex: none; }
+.cx-series-head h1 { margin: 0 0 4px; }
+.cx-bulk { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px; background: var(--surface-2, rgba(127,127,127,0.1)); position: sticky; top: 0; z-index: 2; }
+.cx-issues { width: 100%; border-collapse: collapse; }
+.cx-issues th, .cx-issues td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border, rgba(127,127,127,0.15)); vertical-align: middle; }
+.cx-issues tr.have td { opacity: 0.85; }
+.cx-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cx-row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.cx-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.cx-modal-box { width: min(760px, 100%); max-height: 85vh; overflow: auto; display: grid; gap: 10px; }
+.cx-modal-box header { display: flex; justify-content: space-between; align-items: center; }
+.cx-rel { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cx-rel li { display: flex; gap: 10px; justify-content: space-between; align-items: center; }
+.cx-rel li.dim { opacity: 0.6; }
+.cx-rel li > div { display: grid; gap: 2px; min-width: 0; }
+.cx-rel-title { word-break: break-all; font-size: 0.9em; }
+@media (max-width: 600px) {
+  .cx-series-head { flex-direction: column; }
+  .cx-series-head img { width: 110px; }
+  .cx-issues th:nth-child(4), .cx-issues td:nth-child(4) { display: none; }
+}
+
+/* reader */
+.cx-reader { position: fixed; inset: 0; z-index: 1000; background: #0b0b0d; color: #eee; display: grid; grid-template-rows: auto 1fr auto; }
+.cx-reader-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 12px; background: rgba(0,0,0,0.6); }
+@media (max-width: 600px) {
+  .cx-reader-title { flex-basis: calc(100% - 120px); }
+  .cx-reader-bar .btn-sm { padding-inline: 10px; }
+}
+.cx-reader-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-reader-count { font-variant-numeric: tabular-nums; opacity: 0.8; }
+.cx-reader-msg { padding: 16px; }
+.cx-reader-page { overflow: auto; display: flex; justify-content: center; align-items: flex-start; cursor: pointer; touch-action: pan-y pinch-zoom; user-select: none; }
+.cx-reader-page.fit-height { align-items: center; }
+.cx-reader-page.fit-height img { max-height: 100%; max-width: 100%; object-fit: contain; }
+.cx-reader-page.fit-width img { width: 100%; max-width: 1100px; height: auto; }
+.cx-reader-slider { width: calc(100% - 32px); margin: 6px 16px 10px; }
+
+/* page-turn view (ComicFlip) */
+.cxf-stage { overflow: hidden; display: flex; align-items: center; justify-content: center; padding: 8px; min-height: 0; }
+.cxf-book { width: 100%; height: 100%; max-height: 100%; }
+.cxf-page { background: #0b0b0d; overflow: hidden; }
+.cxf-page img { width: 100%; height: 100%; object-fit: contain; display: block; user-select: none; pointer-events: none; }
+
+/* home fork: review list and search history */
+.cx-review { display: grid; gap: 12px; }
+.cx-review-issue h3 { margin: 0 0 8px; font-size: 15px; }
+.cx-review-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.cx-searchlog { margin: 8px 0; font-size: 13px; }
+.cx-searchlog summary { cursor: pointer; color: var(--text-dim); }
+.cx-searchlog ul { margin: 6px 0 0; padding-left: 18px; }
+
+/* home fork: the week's new comics */
+.cx-week-nav { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.cx-week-find { min-width: 160px; flex: 1; max-width: 280px; }
+.cx-week-pubs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.cx-week-grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
+.cx-week-grid li { display: flex; flex-direction: column; gap: 6px; }
+.cx-week-cover { position: relative; aspect-ratio: 2 / 3; border-radius: 8px; overflow: hidden; background: var(--surface-2, #1b1f27); display: grid; place-items: center; }
+.cx-week-cover img { width: 100%; height: 100%; object-fit: cover; }
+.cx-week-badge { position: absolute; top: 6px; left: 6px; font-size: 11px; padding: 2px 7px; border-radius: 999px; background: rgba(0, 0, 0, 0.7); color: #fff; }
+.cx-week-badge.have { background: var(--sec, var(--accent)); color: var(--on-sec); }
+.cx-week-text { display: flex; flex-direction: column; font-size: 13px; line-height: 1.3; }
+.cx-week-text a, .cx-week-text span { font-weight: 600; }
+@media (max-width: 520px) { .cx-week-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; } }
+
+/* home fork: story arcs */
+.cx-arc-find { display: flex; gap: 8px; margin-bottom: 12px; }
+.cx-arc-find input { flex: 1; min-width: 0; }
+.cx-arc-grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.cx-arc-grid li, .cx-arc-link { display: flex; gap: 12px; align-items: flex-start; color: inherit; text-decoration: none; }
+.cx-arc-grid img, .cx-arc-grid .cx-noimg { width: 72px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+.cx-arc-grid li > div, .cx-arc-link > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.cx-arc-desc { font-size: 13px; color: var(--text-dim); margin: 4px 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.cx-arc-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.cx-arc-progress { height: 5px; border-radius: 3px; background: var(--surface-2, #252a33); overflow: hidden; margin-top: 4px; }
+.cx-arc-progress span { display: block; height: 100%; background: var(--sec, var(--accent)); }
+.cx-arc-hero { display: flex; gap: 16px; align-items: flex-start; }
+.cx-arc-hero img { width: 140px; border-radius: 8px; flex-shrink: 0; }
+.cx-arc-hero h1 { margin: 0 0 4px; }
+.cx-arc-hero > div { flex: 1; min-width: 0; }
+.cx-arc-issues { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 6px; }
+.cx-arc-issues li { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; background: var(--surface, #151922); }
+.cx-arc-issues li.have { outline: 1px solid color-mix(in srgb, var(--sec, var(--accent)) 35%, transparent); }
+.cx-arc-issues img, .cx-arc-issues .cx-noimg.small { width: 38px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+.cx-arc-pos { width: 28px; text-align: right; color: var(--text-dim); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.cx-arc-text { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 14px; }
+.cx-arc-text a { font-weight: 600; }
+.cx-arc-state { font-size: 12px; color: var(--text-dim); flex-shrink: 0; }
+@media (max-width: 560px) { .cx-arc-hero { flex-direction: column; } .cx-arc-hero img { width: 110px; } .cx-arc-grid { grid-template-columns: 1fr; } }
+
+/* home fork: library tools */
+.cx-tools { margin-top: 14px; }
+.cx-tools h2 { margin-top: 0; }
+.cx-tool { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border, #262b35); }
+.cx-tool > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cx-tool button { flex-shrink: 0; }
+.cx-tool-run { border-top: 1px solid var(--border, #262b35); padding-top: 10px; }
+.cx-tool-problems { margin: 8px 0 0; padding-left: 18px; font-size: 13px; max-height: 320px; overflow: auto; }
+
+.cx-own-search { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+.cx-own-search input { flex: 1; min-width: 160px; }
+/* guided view (home fork): the page glides from panel to panel */
+.cx-guided { position: relative; overflow: hidden; cursor: pointer; user-select: none; touch-action: pinch-zoom; }
+.cx-guided-layer { position: absolute; left: 0; top: 0; transform-origin: 0 0; backface-visibility: hidden; }
+.cx-guided-layer img { display: block; width: 100%; height: 100%; max-width: none; user-select: none; }
+.cx-guided-msg { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); margin: 0; padding: 4px 12px; border-radius: 999px; background: rgba(0, 0, 0, 0.6); }
+.cx-guided-mask { position: absolute; pointer-events: none; }
+
+/* The week in rows: one per publisher (your series first), each swiping sideways */
+.cx-week-pub { margin: 0 0 10px; max-width: 320px; }
+.cx-week-row { margin: 0 0 14px; padding: 8px 0 0 10px; border-left: 3px solid var(--pub); border-radius: 4px; background: linear-gradient(90deg, color-mix(in srgb, var(--pub) 8%, transparent), transparent 60%); }
+.cx-week-row-head { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: .95rem; }
+.cx-week-row-head small { font-weight: 400; }
+.cx-week-pub-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--pub); }
+.cx-week-strip { list-style: none; margin: 0; padding: 0 0 6px; display: grid; grid-auto-flow: column; grid-auto-columns: 112px; gap: 10px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: thin; }
+.cx-week-strip > li { scroll-snap-align: start; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cx-week-strip .cx-week-text { font-size: 12px; }
+.cx-week-strip .cx-week-text a, .cx-week-strip .cx-week-text span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cx-week-strip .btn-sm { justify-content: center; }
+@media (min-width: 900px) { .cx-week-strip { grid-auto-columns: 132px; } }
+
+.cx-week-info { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--sec) 35%, var(--border)); background: color-mix(in srgb, var(--sec) 7%, var(--surface)); }
+.cx-week-info svg { flex: 0 0 auto; margin-top: 2px; color: var(--sec); }
+.cx-week-info p { margin: 0; font-size: .88rem; line-height: 1.45; }
+
+/* home fork: Comics' top card matches the Library's (and fits a phone) */
+.cx-page { grid-template-columns: minmax(0, 1fr); }
+.cx-page > * { min-width: 0; }
+.cx-libbar { display: grid; grid-template-columns: minmax(0, 1fr); }
+.cx-libbar input[type='search'] { width: 100%; max-width: none; }
+.cx-libbar .seg.cx-subtabs { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; justify-self: start; max-width: 100%; }
+.cx-libbar .seg.cx-subtabs > button { flex: 0 0 auto; white-space: nowrap; }
+.cx-toolbar { flex-wrap: nowrap; }
+.cx-toolbar .spacer { flex: 1; }
+.shelves, .shelf { min-width: 0; }

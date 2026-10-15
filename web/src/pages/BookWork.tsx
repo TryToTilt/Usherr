@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import VoteButtons from '../home/VoteButtons' // home fork
 import { Link, useParams } from 'react-router-dom'
 import { api, type BookFormat, type BookWork as Work } from '../api'
 import AuthorBooks from '../components/AuthorBooks'
@@ -71,6 +72,9 @@ export default function BookWork() {
             ) : null}
           </div>
           <h1>{work.title}</h1>
+          <div className="title-votes">
+            <VoteButtons kind="book" refId={key} meta={{ title: work.title, image: work.coverUrl }} /> {/* home fork */}
+          </div>
           <p className="title-tagline">{[work.author, work.year].filter(Boolean).join(' · ')}</p>
           <div className="title-chips">
             <span className={`chip-plain edition ${work.hasEbook ? 'yes' : 'no'}`} title={t('Whether an ebook edition has been published')}>

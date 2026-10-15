@@ -1,4 +1,7 @@
+import { BRAND } from '../brand' // Usherr
 import { useCallback, useEffect, useRef, useState } from 'react'
+import ExtrasSettings from '../home/ExtrasSettings' // home fork
+import HelpLink from '../components/HelpLink'
 import { useNavigate } from 'react-router-dom'
 import { api, type IndexerConfig, type MediaServer, type QualityProfile, type Settings as SettingsData, type UsenetServer } from '../api'
 import { useAuth } from '../AuthContext'
@@ -47,8 +50,8 @@ import AmbientBackdrop from '../components/AmbientBackdrop'
 // First-run onboarding wizard: linear, can't be skipped, each
 // step validated before moving on. Every step is also independently
 // reachable later from Settings — nothing here is a one-time-only choice.
-const STEPS = [t('Admin account'), t('Media types'), t('Library paths'), t('Connect services'), t('Indexers & Search'), t('Usenet provider'), t('Quality & naming'), t('Media server'), t('Done')] as const
-const S = { admin: 0, types: 1, paths: 2, services: 3, sources: 4, usenet: 5, quality: 6, server: 7, done: 8 } as const
+const STEPS = [t('Admin account'), t('Media types'), t('Library paths'), t('Connect services'), t('Indexers & Search'), t('Usenet provider'), t('Quality & naming'), t('Media server'), t('Extras'), t('Done')] as const // home fork: Extras
+const S = { admin: 0, types: 1, paths: 2, services: 3, sources: 4, usenet: 5, quality: 6, server: 7, extras: 8, done: 9 } as const // home fork: extras
 
 // The setting each folder box is saved to.
 const SETTING_FIELD = {
@@ -406,7 +409,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
       {step !== S.done && <h1 className="sr-only">{t('Set up Mediarium: {step}', { step: STEPS[step] })}</h1>}
       <div className="auth-logo wizard-logo">
         <LogoGlyph size={72} />
-        <span>Mediarium</span>
+        <span>{BRAND}</span>
       </div>
       <ol className="wizard-steps" aria-label={t('Set up Mediarium')}>
         {STEPS.map((label, i) => (
@@ -811,8 +814,26 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
           <SetupMediaServer preferred={preferredServer} servers={mediaServers} onAdded={loadMediaServers} />
           <div className="wizard-nav">
             {backButton}
-            <button className="primary" onClick={() => setStep(S.done)}>
+            <button className="primary" onClick={() => setStep(S.extras)}>
               {mediaServers.length > 0 ? t('Continue') : t('Skip for now')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* home fork: the fork's extras, all optional */}
+      {step === S.extras && (
+        <div className="card grid-form wizard-extras">
+          <h2>{t('Extras')}</h2>
+          <p className="wizard-lead">
+            {t('All optional, and each can wait. Set up the ones you want now, or later under Settings > Extras. Live TV, playing on a TV, comics and news are there too, and Settings > General > Setup checklist shows what is ready.')}{' '}
+            <HelpLink topic="home-setup" />
+          </p>
+          <ExtrasSettings only={['address', 'streaming', 'ai', 'scores']} />
+          <div className="wizard-nav">
+            {backButton}
+            <button className="primary" onClick={() => setStep(S.done)}>
+              {t('Continue')}
             </button>
           </div>
         </div>

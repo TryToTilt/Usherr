@@ -487,5 +487,14 @@ func (s *Server) buildTVDestPath(series library.Series, ep library.Episode, rele
 	mode, replacement := s.illegalCharSettings()
 	clean := func(f string) string { return organizer.Sanitize(organizer.Render(f, ctx), mode, replacement) }
 
-	return filepath.Join(root, clean(organizer.TVSeriesFolder), clean(organizer.TVSeasonFolder), clean(format)+filepath.Ext(videoFile)), nil
+	// tv folders hook (home fork): reuse the show's and the season's existing folders.
+	showDir := filepath.Join(root, clean(organizer.TVSeriesFolder))
+	if d := s.existingShowFolder(series.ID, root); d != "" {
+		showDir = d
+	}
+	seasonDir := filepath.Join(showDir, clean(s.seasonFolderFormat()))
+	if d := existingSeasonFolder(showDir, ep.Season); d != "" {
+		seasonDir = d
+	}
+	return filepath.Join(seasonDir, clean(format)+filepath.Ext(videoFile)), nil
 }

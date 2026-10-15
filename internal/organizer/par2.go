@@ -64,7 +64,7 @@ func FindMainPar2Files(dir string) ([]string, error) {
 	}
 	if len(mains) == 0 {
 		// Some releases are posted with only their recovery volumes
-		// ("movie.vol01+02.par2") and no main index. Every volume carries the
+		// ("movie.vol-01.par2") and no main index. Every volume carries the
 		// set's file descriptions, so par2 can verify and repair from any one.
 		return onePerSet(vols), nil
 	}
@@ -142,7 +142,10 @@ func (r *Repairer) Verify(par2File string) (VerifyResult, error) {
 	cmd := exec.CommandContext(ctx, r.binary(), append([]string{"verify", "--", par2File}, otherFiles(par2File)...)...)
 	cmd.Dir = filepath.Dir(par2File)
 	cmd.WaitDelay = 5 * time.Second
-	out, err := cmd.CombinedOutput()
+	watch := newPar2Watch(par2File) // home fork: progress as it goes
+	cmd.Stdout, cmd.Stderr = watch, watch
+	err := cmd.Run()
+	out := watch.Bytes()
 	if ctx.Err() != nil {
 		return VerifyResult{}, fmt.Errorf("run par2 verify: it took too long and was stopped: %w", ctx.Err())
 	}
@@ -164,7 +167,10 @@ func (r *Repairer) Repair(par2File string) error {
 	cmd := exec.CommandContext(ctx, r.binary(), append([]string{"repair", "--", par2File}, otherFiles(par2File)...)...)
 	cmd.Dir = filepath.Dir(par2File)
 	cmd.WaitDelay = 5 * time.Second
-	out, err := cmd.CombinedOutput()
+	watch := newPar2Watch(par2File) // home fork: progress as it goes
+	cmd.Stdout, cmd.Stderr = watch, watch
+	err := cmd.Run()
+	out := watch.Bytes()
 	if ctx.Err() != nil {
 		return fmt.Errorf("par2 repair %s: it took too long and was stopped: %w", par2File, ctx.Err())
 	}

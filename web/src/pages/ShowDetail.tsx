@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react'
+import VoteButtons from '../home/VoteButtons' // home fork
+import { SkipGuide, WhatsItLike } from '../home/AIGuides' // home fork
+import { StreamingOn } from '../home/Recipes' // home fork
+import { ScoresLine } from '../home/scores' // home fork
 import { useNavigate, useParams } from 'react-router-dom'
 import AddDialog from '../components/AddDialog'
 import Icon from '../components/Icon'
@@ -7,6 +11,8 @@ import { CastCard, SeasonsCard, titleLinks } from '../components/TitlePreview'
 import { api, type TVDetail } from '../api'
 import { useDocumentTitle } from '../documentTitle'
 import { t } from '../i18n'
+import CatchUp from '../home/CatchUp' // Catch me up (home fork)
+import { showStatusLabel } from '../home/showStatus' // home fork
 
 // A TV show that is not in the library yet: full info plus one action.
 // Shows you already own go straight to their library page instead.
@@ -38,7 +44,7 @@ export default function ShowDetail() {
     show.seasons ? { label: t('Seasons'), value: String(show.seasons) } : null,
     show.episodes ? { label: t('Episodes'), value: String(show.episodes) } : null,
     show.networks?.length ? { label: t('Network'), value: show.networks.join(', ') } : null,
-    show.releaseStatus ? { label: t('Status'), value: show.releaseStatus } : null,
+    show.releaseStatus ? { label: t('Status'), value: showStatusLabel(undefined, show.releaseStatus) ?? show.releaseStatus } : null, // home fork: in words
   ].filter(Boolean) as { label: string; value: string }[]
 
   return (
@@ -46,11 +52,20 @@ export default function ShowDetail() {
       <TitleHero
         info={{ ...show, kind: 'tv', certification: show.contentRating ?? show.certification, facts, links: titleLinks('tv', show.tmdbId, show.imdbId, show.homepage) }}
         actions={
-          <button className="primary btn-with-icon big" onClick={() => setAdding(true)}>
-            <Icon name="plus" size={18} /> {t('Add to library')}
-          </button>
+          <>
+            <button className="primary btn-with-icon big" onClick={() => setAdding(true)}>
+              <Icon name="plus" size={18} /> {t('Add to library')}
+            </button>
+            <CatchUp tmdbId={show.tmdbId} /> {/* home fork */}
+            <WhatsItLike kind="tv" tmdbId={show.tmdbId} title={show.title} /> {/* home fork */}
+            <VoteButtons kind="tv" refId={show.tmdbId} meta={{ title: show.title, year: show.year, image: show.posterUrl }} /> {/* home fork */}
+            <SkipGuide tmdbId={show.tmdbId} title={show.title} /> {/* home fork */}
+          </>
         }
-      />
+      >
+        <ScoresLine kind="tv" tmdbId={show.tmdbId} /> {/* home fork */}
+        <StreamingOn kind="tv" tmdbId={show.tmdbId} /> {/* home fork */}
+      </TitleHero>
       <SeasonsCard seasons={show.seasonList ?? []} />
       <CastCard cast={show.cast ?? []} />
       {adding && (

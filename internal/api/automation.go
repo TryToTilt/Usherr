@@ -55,8 +55,22 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "backup", Interval: backupCheck, Run: s.backupJob},
 		automation.Job{Name: "speed-limit", Interval: speedCheck, Run: s.speedJob},
 		automation.Job{Name: "quiet-hours", Interval: speedCheck, Run: s.quietHoursJob},
-		automation.Job{Name: "calendar-art", Interval: artworkEvery, Run: s.heavy(s.artworkJob)}, // fetches the backdrops and logos of what is on the calendar
-		automation.Job{Name: "weekly-summary", Interval: digestCheck, Run: s.digestJob},          // does nothing until a day is chosen
+		automation.Job{Name: "calendar-art", Interval: artworkEvery, Run: s.heavy(s.artworkJob)},                 // fetches the backdrops and logos of what is on the calendar
+		automation.Job{Name: "weekly-summary", Interval: digestCheck, Run: s.digestJob},                          // does nothing until a day is chosen
+		automation.Job{Name: "home-schedules", Interval: scheduleWaitPoll, Run: s.scheduleJob},                   // home fork: schedules
+		automation.Job{Name: "scenes-find-warm", Interval: 5 * time.Hour, Run: s.heavy(s.warmDiscoverJob)},       // home fork: Find tab
+		automation.Job{Name: "weekly-digest", Interval: 30 * time.Minute, Run: s.whatsNewJob},                    // home fork: Sunday "what's new", by title
+		automation.Job{Name: "tv-schedules", Interval: 15 * time.Minute, Run: s.tvJob},                           // home fork: Mediarium TV
+		automation.Job{Name: "streamed-pointers", Interval: 30 * time.Minute, Run: s.streamedSyncJob},            // home fork: one library in layers
+		automation.Job{Name: "streamed-episodes", Interval: 24 * time.Hour, Run: s.heavy(s.streamedEpisodesJob)}, // home fork: new episodes of streamed shows
+		automation.Job{Name: "home-news", Interval: newsEvery, Run: s.heavy(s.newsJob)},                          // home fork: entertainment news
+		automation.Job{Name: "home-moods", Interval: moodsEvery, Run: s.heavy(s.moodsJob)},                       // home fork: moods for the Library shelves
+		automation.Job{Name: "home-comic-arcs", Interval: arcsForYouEvery, Run: s.heavy(s.comicArcsJob)},         // home fork: story arcs for you
+		automation.Job{Name: "home-scores", Interval: scoresEvery, Run: s.heavy(s.scoresJob)},                    // home fork: critic scores from MDBList
+		automation.Job{Name: "home-gaps", Interval: gapsEvery, Run: s.heavy(s.gapsJob)},                          // home fork: complete your library
+		automation.Job{Name: "home-taste", Interval: tasteJobEvery, Run: s.heavy(s.tasteJob)},                    // home fork: titles' traits for the taste engine
+		automation.Job{Name: "home-diary", Interval: diarySyncEvery, Run: s.heavy(s.diaryJob)},                   // home fork: the Diary, from the media server
+		automation.Job{Name: "home-autostream", Interval: autostreamEvery, Run: s.heavy(s.autostreamJob)},        // home fork: Streams for you
 		automation.Job{Name: "import-details", Interval: importDetailsInterval, Run: s.heavy(s.importDetailsJob)},
 		automation.Job{Name: "episode-quality", Interval: 24 * time.Hour, Run: s.heavy(func(context.Context) { s.backfillEpisodeQuality() })},
 		automation.Job{Name: "import-added-dates", Interval: 24 * time.Hour, Run: s.heavy(func(context.Context) { s.backfillImportedAddedDates() })},
@@ -123,6 +137,10 @@ func (s *Server) hunt(ctx context.Context) {
 	if !s.automationEnabled() {
 		return
 	}
+	if !s.taskAllowed(taskSearch) { // schedules hook (home fork)
+		s.huntScenes(ctx) // scenes keep their own schedule
+		return
+	}
 	if !s.autoGrabRoom() {
 		holdBack("hunt")
 		return
@@ -156,6 +174,8 @@ func (s *Server) hunt(ctx context.Context) {
 	}
 	s.huntMusic(ctx, instances) // only while the music module is on
 	s.huntBooks(ctx)            // only while ebooks or audiobooks are on
+	s.huntScenes(ctx)           // scenes hook (home fork): only while Scenes are on
+	s.huntComics(ctx)           // comics hook (home fork): only while Comics are on
 }
 
 // huntMovie searches for one movie if it is monitored (or force is set, for

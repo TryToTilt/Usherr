@@ -1,7 +1,7 @@
 import type { IconName } from './components/Icon'
 import { t } from './i18n.ts'
 
-export type SectionKey = 'dashboard' | 'discover' | 'library' | 'wanted' | 'calendar' | 'activity' | 'settings' | 'profile' | 'about'
+export type SectionKey = 'dashboard' | 'discover' | 'library' | 'wanted' | 'calendar' | 'activity' | 'settings' | 'profile' | 'about' | 'live' // live: Live TV (home fork)
 
 export const SECTIONS: Record<SectionKey, { label: string; icon: IconName }> = {
   dashboard: { label: t('Dashboard'), icon: 'grid' },
@@ -13,12 +13,15 @@ export const SECTIONS: Record<SectionKey, { label: string; icon: IconName }> = {
   settings: { label: t('Settings'), icon: 'sliders' },
   profile: { label: t('Profile'), icon: 'user' },
   about: { label: t('About and credits'), icon: 'info' },
+  live: { label: t('Live TV'), icon: 'tv' }, // home fork
 }
 
 // Which colour family a URL belongs to.
 export function sectionFor(pathname: string): SectionKey {
   if (pathname === '/') return 'dashboard'
   if (pathname.startsWith('/discover') || pathname.startsWith('/search') || pathname.startsWith('/title') || pathname.startsWith('/books/work')) return 'discover'
+  if (pathname.startsWith('/tv')) return 'live' // home fork: Live TV
+  if (pathname.startsWith('/comics') || pathname.startsWith('/scenes') || pathname.startsWith('/streamed')) return 'library' // home fork: inside the Library
   if (pathname.startsWith('/library') || pathname.startsWith('/series') || pathname.startsWith('/music') || pathname.startsWith('/book/') || pathname.startsWith('/import')) return 'library'
   if (pathname.startsWith('/wanted')) return 'wanted'
   if (pathname.startsWith('/calendar')) return 'calendar'

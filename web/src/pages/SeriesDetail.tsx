@@ -1,4 +1,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import VoteButtons from '../home/VoteButtons' // home fork
+import { StreamingOn } from '../home/Recipes' // home fork
+import { ScoresLine } from '../home/scores' // home fork
+import { SkipGuide, WhatsItLike } from '../home/AIGuides' // home fork
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
 import InfoTip from '../components/InfoTip'
@@ -19,10 +23,13 @@ import FilesPanel from '../components/FilesPanel'
 import SubtitlesOffNote from '../components/SubtitlesOffNote'
 import SubtitlesPanel from '../components/SubtitlesPanel'
 import { useAuth } from '../AuthContext'
+import { playTitle } from '../home/Player' // play hook (home fork)
+import StreamButton, { streamRelease } from '../home/StreamButton' // stream hook (home fork)
+import CatchUp from '../home/CatchUp' // Catch me up (home fork)
 import { useModules } from '../ModulesContext'
 import { api, can, isAdmin, isViewer, type Episode, type SearchResult, type SeriesDetail as SeriesDetailData, type TVDetail } from '../api'
 import { formatBytes, qualityText } from '../format'
-import { showStatusLabel } from '../showStatus'
+import { showStatusLabel } from '../home/showStatus' // home fork: also Canceled, from TMDB's own words
 import { rescanMessage } from '../rescanMessage'
 import { titleLinks } from '../components/TitlePreview'
 import { useLive } from '../useLive'
@@ -143,6 +150,27 @@ function SeriesPage() {
     } finally {
       if (mine === searchId.current) setSearching(false)
     }
+  }
+
+  // Stream now (home fork): one release from the list, plays here; Keep it grabs it.
+  const [streaming, setStreaming] = useState<string | null>(null)
+  function streamFromList(r: SearchResult) {
+    if (!series) return
+    setStreaming(r.downloadUrl)
+    setError('')
+    const label = target?.label ? `${series.title} ${target.label}` : series.title
+    streamRelease(r, label, () => void grab(r))
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setStreaming(null))
+  }
+
+  // Keep it for a streamed episode: watch it and download just that one.
+  function keepEpisode(id: number, season: number, episode: number) {
+    void api
+      .setEpisodeMonitored(id, true)
+      .then(() => api.searchNowSeries(seriesId, { season, episode }))
+      .then(() => setMessage(t('Downloading it for later. Follow it in Activity.')))
+      .catch((e: Error) => setError(e.message))
   }
 
   async function grab(r: SearchResult) {
@@ -327,7 +355,8 @@ function SeriesPage() {
           certification: tv?.contentRating,
           links: titleLinks('tv', series.tmdbId, tv?.imdbId, tv?.homepage),
           facts: [
-            ...(series.showStatus ? [{ label: t('Status'), value: showStatusLabel(series.showStatus) }] : []),
+            // home fork: in words from TMDB too, so a canceled show says Canceled
+            ...(showStatusLabel(series.showStatus, tv?.releaseStatus) ? [{ label: t('Status'), value: showStatusLabel(series.showStatus, tv?.releaseStatus) ?? '' }] : []),
             { label: t('Episodes'), value: t('{done} of {total} downloaded', { done: series.downloadedCount, total: series.episodeCount }) },
             ...(nextText ? [{ label: t('Next episode'), value: nextText }] : []),
             ...(tv?.networks?.length ? [{ label: t('Network'), value: tv.networks.join(', ') }] : []),
@@ -353,6 +382,10 @@ function SeriesPage() {
               </button>
             )}
             {series.downloadedCount > 0 && <WatchLinks tmdbId={series.tmdbId} kind="tv" />}
+            <CatchUp tmdbId={series.tmdbId} /> {/* home fork */}
+            <WhatsItLike kind="tv" tmdbId={series.tmdbId} title={series.title} /> {/* home fork */}
+            <VoteButtons kind="tv" refId={series.tmdbId} meta={{ title: series.title, year: series.year, image: series.posterUrl }} /> {/* home fork */}
+            <SkipGuide tmdbId={series.tmdbId} title={series.title} /> {/* home fork */}
             {admin && (
               <button className="btn-with-icon danger-ghost" onClick={remove}>
                 <Icon name="trash" size={16} /> {t('Remove')}
@@ -369,6 +402,8 @@ function SeriesPage() {
           {canManage && <SeriesTypePicker id={seriesId} value={series.seriesType ?? 'standard'} onChange={(type) => setSeries((cur) => (cur ? { ...cur, seriesType: type } : cur))} />}
         </div>
         <WatchedLine kind="tv" id={seriesId} />
+        <ScoresLine kind="tv" tmdbId={series.tmdbId} /> {/* home fork */}
+        <StreamingOn kind="tv" tmdbId={series.tmdbId} /> {/* home fork */}
       </TitleHero>
 
       {error && <p className="error-text">{error}</p>}
@@ -385,7 +420,7 @@ function SeriesPage() {
             </button>
           )}
           {results !== null && results.length > 0 && (
-            <ReleaseTable results={results} grabbing={grabbing} onGrab={grab} showPackBadge onClose={() => setTarget(null)} />
+            <ReleaseTable results={results} grabbing={grabbing} onGrab={grab} showPackBadge onClose={() => setTarget(null)} onStream={can(me, 'play') ? streamFromList : undefined} streaming={streaming} />
           )}
         </section>
       )}
@@ -430,6 +465,8 @@ function SeriesPage() {
         const eps = missingOnly ? allEps.filter(isMissing) : allEps
         const done = allEps.filter((e) => e.status === 'downloaded').length
         const open = missingOnly || isOpen(season)
+        // home fork: the season's size on disk (a two-episode file counted once)
+        const seasonBytes = [...new Map(allEps.filter((e) => e.filePath && e.sizeBytes).map((e) => [e.filePath, e.sizeBytes ?? 0])).values()].reduce((a, b) => a + b, 0)
         return (
           <section key={season} id={`season-${season}`} style={{ marginBottom: open ? 28 : 12, scrollMarginTop: 80 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -440,7 +477,7 @@ function SeriesPage() {
               <span className={`badge ${done === allEps.length ? 'downloaded' : 'missing'}`}>
                 {done} / {allEps.length}
               </span>
-              {allEps.some((e) => e.sizeBytes) && <span className="badge" title={t('Size on disk')}>{formatBytes(allEps.reduce((n, e) => n + (e.sizeBytes ?? 0), 0))}</span>}
+              {seasonBytes > 0 && <span className="badge" title={t('Size on disk')}>{formatBytes(seasonBytes)}</span>} {/* home fork: a two-episode file counts once */}
               {season === 0 ? (
                 <span className="hint">{t("Specials aren't looked for until you tick them. Each one is searched on its own, by S00E number and by its title.")}</span>
               ) : (
@@ -515,6 +552,22 @@ function SeriesPage() {
                       <td>{qualityText(e.quality)}</td>
                       <td style={{ color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{e.sizeBytes ? formatBytes(e.sizeBytes) : '—'}</td>
                       <td>
+                        {e.status === 'downloaded' && (
+                          // play hook (home fork)
+                          <>
+                            <button onClick={() => playTitle('episode', e.id, `${series.title} S${String(season).padStart(2, '0')}E${String(e.episode).padStart(2, '0')}${e.title ? ' - ' + e.title : ''}`)}>{t('Play')}</button>{' '}
+                          </>
+                        )}
+                        {season > 0 && !unaired && e.status !== 'downloaded' && can(me, 'play') && (
+                          // stream hook (home fork)
+                          <>
+                            <StreamButton
+                              small
+                              target={{ kind: 'series', tmdbId: series.tmdbId, season, episode: e.episode, title: `${series.title} S${String(season).padStart(2, '0')}E${String(e.episode).padStart(2, '0')}` }}
+                              onKeep={() => keepEpisode(e.id, season, e.episode)}
+                            />{' '}
+                          </>
+                        )}
                         {canReleases && (
                           <button
                             disabled={unaired && e.status === 'missing'}

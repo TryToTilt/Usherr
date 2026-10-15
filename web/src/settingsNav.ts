@@ -1,3 +1,4 @@
+import { BRAND } from './brand' // Usherr
 import type { IconName } from './components/Icon'
 import { t, tc } from './i18n.ts'
 
@@ -9,6 +10,7 @@ import { t, tc } from './i18n.ts'
 // one honest sentence under it (`blurb`).
 export const SETTINGS_NAV: { to: string; label: string; icon: IconName; color: string; blurb: string; member?: boolean; notViewer?: boolean; help?: string }[] = [
   { to: '/settings/general', label: t('General'), icon: 'sliders', color: '#e7a6f2', blurb: t('The app as a whole: its language, look, address and updates.'), member: true },
+  { to: '/settings/setup', label: t('Setup checklist'), icon: 'check', color: '#e7a6f2', blurb: t('Every part Mediarium can use, whether it is ready, and how to set it up.'), help: 'home-setup' }, // home fork
   { to: '/settings/modules', label: t('Media types'), icon: 'grid', color: '#ff9f6b', blurb: t('Switch movies, shows, music, ebooks and audiobooks on or off.'), help: 'getting-started#media-types' },
   { to: '/settings/media', label: t('Folders'), icon: 'folder', color: '#7cc4f8', blurb: t('Where your movies, shows, music, books and downloads are kept.'), help: 'install-docker#why-one-data-folder-hardlinks' },
   { to: '/settings/naming', label: t('File names and importing'), icon: 'list', color: '#7cc4f8', blurb: t('How imported files are named, the info files saved next to them, and what runs after an import.'), help: 'library#file-names' },
@@ -19,12 +21,14 @@ export const SETTINGS_NAV: { to: string; label: string; icon: IconName; color: s
   { to: '/settings/torrents', label: t('Torrents'), icon: 'magnet', color: '#86dca4', blurb: t('The built-in torrent client and its options, a debrid service, or a client you already run.'), help: 'downloads#controls-of-the-built-in-torrent-client' },
   { to: '/settings/vpn', label: t('VPN and proxy'), icon: 'shield', color: '#6fd6c8', blurb: t('Keep torrent traffic behind a VPN, or send it through a proxy.'), help: 'downloads#vpn-protection' },
   { to: '/settings/download-rules', label: t('Download rules'), icon: 'download', color: '#86dca4', blurb: t('Where to download from, how many at once, how fast and when, and which releases to skip.'), help: 'downloads#checks-on-releases' },
+  { to: '/settings/schedules', label: t('Schedules'), icon: 'clock', color: '#86dca4', blurb: t('Time windows for downloads and heavy jobs.') }, // home fork
   { to: '/settings/metadata', label: t('Movie and show info'), icon: 'globe', color: '#c1acf7', blurb: t('Where titles, posters, episode numbers and trailers come from.') },
   { to: '/settings/lists', label: t('Import lists'), icon: 'list', color: '#c1acf7', blurb: t('Add movies and shows by themselves from lists on Trakt, TMDB, IMDb, MDBList and Letterboxd.'), help: 'adding#import-lists' },
   { to: '/settings/subtitles', label: t('Subtitles'), icon: 'chat', color: '#f4a3c8', blurb: t('Where subtitles come from and which languages to keep.'), help: 'subtitles' },
   { to: '/settings/media-servers', label: t('Media servers'), icon: 'monitor', color: '#f2c14e', blurb: t('Plex, Jellyfin and the rest: scan after a download and link to them.'), help: 'media-servers' },
   { to: '/settings/notifications', label: t('Notifications'), icon: 'mail', color: '#f7b27a', blurb: t('Messages when something is added, downloaded or goes wrong.'), help: 'notifications' },
   { to: '/settings/other-apps', label: t('Other apps'), icon: 'server', color: '#9fd4a8', blurb: t('Let Overseerr, Homepage and phone apps talk to Mediarium.'), help: 'media-servers#overseerr-dashboards-and-phone-apps' },
+  { to: '/settings/extras', label: t('Extras'), icon: 'sparkles', color: '#6fd6c8', blurb: t('Streaming, Live TV, playing on a TV, comics and more.'), help: 'home-setup' }, // home fork
   { to: '/settings/addons', label: t('Add-ons'), icon: 'grid', color: '#9fd4a8', blurb: t('Other programs you run next to Mediarium, with a link to each.'), help: 'media-servers#add-ons' },
   { to: '/settings/profile', label: t('Your profile'), icon: 'user', color: '#8fb8f5', blurb: t('Your name, email and password, and the messages you get about your requests.'), member: true },
   { to: '/settings/security', label: t('Security'), icon: 'shield', color: '#8fb8f5', blurb: t('Passkeys, two-step sign-in, a linked single sign-on account and your API keys.'), member: true, help: 'accounts#two-step-sign-in' },
@@ -69,13 +73,14 @@ export interface SettingsGroup {
 // open in the sidebar; one entry at a time shows its pages as indented items
 // underneath, so the sidebar stays short.
 const GROUPS: { key: string; label: string; icon: IconName; color: string; pages: string[] }[] = [
-  { key: 'general', label: t('General'), icon: 'sliders', color: '#e7a6f2', pages: ['/settings/general'] },
+  { key: 'general', label: t('General'), icon: 'sliders', color: '#e7a6f2', pages: ['/settings/general', '/settings/setup'] }, // home fork: the setup checklist
   { key: 'modules', label: t('Media types'), icon: 'grid', color: '#ff9f6b', pages: ['/settings/modules'] },
   { key: 'library', label: t('Library'), icon: 'folder', color: '#7cc4f8', pages: ['/settings/media', '/settings/naming', '/settings/quality', '/settings/automation'] },
   { key: 'indexers', label: t('Indexers & Search'), icon: 'search', color: '#a5b4fc', pages: ['/settings/indexers'] },
-  { key: 'downloads', label: tc('section', 'Downloading'), icon: 'download', color: '#86dca4', pages: ['/settings/usenet', '/settings/torrents', '/settings/vpn', '/settings/download-rules'] },
+  { key: 'downloads', label: tc('section', 'Downloading'), icon: 'download', color: '#86dca4', pages: ['/settings/usenet', '/settings/torrents', '/settings/vpn', '/settings/download-rules', '/settings/schedules'] }, // home fork: schedules
   { key: 'metadata', label: t('Info, lists and subtitles'), icon: 'globe', color: '#c1acf7', pages: ['/settings/metadata', '/settings/lists', '/settings/subtitles'] },
   { key: 'connections', label: t('Connections'), icon: 'monitor', color: '#f2c14e', pages: ['/settings/media-servers', '/settings/notifications', '/settings/other-apps', '/settings/addons'] },
+  { key: 'extras', label: t('Extras'), icon: 'sparkles', color: '#6fd6c8', pages: ['/settings/extras'] }, // home fork
   { key: 'profile', label: t('Account & Access'), icon: 'user', color: '#8fb8f5', pages: ['/settings/profile', '/settings/security', '/settings/services', '/settings/accounts', '/settings/requests', '/settings/sign-in'] },
   { key: 'system', label: t('System'), icon: 'hard', color: '#b4bfcc', pages: ['/settings/system', '/settings/backup', '/settings/statistics', '/settings/logs', '/settings/migrate', '/settings/about'] },
 ]
@@ -132,13 +137,19 @@ export function pageTitle(pathname: string, admin = true): string {
   if (pathname.startsWith('/search')) return tc('noun', 'Search')
   if (pathname.startsWith('/title')) return t('Movie')
   if (pathname.startsWith('/show') || pathname.startsWith('/series')) return t('TV show')
+  if (pathname.startsWith('/tv')) return t('Live TV') // home fork
+  if (pathname.startsWith('/person/')) return t('Person') // home fork: from a cast photo
+  if (pathname === '/you' || pathname.startsWith('/you/')) return t('You') // home fork
+  if (pathname.startsWith('/comics')) return t('Comics') // home fork
+  if (pathname.startsWith('/scenes')) return t('NSFW 18+') // home fork
+  if (pathname.startsWith('/streamed')) return t('Streamed') // home fork
   if (pathname.startsWith('/library')) return t('Library')
   if (pathname.startsWith('/music/import')) return t('Import music')
   if (pathname.startsWith('/music')) return t('Music')
   if (pathname.startsWith('/book/') || pathname.startsWith('/books/')) return t('Book')
   if (pathname.startsWith('/import')) return t('Import')
-  if (pathname.startsWith('/wanted') || pathname.startsWith('/calendar')) return t('Upcoming')
+  if (pathname.startsWith('/wanted') || pathname.startsWith('/calendar') || pathname.startsWith('/following')) return t('Upcoming') // home fork: Following
   if (pathname.startsWith('/queue')) return t('Activity')
   if (pathname.startsWith('/stats')) return t('Statistics')
-  return 'Mediarium'
+  return BRAND // Usherr
 }

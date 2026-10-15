@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { MoreSentinel, useNarrow } from '../home/swipeRows' // home fork
+import { useRowMemory } from '../home/rowMemory' // home fork
 import { Link, useNavigate } from 'react-router-dom'
 import { api, type MusicDiscoverArtist, type MusicDiscoverItem, type MusicList, type MusicRange, type MusicType } from '../api'
 import { comingLabel } from '../discoverSources'
@@ -277,7 +279,10 @@ interface RailProps {
 // One row of albums (or a couple of rows) for a list, always whole rows.
 function AlbumRail({ list, type, genre, onAdd, onGenres, rows = 2 }: RailProps & { list: MusicList }) {
   const grid = useRef<HTMLDivElement>(null)
-  const cols = useGridColumns(grid)
+  const measured = useGridColumns(grid)
+  const narrow = useNarrow() // home fork: one swipe row on a phone
+  useRowMemory(grid, `music:${list}:${type}:${genre}`, narrow) // home fork
+  const cols = narrow ? 8 : measured
   // MusicBrainz is asked politely: the lists start by themselves, spread over a few seconds.
   const [warm] = useState(() => 1200 + Math.random() * 5000)
   const near = useNearViewport(grid, 1600, warm)
@@ -301,7 +306,7 @@ function AlbumRail({ list, type, genre, onAdd, onGenres, rows = 2 }: RailProps &
 
   const browse = new URLSearchParams({ list, ...(list === 'popular' ? { range } : {}), ...(type !== 'all' ? { type } : {}), ...(genre ? { genre } : {}) }).toString()
   const items = hideOwned ? r.items.filter((m) => !m.inLibrary) : r.items
-  const shown = wholeRows(items, want, cols)
+  const shown = narrow ? items : wholeRows(items, want, cols)
   const fetching = !r.done && items.length < want
   const unavailable = !r.loading && r.items.length === 0
   // A list with nothing to say and no reason is left out, and so is one where
@@ -309,10 +314,11 @@ function AlbumRail({ list, type, genre, onAdd, onGenres, rows = 2 }: RailProps &
   if (unavailable && !r.note && !r.error) return null
   if (!r.loading && r.done && items.length === 0 && r.items.length > 0) return null
   return (
-    <Shell id={list} title={RAIL_TITLE[list]} hint={RAIL_HINT[list]} browse={browse} note={unavailable ? r.note || r.error : r.note} foot={!unavailable && !r.done && !r.error ? <MoreButton onClick={() => setExtra((x) => x + 2)} busy={fetching} /> : undefined}>
-      <div className="poster-grid" ref={grid} style={unavailable ? { display: 'none' } : undefined}>
-        {r.loading ? Array.from({ length: want }, (_, i) => <div key={i} className="skeleton" style={{ aspectRatio: '1 / 1.9' }} />) : <AlbumCards items={shown} onAdd={onAdd} />}
-        {!r.loading && fetching && Array.from({ length: Math.max(0, want - shown.length) }, (_, i) => <div key={`s${i}`} className="skeleton" style={{ aspectRatio: '1 / 1.9' }} />)}
+    <Shell id={list} title={RAIL_TITLE[list]} hint={RAIL_HINT[list]} browse={browse} note={unavailable ? r.note || r.error : r.note} foot={!narrow && !unavailable && !r.done && !r.error ? <MoreButton onClick={() => setExtra((x) => x + 2)} busy={fetching} /> : undefined}>
+      <div className={narrow ? 'poster-scroll' : 'poster-grid'} ref={grid} style={unavailable ? { display: 'none' } : undefined}>
+        {r.loading ? Array.from({ length: narrow ? 3 : want }, (_, i) => <div key={i} className="skeleton" style={{ aspectRatio: '1 / 1.9' }} />) : <AlbumCards items={shown} onAdd={onAdd} />}
+        {!narrow && !r.loading && fetching && Array.from({ length: Math.max(0, want - shown.length) }, (_, i) => <div key={`s${i}`} className="skeleton" style={{ aspectRatio: '1 / 1.9' }} />)}
+        {narrow && !r.loading && !r.done && !r.error && <MoreSentinel onSeen={() => setExtra((x) => x + 1)} busy={fetching} ratio="1 / 1.9" />}
       </div>
     </Shell>
   )
@@ -328,7 +334,9 @@ function MoreButton({ onClick, busy }: { onClick: () => void; busy: boolean }) {
 
 function ArtistRail({ onAdd, rows = 3 }: Pick<RailProps, 'onAdd' | 'rows'>) {
   const grid = useRef<HTMLDivElement>(null)
-  const cols = useGridColumns(grid, 3)
+  const measured = useGridColumns(grid, 3)
+  const narrow = useNarrow() // home fork: one swipe row on a phone
+  const cols = narrow ? 8 : measured
   // MusicBrainz is asked politely: the lists start by themselves, spread over a few seconds.
   const [warm] = useState(() => 1200 + Math.random() * 5000)
   const near = useNearViewport(grid, 1600, warm)
@@ -345,16 +353,17 @@ function ArtistRail({ onAdd, rows = 3 }: Pick<RailProps, 'onAdd' | 'rows'>) {
     near,
   )
   const items = hideOwned ? r.items.filter((a) => !a.inLibrary) : r.items
-  const shown = wholeRows(items, want, cols)
+  const shown = narrow ? items : wholeRows(items, want, cols)
   const fetching = !r.done && items.length < want
   const unavailable = !r.loading && r.items.length === 0
   if (unavailable && !r.note && !r.error) return null
   if (!r.loading && r.done && items.length === 0 && r.items.length > 0) return null
   return (
-    <Shell id="artists" title={RAIL_TITLE.artists} hint={RAIL_HINT.artists} browse={new URLSearchParams({ list: 'artists', range }).toString()} note={unavailable ? r.note || r.error : r.note} foot={!unavailable && !r.done && !r.error ? <MoreButton onClick={() => setExtra((x) => x + 2)} busy={fetching} /> : undefined}>
-      <div className="artist-results" ref={grid} style={unavailable ? { display: 'none' } : undefined}>
-        {r.loading ? Array.from({ length: want }, (_, i) => <div key={i} className="skeleton" style={{ height: 130 }} />) : <ArtistCards items={shown} onAdd={onAdd} />}
-        {!r.loading && fetching && Array.from({ length: Math.max(0, want - shown.length) }, (_, i) => <div key={`s${i}`} className="skeleton" style={{ height: 130 }} />)}
+    <Shell id="artists" title={RAIL_TITLE.artists} hint={RAIL_HINT.artists} browse={new URLSearchParams({ list: 'artists', range }).toString()} note={unavailable ? r.note || r.error : r.note} foot={!narrow && !unavailable && !r.done && !r.error ? <MoreButton onClick={() => setExtra((x) => x + 2)} busy={fetching} /> : undefined}>
+      <div className={narrow ? 'artist-results artist-scroll' : 'artist-results'} ref={grid} style={unavailable ? { display: 'none' } : undefined}>
+        {r.loading ? Array.from({ length: narrow ? 3 : want }, (_, i) => <div key={i} className="skeleton" style={{ height: 130 }} />) : <ArtistCards items={shown} onAdd={onAdd} />}
+        {!narrow && !r.loading && fetching && Array.from({ length: Math.max(0, want - shown.length) }, (_, i) => <div key={`s${i}`} className="skeleton" style={{ height: 130 }} />)}
+        {narrow && !r.loading && !r.done && !r.error && <MoreSentinel onSeen={() => setExtra((x) => x + 1)} busy={fetching} ratio="1 / 1" />}
       </div>
     </Shell>
   )

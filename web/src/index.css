@@ -1606,3 +1606,6 @@ textarea[aria-invalid='true']:focus {
   border-color: var(--danger);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 25%, transparent);
 }
+
+/* home fork: live step timers */
+.elapsed { font-variant-numeric: tabular-nums; white-space: nowrap; }

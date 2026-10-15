@@ -1,0 +1,227 @@
+[
+  {
+    "name": "dashboard",
+    "path": "/",
+    "waitFor": "Entertainment news",
+    "as": "viewer"
+  },
+  {
+    "name": "phone-dashboard",
+    "path": "/",
+    "viewport": "phone",
+    "waitFor": "Tonight",
+    "as": "viewer"
+  },
+  {
+    "name": "setup-checklist",
+    "path": "/settings/setup",
+    "waitFor": "parts ready",
+    "fullPage": true
+  },
+  {
+    "name": "extras",
+    "path": "/settings/extras",
+    "waitFor": "Scores (MDBList)"
+  },
+  {
+    "name": "settings-metadata",
+    "path": "/settings/metadata",
+    "waitFor": "TMDB"
+  },
+  {
+    "name": "settings-usenet",
+    "path": "/settings/usenet",
+    "waitFor": "Usenet"
+  },
+  {
+    "name": "extras-jellyfin",
+    "path": "/settings/extras",
+    "waitFor": "Scores (MDBList)",
+    "card": "Jellyfin or Emby"
+  },
+  {
+    "name": "extras-address",
+    "path": "/settings/extras",
+    "waitFor": "Scores (MDBList)",
+    "card": "Usherr's address on your network"
+  },
+  {
+    "name": "extras-streamnzb",
+    "path": "/settings/extras",
+    "waitFor": "Scores (MDBList)",
+    "card": "Streaming (StreamNZB)"
+  },
+  {
+    "name": "extras-streamed",
+    "path": "/settings/extras",
+    "waitFor": "Scores (MDBList)",
+    "card": "Streamed library"
+  },
+  {
+    "name": "extras-play-on-tv",
+    "path": "/settings/extras",
+    "waitFor": "Scores (MDBList)",
+    "card": "Play on TV"
+  },
+  {
+    "name": "extras-ai",
+    "path": "/settings/extras",
+    "waitFor": "Scores (MDBList)",
+    "card": "AI"
+  },
+  {
+    "name": "extras-mdblist",
+    "path": "/settings/extras",
+    "waitFor": "Scores (MDBList)",
+    "card": "Scores (MDBList)"
+  },
+  {
+    "name": "extras-news",
+    "path": "/settings/extras",
+    "waitFor": "Scores (MDBList)",
+    "card": "Entertainment news"
+  },
+  {
+    "name": "extras-comics",
+    "path": "/settings/extras",
+    "waitFor": "Scores (MDBList)",
+    "card": "Comics"
+  },
+  {
+    "name": "live-tv",
+    "path": "/tv",
+    "waitFor": "Movie Night",
+    "before": [
+      {
+        "click": "Guide",
+        "wait": 1500
+      }
+    ],
+    "as": "viewer"
+  },
+  {
+    "name": "discover",
+    "path": "/discover",
+    "as": "viewer",
+    "waitFor": "Top rated",
+    "settle": 5000
+  },
+  {
+    "name": "discover-filters",
+    "path": "/discover",
+    "as": "viewer",
+    "waitFor": "Top rated",
+    "element": ".filter-bar",
+    "below": 190,
+    "before": [
+      {
+        "press": ".hide-owned label, .hide-owned [role=switch], .hide-owned input",
+        "wait": 800
+      },
+      {
+        "press": ".hide-owned-pick .dropdown-btn",
+        "wait": 800
+      }
+    ],
+    "settle": 2500
+  },
+  {
+    "name": "person",
+    "path": "/person/6384",
+    "as": "viewer",
+    "waitFor": "Keanu Reeves",
+    "settle": 3500
+  },
+  {
+    "name": "title",
+    "path": "/title/603",
+    "as": "viewer",
+    "waitFor": "Similar movies",
+    "settle": 3500
+  },
+  {
+    "name": "library",
+    "path": "/library",
+    "as": "viewer",
+    "waitFor": "Recently added",
+    "settle": 4000
+  },
+  {
+    "name": "tour-discover",
+    "path": "/?docs-tour",
+    "as": "viewer",
+    "waitFor": "Welcome to Usherr",
+    "before": [
+      {
+        "click": "Next",
+        "wait": 1200
+      },
+      {
+        "click": "Next",
+        "wait": 1200
+      }
+    ],
+    "settle": 800
+  },
+  {
+    "name": "roulette",
+    "path": "/discover",
+    "as": "viewer",
+    "waitFor": "Your recipes",
+    "before": [
+      {
+        "press": "button[title='Spin for something to watch']",
+        "wait": 1200
+      },
+      {
+        "click": "Something new",
+        "wait": 400
+      },
+      {
+        "press": ".roulette-nav button.primary",
+        "wait": 7000
+      }
+    ],
+    "element": ".modal.roulette",
+    "settle": 800
+  },
+  {
+    "name": "rate",
+    "path": "/discover",
+    "as": "viewer",
+    "waitFor": "Your recipes",
+    "before": [
+      {
+        "press": "button[title^='Thumb up or down 20']",
+        "wait": 2500
+      }
+    ],
+    "element": ".modal.roulette",
+    "settle": 800
+  },
+  {
+    "name": "foryou",
+    "path": "/discover",
+    "waitFor": "For you: movies",
+    "element": ".discover-rail:has-text(\"For you: movies\")",
+    "settle": 3000
+  },
+  {
+    "name": "you",
+    "path": "/you",
+    "waitFor": "Your taste in films",
+    "settle": 3000
+  },
+  {
+    "name": "diary",
+    "path": "/you/diary",
+    "waitFor": "Log something",
+    "settle": 3000
+  },
+  {
+    "name": "wrapped",
+    "path": "/you/wrapped",
+    "waitFor": "hours of watching",
+    "settle": 3000
+  }
+]

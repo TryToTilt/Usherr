@@ -1,3 +1,4 @@
+import { BRAND } from '../brand' // Usherr
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, type Book, type BookFormat, type BookProgress } from '../api'
@@ -43,7 +44,7 @@ export default function Shelf() {
     <div className="bks-shelf">
       <header className="bks-top">
         <span className="bks-brand">
-          <BrandMark className="" /> {tx('{brand} Books', { brand: <strong>Mediarium</strong> })}
+          <BrandMark className="" /> {tx('{brand} Books', { brand: <strong>{BRAND}</strong> })}
         </span>
         <div className="seg">
           {(['all', 'ebook', 'audiobook'] as Tab[]).map((x) => (

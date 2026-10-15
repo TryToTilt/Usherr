@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rdborg/mediarium/internal/auth"
 	"github.com/rdborg/mediarium/internal/blocklist"
 	"github.com/rdborg/mediarium/internal/books"
 	"github.com/rdborg/mediarium/internal/indexers"
@@ -81,6 +82,9 @@ func toBookPayload(b books.Book, admin bool) bookPayload {
 		Audiobook:  bookFormatPayload{Wanted: b.WantAudiobook, Status: b.AudioStatus, Format: b.AudioFormat},
 		SeriesName: b.SeriesName, SeriesPosition: b.SeriesPosition, ReleaseDate: b.ReleaseDate,
 		Narrators: b.Narrators, RuntimeMin: b.RuntimeMin, ASIN: b.ASIN}
+	if p.CoverURL == "" {
+		p.CoverURL = hardcoverCover(b) // home fork: a book found only on Hardcover
+	}
 	if admin {
 		p.Ebook.Path, p.Audiobook.Path = b.EbookPath, b.AudioPath
 	}
@@ -177,6 +181,11 @@ type addBookRequest struct {
 // handleAddBook adds a book with the formats asked for. Details (the
 // description, a cover) are fetched from Open Library when it answers.
 func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
+	// home fork: allowed neither ebooks nor audiobooks
+	if !s.userAllows(r, auth.PermBooks) && !s.userAllows(r, auth.PermAudiobooks) {
+		writeError(w, http.StatusForbidden, "Your account can't add books. Ask an administrator.")
+		return
+	}
 	if s.mustRequest(r) {
 		s.fileRequest(w, r, "book")
 		return
@@ -188,6 +197,11 @@ func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 	}
 	if !req.Ebook && !req.Audiobook {
 		writeError(w, http.StatusBadRequest, "Choose ebook, audiobook or both.")
+		return
+	}
+	// home fork: ebooks and audiobooks are separate permissions
+	if (req.Ebook && !s.userAllows(r, auth.PermBooks)) || (req.Audiobook && !s.userAllows(r, auth.PermAudiobooks)) {
+		writeError(w, http.StatusForbidden, "Your account can't add that format. Ask an administrator.")
 		return
 	}
 	if (req.Ebook && !s.ebooksEnabled()) || (req.Audiobook && !s.audiobooksEnabled()) {
@@ -300,11 +314,26 @@ func (s *Server) bookReleases(ctx context.Context, b books.Book, f books.Format)
 	if len(list) == 0 {
 		return nil, nil
 	}
+	// home fork: books.MatchRelease (cleaner names, series positions, other
+	// languages left out); series packs only when no single release is found.
+	var packs []indexers.Result
 	matching := func(query string) []indexers.Result {
 		var out []indexers.Result
 		for _, res := range indexers.MergeResults(indexers.SearchAll(ctx, list, query, categoriesFor(f))) {
-			if books.Matches(res.Title, b) && books.ReleaseRank(res.Title, f) > 0 {
+			if books.ReleaseRank(res.Title, f) == 0 {
+				continue
+			}
+			if res.Protocol == indexers.ProtocolTorrent && res.Seeders == 0 {
+				continue // home fork: nobody shares it; it would never finish
+			}
+			if f == books.Ebook && res.Protocol == indexers.ProtocolTorrent && res.SizeBytes > maxEbookBytes {
+				continue // home fork: a novel is a few MB; a 1 GB "ebook" torrent is audio or page scans
+			}
+			switch books.MatchRelease(res.Title, b) {
+			case books.SingleBook:
 				out = append(out, res)
+			case books.SeriesPack:
+				packs = append(packs, res)
 			}
 		}
 		return out
@@ -315,10 +344,24 @@ func (s *Server) bookReleases(ctx context.Context, b books.Book, f books.Format)
 		// release still has to name the author to match).
 		out = matching(b.Title)
 	}
+	if len(out) == 0 {
+		out = packs
+	}
 	sort.SliceStable(out, func(i, j int) bool {
+		// home fork: a torrent with one or two seeders may never finish; it
+		// comes after anything healthy, whatever its name says.
+		if hi, hj := healthyRelease(out[i]), healthyRelease(out[j]); hi != hj {
+			return hi
+		}
 		ri, rj := books.ReleaseRank(out[i].Title, f), books.ReleaseRank(out[j].Title, f)
 		if ri != rj {
 			return ri > rj
+		}
+		if out[i].Protocol != out[j].Protocol { // home fork: Usenet first, then the best-seeded torrent
+			return out[i].Protocol == indexers.ProtocolUsenet
+		}
+		if out[i].Protocol == indexers.ProtocolTorrent && out[i].Seeders != out[j].Seeders {
+			return out[i].Seeders > out[j].Seeders
 		}
 		if out[i].Priority != out[j].Priority {
 			return indexerRank(out[i].Priority) < indexerRank(out[j].Priority)
@@ -434,7 +477,7 @@ func (s *Server) searchBook(bookID int64, f books.Format, retry bool) bool {
 		return false
 	}
 	blocked := s.blockedKeys()
-	for _, res := range filterSources(s.freshOnly(results), s.sourcesFor("")) {
+	for _, res := range filterSources(s.freshOnly(results), s.bookSources()) { // home fork: books may use torrents
 		if blocked[blocklist.Key(res.Title)] {
 			continue
 		}
@@ -488,6 +531,11 @@ func (s *Server) huntBooks(ctx context.Context) {
 				return
 			}
 			if b.Wants(f) && b.Status(f) == books.StatusMissing && s.formatEnabled(f) {
+				// home fork: a paused or waiting download already covers it
+				// (a restart pauses torrents and leaves the book "missing").
+				if busy, _ := s.QueueRepo.HasActiveForBook(b.ID, string(f)); busy {
+					continue
+				}
 				n++
 				s.searchBook(b.ID, f, false)
 			}
@@ -514,4 +562,12 @@ func bookOwnFolder(root, p string) (folder string, own bool) {
 		return "", false // <root>/<Author>/<file>: the author folder holds other books
 	}
 	return folder, true
+}
+
+// maxEbookBytes is the largest release taken for an ebook (home fork).
+const maxEbookBytes = 200 << 20
+
+// healthyRelease: Usenet, or a torrent enough people seed (home fork).
+func healthyRelease(r indexers.Result) bool {
+	return r.Protocol != indexers.ProtocolTorrent || r.Seeders >= 3
 }

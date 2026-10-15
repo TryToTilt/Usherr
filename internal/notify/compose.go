@@ -2,6 +2,7 @@ package notify
 
 import (
 	"fmt"
+	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"strings"
 	"time"
 )
@@ -70,7 +71,7 @@ func Compose(eventType string, it Item, links Links, at time.Time) Event {
 	switch it.Media {
 	case "album", "audiobook":
 		watch = "ready to listen to"
-	case "ebook":
+	case "ebook", "comic": // comic: home fork
 		watch = "ready to read"
 	}
 
@@ -149,7 +150,7 @@ func ComposeText(eventType, title, message string, links Links, at time.Time) Ev
 		ev.Title = "Mediarium test message"
 		ev.Lead = "If you can read this, notifications from Mediarium are working."
 	case kind == EventHealth && strings.HasSuffix(strings.ToLower(title), "working again"):
-		ev.Title = "Mediarium: " + title
+		ev.Title = brand.Name + ": " + title
 	case kind == EventHealth:
 		ev.Title = "Mediarium needs attention: " + lowerLead(title)
 		ev.LinkURL = links.to("/settings/logs")

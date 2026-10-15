@@ -1,3 +1,4 @@
+import { BRAND } from '../brand' // Usherr
 import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
@@ -571,7 +572,7 @@ function AddAccountForm({ onAdded }: { onAdded: (a: Account) => void }) {
             <span>
               {t('Name')} <small style={{ color: 'var(--text-dim)' }}>{t('(optional)')}</small>
             </span>
-            <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" placeholder="Mediarium Admin" {...v.bind('name', name, setName)} />
+            <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" placeholder={`${BRAND} Admin`} {...v.bind('name', name, setName)} />
             <FieldError v={v} name="name" />
           </label>
           <label>

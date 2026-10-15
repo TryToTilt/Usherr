@@ -1,3 +1,4 @@
+import { BRAND, UPSTREAM, UPSTREAM_URL } from '../brand' // Usherr
 import { useEffect, useState } from 'react'
 import tmdbLogo from '../assets/tmdb-logo.svg'
 import { api } from '../api'
@@ -142,9 +143,19 @@ export default function About() {
         <div>
           <h1 style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <BrandMark className="brand-mark" />
-            <span>Mediarium</span>
+            <span>{BRAND}</span>
           </h1>
           <p>{t('One app that finds, downloads and organises your movies, shows, music, ebooks and audiobooks, and keeps them up to date. Self-hosted, open source, and it runs as a single container.')}</p>
+          <p className="about-credit">
+            {tx('{app} is built on {upstream} by rdborg, and shares its AGPL-3.0 licence.', {
+              app: BRAND,
+              upstream: (
+                <a href={UPSTREAM_URL} target="_blank" rel="noreferrer">
+                  {UPSTREAM}
+                </a>
+              ),
+            })}
+          </p>
         </div>
         <div className="hero-pills">
           <span className="hero-pill" style={{ ['--pc' as string]: 'var(--c-dashboard)' }}>

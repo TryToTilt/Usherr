@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/rdborg/mediarium/internal/music"
+	"github.com/rdborg/mediarium/internal/musicbrainz"
 	"github.com/rdborg/mediarium/internal/queue"
 )
 
@@ -216,6 +217,15 @@ func (s *Server) runMusicScan(job *musicScanJob, userID int64) {
 	job.setPhase(musicScanMatching, total)
 	cache := map[string]*scanArtist{}
 	for _, a := range artists {
+		if music.IsVariousArtists(a.Name) { // home fork: compilations are skipped
+			job.add(musicScanResult{Artist: a.Name, Folder: a.Path, Files: len(a.Loose), Status: musicResultUnmatched,
+				Message: "Skipped: compilation folders (Various Artists) aren't imported."})
+			for _, al := range a.Albums {
+				job.add(musicScanResult{Artist: a.Name, Album: al.Title, Folder: al.Path, Files: len(al.Files), Status: musicResultUnmatched,
+					Message: "Skipped: compilation folders (Various Artists) aren't imported."})
+			}
+			continue
+		}
 		s.matchScannedArtist(ctx, job, a, userID, cache)
 	}
 	job.setPhase(musicScanDone, -1)
@@ -230,6 +240,12 @@ type scanArtist struct {
 	albums []music.Album
 	cands  []music.AlbumCandidate
 	err    string // why the artist could not be resolved
+	// home fork: soundtracks, compilations and live albums, looked up once
+	// when a folder matches none of the studio albums.
+	secondary *scanSecondary
+	// home fork: the other close search results, tried when an album isn't
+	// this artist's ("Lauryn Hill" the Christian singer vs "Ms. Lauryn Hill").
+	alts []musicbrainz.Artist
 }
 
 // scanNames is the ordered, distinct list of names to try for an artist:
@@ -274,6 +290,11 @@ func (s *Server) resolveScanArtist(ctx context.Context, cache map[string]*scanAr
 		return sa
 	}
 	mb := found[idx]
+	for j, f := range found { // home fork: other candidates, best first
+		if j != idx && f.Score >= 80 && len(sa.alts) < 3 {
+			sa.alts = append(sa.alts, f)
+		}
+	}
 	artist, ok, err := s.MusicRepo.GetArtistByMBID(mb.ID)
 	if err == nil && !ok {
 		// New to the library: listed with its albums, none monitored, so
@@ -357,7 +378,8 @@ func (s *Server) matchScannedArtist(ctx context.Context, job *musicScanJob, fold
 
 		var sa *scanArtist
 		var errs []string
-		for _, name := range scanNames(tags.Artist, folder.Name) {
+		// home fork: a joint credit falls back to its main artist (with upstream's hints).
+		for _, name := range scanNames(tags.Artist, folder.Name, mainArtist(tags.Artist), mainArtist(folder.Name)) {
 			cand := s.resolveScanArtist(ctx, cache, name, userID, hints)
 			if cand.err == "" {
 				sa = cand
@@ -382,6 +404,19 @@ func (s *Server) matchScannedArtist(ctx context.Context, job *musicScanJob, fold
 		}
 		if i < 0 {
 			i = music.BestAlbum(al.Title, al.Year, sa.cands)
+		}
+		if i < 0 { // home fork: soundtracks, compilations, live albums
+			y := tags.Year
+			if y == 0 {
+				y = al.Year
+			}
+			i = s.matchSecondaryAlbum(ctx, sa, []string{tags.Album, al.Title}, y)
+			if i < 0 { // home fork: maybe it's another artist of the same name
+				if other, j := s.matchOtherArtist(ctx, sa, []string{tags.Album, al.Title}, y, userID); other != nil {
+					sa, i = other, j
+					res.Artist, res.ArtistID = sa.artist.Name, sa.artist.ID
+				}
+			}
 		}
 		if i < 0 {
 			res.Status = musicResultUnmatched

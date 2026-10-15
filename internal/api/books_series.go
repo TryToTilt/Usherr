@@ -78,6 +78,9 @@ func (s *Server) seriesOf(ctx context.Context, workKey, title, author string) (*
 			slog.Info("books: Hardcover series lookup failed, using Open Library", "err", err)
 		}
 	}
+	if books.IsHardcoverKey(workKey) { // home fork: not an Open Library work
+		return nil, nil
+	}
 	return s.OpenLibrary.SeriesOf(ctx, workKey)
 }
 

@@ -141,7 +141,8 @@ test('the real docs build into a guide where every topic has text', { skip: !hav
     assert.ok(t.sources.reduce((n, s) => n + s.md.length, 0) > 400, `${t.id}: too little text`)
     for (const s of t.sources) {
       assert.ok(!/^For scripts\b/m.test(s.md), `${t.id}/${s.file}: developer notes left in`)
-      assert.ok(!/!\[[^\]]*\]\(/.test(s.md), `${t.id}/${s.file}: a picture is left in`)
+      // home fork: the fork's own pages (docs/home) keep their pictures
+      if (!s.file.startsWith('home/')) assert.ok(!/!\[[^\]]*\]\(/.test(s.md), `${t.id}/${s.file}: a picture is left in`)
     }
   }
   const ids = data.topics.map((t) => t.id)

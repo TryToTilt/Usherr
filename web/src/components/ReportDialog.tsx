@@ -1,3 +1,4 @@
+import { PRIVATE_REPORTS } from '../brand' // Usherr
 import { createPortal } from 'react-dom'
 import { useEffect, useRef, useState } from 'react'
 import { api, isAdmin } from '../api'
@@ -314,7 +315,7 @@ export default function ReportDialog({ onClose, initialKind = 'problem' }: { onC
           </span>
           <div>
             <h2>{t('Report a problem or share an idea')}</h2>
-            <p>{t('Tell me what went wrong or what you would like Mediarium to do. Send it privately, or post it on GitHub where others can follow it.')}</p>
+            <p>{PRIVATE_REPORTS ? t('Tell me what went wrong or what you would like Mediarium to do. Send it privately, or post it on GitHub where others can follow it.') : t('Tell me what went wrong or what you would like Mediarium to do. It opens on GitHub, where others can follow it.')}</p>
           </div>
           {closeButton}
         </div>
@@ -422,15 +423,17 @@ export default function ReportDialog({ onClose, initialKind = 'problem' }: { onC
 
         <div className="modal-foot report-foot">
           <p className="share-note">
-            {t('Sending privately goes only to the developer, through mediarium.app. GitHub issues are public: check the text and the report for anything private, like folder names, before you post.')}
+            {PRIVATE_REPORTS
+              ? t('Sending privately goes only to the developer, through mediarium.app. GitHub issues are public: check the text and the report for anything private, like folder names, before you post.')
+              : t('GitHub issues are public: check the text and the report for anything private, like folder names, before you post.')}
           </p>
           <div className="share-actions">
             <button className="btn-with-icon" onClick={() => void openOnGitHub()} disabled={sending}>
               <Icon name="github" size={15} /> {t('Open on GitHub')}
             </button>
-            <button className="primary btn-with-icon" onClick={() => void sendPrivately()} disabled={sending || shotBusy || (withReport && admin && kind === 'problem' && !report && !reportError)}>
+            {PRIVATE_REPORTS && <button className="primary btn-with-icon" onClick={() => void sendPrivately()} disabled={sending || shotBusy || (withReport && admin && kind === 'problem' && !report && !reportError)}>
               <Icon name="mail" size={15} /> {sending ? t('Sending…') : t('Send privately')}
-            </button>
+            </button>}
           </div>
         </div>
       </div>

@@ -8,7 +8,7 @@
 //   node tools/i18n-check.mjs --prune   also drop unused entries from the catalogues
 //   node tools/i18n-check.mjs --list    print every phrase as JSON
 //   node tools/i18n-check.mjs --plurals print every [singular, plural] pair as JSON
-import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
 const root = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
@@ -82,11 +82,20 @@ if (args.has('--list')) {
 
 let problems = bad.length
 for (const b of bad) console.log(b)
+// Home fork: the fork's own phrases (those in its Spanish catalogue).
+const forkPhrases = new Set(Object.keys(JSON.parse(readFileSync(join(src, 'home', 'locales', 'es.json'), 'utf8'))))
 for (const lang of LANGS) {
   const path = join(src, 'locales', `${lang}.json`)
-  const cat = JSON.parse(readFileSync(path, 'utf8'))
-  const wanted = new Set(phrases.keys())
-  if (FEW.has(lang)) for (const p of pluralOthers) wanted.add(`${p}|few`)
+  const own = JSON.parse(readFileSync(path, 'utf8'))
+  // Home fork: the fork's own phrases are in src/home/locales; both count. A
+  // language the fork hasn't translated yet is checked on upstream's phrases
+  // only (the fork's show in English there).
+  const homePath = join(src, 'home', 'locales', `${lang}.json`)
+  const hasHome = existsSync(homePath)
+  const home = hasHome ? JSON.parse(readFileSync(homePath, 'utf8')) : {}
+  const cat = { ...own, ...home }
+  const wanted = new Set([...phrases.keys()].filter((p) => hasHome || !forkPhrases.has(p)))
+  if (FEW.has(lang)) for (const p of pluralOthers) if (wanted.has(p)) wanted.add(`${p}|few`)
   const missing = [...wanted].filter((p) => !cat[p])
   // "<plural phrase>|few" (and |many, |two, |zero) belong to the plural phrase.
   const formSuffix = /\|(few|many|two|zero)$/
@@ -100,8 +109,9 @@ for (const lang of LANGS) {
   for (const p of missing.slice(0, args.has('--strict') ? 20 : 5)) console.log(`  missing: ${JSON.stringify(p)} (${phrases.get(p)})`)
   problems += missing.length
   if (args.has('--prune') && unused.length) {
-    for (const p of unused) delete cat[p]
-    writeFileSync(path, JSON.stringify(cat, null, 2) + '\n')
+    for (const p of unused) delete own[p], delete home[p]
+    writeFileSync(path, JSON.stringify(own, null, 2) + '\n')
+    writeFileSync(homePath, JSON.stringify(home, null, 2) + '\n')
   }
 }
 if (args.has('--strict') && problems > 0) process.exit(1)

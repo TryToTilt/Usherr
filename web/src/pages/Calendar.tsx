@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { api, isViewer, type CalendarEntry } from '../api'
+import { api, isAdmin, isViewer, type CalendarEntry } from '../api'
+import { useComicsOn } from '../home/libraryKinds' // home fork
 import { useAuth } from '../AuthContext'
 import CalendarGrid from '../components/CalendarGrid'
 import Icon from '../components/Icon'
@@ -12,21 +13,41 @@ import { t, tx } from '../i18n'
 import { useUrlState } from '../useUrlState'
 import { useLive } from '../useLive'
 
-type Show = 'all' | 'movie' | 'episode' | 'album' | 'book'
-const SHOW_LABEL: Record<Show, string> = { all: t('All'), movie: t('Movies'), episode: t('TV'), album: t('Music'), book: t('Books') }
+// home fork: the Library's kinds, in its order (anime apart from TV, ebooks
+// apart from audiobooks, and comics).
+type Show = 'all' | 'movie' | 'episode' | 'anime' | 'ebook' | 'audiobook' | 'album' | 'comic'
+const SHOW_LABEL: Record<Show, string> = { all: t('All'), movie: t('Movies'), episode: t('TV'), anime: t('Anime'), ebook: t('Ebooks'), audiobook: t('Audiobooks'), album: t('Music'), comic: t('Comics') }
 
 // Monitored movie releases, episode airs and album releases on one month
 // view, with simple filters and a link to add it to a calendar app.
 // Each filter wears its kind's glyph and colour, as on Discover and Library.
-const SHOW_GLYPH: Record<Exclude<Show, 'all'>, GlyphKind> = { movie: 'movie', episode: 'tv', album: 'music', book: 'book' }
-const SHOW_COLOR: Record<Exclude<Show, 'all'>, string> = { movie: 'var(--c-movie)', episode: 'var(--c-tv)', album: 'var(--c-music)', book: 'var(--c-book)' }
+const SHOW_GLYPH: Record<Exclude<Show, 'all'>, GlyphKind> = { movie: 'movie', episode: 'tv', anime: 'tv', ebook: 'book', audiobook: 'audiobook', album: 'music', comic: 'book' }
+const SHOW_COLOR: Record<Exclude<Show, 'all'>, string> = { movie: 'var(--c-movie)', episode: 'var(--c-tv)', anime: 'var(--c-tv)', ebook: 'var(--c-book)', audiobook: 'var(--c-audiobook)', album: 'var(--c-music)', comic: 'var(--c-comics)' }
+
+// matches says whether an entry belongs under a kind.
+function matches(e: CalendarEntry, show: Show, anime: ReadonlySet<number>): boolean {
+  switch (show) {
+    case 'all':
+      return true
+    case 'episode':
+      return e.kind === 'episode' && !anime.has(e.seriesId ?? 0)
+    case 'anime':
+      return e.kind === 'episode' && anime.has(e.seriesId ?? 0)
+    case 'ebook':
+      return e.kind === 'book' && (e.formats ?? ['ebook']).includes('ebook')
+    case 'audiobook':
+      return e.kind === 'book' && (e.formats ?? []).includes('audiobook')
+    default:
+      return e.kind === show
+  }
+}
 
 export default function Calendar() {
   const [entries, setEntries] = useState<CalendarEntry[] | null>(null)
   const [error, setError] = useState('')
   // The kind and the "not downloaded" tick live in the address, so Back returns to them.
   const [ui, patchUi] = useUrlState({ show: 'all', missing: '' })
-  const show: Show = (['movie', 'episode', 'album', 'book'] as const).find((k) => k === ui.show) ?? 'all'
+  const show: Show = (['movie', 'episode', 'anime', 'ebook', 'audiobook', 'album', 'comic'] as const).find((k) => k === ui.show) ?? (ui.show === 'book' ? 'ebook' : 'all')
   const setShow = (k: Show) => patchUi({ show: k })
   const missingOnly = ui.missing === '1'
   const setMissingOnly = (v: boolean) => patchUi({ missing: v ? '1' : '' })
@@ -35,6 +56,13 @@ export default function Calendar() {
   const viewer = isViewer(useAuth().user)
   const kinds = useKinds()
   const { on } = useModules()
+  const [anime, setAnime] = useState<ReadonlySet<number>>(new Set())
+  useEffect(() => {
+    fetch('/api/home/anime-series', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((ids: number[]) => setAnime(new Set(ids)))
+      .catch(() => undefined)
+  }, [])
 
   useEffect(() => {
     api
@@ -44,8 +72,17 @@ export default function Calendar() {
   }, [])
   useLive(() => api.calendar().then(setEntries).catch(() => undefined), 30000)
 
-  const options: Show[] = ['all', ...(kinds.includes('movie') ? (['movie'] as const) : []), ...(kinds.includes('tv') ? (['episode'] as const) : []), ...(kinds.includes('music') ? (['album'] as const) : []), ...(on('ebooks') || on('audiobooks') ? (['book'] as const) : [])]
-  const shown = (entries ?? []).filter((e) => (show === 'all' || e.kind === show) && (!missingOnly || e.status !== 'downloaded'))
+  const hasComics = useComicsOn(isAdmin(useAuth().user)) // home fork
+  const options: Show[] = [
+    'all',
+    ...(kinds.includes('movie') ? (['movie'] as const) : []),
+    ...(kinds.includes('tv') ? (['episode', 'anime'] as const) : []),
+    ...(on('ebooks') ? (['ebook'] as const) : []),
+    ...(on('audiobooks') ? (['audiobook'] as const) : []),
+    ...(kinds.includes('music') ? (['album'] as const) : []),
+    ...(hasComics ? (['comic'] as const) : []),
+  ]
+  const shown = (entries ?? []).filter((e) => matches(e, show, anime) && (!missingOnly || e.status !== 'downloaded'))
 
   return (
     <div>

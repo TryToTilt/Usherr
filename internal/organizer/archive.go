@@ -246,12 +246,19 @@ func DetectFormat(r io.Reader) (f Format, ok bool) {
 // extractRAR unpacks a RAR set natively. OpenReader on the first volume
 // follows the remaining volumes (.part2.rar / .r00 ...) automatically.
 func (e *Extractor) extractRAR(archivePath, destDir string) error {
-	archivePath, err := normalizeRARVolumeNames(archivePath)
+	archivePath, err := orderRARVolumesByHeader(archivePath) // home fork: volumes labelled out of order
+	if err != nil {
+		return fmt.Errorf("extract %s: %w", filepath.Base(archivePath), err)
+	}
+	archivePath, err = normalizeRARVolumeNames(archivePath)
 	if err != nil {
 		return fmt.Errorf("extract %s: %w", filepath.Base(archivePath), err)
 	}
 	name := filepath.Base(archivePath)
-	opts := []rardecode.Option{rardecode.MaxDictionarySize(maxRARDictionary)}
+	// Read the volumes in large chunks (home fork): the library default is
+	// 4 KB, which on a network share or a Docker Desktop folder mount means
+	// millions of slow round trips for one 4K movie (unpacking ran at ~3 MB/s).
+	opts := []rardecode.Option{rardecode.MaxDictionarySize(maxRARDictionary), rardecode.BufferSize(unpackBufSize)}
 	if e.Password != "" {
 		opts = append(opts, rardecode.Password(e.Password))
 	}
@@ -262,6 +269,7 @@ func (e *Extractor) extractRAR(archivePath, destDir string) error {
 	defer rc.Close()
 
 	x := e.newExtraction(destDir)
+	x.progTotal = rarSetSize(archivePath) // home fork
 	for {
 		h, err := rc.Next()
 		if errors.Is(err, io.EOF) {
@@ -749,6 +757,10 @@ type extraction struct {
 	dest    string
 	budget  int64
 	entries int
+	// home fork: progress, against the archive's size on disk.
+	progTotal int64
+	progDone  int64
+	progLast  time.Time
 }
 
 func (e *Extractor) newExtraction(dest string) *extraction {
@@ -842,7 +854,11 @@ func (x *extraction) writeFile(name string, declared int64, r io.Reader) error {
 		return fmt.Errorf("create %s: %w", name, err)
 	}
 	lw := &limitedWriter{w: f, left: x.budget}
-	_, copyErr := io.Copy(lw, r)
+	var w io.Writer = lw
+	if x.progTotal > 0 { // home fork: progress
+		w = progressWriter{w: lw, path: x.dest, phase: "Unpacking", done: &x.progDone, total: x.progTotal, last: &x.progLast}
+	}
+	_, copyErr := io.CopyBuffer(w, r, make([]byte, unpackBufSize))
 	if copyErr == nil {
 		copyErr = f.Chmod(0o644)
 	}
@@ -865,6 +881,9 @@ func (x *extraction) writeFile(name string, declared int64, r io.Reader) error {
 }
 
 var errLimitExceeded = errors.New("size limit exceeded")
+
+// unpackBufSize is the read and write chunk size when unpacking.
+const unpackBufSize = 4 << 20
 
 // limitedWriter fails once more than left bytes have been written.
 type limitedWriter struct {

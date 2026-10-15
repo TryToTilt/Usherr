@@ -33,7 +33,7 @@ func (s *Server) notifyOnProblems() bool {
 // problemAlert sends a new error to the notification targets that listen for
 // Health, when the person switched that on. It runs after the problem is saved.
 func (s *Server) problemAlert(e problems.Entry) {
-	if !s.notifyOnProblems() {
+	if !s.notifyOnProblems() || sceneSilent(e.Link) || s.isSceneDownload(e.DownloadID) { // home fork: Scenes never notify
 		return
 	}
 	title, message := e.Message, ""

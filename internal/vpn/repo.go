@@ -154,6 +154,9 @@ func (r *Repo) scan(scanner rowScanner) (StoredConfig, error) {
 	sc.Config.AllowedIPs = splitNonEmpty(allowedIPs)
 	sc.Config.LocalAddresses = splitNonEmpty(localAddrs)
 	sc.Config.DNS = splitNonEmpty(dns.String)
+	if len(sc.Config.DNS) == 0 && strings.EqualFold(sc.Provider, "mullvad") {
+		sc.Config.DNS = []string{"10.64.0.1"} // home fork: Mullvad's resolver inside the tunnel
+	}
 	return sc, nil
 }
 

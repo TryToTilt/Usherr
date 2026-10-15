@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SearchResult } from '../api'
 import { formatBytes } from '../format'
 import { t } from '../i18n'
@@ -18,6 +18,8 @@ export default function ReleaseTable({
   onClose,
   showPackBadge = false,
   qualityLabel,
+  onStream,
+  streaming = null,
 }: {
   results: SearchResult[]
   grabbing: string | null
@@ -27,6 +29,9 @@ export default function ReleaseTable({
   showPackBadge?: boolean
   // What to show in the Quality column when a release has no resolution (music).
   qualityLabel?: (r: SearchResult) => string | undefined
+  // Home fork: "Stream now" for a Usenet release (movie and TV pages only).
+  onStream?: (r: SearchResult) => void
+  streaming?: string | null
 }) {
   const showLanguage = results.some((r) => r.language)
   const showScore = results.some((r) => r.formatScore !== undefined)
@@ -38,6 +43,15 @@ export default function ReleaseTable({
   const qualities = useMemo(() => qualitiesIn(results), [results])
   const shown = useMemo(() => sortReleases(filterReleases(results, { text: words, indexer, quality }), sort?.key ?? null, sort?.dir ?? 1), [results, words, indexer, quality, sort])
   const filtering = words !== '' || indexer !== '' || quality !== ''
+  // New results scroll into view, so they aren't missed above the page.
+  const top = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = top.current
+    if (!el) return
+    const box = (el.closest('.card') as HTMLElement | null) ?? el
+    const r = box.getBoundingClientRect()
+    if (r.top < 70 || r.top > window.innerHeight - 120) box.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [results])
 
   // First click sorts the natural way for that column, the second reverses it, the third goes back to the order the server gave.
   function clickSort(key: ReleaseSortKey) {
@@ -61,7 +75,7 @@ export default function ReleaseTable({
 
   return (
     <>
-      <div className="rel-tools">
+      <div className="rel-tools" ref={top}>
         <input type="search" value={words} onChange={(e) => setWords(e.target.value)} placeholder={t('Find in these releases')} aria-label={t('Find in these releases')} />
         {indexers.length > 1 && <Dropdown label={t('Indexer')} value={indexer} onChange={setIndexer} options={[{ value: '', label: t('Any indexer') }, ...indexers.map((i) => ({ value: i, label: i }))]} />}
         {qualities.length > 1 && <Dropdown label={t('Quality')} value={quality} onChange={setQuality} options={[{ value: '', label: t('Any quality') }, ...qualities.map((q) => ({ value: q, label: qualityName(q) }))]} />}
@@ -166,7 +180,13 @@ export default function ReleaseTable({
                 <td>{formatBytes(r.sizeBytes)}</td>
                 <td title={r.publishDate && publishedAt(r) ? new Date(publishedAt(r)).toLocaleString() : undefined}>{ageOf(r) || '—'}</td>
                 <td>{r.protocol === 'torrent' ? `${r.seeders ?? 0} / ${r.peers ?? 0}` : '—'}</td>
-                <td>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  {onStream && r.protocol !== 'torrent' && (
+                    // stream hook (home fork): watch this release now
+                    <button className="btn-sm" style={{ marginRight: 6 }} disabled={streaming === r.downloadUrl} onClick={() => onStream(r)} title={t('Watch this release now without downloading it')}>
+                      {streaming === r.downloadUrl ? t('Starting…') : t('Stream')}
+                    </button>
+                  )}
                   <button className="primary" disabled={grabbing !== null} onClick={() => onGrab(r)}>
                     {grabbing === r.downloadUrl ? t('Grabbing…') : t('Grab')}
                   </button>

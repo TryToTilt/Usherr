@@ -1,3 +1,4 @@
+import { BRAND } from '../brand' // Usherr
 import AmbientBackdrop from './AmbientBackdrop'
 import LogoGlyph from './LogoGlyph'
 import { t } from '../i18n'
@@ -12,7 +13,7 @@ export default function Splash({ label = t('Loading'), hint, onRetry }: { label?
       <div className="splash-mark">
         <LogoGlyph size={96} />
       </div>
-      <div className="splash-name">Mediarium</div>
+      <div className="splash-name">{BRAND}</div>
       <div className="splash-label">
         {label}
         <span className="splash-dots" aria-hidden="true">

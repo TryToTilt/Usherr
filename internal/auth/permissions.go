@@ -18,7 +18,12 @@ type Permissions struct {
 	Movies bool `json:"movies"`
 	TV     bool `json:"tv"`
 	Music  bool `json:"music"`
-	Books  bool `json:"books"`
+	Books  bool `json:"books"` // ebooks
+	// Home fork: audiobooks, comics and the NSFW 18+ section, each on its
+	// own. NSFW is off unless an administrator switches it on.
+	Audiobooks bool `json:"audiobooks"`
+	Comics     bool `json:"comics"`
+	NSFW       bool `json:"nsfw"`
 	// Releases: search the indexers and pick a release to download.
 	Releases bool `json:"releases"`
 	// Manage: search now, monitoring, tags, following authors and series.
@@ -33,21 +38,24 @@ type Permissions struct {
 
 // Permission names used by the route table.
 const (
-	PermAddDirect = "addDirect" // add titles without asking
-	PermReleases  = "releases"
-	PermManage    = "manage"
-	PermRetry     = "retry"
-	PermSubtitles = "subtitles"
-	PermPlay      = "play"
-	PermMovies    = "movies"
-	PermTV        = "tv"
-	PermMusic     = "music"
-	PermBooks     = "books"
+	PermAddDirect  = "addDirect" // add titles without asking
+	PermReleases   = "releases"
+	PermManage     = "manage"
+	PermRetry      = "retry"
+	PermSubtitles  = "subtitles"
+	PermPlay       = "play"
+	PermMovies     = "movies"
+	PermTV         = "tv"
+	PermMusic      = "music"
+	PermBooks      = "books"
+	PermAudiobooks = "audiobooks" // home fork
+	PermComics     = "comics"     // home fork
+	PermNSFW       = "nsfw"       // home fork
 )
 
 // DefaultPermissions is everything a basic account may do.
 func DefaultPermissions() Permissions {
-	return Permissions{AddDirect: true, Movies: true, TV: true, Music: true, Books: true, Releases: true, Manage: true, Retry: true, Subtitles: true, Play: true}
+	return Permissions{AddDirect: true, Movies: true, TV: true, Music: true, Books: true, Audiobooks: true, Comics: true, Releases: true, Manage: true, Retry: true, Subtitles: true, Play: true}
 }
 
 // ViewerPermissions is all a viewer account has: watching, reading and
@@ -80,6 +88,12 @@ func (p Permissions) Allows(name string) bool {
 		return p.Music
 	case PermBooks:
 		return p.Books
+	case PermAudiobooks:
+		return p.Audiobooks
+	case PermComics:
+		return p.Comics
+	case PermNSFW:
+		return p.NSFW
 	}
 	return false
 }
@@ -90,6 +104,14 @@ func parsePermissions(s string) Permissions {
 	p := DefaultPermissions()
 	if s != "" {
 		_ = json.Unmarshal([]byte(s), &p)
+		// home fork: "books" used to cover audiobooks too; an account saved
+		// before they were apart keeps the same answer for both.
+		var keys map[string]json.RawMessage
+		if json.Unmarshal([]byte(s), &keys) == nil {
+			if _, ok := keys["audiobooks"]; !ok {
+				p.Audiobooks = p.Books
+			}
+		}
 	}
 	return p
 }

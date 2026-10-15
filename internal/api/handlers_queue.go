@@ -45,6 +45,11 @@ type queueItemPayload struct {
 	Interrupted bool `json:"interrupted,omitempty"`
 	// Pending is "pausing" or "stopping" while the download winds down.
 	Pending string `json:"pending,omitempty"`
+	// Stage is what a finished download is busy with: checking, repairing,
+	// unpacking (home fork).
+	Stage      string `json:"stage,omitempty"`
+	StageSince string `json:"stageSince,omitempty"`
+	StageEnds  string `json:"stageEnds,omitempty"` // estimated end of the step
 	// Peers and Seeds are how many the built-in torrent client is connected to
 	// (only for a torrent it is running right now).
 	Peers *int `json:"peers,omitempty"`
@@ -60,6 +65,9 @@ type queueItemPayload struct {
 	// QueuePosition is the place in the download line of a waiting download: 1
 	// is next. Zero for anything else.
 	QueuePosition int `json:"queuePosition,omitempty"`
+	// Specs is what the release is (resolution, source, audio, language…),
+	// read from its name; films and episodes only (home fork).
+	Specs *releaseSpecs `json:"specs,omitempty"`
 	// What the release name says it is (movies and shows): the picture size,
 	// where it came from, the video codec and the audio languages.
 	Resolution string `json:"resolution,omitempty"`
@@ -147,6 +155,7 @@ func (s *Server) handleListQueue(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	items = s.hideSceneItems(r, items) // scenes hook (home fork)
 	sortQueueItems(items)
 	positions := waitingPositions(items)
 	out := make([]queueItemPayload, len(items))
@@ -161,6 +170,11 @@ func (s *Server) handleListQueue(w http.ResponseWriter, r *http.Request) {
 			ReleaseTitle: it.ReleaseTitle, Protocol: string(it.Protocol), SizeBytes: it.SizeBytes, Status: string(it.Status),
 			ProgressPct: it.ProgressPct, Error: plainerror.Text(it.Error), AddedAt: it.AddedAt, CompletedAt: it.CompletedAt, DestPath: it.DestPath,
 			Interrupted: it.Interrupted, Pending: s.pipelines.pending(it.ID), QueuePosition: positions[it.ID],
+		}
+		// home fork: what the release is (resolution, audio, language…)
+		p.Specs = s.specsOf(it)
+		if it.Status == queue.StatusDownloading || it.Status == queue.StatusImporting { // home fork: step and timer
+			p.Stage, p.StageSince, p.StageEnds = queueStage(it.ID, it.ProgressPct)
 		}
 		if it.IndexerID.Valid {
 			p.IndexerName = indexerNames[it.IndexerID.Int64]
@@ -280,6 +294,12 @@ func (s *Server) handleRetryQueueItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "Only a failed or stopped download can be retried.")
 		return
 	}
+	if s.retrySceneDownload(w, item) { // scenes hook (home fork)
+		return
+	}
+	if s.retryComicDownload(w, item) { // comics hook (home fork)
+		return
+	}
 	keptDir, reuse := s.keptDownload(item)
 	// The new item must not start before the earlier files are in its folder.
 	release := s.dispatch.Hold()
@@ -385,6 +405,11 @@ func (s *Server) handleBlocklistQueueItem(w http.ResponseWriter, r *http.Request
 	case item.AlbumID > 0:
 		s.background(func() { s.retryAlbum(item.AlbumID) })
 	case item.BookID > 0:
+		// home fork: only look for a replacement when the book has no file
+		// of that format (blocklisting a stray extra copy searched again).
+		if b, err := s.BookRepo.Get(item.BookID); err == nil && b.Status(books.Format(item.BookFormat)) == books.StatusDownloaded {
+			break
+		}
 		s.background(func() { s.searchBook(item.BookID, books.Format(item.BookFormat), true) })
 	}
 	writeJSON(w, http.StatusOK, nil)
@@ -467,7 +492,7 @@ func (s *Server) handleListActivity(w http.ResponseWriter, r *http.Request) {
 	for _, e := range entries {
 		// Updates, restarts and shut-downs say who did it and from which
 		// address: for administrators only.
-		if e.EventType == "update" && !admin {
+		if (e.EventType == "update" && !admin) || hideActivity(r, e.EventType) { // scenes hook (home fork)
 			continue
 		}
 		p := activityEntryPayload{ID: e.ID, EventType: e.EventType, Message: plainFailure(e.EventType, e.Message), CreatedAt: e.CreatedAt}

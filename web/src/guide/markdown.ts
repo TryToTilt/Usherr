@@ -593,7 +593,7 @@ export function selectParts(parts: Part[], opts: { only?: string[]; except?: str
 // Removes what a reader of the app does not need: notes for people who script
 // against the API, pictures (the guide does not carry them) and the captions that went
 // with them.
-export function cleanBody(lines: string[]): string[] {
+export function cleanBody(lines: string[], keepPictures = false): string[] {
   const text = lines.join('\n')
   const paras = text.split(/\n{2,}/)
   const kept: string[] = []
@@ -610,7 +610,7 @@ export function cleanBody(lines: string[]): string[] {
     }
     const p = para.trim()
     if (/^(For scripts|Scripts)\b[:,]/.test(p)) continue
-    if (/^!\[[^\]]*\]\([^)]*\)$/.test(p) || /^<p\b[^>]*>\s*<img\b[^>]*>\s*<\/p>$/i.test(p)) {
+    if (!keepPictures && (/^!\[[^\]]*\]\([^)]*\)$/.test(p) || /^<p\b[^>]*>\s*<img\b[^>]*>\s*<\/p>$/i.test(p))) { // home fork: keepPictures
       afterImage = true
       continue
     }

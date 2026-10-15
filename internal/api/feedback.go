@@ -34,6 +34,10 @@ import (
 // point it at a local server.
 var feedbackEndpoint = "https://mediarium.app/api/report.php"
 
+// usherrNoPrivateReports switches private reports off (a variable so upstream's
+// tests of them still run).
+var usherrNoPrivateReports = true
+
 const (
 	feedbackPowBits        = 20
 	feedbackMaxScreenshot  = 5 << 20
@@ -204,6 +208,12 @@ func cleanText(s string, maxBytes int) string {
 
 // handleSendFeedback forwards a report or idea to the developer.
 func (s *Server) handleSendFeedback(w http.ResponseWriter, r *http.Request) {
+	// Usherr: private reports would go to Mediarium's developer, who doesn't
+	// look after this fork. Reports go to Usherr's GitHub issues instead.
+	if usherrNoPrivateReports {
+		writeError(w, http.StatusGone, "Usherr doesn't send reports privately. Use Open on GitHub to post it on Usherr's issue page.")
+		return
+	}
 	var req feedbackRequest
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "Couldn't read that report. Reload the page and try again.")

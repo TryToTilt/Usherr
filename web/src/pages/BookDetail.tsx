@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import VoteButtons from '../home/VoteButtons' // home fork
+import { BookAIButtons } from '../home/AIBooks' // home fork
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, can, isAdmin, type Book, type BookFormat, type QueueItem, type SearchResult } from '../api'
 import { useAuth } from '../AuthContext'
@@ -95,6 +97,11 @@ function BookPage({ id }: { id?: string }) {
             </span>
           </div>
           <h1>{book.title}</h1>
+          {book.olKey && (
+            <div className="title-votes">
+              <VoteButtons kind="book" refId={book.olKey} meta={{ title: book.title, image: book.coverUrl }} /> {/* home fork */}
+            </div>
+          )}
           <p className="title-tagline">
             {[book.author, book.year, book.seriesName && (book.seriesPosition ? t('Book {n} of {series}', { n: book.seriesPosition, series: book.seriesName }) : book.seriesName)].filter(Boolean).join(' · ')}
           </p>
@@ -111,10 +118,22 @@ function BookPage({ id }: { id?: string }) {
               </a>
             ))}
             {!fromAudible && (
-              <a className="link-pill" href={`https://openlibrary.org/works/${book.olKey}`} target="_blank" rel="noreferrer">
+              <a
+                className="link-pill"
+                href={
+                  book.olKey.startsWith('HC') // home fork: found only on Hardcover
+                    ? `https://hardcover.app/search?q=${encodeURIComponent(`${book.title} ${book.author}`)}`
+                    : `https://openlibrary.org/works/${book.olKey}`
+                }
+                target="_blank"
+                rel="noreferrer"
+              >
                 <Icon name="external" size={13} /> {t('More about this book')}
               </a>
             )}
+          </div>
+          <div className="title-actions">
+            <BookAIButtons bookId={book.id} title={book.title} inSeries={!!book.seriesName} /> {/* home fork */}
           </div>
           {admin && (
             <div className="title-actions">

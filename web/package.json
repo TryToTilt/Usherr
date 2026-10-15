@@ -8,7 +8,7 @@
     "predev": "npm run guide",
     "dev": "vite",
     "prebuild": "npm run guide",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/size-budget.mjs",
     "lint": "oxlint",
     "i18n": "node tools/i18n-check.mjs",
     "e2e": "playwright test",
@@ -17,6 +17,8 @@
   },
   "dependencies": {
     "epubjs": "0.3.93",
+    "hls.js": "^1.7.3",
+    "page-flip": "^2.0.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.0.0"

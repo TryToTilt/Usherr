@@ -27,6 +27,7 @@ function entryLink(e: CalendarEntry): string | undefined {
   if (e.kind === 'movie' && e.tmdbId) return `/title/${e.tmdbId}`
   if (e.kind === 'album' && e.albumId) return `/music/album/${e.albumId}`
   if (e.kind === 'book' && e.bookId) return `/book/${e.bookId}`
+  if (e.kind === 'comic' && e.comicSeriesId) return `/comics/${e.comicSeriesId}` // home fork
   return undefined
 }
 

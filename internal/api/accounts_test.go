@@ -142,6 +142,13 @@ func TestMemberIsRefusedEveryAdminRouteAndAllowedEveryMemberRoute(t *testing.T) 
 			}
 		case "member":
 			members++
+			// home fork: the NSFW 18+ routes need their switch, off by default
+			if strings.HasPrefix(path, "/api/scenes") {
+				if status != http.StatusForbidden {
+					t.Errorf("member %s: needs the NSFW switch, got %d %v", pattern, status, body)
+				}
+				continue
+			}
 			if status == http.StatusForbidden || status == http.StatusUnauthorized {
 				t.Errorf("member %s: must be allowed, got %d %v", pattern, status, body)
 			}

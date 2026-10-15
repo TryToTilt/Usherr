@@ -128,7 +128,7 @@ function UpdateBody({ notice, onNotice }: { notice: UpdateNotice; onNotice: (n: 
       )}
       {!notice.canInstall && notice.installNote && !working && <p className="update-sub">{notice.installNote}</p>}
 
-      {!working && (
+      {!working && !notice.installNote?.startsWith('This is your home build') && ( // home fork: no upstream install steps
         <div className="update-steps">
           {steps.groups.length === 1 ? (
             <div className="update-box">

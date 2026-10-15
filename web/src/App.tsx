@@ -34,6 +34,9 @@ function page<P>(load: () => Promise<{ default: ComponentType<P> }>) {
 const Upcoming = page(() => import('./pages/Upcoming'))
 const Discover = page(() => import('./pages/Discover'))
 const DiscoverAll = page(() => import('./pages/DiscoverAll'))
+const Complete = page(() => import('./home/Complete')) // home fork: complete your library
+const PersonPage = page(() => import('./home/PersonPage')) // home fork: a person's films and shows
+const You = page(() => import('./home/You')) // home fork: your taste, votes and more
 const Library = page(() => import('./pages/Library'))
 const MovieDetail = page(() => import('./pages/MovieDetail'))
 const Queue = page(() => import('./pages/Queue'))
@@ -98,12 +101,30 @@ const NotificationSettings = lazy(() => import('./pages/settings/NotificationSet
 const QualitySettings = lazy(() => import('./pages/settings/QualitySettings'))
 const SubtitleSettings = lazy(() => import('./pages/settings/SubtitleSettings'))
 const VPNSettings = lazy(() => import('./pages/settings/VPNSettings'))
+// home fork: its own pages, loaded when opened
+const SchedulesSettings = lazy(() => import('./home/SchedulesSettings'))
+const ExtrasSettings = lazy(() => import('./home/ExtrasSettings'))
+const SetupChecklist = lazy(() => import('./home/SetupChecklist')) // home fork
+const Scenes = lazy(() => import('./home/Scenes'))
+const SceneBrowse = lazy(() => import('./home/Scenes').then((m) => ({ default: m.SceneBrowse })))
+const SceneDetail = lazy(() => import('./home/Scenes').then((m) => ({ default: m.SceneDetail })))
+const Comics = lazy(() => import('./home/Comics'))
+const ComicSeriesPage = lazy(() => import('./home/Comics').then((m) => ({ default: m.ComicSeriesPage })))
+const ComicArcPage = lazy(() => import('./home/ComicArcs').then((m) => ({ default: m.ComicArcPage })))
+const TV = lazy(() => import('./home/TV'))
+const Streamed = lazy(() => import('./home/Streamed'))
 
 // Pages only an administrator can use. A member who opens one (for example
 // by typing its address) is sent somewhere they can use instead.
 function AdminOnly({ children, fallback = '/settings/profile' }: { children: ReactNode; fallback?: string }) {
   const { user } = useAuth()
   return isAdmin(user) ? <>{children}</> : <Navigate to={fallback} replace />
+}
+
+// home fork: the NSFW 18+ pages, for administrators and accounts given the switch.
+function NSFWOnly({ children }: { children: ReactNode }) {
+  const { user } = useAuth()
+  return isAdmin(user) || (user?.permissions?.nsfw ?? false) ? <>{children}</> : <Navigate to="/" replace />
 }
 
 function Gate() {
@@ -163,6 +184,8 @@ function Gate() {
         <Route path="/import/manual" element={<AdminOnly><ManualImport /></AdminOnly>} />
         <Route path="/discover" element={<Discover />} />
         <Route path="/discover/all" element={<DiscoverAll />} />
+        <Route path="/discover/complete" element={<Complete />} />
+        <Route path="/person/:id" element={<PersonPage />} />
         <Route path="/discover/music" element={<MusicDiscoverAll />} />
         <Route path="/library" element={<Library />} />
         <Route path="/import" element={<AdminOnly fallback="/library"><ImportLibrary /></AdminOnly>} />
@@ -179,7 +202,20 @@ function Gate() {
         <Route path="/show/:tmdbId" element={<ShowDetail />} />
         <Route path="/wanted" element={<Upcoming tab="wanted" />} />
         <Route path="/calendar" element={<Upcoming tab="calendar" />} />
+        <Route path="/following" element={<Upcoming tab="following" />} /> {/* home fork */}
+        <Route path="/you" element={<You />} /> {/* home fork: your taste, votes and more */}
+        <Route path="/you/diary" element={<You tab="diary" />} /> {/* home fork */}
+        <Route path="/you/wrapped" element={<You tab="wrapped" />} /> {/* home fork */}
         <Route path="/queue" element={<Queue />} />
+        {/* home fork: NSFW 18+ (administrators only), comics, Live TV, the streamed library */}
+        <Route path="/scenes" element={<NSFWOnly><Scenes /></NSFWOnly>} />
+        <Route path="/scenes/:id" element={<NSFWOnly><SceneDetail /></NSFWOnly>} />
+        <Route path="/scenes/browse/:kind/:stashId" element={<NSFWOnly><SceneBrowse /></NSFWOnly>} />
+        <Route path="/comics" element={<Comics />} />
+        <Route path="/comics/:id" element={<ComicSeriesPage />} />
+        <Route path="/comics/arc/:id" element={<ComicArcPage />} />
+        <Route path="/tv" element={<TV />} />
+        <Route path="/streamed" element={<Streamed />} />
         <Route path="/apps/:id" element={<AppFrame />} />
         <Route path="/help" element={<Guide />} />
         <Route path="/help/:topic" element={<Guide />} />
@@ -195,6 +231,9 @@ function Gate() {
           <Route path="torrents" element={<AdminOnly><TorrentSettings /></AdminOnly>} />
           <Route path="download-rules" element={<AdminOnly><DownloadRulesSettings /></AdminOnly>} />
           <Route path="vpn" element={<AdminOnly><VPNSettings /></AdminOnly>} />
+          <Route path="schedules" element={<AdminOnly><SchedulesSettings /></AdminOnly>} /> {/* home fork */}
+          <Route path="extras" element={<AdminOnly><ExtrasSettings /></AdminOnly>} /> {/* home fork */}
+          <Route path="setup" element={<AdminOnly><SetupChecklist /></AdminOnly>} /> {/* home fork */}
           <Route path="subtitles" element={<AdminOnly><SubtitleSettings /></AdminOnly>} />
           <Route path="metadata" element={<AdminOnly><MetadataSettings /></AdminOnly>} />
           <Route path="lists" element={<AdminOnly><ListsSettings /></AdminOnly>} />

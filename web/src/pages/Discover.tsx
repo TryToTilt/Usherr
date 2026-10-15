@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import OmniBar, { type OmniPage } from '../home/OmniBar' // home fork
+import { useAuth } from '../AuthContext'
+import { AnimeRails, ComicsDiscover, DTAB_INFO, ScenesDiscover, asTab, useDiscoverTabs, type DTab } from '../home/DiscoverTabs' // home fork
+import { LeaningsBar } from '../home/leanings' // home fork
 import { Link } from 'react-router-dom'
-import { api, isRequested, ApiError, type BookFound, type DiscoverMovie, type MusicType } from '../api'
+import { api, isAdmin, isRequested, ApiError, type BookFound, type DiscoverMovie, type MusicType } from '../api'
 import { PicksProvider, pickKey, usePicks } from '../discoverPicks'
 import AddDialog, { type AddTarget } from '../components/AddDialog'
 import type { AddMusicTarget } from '../components/AddMusicDialog'
@@ -9,7 +13,7 @@ import { EagerImagesProvider } from '../components/PosterCard'
 import { BookAddDialog, BookBody } from '../components/BookDiscover'
 import { MusicAddDialog, MusicBody } from '../components/MusicDiscover'
 import { MUSIC_GENRES, MUSIC_TYPE_OPTIONS } from '../components/MusicRails'
-import { KIND_LABEL, useKinds, useModules, type MediaKind } from '../ModulesContext'
+import { useKinds, useModules, type MediaKind } from '../ModulesContext'
 import Dropdown from '../components/Dropdown'
 import PagedGrid from '../components/PagedGrid'
 import Icon from '../components/Icon'
@@ -20,12 +24,16 @@ import { DISCOVER_KINDS, SHARED_ORDERS } from '../discoverKinds'
 import { sourceTitle, sourceToQuery, type Kind, type ListName, type Source } from '../discoverSources'
 import { useOwned, type Owned } from '../useOwned'
 import { useIncludeOlder } from '../useIncludeOlder'
-import { useHideOwned } from '../useHideOwned'
 import { firstError, minMax, required, url } from '../validate'
 import { FieldError, FormProblem, useValidation } from '../useValidation'
 import FilterToggle from '../components/FilterToggle'
 import { useUrlState } from '../useUrlState'
 import { plural, t, tx } from '../i18n'
+import DiscoverExtras, { ForYouRail } from '../home/DiscoverExtras' // home fork
+import HideOwned from '../home/HideOwned' // home fork
+import FamilyFilter from '../home/FamilyFilter' // home fork
+import RecipeRails from '../home/Recipes' // home fork: Discover recipes
+import { CompleteTeaser } from '../home/Complete' // home fork
 
 const LIST_EXAMPLE = 'https://trakt.tv/users/name/lists/my-list'
 
@@ -51,10 +59,9 @@ function traktList(value: string): string | null {
 // A Discover section: a kind of media, or books (ebooks and audiobooks share one).
 type Section = MediaKind | 'book'
 type Show = 'all' | Section
-const isSection = (v: string | null): v is Section => v === 'movie' || v === 'tv' || v === 'music' || v === 'book'
 
 const LISTS: ListName[] = ['trending', 'popular', 'upcoming']
-const LIST_HINT: Record<ListName, string> = { trending: t('this week'), popular: t('all-time favourites'), upcoming: t('add them now and they download once released'), similar: t('based on what is in your library') }
+const LIST_HINT: Record<ListName, string> = { trending: t('this week'), popular: t('all-time favourites'), upcoming: t('add them now and they download once released'), similar: t('based on what is in your library'), watched: '', collections: '', season: '', 'anime-airing': t('new episodes this week'), 'anime-popular': '', 'anime-top': '', 'anime-new': t('started in the last year'), recipe: '', foryou: '' }
 
 interface Filters {
   genre: string
@@ -75,6 +82,10 @@ function TitleRails({ kind, filters, filtering, includeOlder, setIncludeOlder, o
   const similar: Source = { kind, list: 'similar', older: includeOlder || undefined }
   return (
     <>
+      {kind === 'movie' && <CompleteTeaser />} {/* home fork: complete your library */}
+      <ForYouRail kind={kind} owned={owned} onAdd={onAdd} /> {/* home fork: the taste engine */}
+      <RecipeRails tab={kind} owned={owned} onAdd={onAdd} /> {/* home fork: your recipes and your services */}
+      <DiscoverExtras kind={kind} owned={owned} onAdd={onAdd} /> {/* home fork: because you watched, complete the collection, the season */}
       <DiscoverRail
         key={sourceToQuery(similar)}
         title={short ? t('More like your library') : sourceTitle(similar)}
@@ -95,21 +106,6 @@ function TitleRails({ kind, filters, filtering, includeOlder, setIncludeOlder, o
   )
 }
 
-// On the All tab every kind of media gets its own section, so it is clear
-// where one group ends and the next begins.
-function SectionBlock({ kind, children }: { kind: Section; children: ReactNode }) {
-  const k = DISCOVER_KINDS[kind]
-  return (
-    <section className="discover-section" style={{ ['--kc' as string]: k.color }} aria-label={k.label}>
-      <div className="section-divider">
-        <span className="section-pill">
-          <Icon name={k.icon} size={16} /> {k.label}
-        </span>
-      </div>
-      {children}
-    </section>
-  )
-}
 
 // Discover: things worth adding. The All tab has a section for each kind of
 // media that is switched on, each with its own rails (trending, popular,
@@ -231,15 +227,18 @@ function DiscoverPage() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const owned = useOwned()
   const [includeOlder, setIncludeOlder] = useIncludeOlder()
-  const [hideOwned, setHideOwned] = useHideOwned()
   const [adding, setAdding] = useState<AddTarget | null>(null)
   const [addingMusic, setAddingMusic] = useState<AddMusicTarget | null>(null)
   const [addingBook, setAddingBook] = useState<BookFound | null>(null)
 
   // The tab and the filters live in the address, so Back from a title or an album brings Discover back as it was.
-  const [ui, patchUi] = useUrlState({ kind: 'all', genre: '', from: '', to: '', sort: 'popular', type: 'all' })
-  const picked: Show = isSection(ui.kind) ? ui.kind : 'all'
-  const setPicked = (k: Show) => patchUi({ kind: k, genre: '', type: 'all', sort: ui.sort === 'rating' && k !== 'movie' && k !== 'tv' ? 'popular' : ui.sort })
+  const [ui, patchUi] = useUrlState({ kind: 'movie', genre: '', from: '', to: '', sort: 'popular', type: 'all' })
+  // home fork: the Library's tabs, in its order (no All tab)
+  const adminUser = isAdmin(useAuth().user)
+  const dtabs = useDiscoverTabs(adminUser)
+  const dtab: DTab = asTab(ui.kind, dtabs)
+  const setTab = (k: DTab) => patchUi({ kind: k, genre: '', type: 'all', sort: ui.sort === 'rating' && k !== 'movie' && k !== 'tv' ? 'popular' : ui.sort })
+  const special = dtab === 'anime' || dtab === 'comics' || dtab === 'nsfw'
   // Only the kinds of media that are switched on get a tab, and a section on
   // the All tab. Ebooks and audiobooks share one Books section.
   const { on } = useModules()
@@ -247,8 +246,7 @@ function DiscoverPage() {
   const mediaKinds = useKinds()
   // Ebooks and audiobooks share one tab: the same books, each marked with the editions that exist.
   const kindsOn: Section[] = [...(on('movies') || on('tv') || on('music') || !booksOn ? mediaKinds : []), ...(booksOn ? (['book'] as const) : [])]
-  const tabs: Show[] = ['all', ...kindsOn]
-  const show: Show = tabs.includes(picked) ? picked : tabs[0]
+  const show = (dtab === 'ebook' || dtab === 'audiobook' ? 'book' : dtab === 'music' ? 'music' : dtab === 'movie' ? 'movie' : 'tv') as Show
   const [subjects, setSubjects] = useState<{ label: string; subject: string }[]>([])
   const genre = ui.genre
   const setGenre = (v: string) => patchUi({ genre: v })
@@ -344,16 +342,10 @@ function DiscoverPage() {
 
   const switcher = (
     <div className="seg kind-tabs">
-      {tabs.map((k) => (
-        <button
-          key={k}
-          className={`k-${k}${show === k ? ' active' : ''}`}
-          style={k === 'all' ? undefined : { ['--kc' as string]: DISCOVER_KINDS[k].color }}
-          onClick={() => setPicked(k)}
-          title={k === 'book' ? t('eBooks and audiobooks') : undefined}
-        >
-          {k === 'all' ? <Icon name="grid" size={15} /> : <KindGlyph kind={k === 'book' ? 'book' : k} size={17} />}
-          {k === 'all' ? t('All') : k === 'book' ? t('Books') : KIND_LABEL[k]}
+      {dtabs.map((k) => (
+        <button key={k} className={`k-${k}${dtab === k ? ' active' : ''}`} style={{ ['--kc' as string]: DTAB_INFO[k].color }} onClick={() => setTab(k)}>
+          <KindGlyph kind={DTAB_INFO[k].glyph} size={17} />
+          {DTAB_INFO[k].label()}
         </button>
       ))}
     </div>
@@ -361,7 +353,12 @@ function DiscoverPage() {
 
   // The rails of one kind, for its own tab or for its section on the All tab.
   function body(kind: Section, short: boolean) {
-    if (kind === 'book') return <BookBody filters={bookFilters} filtering={filtering} onAdd={setAddingBook} onClear={clear} />
+    if (kind === 'book')
+      return (
+        <>
+          <BookBody filters={bookFilters} filtering={filtering} onAdd={setAddingBook} onClear={clear} />
+        </>
+      )
     if (kind === 'music') return <MusicBody filters={musicFilters} filtering={filtering} onAdd={setAddingMusic} onClear={clear} />
     return <TitleRails kind={kind} filters={filters} filtering={filtering} includeOlder={includeOlder} setIncludeOlder={setIncludeOlder} owned={owned} onAdd={setAdding} onClear={clear} short={short} />
   }
@@ -370,10 +367,11 @@ function DiscoverPage() {
 
   return (
     <div>
+      {dtab !== 'nsfw' && <OmniBar key={dtab} page={dtab as OmniPage} />} {/* home fork: search and AI */}
       <div className={`toolbar filter-bar collapsible${filtersOpen ? ' filters-open' : ''}`}>
         {switcher}
-        <FilterToggle open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} active={filtering} />
-        <div className="fold">
+        {!special && <FilterToggle open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} active={filtering} />}
+        <div className="fold" hidden={special}>
         <Dropdown
           icon="sparkles"
           label={t('Genre')}
@@ -392,7 +390,8 @@ function DiscoverPage() {
             {t('Clear filters')}
           </button>
         )}
-        <Switch checked={hideOwned} onChange={setHideOwned} label={t('Hide owned')} />
+        <HideOwned label={t('Hide what I have')} /> {/* home fork: choose on disk, streamed, wanted */}
+        {titleKind && <FamilyFilter />} {/* home fork */}
         <span className="spacer" />
         <NotInterestedList />
         {titleKind && <SelectToggle />}
@@ -431,22 +430,26 @@ function DiscoverPage() {
 
       <PickBar onAdded={() => owned.reload()} />
 
-      {watchMovies.length > 0 && (show === 'all' || show === 'movie') && kindsOn.includes('movie') && (
+      <LeaningsBar /> {/* home fork: what Not interested taught Discover */}
+
+      {watchMovies.length > 0 && dtab === 'movie' && kindsOn.includes('movie') && (
         <DiscoverRail title={t('Your Plex watchlist: movies')} items={watchMovies} kind="movie" owned={owned} onAdd={setAdding} rows={1} />
       )}
-      {watchShows.length > 0 && (show === 'all' || show === 'tv') && kindsOn.includes('tv') && (
+      {watchShows.length > 0 && dtab === 'tv' && kindsOn.includes('tv') && (
         <DiscoverRail title={t('Your Plex watchlist: shows')} items={watchShows} kind="tv" owned={owned} onAdd={setAdding} rows={1} />
       )}
 
       {trakt && imported && <DiscoverRail title={t('Imported from {url}', { url: importedFrom })} items={imported} kind="movie" owned={owned} onAdd={setAdding} rows={3} />}
 
-      {show === 'all'
-        ? kindsOn.map((kind) => (
-            <SectionBlock key={kind} kind={kind}>
-              {body(kind, false)}
-            </SectionBlock>
-          ))
-        : body(show, true)}
+      {dtab === 'anime' ? (
+        <AnimeRails owned={owned} onAdd={setAdding} />
+      ) : dtab === 'comics' ? (
+        <ComicsDiscover admin={adminUser} />
+      ) : dtab === 'nsfw' ? (
+        <ScenesDiscover />
+      ) : (
+        body(show as Section, true)
+      )}
 
       {adding && (
         <AddDialog

@@ -21,7 +21,7 @@ export const MESSAGE_MAX = 8000
 // under it so the report never gets lost on the way.
 export const GITHUB_URL_MAX = 7000
 
-const ISSUES = 'https://github.com/rdborg/Mediarium/issues/new'
+const ISSUES = 'https://github.com/TryToTilt/Usherr/issues/new' // Usherr
 
 // What's wrong with a draft, or '' when it's ready to send.
 export function draftProblem(d: Pick<ReportDraft, 'title' | 'message'>): '' | 'title' | 'message' | 'title-long' | 'message-long' {
@@ -35,7 +35,7 @@ export function draftProblem(d: Pick<ReportDraft, 'title' | 'message'>): '' | 't
 }
 
 // Put in the Support report box instead of the report itself.
-export const SUPPORT_NOTE = 'Paste the support report here. Mediarium copied it for you.'
+export const SUPPORT_NOTE = 'Paste the support report here. Usherr copied it for you.' // Usherr
 
 // A link that opens a new GitHub issue with the form already filled in. The
 // support report never goes in the link: a link stays in the browser history

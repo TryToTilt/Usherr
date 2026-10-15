@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"mime"
 	"mime/quotedprintable"
 	"net/mail"
@@ -83,11 +84,6 @@ func oneLine(s string) string {
 	return strings.Join(strings.Fields(strings.NewReplacer("\r", " ", "\n", " ").Replace(s)), " ")
 }
 
-// senderName is shown as who an email is from when neither the From name
-// field nor the From address names anyone, so mail programs don't show the
-// part before the @.
-const senderName = "Mediarium"
-
 // fromHeader is the From header: the From name field when it is filled in,
 // else the name written in the address ("Home <you@example.com>"), else
 // Mediarium.
@@ -99,7 +95,7 @@ func fromHeader(from, name string) string {
 	if n := oneLine(name); n != "" {
 		a.Name = n
 	} else if strings.TrimSpace(a.Name) == "" {
-		a.Name = senderName
+		a.Name = brand.Name // Usherr: who an email is from when neither the From name nor the address has one
 	}
 	return a.String()
 }
@@ -112,7 +108,7 @@ func buildMessage(from string, to []string, ev Event) []byte {
 	h := func(k, v string) { b.WriteString(k + ": " + v + "\r\n") }
 	h("From", oneLine(from))
 	h("To", oneLine(strings.Join(to, ", ")))
-	h("Subject", mime.QEncoding.Encode("utf-8", "[Mediarium] "+oneLine(ev.Title)))
+	h("Subject", mime.QEncoding.Encode("utf-8", "["+brand.Name+"] "+oneLine(ev.Title)))
 	ts := ev.Timestamp
 	if ts.IsZero() {
 		ts = time.Now()

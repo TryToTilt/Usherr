@@ -16,8 +16,12 @@ import { artistQueue } from '../musicPlay'
 import FilterToggle from '../components/FilterToggle'
 import { plural, t, tx } from '../i18n'
 import { useUrlState } from '../useUrlState'
+import Shelves from '../home/Shelves' // home fork
+import { groupShelves, letterShelves, monthShelves, RowsByPick, ShelfControls, useShelfView } from '../home/shelfKit' // home fork
 
 type Sort = 'added' | 'name' | 'missing'
+type MusicRows = 'genre' | 'az' | 'added' | 'missing' // home fork
+const MUSIC_ROWS = ['genre', 'az', 'added', 'missing'] as const
 
 // Where an artist stands: everything downloaded, some of it, nothing yet
 // (searching) or not monitored.
@@ -221,6 +225,57 @@ export default function MusicLibrary({
     ...(admin ? [{ icon: 'trash', label: t('Remove from library'), onClick: () => void remove(a), danger: true, disabled: busy } satisfies CardAction] : []),
   ]
 
+  // home fork: shelves, rows that scroll sideways, by genre, A–Z…
+  const shelfView = useShelfView<MusicRows>('music', MUSIC_ROWS, 'genre')
+  const shelves = useMemo(() => {
+    if (!shown || !shelfView.on) return []
+    const byName = (a: MusicArtist, b: MusicArtist) => a.sortName.localeCompare(b.sortName)
+    switch (shelfView.by) {
+      case 'az':
+        return letterShelves(shown, (a) => a.sortName || a.name)
+      case 'added':
+        return monthShelves(shown, (a) => a.addedAt)
+      case 'missing': {
+        const missing = shown.filter((a) => missingOf(a) > 0).sort((a, b) => missingOf(b) - missingOf(a) || byName(a, b))
+        const complete = shown.filter((a) => a.albumCount > 0 && missingOf(a) === 0).sort(byName)
+        return [
+          { key: 'missing', title: t('Albums missing'), items: missing },
+          { key: 'complete', title: t('Complete'), items: complete },
+        ].filter((r) => r.items.length > 0)
+      }
+      default: {
+        const rows = groupShelves(shown, (a) => a.genres ?? [], { prefix: 'genre', min: 3, rest: t('More artists'), order: byName, seeAll: (g) => (setGenre(g), shelfView.setOn(false)) })
+        // No genres known yet: A–Z rows rather than one long row.
+        return rows.length > 1 ? rows : letterShelves(shown, (a) => a.sortName || a.name)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown, shelfView.on, shelfView.by])
+  const card = (a: MusicArtist) => {
+    const missing = missingOf(a)
+    return (
+      <PosterCard
+        key={a.id}
+        to={`/music/artist/${a.id}`}
+        poster={a.imageUrl}
+        title={a.name}
+        meta={[a.disambiguation || null, plural(a.albumCount, '{have} of {n} album', '{have} of {n} albums', { have: a.downloadedCount }), missing > 0 ? t('{n} missing', { n: missing }) : null, a.monitored ? null : t('not followed')].filter(Boolean).join(' · ')}
+        state={artistState(a)}
+        kind="music"
+        dim={artistState(a).key === 'added'}
+        actions={actionsFor(a)}
+        selection={selecting ? { selected: selected.has(`artist-${a.id}`), onToggle: (e) => pick(a, e.shiftKey) } : undefined}
+        footer={
+          a.albumCount > 0 ? (
+            <div className="bar" style={{ width: '100%', marginTop: 6 }} title={plural(a.albumCount, '{have} of {n} album', '{have} of {n} albums', { have: a.downloadedCount })}>
+              <span style={{ width: `${(a.downloadedCount / a.albumCount) * 100}%` }} />
+            </div>
+          ) : undefined
+        }
+      />
+    )
+  }
+
   return (
     <div>
       <div className={`toolbar lib-toolbar collapsible${filtersOpen ? ' filters-open' : ''}`}>
@@ -249,6 +304,7 @@ export default function MusicLibrary({
             { value: 'missing', label: t('Most albums missing') },
           ]}
         />
+        <ShelfControls view={shelfView} />
         <span className="spacer" />
         {admin && (
           <button className={`btn-with-icon${selecting ? ' primary' : ''}`} aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
@@ -347,33 +403,15 @@ export default function MusicLibrary({
             </>
           )}
         </div>
+      ) : shelfView.on ? (
+        <Shelves key={shelfView.by} memory="music" shelves={shelves} render={card} itemKey={(a) => String(a.id)} rowClass="music-shelf" bar={<RowsByPick value={shelfView.by} onChange={shelfView.setBy} options={[
+            { value: 'genre', label: t('Genre') },
+            { value: 'az', label: t('A–Z') },
+            { value: 'added', label: t('Recently added') },
+            { value: 'missing', label: t('Albums missing') },
+          ]} />} />
       ) : (
-        <div className="poster-grid music-grid">
-          {shown.map((a) => {
-            const missing = missingOf(a)
-            return (
-              <PosterCard
-                key={a.id}
-                to={`/music/artist/${a.id}`}
-                poster={a.imageUrl}
-                title={a.name}
-                meta={[a.disambiguation || null, plural(a.albumCount, '{have} of {n} album', '{have} of {n} albums', { have: a.downloadedCount }), missing > 0 ? t('{n} missing', { n: missing }) : null, a.monitored ? null : t('not followed')].filter(Boolean).join(' · ')}
-                state={artistState(a)}
-                kind="music"
-                dim={artistState(a).key === 'added'}
-                actions={actionsFor(a)}
-                selection={selecting ? { selected: selected.has(`artist-${a.id}`), onToggle: (e) => pick(a, e.shiftKey) } : undefined}
-                footer={
-                  a.albumCount > 0 ? (
-                    <div className="bar" style={{ width: '100%', marginTop: 6 }} title={plural(a.albumCount, '{have} of {n} album', '{have} of {n} albums', { have: a.downloadedCount })}>
-                      <span style={{ width: `${(a.downloadedCount / a.albumCount) * 100}%` }} />
-                    </div>
-                  ) : undefined
-                }
-              />
-            )
-          })}
-        </div>
+        <div className="poster-grid music-grid">{shown.map(card)}</div>
       )}
     </div>
   )

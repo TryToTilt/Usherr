@@ -36,6 +36,9 @@ type Refresher struct {
 	// to forget cached "Watch in" lookups, since a new title may now be
 	// there).
 	OnDone func()
+	// Hold, when set and true, keeps the waiting folders and checks again a
+	// minute later instead of refreshing now (home fork: schedules).
+	Hold func() bool
 
 	mu      sync.Mutex
 	pending map[MediaKind]map[string]bool
@@ -72,7 +75,7 @@ func (r *Refresher) Imported(kind MediaKind, files ...string) {
 	if r.timer == nil {
 		r.first = now
 		r.running.Add(1)
-		r.timer = time.AfterFunc(r.Delay, r.fire)
+		r.timer = time.AfterFunc(r.Delay, r.fireTimed)
 		return
 	}
 	// Push the scan back, unless that would wait too long in total. A timer
@@ -88,7 +91,7 @@ func (r *Refresher) Flush() {
 	r.mu.Lock()
 	if r.timer != nil && r.timer.Stop() {
 		r.mu.Unlock()
-		r.fire()
+		r.fire(true)
 	} else {
 		r.mu.Unlock()
 	}
@@ -109,8 +112,21 @@ func (r *Refresher) take() map[MediaKind][]string {
 	return out
 }
 
-func (r *Refresher) fire() {
+func (r *Refresher) fireTimed() { r.fire(false) }
+
+// fire runs the waiting refreshes. A timed run that Hold holds back keeps the
+// folders and tries again a minute later; Flush (force) never waits.
+func (r *Refresher) fire(force bool) {
 	defer r.running.Done()
+	if !force && r.Hold != nil && r.Hold() {
+		r.mu.Lock()
+		if r.timer != nil {
+			r.running.Add(1)
+			r.timer = time.AfterFunc(time.Minute, r.fireTimed)
+		}
+		r.mu.Unlock()
+		return
+	}
 	work := r.take()
 	if len(work) == 0 {
 		return

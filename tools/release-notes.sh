@@ -12,15 +12,15 @@ section="$(awk -v v="${version}" '
   $0 ~ "^## \\[" v "\\]" { found = 1; next }
   found && /^## \[/ { exit }
   found { print }
-' CHANGELOG.md | sed -e '/./,$!d')"
+' USHERR-CHANGELOG.md | sed -e '/./,$!d')" # Usherr: its own changelog
 
 if [ -z "${section}" ]; then
-  echo "No section for ${version} in CHANGELOG.md." >&2
+  echo "No section for ${version} in USHERR-CHANGELOG.md." >&2
   exit 1
 fi
 
 cat <<EOF
-**Install or update:** the Docker image is \`ghcr.io/rdborg/mediarium:${version}\` (also \`:latest\`), for \`linux/amd64\` and \`linux/arm64\`. A running Mediarium offers this version under Settings > System, where **Update now** installs it. New here? Start with the [install guide](https://github.com/rdborg/Mediarium/blob/main/docs/INSTALL.md) or [mediarium.app](https://mediarium.app).
+**Install or update:** the Docker image is \`ghcr.io/trytotilt/usherr:${version}\` (also \`:latest\`), for \`linux/amd64\` and \`linux/arm64\`. A running Usherr offers this version under Settings > System, where **Update now** installs it. New here? Start with the [README](https://github.com/TryToTilt/Usherr#install).
 
 ${section}
 EOF
