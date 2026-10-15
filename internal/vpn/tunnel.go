@@ -50,8 +50,8 @@ type Config struct {
 // instead of the host network directly.
 type Tunnel struct {
 	local4 netip.Addr // the tunnel's own IPv4 address (home fork: UDP sockets bind to it)
-	dev  *device.Device
-	tnet *netstack.Net
+	dev    *device.Device
+	tnet   *netstack.Net
 }
 
 // Up brings a tunnel to the configured peer. It does not verify the

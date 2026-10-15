@@ -59,9 +59,15 @@ jobs:
 
   # Every test again with the race detector, which catches two goroutines
   # touching the same data. Slow, so it runs on its own.
+  # Usherr: the server's main package is split by test name, so each part
+  # stays well inside the time limit.
   race:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [rest, '^Test[A-H]', '^Test[I-O]', '^Test[P-R]', '^Test[S-Z]']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -70,7 +76,14 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Tests with the race detector
-        run: go test -race -timeout 50m $(go list ./... | grep -v torrentclient)
+        env:
+          PART: ${{ matrix.part }}
+        run: |
+          if [ "$PART" = rest ]; then
+            go test -race -timeout 50m $(go list ./... | grep -v torrentclient | grep -v '/internal/api$')
+          else
+            go test -race -timeout 50m -run "$PART" ./internal/api/
+          fi
 
   web:
     runs-on: ubuntu-latest

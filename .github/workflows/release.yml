@@ -265,7 +265,7 @@ jobs:
           fi
           gh release create "${TAG}" release/* \
             --repo "${GITHUB_REPOSITORY}" \
-            --title "Mediarium ${TAG}" \
+            --title "Usherr ${TAG}" \
             "${notes[@]}" \
             ${flags}
 

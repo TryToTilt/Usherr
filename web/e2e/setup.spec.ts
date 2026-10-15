@@ -18,11 +18,11 @@ test('first run: setup wizard to the dashboard', async ({ page }) => {
   const pw = page.locator('input[autocomplete="new-password"]')
   await pw.nth(0).fill(password)
   await pw.nth(1).fill(password)
-  await page.getByLabel('I have read this and accept responsibility for how I use Mediarium.').check()
+  await page.getByLabel(/^I have read this and accept responsibility for how I use (Mediarium|Usherr)\.$/).check()
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
 
   const nav = page.getByRole('navigation', { name: 'Main' })
-  const next = page.getByRole('button', { name: /^(Continue anyway|Skip for now|Continue|Finish|Go to the dashboard|Open Mediarium|Start using Mediarium)/ }).first()
+  const next = page.getByRole('button', { name: /^(Continue anyway|Skip for now|Continue|Finish|Go to the dashboard|Open (?:Mediarium|Usherr)|Start using (?:Mediarium|Usherr))/ }).first()
   for (let step = 0; step < 15; step++) {
     await Promise.race([nav.waitFor({ timeout: 15_000 }), next.waitFor({ timeout: 15_000 })]).catch(() => undefined)
     if (await nav.isVisible()) break
@@ -34,16 +34,8 @@ test('first run: setup wizard to the dashboard', async ({ page }) => {
   }
   await expect(nav).toBeVisible()
 
-  // A new install asks about anonymous usage numbers, and nothing is sent
-  // before the answer. Answer No, so the other tests are not in its way.
-  const ask = page.getByRole('dialog', { name: 'Help Mediarium with anonymous numbers?' })
-  await expect(ask).toBeVisible({ timeout: 20_000 })
-  await ask.getByText('See exactly what is sent').click()
-  await expect(ask.locator('pre')).toContainText('"schema": 1')
-  await ask.getByRole('button', { name: 'No thanks' }).click()
-  await expect(ask).toHaveCount(0)
-  const answered = await page.request.get('/api/usage-stats')
-  expect((await answered.json()).choice).toBe('no')
+  // Usherr never sends usage numbers, so a new install doesn't ask about them.
+  await expect(page.getByRole('dialog', { name: /anonymous numbers/ })).toHaveCount(0)
 
   mkdirSync('e2e/.auth', { recursive: true })
   writeFileSync(CREDS_FILE, JSON.stringify({ username, password }))

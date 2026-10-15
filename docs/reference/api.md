@@ -117,6 +117,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | Method | Path | Access | What it does |
 |---|---|---|---|
 | GET | `/api/books` | any account |  |
+| POST | `/api/books` | any account | adds a book with the formats asked for. |
 | GET | `/api/books/discover` | any account | GET /api/books/discover?list=trending&period=weekly&page=1 GET /api/books/discover?list=browse&subject=fantasy&from=2000&to=2010&sort=popular&page=1 |
 | GET | `/api/books/import` | admin |  |
 | POST | `/api/books/import` | admin | starts reading the books folders (administrators). |
@@ -159,6 +160,46 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/collections/{id}` | any account | is GET /api/collections/{id}: the collection from TMDB with which of its films are in the library, and the follow choice. |
 | POST | `/api/collections/{id}/add` | admin | is POST /api/collections/{id}/add: adds the films of a collection that are not in the library yet, with the profile, folder and monitoring chosen, and can st... |
 | PUT | `/api/collections/{id}/follow` | admin | is PUT /api/collections/{id}/follow: turns "also add new films in this collection" on or off. |
+
+## comics
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/comics` | any account |  |
+| GET | `/api/comics/arcs` | any account |  |
+| POST | `/api/comics/arcs` | admin |  |
+| GET | `/api/comics/arcs/for-you` | any account |  |
+| GET | `/api/comics/arcs/lookup` | admin |  |
+| DELETE | `/api/comics/arcs/{id}` | admin |  |
+| GET | `/api/comics/arcs/{id}` | any account |  |
+| POST | `/api/comics/arcs/{id}/refresh` | admin |  |
+| POST | `/api/comics/arcs/{id}/want` | admin |  |
+| GET | `/api/comics/enabled` | any account |  |
+| GET | `/api/comics/image` | any account |  |
+| POST | `/api/comics/import` | admin |  |
+| POST | `/api/comics/import/folder` | admin |  |
+| PUT | `/api/comics/issues/wanted` | admin |  |
+| GET | `/api/comics/issues/{id}/file` | any account |  |
+| POST | `/api/comics/issues/{id}/grab` | admin |  |
+| GET | `/api/comics/issues/{id}/pages` | any account |  |
+| GET | `/api/comics/issues/{id}/pages/{n}` | any account |  |
+| GET | `/api/comics/issues/{id}/pages/{n}/panels` | any account |  |
+| GET | `/api/comics/issues/{id}/releases` | admin |  |
+| POST | `/api/comics/issues/{id}/search` | admin |  |
+| GET | `/api/comics/issues/{id}/search-log` | admin |  |
+| GET | `/api/comics/reviews` | admin |  |
+| POST | `/api/comics/reviews/{id}/accept` | admin |  |
+| POST | `/api/comics/reviews/{id}/reject` | admin |  |
+| GET | `/api/comics/settings` | admin |  |
+| PUT | `/api/comics/settings` | admin | PUT /api/comics/settings {"enabled","path","key","removeKey"}; only what is sent changes. |
+| GET | `/api/comics/tools` | admin |  |
+| POST | `/api/comics/tools/run/{tool}` | admin |  |
+| GET | `/api/comics/week` | any account |  |
+| DELETE | `/api/comics/{id}` | admin |  |
+| GET | `/api/comics/{id}` | any account |  |
+| PUT | `/api/comics/{id}` | admin |  |
+| POST | `/api/comics/{id}/refresh` | admin |  |
+| POST | `/api/comics/{id}/search` | admin |  |
 
 ## custom-formats
 
@@ -263,6 +304,109 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | Method | Path | Access | What it does |
 |---|---|---|---|
 | GET | `/api/health` | any account | lists setup problems for administrators. |
+
+## home
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/home/ai` | admin | GET /api/home/ai: the AI settings (administrators). |
+| PUT | `/api/home/ai` | admin | PUT /api/home/ai: change the AI settings; only what's sent changes. |
+| POST | `/api/home/ai/ask` | any account | POST /api/home/ai/ask {query, page, lang}: what the bar should do. |
+| POST | `/api/home/ai/book-recap` | any account | POST /api/home/ai/book-recap {bookId, lang}: the series so far, up to and including this book. |
+| POST | `/api/home/ai/book-search` | any account | POST /api/home/ai/book-search {query, lang} |
+| POST | `/api/home/ai/comic-guide` | any account | POST /api/home/ai/comic-guide {question, lang} |
+| POST | `/api/home/ai/comic-recap` | any account | POST /api/home/ai/comic-recap {seriesId, upTo, lang}: a recap of a comic series up to issue upTo (its number). |
+| POST | `/api/home/ai/explain` | any account | POST /api/home/ai/explain {id, lang}: a failed download in plain words. |
+| GET | `/api/home/ai/on` | any account | GET /api/home/ai/on: whether AI features can be offered. |
+| POST | `/api/home/ai/playlist` | any account | POST /api/home/ai/playlist {mood, lang, shared}: a playlist from the library. |
+| POST | `/api/home/ai/read-alikes` | any account | POST /api/home/ai/read-alikes {bookId, lang} |
+| POST | `/api/home/ai/recap` | any account | POST /api/home/ai/recap {tmdbId, season, episode, lang}: a recap up to that episode, or up to the last one the person watched when none is given. |
+| POST | `/api/home/ai/room` | any account | POST /api/home/ai/room {people, kind, mood, wish, lang, again}: three titles for the people in the room. |
+| POST | `/api/home/ai/search` | any account | POST /api/home/ai/search {query, image}: titles for a description or a photo. |
+| POST | `/api/home/ai/similar-artists` | any account | POST /api/home/ai/similar-artists {artistId, lang} |
+| POST | `/api/home/ai/skip-guide` | any account | POST /api/home/ai/skip-guide {tmdbId, lang} |
+| POST | `/api/home/ai/test` | admin | POST /api/home/ai/test: does the model answer? |
+| POST | `/api/home/ai/tonight` | any account | POST /api/home/ai/tonight {lang, again}: three picks for tonight. |
+| POST | `/api/home/ai/vibe` | any account | POST /api/home/ai/vibe {kind, tmdbId, lang} |
+| GET | `/api/home/anime-series` | signed in |  |
+| GET | `/api/home/autostream` | any account | GET /api/home/autostream: whether Streams for you is allowed, set up and on for you, this week's count, and what it added for you. |
+| PUT | `/api/home/autostream` | any account | PUT /api/home/autostream {"on": bool}: switch it on or off for yourself. |
+| PUT | `/api/home/autostream/household` | admin | PUT /api/home/autostream/household {"on": bool}: an administrator allows Streams for you for the household, or stops it for everyone. |
+| DELETE | `/api/home/autostream/{id}` | any account | DELETE /api/home/autostream/{id}: take a film Streams for you added for you back out of the streamed library. |
+| GET | `/api/home/book-genres` | any account | handleBookGenres: GET /api/home/book-genres, the genres by book id. |
+| GET | `/api/home/book-sources` | admin | GET/PUT /api/home/book-sources {"sources":"both"} |
+| PUT | `/api/home/book-sources` | admin | GET/PUT /api/home/book-sources {"sources":"both"} |
+| GET | `/api/home/diary` | any account | GET /api/home/diary?year=&kind=: your Diary, newest first, and the years it covers. |
+| POST | `/api/home/diary` | any account | POST /api/home/diary {kind, tmdbId, watchedOn, stars, note, rewatch}: log something by hand. |
+| GET | `/api/home/diary/import` | any account | GET /api/home/diary/import: how the latest import is getting on. |
+| POST | `/api/home/diary/import/letterboxd` | any account | POST /api/home/diary/import/letterboxd (a file, as "file"): bring a Letterboxd export in. |
+| POST | `/api/home/diary/import/trakt` | any account | POST /api/home/diary/import/trakt {"user": "name"}: a public Trakt profile's history and ratings. |
+| DELETE | `/api/home/diary/{id}` | any account | DELETE /api/home/diary/{id}: take an entry out. |
+| PUT | `/api/home/diary/{id}` | any account | PUT /api/home/diary/{id} {stars, note, rewatch}: rate, write a note. |
+| GET | `/api/home/digest-preview` | admin | GET /api/home/digest-preview: the weekly "what's new" as it would read now. |
+| GET | `/api/home/discover/leanings` | any account | GET /api/home/discover/leanings: the genres the Not interested list dismisses most, for Discover to show fewer of. |
+| GET | `/api/home/discover/people` | any account | GET /api/home/discover/people: the household (the media server's users), and whose watching the rail shows by default. |
+| GET | `/api/home/discover/season` | any account | GET /api/home/discover/season: the season's rail now ({"key": ""} when none). |
+| GET | `/api/home/discover/watched-seeds` | any account | GET /api/home/discover/watched-seeds?kind=&who=: the titles the rail is built from, most recent first ("Because you watched The Bear, Severance…"). |
+| GET | `/api/home/discover/why` | any account | GET /api/home/discover/why?kind=&who=: for each "Because you watched" suggestion, the watched titles that led to it (up to two). |
+| GET | `/api/home/extras` | admin | GET /api/home/extras |
+| PUT | `/api/home/extras` | admin | PUT /api/home/extras: only what is sent changes. |
+| POST | `/api/home/extras/test/{what}` | admin | POST /api/home/extras/test/{what}: address, streaming or tv. |
+| POST | `/api/home/extras/tv-pair` | admin | POST /api/home/extras/tv-pair: make Mediarium's key (once) and connect to the TV, which then asks on screen whether to allow this computer. |
+| POST | `/api/home/family` | any account | POST /api/home/family {"kind":"movie","items":[{"id","title","year"}]}: each title's youngest suitable age (-1: not known), and the ones still being worked out. |
+| GET | `/api/home/follows` | any account | GET /api/home/follows: who you follow. |
+| GET | `/api/home/follows/work` | any account |  |
+| DELETE | `/api/home/follows/{id}` | any account | DELETE /api/home/follows/{id}: stop following someone. |
+| PUT | `/api/home/follows/{id}` | any account | PUT /api/home/follows/{id} {"name","image","known"}: follow someone. |
+| GET | `/api/home/gaps` | any account | GET /api/home/gaps: the latest findings, less what you ignore, and the scan's progress. |
+| POST | `/api/home/gaps/ignore` | any account | POST /api/home/gaps/ignore {"kind","id","name","undo"}: ignore a series, director or actor (or stop). |
+| POST | `/api/home/gaps/scan` | admin | POST /api/home/gaps/scan: scan now. |
+| GET | `/api/home/hardcover-match` | admin | GET /api/home/hardcover-match?title=&author=: what the import would find on Hardcover for a book on disk (for checking a match by hand). |
+| GET | `/api/home/have` | any account |  |
+| GET | `/api/home/mdblist` | admin | GET /api/home/mdblist |
+| PUT | `/api/home/mdblist` | admin | PUT /api/home/mdblist {"key": "...", "removeKey": false} |
+| POST | `/api/home/mdblist/test` | admin | POST /api/home/mdblist/test: reads one well-known film's scores. |
+| GET | `/api/home/moods` | any account | handleMoods: GET /api/home/moods?kind=movie\|tv, the moods by TMDB id. |
+| PUT | `/api/home/my-services` | any account | PUT /api/home/my-services {"providers": [ids]} |
+| GET | `/api/home/news` | any account | GET /api/home/news: this week's summarised stories, newest first. |
+| POST | `/api/home/news/refresh` | admin | POST /api/home/news/refresh: read the feeds now (in the background). |
+| GET | `/api/home/news/settings` | admin | GET /api/home/news/settings (administrators). |
+| PUT | `/api/home/news/settings` | admin | PUT /api/home/news/settings {on, sources, dailyBudget}: only what's sent changes. |
+| POST | `/api/home/news/test` | admin | POST /api/home/news/test {url}: does a feed answer, and with what? |
+| GET | `/api/home/person/{id}` | any account | GET /api/home/person/{id}: someone's page: who they are, and the films and shows they're best known for (directed, wrote, or starred in). |
+| GET | `/api/home/providers` | any account | GET /api/home/providers: the services of the country, with the ones you pay for. |
+| POST | `/api/home/quiet` | admin | POST /api/home/quiet {"minutes":120,"when":"now"\|"finish"} holds every heavy task for a while; {"minutes":0} ends it. |
+| GET | `/api/home/ready-rows` | any account | GET /api/home/ready-rows: the ready-made rows you've hidden. |
+| PUT | `/api/home/ready-rows` | any account | PUT /api/home/ready-rows {"key":"movie:top","hidden":true}, or {"showAll":true}. |
+| GET | `/api/home/recipes` | any account | GET /api/home/recipes?kind=…: yours, then the ones others share. |
+| POST | `/api/home/recipes` | any account | POST /api/home/recipes |
+| GET | `/api/home/recipes/titles` | any account | GET /api/home/recipes/titles?kind=movie\|tv\|anime&filters={json}&page=N: one page of what a recipe (saved or not) finds. |
+| DELETE | `/api/home/recipes/{id}` | any account | DELETE /api/home/recipes/{id}: its maker, or an administrator. |
+| PUT | `/api/home/recipes/{id}` | any account | PUT /api/home/recipes/{id}: only its maker changes it. |
+| POST | `/api/home/recipes/{id}/copy` | any account | POST /api/home/recipes/{id}/copy: a copy of someone's shared recipe, yours to change. |
+| GET | `/api/home/roulette` | any account | GET /api/home/roulette?kind=movie\|tv&source=here\|anywhere&who=a,b&mood=&minutes=&age= |
+| GET | `/api/home/schedules` | admin | GET/PUT /api/home/schedules: the schedules and the shared tasks' rules. |
+| PUT | `/api/home/schedules` | admin | GET/PUT /api/home/schedules: the schedules and the shared tasks' rules. |
+| GET | `/api/home/scores` | any account | GET /api/home/scores?kind=movie\|tv&ids=1,2,3 (up to 200): scores by TMDB id. |
+| GET | `/api/home/search/keywords` | any account | GET /api/home/search/keywords?q= |
+| GET | `/api/home/search/people` | any account | GET /api/home/search/people?q= |
+| GET | `/api/home/season-folder` | admin | GET/PUT /api/home/season-folder {"style":"plain"\|"padded"} |
+| PUT | `/api/home/season-folder` | admin | GET/PUT /api/home/season-folder {"style":"plain"\|"padded"} |
+| GET | `/api/home/taste` | any account | GET /api/home/taste?kind=: your taste in short: whether there's enough to go on, what it's built from, and what you lean towards and away from. |
+| POST | `/api/home/taste/scores` | any account | POST /api/home/taste/scores {kind, ids}: your match for each title, for the Library's "For you", and which of them you've seen (a title you've watched is par... |
+| GET | `/api/home/taste/title` | any account | GET /api/home/taste/title?kind=&id=: your match for one title, and why. |
+| GET | `/api/home/taste/why` | any account | GET /api/home/taste/why?kind=: the "For you" list's match and reason, by TMDB id. |
+| GET | `/api/home/torrent-debug` | admin |  |
+| GET | `/api/home/votes` | any account | GET /api/home/votes?kind=: your votes, newest first. |
+| PUT | `/api/home/votes` | any account | PUT /api/home/votes {"kind","ref","vote":1\|-1\|0,"title","year","image"}: vote, or take a vote back with 0. |
+| GET | `/api/home/votes/deck` | any account | GET /api/home/votes/deck?kind=movie\|tv: about 20 titles to vote on quickly, none voted on yet: half from what the house has, half well-known titles. |
+| GET | `/api/home/vpn-udp-test` | admin | GET /api/home/vpn-udp-test: sends a UDP tracker "connect" request to tracker.opentrackr.org through the VPN tunnel and reports whether the tracker answered (... |
+| GET | `/api/home/watch/{kind}/{id}` | any account | GET /api/home/watch/{kind}/{id}: where a title streams, marking yours. |
+| GET | `/api/home/wrapped` | any account | GET /api/home/wrapped?year=: your year in watching (this year, or the latest with anything in it). |
+| GET | `/api/home/you` | any account | GET /api/home/you: your taste, what you've voted on, and how much of the rest you've set up. |
+| GET | `/api/home/you/household` | any account | GET /api/home/you/household: the people sharing their taste, with what you have in common. |
+| PUT | `/api/home/you/share` | any account | PUT /api/home/you/share {"share": true\|false}: share your taste with the household, or stop. |
+| GET | `/api/home/you/votes` | any account | GET /api/home/you/votes: everything you've voted on, newest first, each with where it opens. |
 
 ## import-lists
 
@@ -511,6 +655,16 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/onboarding/admin` | **public** | is onboarding wizard step 1. |
 | GET | `/api/onboarding/status` | **public** | tells the frontend whether to show the first-run wizard or the normal app shell. |
 
+## play
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/play/episode/{id}` | signed in | GET /api/play/episode/{id} |
+| DELETE | `/api/play/hls/{token}` | signed in | DELETE /api/play/hls/{token}: stops the conversion. |
+| GET | `/api/play/hls/{token}/{rest...}` | signed in | GET /api/play/hls/{token}/{rest...}: relays Jellyfin's HLS playlists and segments for this stream only. |
+| GET | `/api/play/movie/{id}` | signed in | GET /api/play/movie/{id} |
+| POST | `/api/play/prepare` | signed in | POST /api/play/prepare {"kind":"movie","id":1,"caps":{...}} answers how to play: {"mode":"direct","url":...} or {"mode":"hls","url":...,"session":...}. |
+
 ## plex-watchlist
 
 | Method | Path | Access | What it does |
@@ -587,6 +741,25 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/requests/{id}/approve` | admin | POST /api/requests/{id}/approve: add the title as the person asked. |
 | POST | `/api/requests/{id}/decline` | admin | POST /api/requests/{id}/decline {"note": "..."} |
 
+## scenes
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| POST | `/api/scenes/bulk` | admin |  |
+| POST | `/api/scenes/check` | admin |  |
+| POST | `/api/scenes/fill-details` | admin |  |
+| POST | `/api/scenes/import/whisparr` | admin |  |
+| GET | `/api/scenes/schedule` | admin |  |
+| PUT | `/api/scenes/schedule` | admin |  |
+| POST | `/api/scenes/search-now` | admin |  |
+| GET | `/api/scenes/search-status` | admin |  |
+| GET | `/api/scenes/settings` | admin | GET /api/scenes/settings |
+| PUT | `/api/scenes/settings` | admin | PUT /api/scenes/settings {"enabled":true,"path":"/data/scenes","endpoint":"...","key":"..."}. |
+| DELETE | `/api/scenes/{id}` | admin |  |
+| POST | `/api/scenes/{id}/grab` | admin |  |
+| GET | `/api/scenes/{id}/releases` | admin |  |
+| POST | `/api/scenes/{id}/search` | admin |  |
+
 ## scripts
 
 | Method | Path | Access | What it does |
@@ -660,6 +833,44 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/stats/history` | any account |  |
 | GET | `/api/stats/indexers` | admin | gives each indexer's searches, failures, releases found and grabs over the last 30 days. |
 | GET | `/api/stats/library` | any account |  |
+
+## stream
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/stream/options` | signed in | GET /api/stream/options?kind=movie\|series&tmdbId=&season=&episode=&quality= lists StreamNZB's streams for a title, best first. |
+| POST | `/api/stream/start` | signed in | POST /api/stream/start {option} or {downloadUrl, releaseTitle} |
+| GET | `/api/stream/status` | signed in | GET /api/stream/status: whether streaming is set up, and the qualities that can be asked for. |
+| POST | `/api/stream/tv` | signed in | POST /api/stream/tv {kind, tmdbId, season, episode}: open the title in Stremio on the TV. |
+| GET | `/api/stream/{id}/browser` | signed in | GET /api/stream/{id}/browser?at=<seconds>: a stream session's video converted for the browser, from at seconds in. |
+| GET | `/api/stream/{id}/link` | signed in | GET /api/stream/{id}/link: the play link for a device at home (the TV, or a player app on the home network). |
+| POST | `/api/stream/{id}/stop` | signed in | POST /api/stream/{id}/stop ends a stream (the player closed). |
+| POST | `/api/stream/{id}/tv` | signed in | POST /api/stream/{id}/tv: play a started stream on the TV, in VLC. |
+| GET | `/api/stream/{id}/video` | signed in | GET /api/stream/{id}/video relays the video, passing range requests on so the player can seek. |
+
+## streamed
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/streamed` | signed in |  |
+| POST | `/api/streamed/add` | admin | POST /api/streamed/add {kind, tmdbId} |
+| GET | `/api/streamed/by-tmdb` | signed in | GET /api/streamed/by-tmdb?kind=movie\|series&tmdbId=: the streamed title's id, or 0 when it isn't in the streamed library. |
+| POST | `/api/streamed/files/{id}/ready` | signed in | POST /api/streamed/files/{id}/ready: get a file ready to play (the page asks when a title is opened, as Stremio does), so Play starts at once. |
+| POST | `/api/streamed/files/{id}/watch` | signed in | POST /api/streamed/files/{id}/watch: play a streamed file in Mediarium's player (a Stream now session of the viewer's). |
+| GET | `/api/streamed/import` | admin | GET /api/streamed/import: how the import is going. |
+| POST | `/api/streamed/import` | admin | POST /api/streamed/import: import the waiting bundle, in the background. |
+| POST | `/api/streamed/jellyfin` | admin | POST /api/streamed/jellyfin: add the streamed folders to Jellyfin as libraries (once), and have it scan them. |
+| GET | `/api/streamed/lookup` | signed in | GET /api/streamed/lookup?kind=movie\|series&tmdbId=&season=&episode=: the saved release for a movie or episode, when it's in the streamed library (so Stream n... |
+| POST | `/api/streamed/merge` | admin | POST /api/streamed/merge: one library in Jellyfin, and pointers only for what isn't on disk. |
+| DELETE | `/api/streamed/titles/{id}` | admin | DELETE /api/streamed/titles/{id}: take a title out of the streamed library. |
+| GET | `/api/streamed/{id}` | signed in |  |
+
+## strm
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/strm/{key}/{file}` | **public** | GET /api/strm/{key}/{file}: a pointer file being played (by Jellyfin, or a player it hands the address to). |
+| HEAD | `/api/strm/{key}/{file}` | **public** | GET /api/strm/{key}/{file}: a pointer file being played (by Jellyfin, or a player it hands the address to). |
 
 ## subtitles
 
@@ -748,7 +959,42 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 
 | Method | Path | Access | What it does |
 |---|---|---|---|
+| GET | `/api/tv/channels` | signed in |  |
+| POST | `/api/tv/channels` | admin | POST /api/tv/channels or PUT /api/tv/channels/{id} |
+| DELETE | `/api/tv/channels/{id}` | admin |  |
+| PUT | `/api/tv/channels/{id}` | admin | POST /api/tv/channels or PUT /api/tv/channels/{id} |
+| GET | `/api/tv/channels/{id}/info` | signed in |  |
+| DELETE | `/api/tv/channels/{id}/logo` | admin | DELETE /api/tv/channels/{id}/logo |
+| GET | `/api/tv/channels/{id}/logo` | signed in | GET /api/tv/channels/{id}/logo |
+| POST | `/api/tv/channels/{id}/logo` | admin | POST /api/tv/channels/{id}/logo (multipart "file"): upload a logo. |
+| GET | `/api/tv/channels/{id}/logo-ideas` | admin | GET /api/tv/channels/{id}/logo-ideas: its shows' logos, to pick one. |
+| GET | `/api/tv/channels/{id}/now` | signed in | GET /api/tv/channels/{id}/now: what to play to tune in, and from where. |
+| POST | `/api/tv/channels/{id}/rebuild` | admin |  |
+| GET | `/api/tv/guide` | signed in |  |
+| POST | `/api/tv/jellyfin` | admin | POST /api/tv/jellyfin: add Mediarium TV to Jellyfin's Live TV (a tuner and a guide), once, and refresh Jellyfin's guide. |
 | GET | `/api/tv/search` | any account | searches for shows by title, to find something to add. |
+| GET | `/api/tv/tuner` | admin | GET /api/tv/tuner: the feed addresses (admin), for setting up an IPTV app by hand. |
+
+## tvfeed
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/tvfeed/{key}/channels.m3u` | **public** | GET /api/tvfeed/{key}/channels.m3u |
+| GET | `/api/tvfeed/{key}/stream/{file}` | **public** | GET /api/tvfeed/{key}/stream/{n}.ts |
+| GET | `/api/tvfeed/{key}/xmltv.xml` | **public** | GET /api/tvfeed/{key}/xmltv.xml: three days of guide. |
+
+## tvlive
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/tvlive/{key}/{n}/index.m3u8` | **public** |  |
+| GET | `/api/tvlive/{key}/{n}/x/{id}/{name}` | **public** |  |
+
+## tvlogo
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/tvlogo/{key}/{id}` | **public** | GET /api/tvlogo/{key}/{id} |
 
 ## usage
 
@@ -821,4 +1067,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-481 routes.
+677 routes.
