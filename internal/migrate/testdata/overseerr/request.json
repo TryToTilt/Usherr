@@ -16,13 +16,13 @@
     {
       "id": 3, "status": 2, "type": "movie",
       "media": {"id": 11, "tmdbId": 949, "tvdbId": null, "status": 3, "mediaType": "movie"},
-      "requestedBy": {"id": 4, "displayName": "Carl", "username": "carl"},
+      "requestedBy": {"id": 4, "displayName": "Cleo", "username": "cleo"},
       "seasons": []
     },
     {
       "id": 4, "status": 2, "type": "movie",
       "media": {"id": 12, "tmdbId": 550, "tvdbId": null, "status": 5, "mediaType": "movie"},
-      "requestedBy": {"id": 4, "displayName": "Carl", "username": "carl"},
+      "requestedBy": {"id": 4, "displayName": "Cleo", "username": "cleo"},
       "seasons": []
     },
     {

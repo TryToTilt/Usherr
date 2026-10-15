@@ -191,7 +191,7 @@ func TestOverseerrPreviewAndImport(t *testing.T) {
 			t.Fatalf("only the requested season is monitored: %+v", e)
 		}
 	}
-	if !reflect.DeepEqual(*msgs, []string{"Requested by Ann and Bob in Overseerr", "Requested by Carl in Overseerr", "Requested by dana in Overseerr"}) {
+	if !reflect.DeepEqual(*msgs, []string{"Requested by Ann and Bob in Overseerr", "Requested by Cleo in Overseerr", "Requested by dana in Overseerr"}) {
 		t.Fatalf("events: %v", *msgs)
 	}
 
