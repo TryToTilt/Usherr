@@ -1,4 +1,5 @@
 import { loadLanguage } from './i18n'
+import { applyPalette } from './palette' // Usherr
 
 // Dark unless light was picked (ThemeToggle.tsx), set before anything paints.
 let theme = 'dark'
@@ -8,6 +9,13 @@ try {
   // blocked storage: dark
 }
 document.documentElement.dataset.theme = theme
+// Usherr: the chosen colours (PaletteChoice.tsx), also before anything paints.
+try {
+  const palette = localStorage.getItem('usherr-palette')
+  if (palette && palette !== 'wine' && /^[a-z]+$/.test(palette)) applyPalette(palette)
+} catch {
+  // blocked storage: wine
+}
 
 // The app puts a page where it belongs when going back or forward (App shell); the browser's own guess would fight it.
 try {

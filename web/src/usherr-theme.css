@@ -172,6 +172,6 @@ img.usherr-glyph { border-radius: 22%; object-fit: cover; }
     radial-gradient(50% 70% at 0% 100%, color-mix(in srgb, var(--u-gold) 8%, transparent), transparent 70%),
     linear-gradient(160deg, color-mix(in srgb, var(--panel-top) 85%, var(--u-wine)), var(--panel-bottom) 70%);
 }
-/* The drifting shapes behind pages fade by --amb; the icon is an image, so
-   it needs the same fade (and blur when far) or it sits on top at full strength. */
-.ambient-item .usherr-glyph { opacity: var(--amb); }
+
+.palette-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -1px; border: 1px solid var(--u-gold); }
+.palette-swatch-wine { background: #821a3b; }

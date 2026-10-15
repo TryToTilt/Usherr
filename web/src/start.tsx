@@ -6,6 +6,7 @@ import './setup.css'
 import './projection.css'
 import './mobile.css'
 import './usherr-theme.css' // Usherr: the cinema palette, last
+import './usherr-palettes.css' // Usherr: the other colour choices, after it
 import { demoEnabled, installDemo } from './demo'
 import App from './App.tsx'
 import { ToastProvider } from './components/Toast'

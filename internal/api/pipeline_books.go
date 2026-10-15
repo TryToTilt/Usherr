@@ -108,10 +108,7 @@ func (s *Server) runBookPipeline(queueID int64, b books.Book, f books.Format, re
 			return err
 		}
 		if dup := asDuplicate(stepErr); dup != nil {
-			s.settleDuplicate(queueID, dup)
-			if !dup.holdsTitle() {
-				_ = s.BookRepo.SetState(b.ID, f, restore, "", "")
-			}
+			s.settleDuplicate(queueID, dup, func() { _ = s.BookRepo.SetState(b.ID, f, restore, "", "") })
 			return stepErr
 		}
 		plain := plainerror.Message(stepErr)

@@ -23,7 +23,7 @@ const ITEMS: Item[] = [
 export default function AmbientBackdrop({ level = 'quiet' }: { level?: 'quiet' | 'full' }) {
   return (
     <div className={`ambient ambient-${level}`} aria-hidden="true">
-      {ITEMS.map((it, i) => (
+      {ITEMS.filter((it) => it.k !== 'logo').map((it, i) => ( // Usherr: no logo among the drifting shapes
         <span
           key={i}
           className={`ambient-item${it.far ? ' far' : ''}${it.extra ? ' extra' : ''}`}

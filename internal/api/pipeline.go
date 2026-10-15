@@ -66,10 +66,7 @@ func (s *Server) runPipeline(queueID, movieID int64, movieTitle string, movieYea
 			return err // paused or stopped by a person: not a failure
 		}
 		if dup := asDuplicate(stepErr); dup != nil {
-			s.settleDuplicate(queueID, dup)
-			if !dup.holdsTitle() {
-				_ = s.MovieRepo.SetStatus(movieID, restoreStatus, "", "")
-			}
+			s.settleDuplicate(queueID, dup, func() { _ = s.MovieRepo.SetStatus(movieID, restoreStatus, "", "") })
 			return stepErr
 		}
 		// The person reads this message; the raw error goes to the log only

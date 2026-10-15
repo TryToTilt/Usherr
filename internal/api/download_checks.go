@@ -255,21 +255,26 @@ func (s *Server) titleStillHas(it queue.Item) bool {
 // problem to report, it does not blocklist anything and it does not start
 // another search: the release is fine, and the title already has it or is
 // getting it.
-func (s *Server) settleDuplicate(queueID int64, dup *duplicateReleaseError) {
+//
+// Usherr: restore (the title's status put back) runs before the item is marked
+// failed, and the note is written first too, so whatever sees the item fail
+// already finds the title and the activity feed as they end up.
+func (s *Server) settleDuplicate(queueID int64, dup *duplicateReleaseError, restore func()) {
 	plain := fmt.Sprintf("Skipped: %s.", dup.Error())
+	if item, err := s.QueueRepo.Get(queueID); err == nil {
+		message := fmt.Sprintf("Skipped %q: %s.", item.ReleaseTitle, dup.Error())
+		switch {
+		case item.AlbumID > 0:
+			_ = s.QueueRepo.LogItemEvent(queue.ItemEvent{AlbumID: item.AlbumID, Kind: "skipped", Level: queue.LevelInfo, Message: message})
+		default:
+			_ = s.QueueRepo.LogItemEvent(queue.ItemEvent{MovieID: item.MovieID, SeriesID: item.SeriesID, Kind: "skipped", Level: queue.LevelInfo, Message: message})
+		}
+	}
+	if restore != nil && !dup.holdsTitle() {
+		restore()
+	}
 	if err := s.QueueRepo.SetStatus(queueID, queue.StatusFailed, plain); err != nil {
 		slog.Warn("api: settle a skipped duplicate", "queueId", queueID, "err", err)
-	}
-	item, err := s.QueueRepo.Get(queueID)
-	if err != nil {
-		return
-	}
-	message := fmt.Sprintf("Skipped %q: %s.", item.ReleaseTitle, dup.Error())
-	switch {
-	case item.AlbumID > 0:
-		_ = s.QueueRepo.LogItemEvent(queue.ItemEvent{AlbumID: item.AlbumID, Kind: "skipped", Level: queue.LevelInfo, Message: message})
-	default:
-		_ = s.QueueRepo.LogItemEvent(queue.ItemEvent{MovieID: item.MovieID, SeriesID: item.SeriesID, Kind: "skipped", Level: queue.LevelInfo, Message: message})
 	}
 }
 

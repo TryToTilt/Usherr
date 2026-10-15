@@ -162,7 +162,7 @@ test('Escape closes a tip inside a window without closing the window', async ({ 
   await page.addInitScript(() => localStorage.setItem('mediarium-demo', '1'))
   await page.goto('/discover')
   await page.getByRole('button', { name: /^Add$/ }).first().click()
-  const dialog = page.getByRole('dialog')
+  const dialog = page.locator('.modal[role="dialog"]')
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: 'More information' }).first().hover()
   await expect(page.getByRole('tooltip')).toBeVisible()

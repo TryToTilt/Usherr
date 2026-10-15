@@ -172,10 +172,7 @@ func (s *Server) runTVPipeline(queueID int64, series library.Series, season int,
 			return err // paused or stopped by a person: not a failure
 		}
 		if dup := asDuplicate(stepErr); dup != nil {
-			s.settleDuplicate(queueID, dup)
-			if !dup.holdsTitle() {
-				releaseTargets()
-			}
+			s.settleDuplicate(queueID, dup, releaseTargets)
 			return stepErr
 		}
 		// The person reads this message; the raw error goes to the log only

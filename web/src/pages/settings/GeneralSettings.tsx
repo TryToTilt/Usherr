@@ -5,6 +5,7 @@ import { useAuth } from '../../AuthContext'
 import Icon from '../../components/Icon'
 import { UsageStatsCard } from '../../components/UsageStats'
 import PublicAddress from '../../components/PublicAddress'
+import PaletteChoice from '../../components/PaletteChoice' // Usherr
 import ThemeToggle from '../../components/ThemeToggle'
 import { PushCard } from '../../components/UpdateCards'
 import { LANGUAGES, chooseLanguage, currentLanguage, locale, t, type Lang } from '../../i18n'
@@ -43,6 +44,7 @@ function LookCard() {
         <ThemeToggle />
         <span style={{ color: 'var(--text-dim)' }}>{t('Switches Mediarium between its dark and light look. It is kept in this browser.')}</span>
       </div>
+      <PaletteChoice />
     </fieldset>
   )
 }

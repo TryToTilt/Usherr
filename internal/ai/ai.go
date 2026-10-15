@@ -17,6 +17,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/rdborg/mediarium/internal/brand"
 )
 
 // Providers.
@@ -61,6 +63,8 @@ var client = &http.Client{Timeout: 3 * time.Minute}
 
 // Ask sends the question and returns the model's answer.
 func Ask(ctx context.Context, cfg Config, req Request) (string, error) {
+	// Usherr: the model is told the app's own name, so its answers use it.
+	req.System, req.Prompt = brand.Text(req.System), brand.Text(req.Prompt)
 	if req.MaxTokens <= 0 {
 		req.MaxTokens = 800
 	}

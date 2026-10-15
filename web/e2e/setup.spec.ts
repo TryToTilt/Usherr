@@ -37,6 +37,10 @@ test('first run: setup wizard to the dashboard', async ({ page }) => {
   // Usherr never sends usage numbers, so a new install doesn't ask about them.
   await expect(page.getByRole('dialog', { name: /anonymous numbers/ })).toHaveCount(0)
 
+  // Usherr: the first-visit tour has been seen, so it doesn't sit over the other tests' pages.
+  const me = await (await page.request.get('/api/auth/me')).json()
+  await page.evaluate((id) => localStorage.setItem(`mediarium.tour.done.${id}`, '1'), me.id)
+
   mkdirSync('e2e/.auth', { recursive: true })
   writeFileSync(CREDS_FILE, JSON.stringify({ username, password }))
   await page.context().storageState({ path: AUTH_FILE })
