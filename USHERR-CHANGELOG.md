@@ -3,6 +3,15 @@
 Usherr's own releases. Each one is built on a Mediarium release by rdborg,
 whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
+## [1.0.1] - 2026-10-15
+
+Built on **Mediarium 3.1.0**.
+
+- **Colours**: pick Usherr's colours under *Settings → General*: Wine, Cherry, Amber, Emerald, Teal, Blue, Violet, Rose or Graphite, in dark or light. The icon and the browser tab's icon take the colour too. Each person picks their own; it's kept in their browser.
+- Skipping a release that's already downloaded no longer leaves the title showing "downloading" for a moment.
+- The AI's answers (Ask, why a download failed) call the app Usherr.
+- The logo no longer drifts among the shapes behind pages.
+
 ## [1.0.0] - 2026-10-15
 
 The first release of Usherr, built on **Mediarium 3.1.0**.
