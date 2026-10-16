@@ -1,0 +1,30 @@
+/* Usherr: the "In theaters now" row. */
+.cinema-row { overflow: hidden; }
+.cinema-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.cinema-head h2 { margin: 0; font-size: 1.15rem; }
+.cinema-where { margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cinema-strip { list-style: none; margin: 0; padding: 2px 2px 8px; display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x proximity; overscroll-behavior-x: contain; }
+.cinema-item { flex: 0 0 132px; display: flex; flex-direction: column; gap: 4px; scroll-snap-align: start; min-width: 0; }
+.cinema-poster { position: relative; display: block; aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--border); }
+.cinema-poster img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.2s; }
+.cinema-poster:hover img, .cinema-poster:focus-visible img { transform: scale(1.04); }
+.cinema-noposter { display: grid; place-items: center; height: 100%; padding: 8px; text-align: center; font-size: 0.85rem; color: var(--text-dim); }
+.cinema-have { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--success); color: var(--bg); }
+.cinema-title { font-size: 0.85rem; line-height: 1.25; color: var(--text); text-decoration: none; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cinema-times { font-size: 0.75rem; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+.cinema-times:hover { text-decoration: underline; }
+@media (max-width: 600px) { .cinema-item { flex-basis: 110px; } }
+.cinema-panel { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 10px 0; padding: 10px 12px; border-radius: 10px; background: var(--accent-subtle); border: 1px solid var(--border); }
+.cinema-panel strong { display: inline-flex; align-items: center; gap: 6px; }
+.cinema-panel a { display: inline-flex; align-items: center; gap: 4px; }
+.cinema-row a.cinema-title, .cinema-row a.cinema-times { text-decoration: none; }
+.cinema-row a.cinema-times:hover { text-decoration: underline; }
+
+/* Usherr: the Marquee's settings card. */
+.mq-set h3 { margin: 18px 0 8px; font-size: 1rem; }
+.mq-set-scenes { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.mq-set-scenes li { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.mq-set-scenes li.off { opacity: 0.6; }
+.mq-set-scenes .cx-check { flex: 1; min-width: 0; }
+.mq-set-secs { display: inline-flex; align-items: center; gap: 4px; color: var(--text-dim); }
+.mq-set-secs input { width: 64px; }

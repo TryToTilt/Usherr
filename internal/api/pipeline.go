@@ -962,6 +962,20 @@ func unpackArchives(dir string) error {
 			return err
 		}
 	}
+	// Usherr: pieces cut by a file splitter (".cbr.000", ".mkv.001"...) are
+	// joined back, and a joined archive is unpacked in turn.
+	joined, err := organizer.JoinSplitFiles(dir)
+	if err != nil {
+		return err
+	}
+	for _, j := range joined {
+		switch strings.ToLower(filepath.Ext(j)) {
+		case ".rar", ".zip", ".7z":
+			if err := extractor.Extract(j, filepath.Dir(j)); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 

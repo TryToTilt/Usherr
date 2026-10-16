@@ -115,7 +115,7 @@ func (s *Server) handleComicTools(w http.ResponseWriter, r *http.Request) {
 	}
 	comicToolMu.Lock()
 	st := comicTool
-	st.Problems = append([]comicToolProblem(nil), comicTool.Problems...)
+	st.Problems = append([]comicToolProblem{}, comicTool.Problems...) // never null: the page counts it
 	comicToolMu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]any{"files": len(files), "cbr": cbr, "misnamed": misnamed, "last": st})
 }

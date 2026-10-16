@@ -328,6 +328,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/home/ai/test` | admin | POST /api/home/ai/test: does the model answer? |
 | POST | `/api/home/ai/tonight` | any account | POST /api/home/ai/tonight {lang, again}: three picks for tonight. |
 | POST | `/api/home/ai/vibe` | any account | POST /api/home/ai/vibe {kind, tmdbId, lang} |
+| GET | `/api/home/anime-folder` | admin | GET /api/home/anime-folder (admin). |
+| PUT | `/api/home/anime-folder` | admin | PUT /api/home/anime-folder {path} (admin): "" goes back to ANIME_DIR, or none. |
 | GET | `/api/home/anime-series` | signed in |  |
 | GET | `/api/home/autostream` | any account | GET /api/home/autostream: whether Streams for you is allowed, set up and on for you, this week's count, and what it added for you. |
 | PUT | `/api/home/autostream` | any account | PUT /api/home/autostream {"on": bool}: switch it on or off for yourself. |
@@ -336,6 +338,9 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/book-genres` | any account | handleBookGenres: GET /api/home/book-genres, the genres by book id. |
 | GET | `/api/home/book-sources` | admin | GET/PUT /api/home/book-sources {"sources":"both"} |
 | PUT | `/api/home/book-sources` | admin | GET/PUT /api/home/book-sources {"sources":"both"} |
+| GET | `/api/home/cinema` | any account | GET /api/home/cinema: the films in cinemas now, for the "In theaters now" row, with the household's cinema settings the links need. |
+| GET | `/api/home/cinema/settings` | admin | GET /api/home/cinema/settings (admin). |
+| PUT | `/api/home/cinema/settings` | admin | PUT /api/home/cinema/settings {on, region, zip, theatre, amcKey} (admin): only what's sent changes; an empty amcKey removes the key. |
 | GET | `/api/home/diary` | any account | GET /api/home/diary?year=&kind=: your Diary, newest first, and the years it covers. |
 | POST | `/api/home/diary` | any account | POST /api/home/diary {kind, tmdbId, watchedOn, stars, note, rewatch}: log something by hand. |
 | GET | `/api/home/diary/import` | any account | GET /api/home/diary/import: how the latest import is getting on. |
@@ -363,6 +368,9 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/home/gaps/scan` | admin | POST /api/home/gaps/scan: scan now. |
 | GET | `/api/home/hardcover-match` | admin | GET /api/home/hardcover-match?title=&author=: what the import would find on Hardcover for a book on disk (for checking a match by hand). |
 | GET | `/api/home/have` | any account |  |
+| GET | `/api/home/marquee` | any account | GET /api/home/marquee |
+| GET | `/api/home/marquee/settings` | admin | GET /api/home/marquee/settings (admin), with the StreamNZB profiles to choose from. |
+| PUT | `/api/home/marquee/settings` | admin | PUT /api/home/marquee/settings (admin): the whole settings value. |
 | GET | `/api/home/mdblist` | admin | GET /api/home/mdblist |
 | PUT | `/api/home/mdblist` | admin | PUT /api/home/mdblist {"key": "...", "removeKey": false} |
 | POST | `/api/home/mdblist/test` | admin | POST /api/home/mdblist/test: reads one well-known film's scores. |
@@ -1067,4 +1075,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-677 routes.
+685 routes.

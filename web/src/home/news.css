@@ -464,3 +464,6 @@ a.score-chip:hover { border-color: var(--accent, #2dd4bf); }
 .autostream-list li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); }
 .autostream-list li.removed { opacity: 0.55; }
 .you-page .autostream-title, .you-page .autostream-title:hover { color: inherit; font-weight: 600; text-decoration: none; }
+/* Usherr: the heading opens and closes the full list. */
+.news-toggle { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font: inherit; color: inherit; }
+.news-toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; border-radius: 4px; }

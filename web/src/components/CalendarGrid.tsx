@@ -33,16 +33,29 @@ function entryLink(e: CalendarEntry): string | undefined {
 
 // A book entry is an audiobook when that's the only format wanted; the
 // server ends the subtitle with the formats ("Audiobook", "Ebook and audiobook").
-function glyphOf(kind: CalendarEntry['kind'], subtitle?: string): GlyphKind {
-  if (kind === 'episode') return 'tv'
-  if (kind === 'album') return 'music'
-  if (kind === 'book') return subtitle && /(^|· )Audiobook$/.test(subtitle) ? 'audiobook' : 'book'
-  return 'movie'
+// Usherr: every kind has its own type, comics and anime included (an unknown
+// kind used to fall through to "Movie"). Anime is drawn as TV, labelled anime.
+type TypeKey = GlyphKind | 'anime'
+function glyphOf(kind: CalendarEntry['kind'], subtitle?: string, anime?: boolean): TypeKey {
+  switch (kind) {
+    case 'episode':
+      return anime ? 'anime' : 'tv'
+    case 'album':
+      return 'music'
+    case 'book':
+      return subtitle && /(^|· )Audiobook$/.test(subtitle) ? 'audiobook' : 'book'
+    case 'comic':
+      return 'comic'
+    default:
+      return 'movie'
+  }
 }
+// The drawing for a type.
+const drawn = (g: TypeKey): GlyphKind => (g === 'anime' ? 'tv' : g)
 
-const KIND_LABEL: Record<GlyphKind, string> = { movie: t('Movie'), tv: t('TV episode'), music: t('Album'), book: t('Book'), audiobook: t('Audiobook') }
-const LEGEND_LABEL: Record<GlyphKind, string> = { movie: t('Movies'), tv: t('TV'), music: t('Music'), book: t('Books'), audiobook: t('Audiobooks') }
-const STATUS_LABEL: Record<CalendarEntry['status'], string> = { downloaded: t('Have it'), downloading: t('Downloading'), missing: t('Waiting') }
+const KIND_LABEL: Record<TypeKey, string> = { movie: t('Movie'), tv: t('TV episode'), anime: t('Anime episode'), music: t('Album'), book: t('Book'), audiobook: t('Audiobook'), comic: t('Comic issue') }
+const LEGEND_LABEL: Record<TypeKey, string> = { movie: t('Movies'), tv: t('TV'), anime: t('Anime'), music: t('Music'), book: t('Books'), audiobook: t('Audiobooks'), comic: t('Comics') }
+const STATUS_LABEL: Record<CalendarEntry['status'], string> = { downloaded: t('Have it'), downloading: t('Downloading'), missing: t('Waiting'), theaters: t('In theaters') }
 
 // "S03E09 · Second Service" splits into the code and the episode's name.
 function splitSubtitle(e: CalendarEntry): { code?: string; rest?: string } {
@@ -54,11 +67,11 @@ function splitSubtitle(e: CalendarEntry): { code?: string; rest?: string } {
 
 // The kind's glyph on a small tile of its colour (the dashboard's list uses
 // it too).
-export function KindBadge({ kind, subtitle }: { kind: CalendarEntry['kind']; subtitle?: string }) {
-  const g = glyphOf(kind, subtitle)
+export function KindBadge({ kind, subtitle, anime }: { kind: CalendarEntry['kind']; subtitle?: string; anime?: boolean }) {
+  const g = glyphOf(kind, subtitle, anime)
   return (
     <span className={`prog-badge k-${g}`} role="img" aria-label={KIND_LABEL[g]} title={KIND_LABEL[g]}>
-      <KindGlyph kind={g} size={16} />
+      <KindGlyph kind={drawn(g)} size={16} />
     </span>
   )
 }
@@ -66,15 +79,15 @@ export function KindBadge({ kind, subtitle }: { kind: CalendarEntry['kind']; sub
 // A small poster in the frame of its kind: a ticket with notches, a CRT
 // screen, a sleeve with its record, a book with a spine, a cover wearing
 // headphones. Without a picture the frame holds the kind's glyph.
-function Thumb({ e, g }: { e: CalendarEntry; g: GlyphKind }) {
+function Thumb({ e, g }: { e: CalendarEntry; g: TypeKey }) {
   const [brokenSrc, setBrokenSrc] = useState<string | undefined>()
   return (
-    <span className={`prog-thumb f-${g}`} aria-hidden="true">
+    <span className={`prog-thumb f-${drawn(g)}`} aria-hidden="true">
       {e.posterUrl && brokenSrc !== e.posterUrl ? (
         <img src={e.posterUrl} alt="" loading="lazy" decoding="async" onError={() => setBrokenSrc(e.posterUrl)} />
       ) : (
         <span className="prog-thumb-blank">
-          <KindGlyph kind={g} size={18} />
+          <KindGlyph kind={drawn(g)} size={18} />
         </span>
       )}
     </span>
@@ -82,7 +95,7 @@ function Thumb({ e, g }: { e: CalendarEntry; g: GlyphKind }) {
 }
 
 function Entry({ e, past, card }: { e: CalendarEntry; past: boolean; card?: boolean }) {
-  const g = glyphOf(e.kind, e.subtitle)
+  const g = glyphOf(e.kind, e.subtitle, e.anime)
   const { code, rest } = splitSubtitle(e)
   const late = past && e.status === 'missing'
   const cls = `${card ? 'prog-card' : 'prog-slot'} k-${g} s-${e.status}${late ? ' late' : ''}`
@@ -100,7 +113,7 @@ function Entry({ e, past, card }: { e: CalendarEntry; past: boolean; card?: bool
         )}
         <span className="prog-card-foot">
           <span className="prog-kind">
-            <KindGlyph kind={g} size={14} />
+            <KindGlyph kind={drawn(g)} size={14} />
             {KIND_LABEL[g]}
           </span>
           <span className="prog-state">{STATUS_LABEL[e.status] ?? e.status}</span>
@@ -113,7 +126,7 @@ function Entry({ e, past, card }: { e: CalendarEntry; past: boolean; card?: bool
       <span className="prog-slot-text">
         <span className="prog-slot-title">{e.title}</span>
         <span className="prog-slot-meta">
-          <KindGlyph kind={g} size={12} />
+          <KindGlyph kind={drawn(g)} size={12} />
           {code ?? KIND_LABEL[g]}
         </span>
       </span>
@@ -138,7 +151,7 @@ function Entry({ e, past, card }: { e: CalendarEntry; past: boolean; card?: bool
 // In the Backdrops view (wide) it is a wide still with the title's logo on it
 // instead, once both have been fetched; before that it falls back to the poster.
 function PosterTile({ e, past, wide }: { e: CalendarEntry; past: boolean; wide?: boolean }) {
-  const g = glyphOf(e.kind, e.subtitle)
+  const g = glyphOf(e.kind, e.subtitle, e.anime)
   const { code, rest } = splitSubtitle(e)
   const [brokenSrc, setBrokenSrc] = useState<string | undefined>()
   const [brokenLogo, setBrokenLogo] = useState(false)
@@ -153,14 +166,14 @@ function PosterTile({ e, past, wide }: { e: CalendarEntry; past: boolean; wide?:
         <img src={src} alt="" loading="lazy" decoding="async" onError={() => setBrokenSrc(src)} />
       ) : (
         <span className="pt-blank" aria-hidden="true">
-          <KindGlyph kind={g} size={34} />
+          <KindGlyph kind={drawn(g)} size={34} />
         </span>
       )}
       {logo && <img className="pt-logo" src={logo} alt="" loading="lazy" decoding="async" onError={() => setBrokenLogo(true)} />}
       <span className={`pt-bubble${logo ? ' has-logo' : ''}`}>
         <span className={logo ? 'sr-only' : 'pt-title'}>{e.title}</span>
         <span className="pt-meta">
-          <KindGlyph kind={g} size={12} />
+          <KindGlyph kind={drawn(g)} size={12} />
           {code ?? rest ?? KIND_LABEL[g]}
           <span className="pt-state">{STATUS_LABEL[e.status] ?? e.status}</span>
         </span>
@@ -280,8 +293,8 @@ export default function CalendarGrid({ entries, compact }: { entries: CalendarEn
 
   // The legend shows the kinds that are switched on, plus any kind that has
   // an entry this month.
-  const present = new Set(entries.map((e) => glyphOf(e.kind, e.subtitle)))
-  const legendKinds = (['movie', 'tv', 'music', 'book', 'audiobook'] as const).filter(
+  const present = new Set(entries.map((e) => glyphOf(e.kind, e.subtitle, e.anime)))
+  const legendKinds = (['movie', 'tv', 'anime', 'music', 'book', 'audiobook', 'comic'] as const).filter(
     (k) => present.has(k) || (k === 'movie' && on('movies')) || (k === 'tv' && on('tv')) || (k === 'music' && on('music')) || (k === 'book' && on('ebooks')) || (k === 'audiobook' && on('audiobooks')),
   )
 
@@ -435,7 +448,7 @@ export default function CalendarGrid({ entries, compact }: { entries: CalendarEn
         <ul className="prog-legend-kinds">
           {legendKinds.map((k) => (
             <li key={k} className={`k-${k}`}>
-              <KindGlyph kind={k} size={18} />
+              <KindGlyph kind={drawn(k)} size={18} />
               {LEGEND_LABEL[k]}
             </li>
           ))}

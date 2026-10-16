@@ -175,3 +175,6 @@ img.usherr-glyph { border-radius: 22%; object-fit: cover; }
 
 .palette-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -1px; border: 1px solid var(--u-gold); }
 .palette-swatch-wine { background: #821a3b; }
+/* Usherr: cinema openings on the calendar, edged in the marquee's gold. */
+.prog-slot.s-theaters, .prog-card.s-theaters { border-style: dotted; border-color: color-mix(in srgb, var(--u-gold) 75%, transparent); }
+.pt.s-theaters { outline: 1px dotted color-mix(in srgb, var(--u-gold) 70%, transparent); outline-offset: -1px; }

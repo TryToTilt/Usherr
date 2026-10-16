@@ -36,6 +36,14 @@ type Release struct {
 	Categories []int
 }
 
+// Usherr: a release in another language, by the tag in its name ("ger",
+// "German", "Deutsch"...). ComicVine's series are the original editions.
+var otherLanguage = regexp.MustCompile(`(?i)(?:^|[\s._\-\[\(])(ger|german|deutsch|fre|french|fra|ita|italian|italiano|spa|esp|spanish|espanol|español|dut|dutch|ned|nl|por|portuguese|pt-?br)(?:$|[\s._\-\]\)])`)
+
+var languageName = map[string]string{"ger": "German", "german": "German", "deutsch": "German", "fre": "French", "french": "French", "fra": "French",
+	"ita": "Italian", "italian": "Italian", "italiano": "Italian", "spa": "Spanish", "esp": "Spanish", "spanish": "Spanish", "espanol": "Spanish", "español": "Spanish",
+	"dut": "Dutch", "dutch": "Dutch", "ned": "Dutch", "nl": "Dutch", "por": "Portuguese", "portuguese": "Portuguese", "pt-br": "Portuguese", "ptbr": "Portuguese"}
+
 var (
 	notComic          = regexp.MustCompile(`(?i)\b(s\d{1,2}e\d{1,3}|480p|720p|1080p|2160p|x26[45]|hevc|web-?dl|bluray|mp3|flac|m4b|audiobook|epub|mobi|azw3)\b`)
 	digital           = regexp.MustCompile(`(?i)\bdigital\b`)
@@ -72,6 +80,9 @@ func Evaluate(r Release, s Series, i Issue) Verdict {
 	}
 	if IsReprint(r.Title) {
 		return reject("A reprint or facsimile edition")
+	}
+	if m := otherLanguage.FindStringSubmatch(r.Title); m != nil && !otherLanguage.MatchString(s.Name) {
+		return reject("In another language (%s)", languageName[strings.ToLower(m[1])])
 	}
 	want := NormalNumber(i.Number)
 	if alt := AltNumber(i); alt != "" {

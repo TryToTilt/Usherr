@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import InTheaters from '../home/InTheaters' // Usherr
 import { CardVotes } from '../home/VoteButtons' // home fork
 import { useTasteScores } from '../home/useTaste' // home fork
 import { useVotes } from '../home/useVotes' // home fork
@@ -986,6 +987,7 @@ export default function Library() {
         </div>
       )}
 
+      {kind === 'movie' && !filtersActive && <InTheaters />} {/* Usherr: films in cinemas */}
       {error && <p className="error-text">{error}</p>}
 
       {shown === null ? (

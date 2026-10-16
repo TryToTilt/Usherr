@@ -271,6 +271,9 @@ func (s *Server) handleAddSeries(w http.ResponseWriter, r *http.Request) {
 		writeUpstreamError(w, "add that show", err)
 		return
 	}
+	if rootPath == "" && req.RootPath == "" {
+		rootPath = s.animeFolderFor(r.Context(), req.TMDBID) // Usherr: anime to the anime folder
+	}
 	if rootPath != "" {
 		if err := s.MovieRepo.SetSeriesRoot(created.ID, rootPath); err == nil {
 			created.RootPath = rootPath

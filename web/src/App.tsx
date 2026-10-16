@@ -19,6 +19,7 @@ import { SETTINGS_REDIRECTS } from './settingsNav'
 // Mediarium Books (reader and player), an app of its own, loaded when opened.
 import MusicPopout from './components/MusicPopout'
 const BookshelfApp = lazy(() => import('./bookshelf/BookshelfApp'))
+const Marquee = lazy(() => import('./home/Marquee')) // Usherr: the lobby display
 
 // The main pages are fetched as they are opened, not with the first load, so the
 // page that opens first is ready sooner (the rest is a big part of the program).
@@ -176,6 +177,14 @@ function Gate() {
         }
       />
       <Route path="/music-player" element={<MusicPopout />} />
+      <Route
+        path="/marquee"
+        element={
+          <Suspense fallback={<Splash label={t('Loading')} />}>
+            <Marquee />
+          </Suspense>
+        }
+      />
       <Route element={<AppShell />}>
         <Route index element={<Dashboard />} />
         <Route path="/search" element={<Search />} />

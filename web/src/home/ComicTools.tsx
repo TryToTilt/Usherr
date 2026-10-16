@@ -32,7 +32,7 @@ export default function ComicTools() {
       .catch((e: Error) => setError(e.message))
   }
   if (!tools) return error ? <p className="error-text">{error}</p> : null
-  const last = tools.last
+  const last = { ...tools.last, problems: tools.last.problems ?? [] } // an older server could send none
   const busy = last.running
   const problems = plural(last.problems.length, '{n} problem', '{n} problems')
   const when = last.finished ? new Date(last.finished).toLocaleString(locale()) : ''

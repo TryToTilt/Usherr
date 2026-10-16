@@ -3,6 +3,7 @@ import VoteButtons from '../home/VoteButtons' // home fork
 import { WhatsItLike } from '../home/AIGuides' // home fork
 import { StreamingOn } from '../home/Recipes' // home fork
 import { ScoresLine } from '../home/scores' // home fork
+import { InTheatersPanel } from '../home/InTheaters' // Usherr
 import { useNavigate, useParams } from 'react-router-dom'
 import AddDialog from '../components/AddDialog'
 import Icon from '../components/Icon'
@@ -369,6 +370,7 @@ function MoviePage() {
         {inLibrary && movie.libraryId && <WatchedLine kind="movie" id={movie.libraryId} />}
         <ScoresLine kind="movie" tmdbId={movie.tmdbId} /> {/* home fork */}
         <StreamingOn kind="movie" tmdbId={movie.tmdbId} /> {/* home fork */}
+        <InTheatersPanel tmdbId={movie.tmdbId} title={movie.title} year={movie.year} /> {/* Usherr */}
       </TitleHero>
 
       {!inLibrary && <CastCard cast={movie.cast ?? []} />}

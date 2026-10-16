@@ -2067,10 +2067,11 @@ export interface CalendarEntry {
   title: string
   subtitle?: string
   releaseDate: string
-  status: 'missing' | 'downloading' | 'downloaded'
+  status: 'missing' | 'downloading' | 'downloaded' | 'theaters' // theaters: Usherr, a cinema opening
   posterUrl?: string // the poster or cover, when there is one
   formats?: ('ebook' | 'audiobook')[] // a book's wanted formats (home fork)
   comicSeriesId?: number // home fork
+  anime?: boolean // Usherr: an episode of an anime series (set by the calendar page)
   backdropUrl?: string // a wide still, once it has been fetched (the calendar's Backdrops view)
   logoUrl?: string // the title's logo, once it has been fetched
 }

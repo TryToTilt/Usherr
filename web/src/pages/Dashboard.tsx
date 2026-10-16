@@ -3,6 +3,7 @@ import OmniBar from '../home/OmniBar' // home fork
 import DashCalendar from '../home/DashCalendar' // home fork
 import Tonight from '../home/Tonight' // home fork
 import News from '../home/News' // home fork
+import InTheaters from '../home/InTheaters' // Usherr
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { api, displayName, isAdmin, type CalendarEntry, type DashboardData, type DashRecent, type HealthItem, type QueueItem } from '../api'
@@ -240,6 +241,14 @@ export default function Dashboard() {
   const { user } = useAuth()
   const { on } = useModules()
   const [data, setData] = useState<DashboardData | null>(null)
+  // Usherr: which shows are anime, so their episodes say so
+  const [anime, setAnime] = useState<ReadonlySet<number>>(new Set())
+  useEffect(() => {
+    fetch('/api/home/anime-series', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((ids: number[]) => setAnime(new Set(ids)))
+      .catch(() => undefined)
+  }, [])
   const [active, setActive] = useState<QueueItem[]>([])
   const [cal, setCal] = useState<CalendarEntry[]>([])
   const [error, setError] = useState('')
@@ -374,6 +383,7 @@ export default function Dashboard() {
 
       <TwoStepTip />
       <Tonight /> {/* home fork: what to watch tonight */}
+      <InTheaters /> {/* Usherr: films in cinemas */}
       <News /> {/* home fork: entertainment news */}
 
       {admin && !startedClosed && startedGaps.length > 0 && (
@@ -488,11 +498,16 @@ export default function Dashboard() {
                       <img src={e.posterUrl} alt="" loading="lazy" decoding="async" />
                     </div>
                   ) : (
-                    <KindBadge kind={e.kind} subtitle={e.subtitle} />
+                    <KindBadge kind={e.kind} subtitle={e.subtitle} anime={e.kind === 'episode' && anime.has(e.seriesId ?? 0)} />
                   )}
                   <div className="mini-main">
                     <strong>{e.title}</strong>
-                    {e.subtitle && <small className="qwhen">{e.subtitle.split(' · ')[0]}</small>}
+                    {e.subtitle && (
+                      <small className="qwhen">
+                        {e.kind === 'episode' && anime.has(e.seriesId ?? 0) ? `${t('Anime')} · ` : ''}
+                        {e.subtitle.split(' · ')[0]}
+                      </small>
+                    )}
                   </div>
                   <span className={`badge ${e.status}`}>{e.status === 'missing' ? t('Waiting') : e.status === 'downloaded' ? t('Have it') : e.status === 'downloading' ? t('Downloading') : e.status}</span>
                   </Link>

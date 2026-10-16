@@ -380,3 +380,6 @@ a.prog-card:hover { text-decoration: none; border-color: color-mix(in srgb, var(
 .pt img.pt-logo, .pt.s-missing img.pt-logo { inset: auto; left: 50%; top: 42%; transform: translate(-50%, -50%); width: auto; height: auto; max-width: 78%; max-height: 38%; object-fit: contain; opacity: 1; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.7)); }
 .pt-bubble.has-logo { left: auto; right: 6px; bottom: 6px; padding: 3px 8px; }
 .pt-pop-grid .pt.wide { aspect-ratio: 16 / 9; }
+/* Usherr: anime wears TV's colour; comics their own. */
+.prog .k-anime, .prog-badge.k-anime { --kc: var(--c-tv); }
+.prog .k-comic, .prog-badge.k-comic { --kc: var(--c-comics, var(--c-book)); }

@@ -35,6 +35,7 @@ interface Story {
 
 const CAT_KEY = 'news-category'
 const PAGE = 8
+const FEW = 3 // Usherr: the Dashboard starts with a few headlines; the heading opens the rest
 
 function categoryName(c: string): string {
   switch (c) {
@@ -74,7 +75,7 @@ export default function News() {
       return ''
     }
   })
-  const [shown, setShown] = useState(PAGE)
+  const [shown, setShown] = useState(FEW)
   const [adding, setAdding] = useState<AddTarget | null>(null)
   const [openId, setOpenId] = useState<number | null>(null)
 
@@ -92,7 +93,7 @@ export default function News() {
   if (!stories || stories.length === 0) return null
   const setCat = (c: string) => {
     setCatState(c)
-    setShown(PAGE)
+    setShown((n) => (n > FEW ? PAGE : FEW))
     try {
       localStorage.setItem(CAT_KEY, c)
     } catch {
@@ -106,7 +107,11 @@ export default function News() {
     <section className="card news-card" aria-labelledby="news-title">
       <div className="news-head">
         <Icon name="globe" size={18} />
-        <h2 id="news-title">{t('Entertainment news')}</h2>
+        <h2 id="news-title">
+          <button className="news-toggle" onClick={() => setShown((n) => (n > FEW ? FEW : PAGE))} aria-expanded={shown > FEW} title={shown > FEW ? t('Show fewer headlines') : t('Show all headlines')}>
+            {t('Entertainment news')} <Icon name={shown > FEW ? 'chevron-up' : 'chevron-down'} size={14} />
+          </button>
+        </h2>
         <select className="disc-who news-cat-select" value={cat && present.includes(cat) ? cat : ''} onChange={(e) => setCat(e.target.value)} aria-label={t('News topics')}>
           {['', ...present].map((c) => (
             <option key={c || 'all'} value={c}>
@@ -172,14 +177,21 @@ export default function News() {
           )
         })}
       </ul>
-      {list.length > shown && (
+      {(list.length > shown || shown > FEW) && (
         <div className="rail-foot">
-          <button className="btn-sm btn-with-icon" onClick={() => setShown((n) => n + PAGE)}>
-            <Icon name="plus" size={14} /> {t('More news')}
-          </button>
+          {list.length > shown && (
+            <button className="btn-sm btn-with-icon" onClick={() => setShown((n) => (n === FEW ? PAGE : n + PAGE))}>
+              <Icon name="plus" size={14} /> {shown === FEW ? t('Show all headlines') : t('More news')}
+            </button>
+          )}
+          {shown > FEW && (
+            <button className="btn-sm btn-with-icon" onClick={() => setShown(FEW)}>
+              <Icon name="chevron-up" size={14} /> {t('Show fewer headlines')}
+            </button>
+          )}
         </div>
       )}
-      <p className="hint news-note">{t('Tap a headline for a short summary written by AI, and a link to the full article.')}</p>
+      {shown > FEW && <p className="hint news-note">{t('Tap a headline for a short summary written by AI, and a link to the full article.')}</p>}
       {adding && (
         <AddDialog
           target={adding}

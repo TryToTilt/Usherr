@@ -21,7 +21,7 @@ const SHOW_LABEL: Record<Show, string> = { all: t('All'), movie: t('Movies'), ep
 // Monitored movie releases, episode airs and album releases on one month
 // view, with simple filters and a link to add it to a calendar app.
 // Each filter wears its kind's glyph and colour, as on Discover and Library.
-const SHOW_GLYPH: Record<Exclude<Show, 'all'>, GlyphKind> = { movie: 'movie', episode: 'tv', anime: 'tv', ebook: 'book', audiobook: 'audiobook', album: 'music', comic: 'book' }
+const SHOW_GLYPH: Record<Exclude<Show, 'all'>, GlyphKind> = { movie: 'movie', episode: 'tv', anime: 'tv', ebook: 'book', audiobook: 'audiobook', album: 'music', comic: 'comic' }
 const SHOW_COLOR: Record<Exclude<Show, 'all'>, string> = { movie: 'var(--c-movie)', episode: 'var(--c-tv)', anime: 'var(--c-tv)', ebook: 'var(--c-book)', audiobook: 'var(--c-audiobook)', album: 'var(--c-music)', comic: 'var(--c-comics)' }
 
 // matches says whether an entry belongs under a kind.
@@ -82,7 +82,7 @@ export default function Calendar() {
     ...(kinds.includes('music') ? (['album'] as const) : []),
     ...(hasComics ? (['comic'] as const) : []),
   ]
-  const shown = (entries ?? []).filter((e) => matches(e, show, anime) && (!missingOnly || e.status !== 'downloaded'))
+  const shown = (entries ?? []).filter((e) => matches(e, show, anime) && (!missingOnly || e.status !== 'downloaded')).map((e) => (e.kind === 'episode' && anime.has(e.seriesId ?? 0) ? { ...e, anime: true } : e)) // Usherr: anime labelled as anime
 
   return (
     <div>

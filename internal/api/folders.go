@@ -84,7 +84,17 @@ func (s *Server) tvFolders() []string {
 	if main != "" {
 		out = append(out, main)
 	}
-	return append(out, s.extraFolders(settings.KeyTVExtraPaths, main)...)
+	out = append(out, s.extraFolders(settings.KeyTVExtraPaths, main)...)
+	// Usherr: the anime folder is one of the TV folders too.
+	if a := s.animeRoot(); a != "" {
+		for _, f := range out {
+			if filepath.Clean(f) == filepath.Clean(a) {
+				return out
+			}
+		}
+		out = append(out, a)
+	}
+	return out
 }
 
 // chosenFolder returns want when it is one of the folders on offer, else def.

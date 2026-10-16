@@ -519,6 +519,8 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("PUT /api/home/ai", s.handlePutAI)                // home fork
 	admin.HandleFunc("POST /api/home/ai/test", s.handleTestAI)         // home fork
 	member.HandleFunc("GET /api/home/news", s.handleNews)              // home fork: entertainment news
+	member.HandleFunc("GET /api/home/cinema", s.handleCinema)          // Usherr: films in cinemas
+	member.HandleFunc("GET /api/home/marquee", s.handleMarquee)        // Usherr: the lobby display
 	member.HandleFunc("GET /api/home/moods", s.handleMoods)            // home fork: Library shelves by mood
 	member.HandleFunc("GET /api/home/book-genres", s.handleBookGenres) // home fork: Library shelves by genre
 
@@ -574,10 +576,16 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("PUT /api/home/mdblist", s.handlePutMDBList)
 	admin.HandleFunc("PUT /api/home/autostream/household", s.handleAutostreamHousehold) // home fork: Streams for you
 	admin.HandleFunc("POST /api/home/mdblist/test", s.handleTestMDBList)
-	admin.HandleFunc("GET /api/home/news/settings", s.handleGetNewsSettings) // home fork
-	admin.HandleFunc("PUT /api/home/news/settings", s.handlePutNewsSettings) // home fork
-	admin.HandleFunc("POST /api/home/news/test", s.handleTestNewsSource)     // home fork
-	admin.HandleFunc("POST /api/home/news/refresh", s.handleRefreshNews)     // home fork
+	admin.HandleFunc("GET /api/home/news/settings", s.handleGetNewsSettings)       // home fork
+	admin.HandleFunc("GET /api/home/cinema/settings", s.handleGetCinemaSettings)   // Usherr
+	admin.HandleFunc("GET /api/home/marquee/settings", s.handleGetMarqueeSettings) // Usherr
+	admin.HandleFunc("GET /api/home/anime-folder", s.handleGetAnimeFolder)         // Usherr
+	admin.HandleFunc("PUT /api/home/anime-folder", s.handlePutAnimeFolder)         // Usherr
+	admin.HandleFunc("PUT /api/home/marquee/settings", s.handlePutMarqueeSettings) // Usherr
+	admin.HandleFunc("PUT /api/home/cinema/settings", s.handlePutCinemaSettings)   // Usherr
+	admin.HandleFunc("PUT /api/home/news/settings", s.handlePutNewsSettings)       // home fork
+	admin.HandleFunc("POST /api/home/news/test", s.handleTestNewsSource)           // home fork
+	admin.HandleFunc("POST /api/home/news/refresh", s.handleRefreshNews)           // home fork
 	member.HandleFunc("GET /api/tv/search", s.handleSearchTV)
 	member.HandleFunc("GET /api/tmdb/search", s.handleTMDBSearch)
 	member.HandleFunc("GET /api/tmdb/movies/{tmdbId}", s.handleTMDBMovieDetail)

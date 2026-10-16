@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/Toast'
 import { api, type Settings as SettingsData } from '../../api'
 import FolderStatus from '../../components/FolderStatus'
+import AnimeFolder from '../../home/AnimeFolder' // Usherr
 import Icon from '../../components/Icon'
 import HardlinkWarning from '../../components/HardlinkWarning'
 import NamingPreview from '../../components/NamingPreview'
@@ -188,6 +189,7 @@ function LibrarySection({ part }: { part: 'folders' | 'naming' }) {
             </label>
             <FolderStatus path={tvPath} />
           </div>
+          <AnimeFolder /> {/* Usherr */}
           <div className={`path-col${musicOn ? '' : ' path-off'}`}>
             <label>
               {t('Music folder')}

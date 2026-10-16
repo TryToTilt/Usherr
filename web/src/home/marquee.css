@@ -1,0 +1,91 @@
+/* Usherr: the Marquee, sized for a portrait tablet read from 8-10 feet.
+   Text is in vw (the screen's width) times --mq-t, the text size set in
+   Settings; posters and the trailer are sized by the space the scene has
+   (the stage is a size container, so cqh is its height) times --mq-p, so they
+   grow when the top bar or a sign line is switched off. */
+.mq {
+  --mq-t: 1;
+  --mq-p: 1;
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: radial-gradient(120% 60% at 50% 0%, color-mix(in srgb, var(--u-burgundy) 35%, transparent), transparent 70%), var(--u-noir, #100509);
+  color: var(--u-cream, #fff0d0);
+  cursor: none;
+  user-select: none;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.mq-top { display: flex; align-items: center; gap: 2vw; padding: 3vw 5vw 0; min-height: calc(7vw * var(--mq-t)); }
+.mq-mark { width: calc(7vw * var(--mq-t)); height: calc(7vw * var(--mq-t)); border-radius: 22%; }
+.mq-name { font-family: Georgia, 'Times New Roman', 'Noto Serif', serif; font-weight: 700; font-size: calc(5vw * var(--mq-t)); color: var(--u-champagne, #f6d783); }
+.mq-clock { margin-left: auto; font-size: calc(4.5vw * var(--mq-t)); color: color-mix(in srgb, var(--u-cream, #fff0d0) 70%, transparent); font-variant-numeric: tabular-nums; }
+
+/* The marquee sign: one or two lines between two rows of bulbs. A line never
+   wraps; it shrinks to fit (FitLine). */
+.mq-marquee { --mq-sign: calc(8.5vw * var(--mq-t)); margin: 3vw 4vw 2vw; padding: 2.4vw 3vw; border: 0.5vw solid var(--u-gold, #c99a42); border-radius: 2vw; background: color-mix(in srgb, var(--u-wine, #4b0d23) 70%, black); box-shadow: 0 0 4vw color-mix(in srgb, var(--u-gold, #c99a42) 25%, transparent), inset 0 0 3vw rgba(0, 0, 0, 0.6); text-align: center; }
+.mq-marquee.alone { margin-top: 4vw; }
+.mq-marquee h1 { margin: 1vw 0; font-family: Georgia, 'Times New Roman', 'Noto Serif', serif; font-size: var(--mq-sign); letter-spacing: 0.06em; text-transform: uppercase; color: var(--u-champagne, #f6d783); text-shadow: 0 0 2vw color-mix(in srgb, var(--u-champagne, #f6d783) 50%, transparent); line-height: 1.2; overflow: hidden; }
+.mq-marquee h1.two { --mq-sign: calc(7.2vw * var(--mq-t)); }
+.mq-line { display: block; width: max-content; max-width: none; margin: 0 auto; white-space: nowrap; font-size: var(--mq-sign); }
+.mq-bulbs { display: block; height: 1.6vw; background: radial-gradient(circle, #fff3c4 0 35%, #f6d783 45%, transparent 60%) 0 50% / 4vw 1.6vw repeat-x; animation: mq-chase 1.2s steps(2) infinite; opacity: 0.9; }
+@keyframes mq-chase { to { background-position: 4vw 50%; } }
+
+.mq-stage { flex: 1; position: relative; min-height: 0; container-type: size; }
+.mq-scroll { position: absolute; inset: 0; overflow: hidden; }
+.mq-scene { position: relative; min-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 1vw 5vw 6vw; animation: mq-in 1.2s ease both; }
+@keyframes mq-in { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: none; } }
+.mq-empty { text-align: center; font-size: calc(5vw * var(--mq-t)); margin-top: 30cqh; opacity: 0.7; }
+
+/* One film, big. */
+.mq-backdrop { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: 0.18; filter: blur(1vw); mask-image: linear-gradient(transparent, black 30%, black 70%, transparent); }
+.mq-poster { position: relative; width: auto; height: calc(60cqh * var(--mq-p)); max-width: 86vw; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 2vw; box-shadow: 0 3vw 6vw rgba(0, 0, 0, 0.7), 0 0 0 0.3vw color-mix(in srgb, var(--u-gold, #c99a42) 60%, transparent); }
+.mq-poster.mq-small { height: calc(26cqh * var(--mq-p)); margin-top: 3vw; }
+.mq-blank { display: grid; place-items: center; padding: 4vw; text-align: center; font-size: calc(6vw * var(--mq-t)); background: var(--u-wine, #4b0d23); }
+.mq-title { position: relative; margin: 2.5cqh 0 0; font-family: Georgia, 'Times New Roman', 'Noto Serif', serif; font-size: calc(7.5vw * var(--mq-t)); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.28; padding-bottom: 0.15em; text-align: center; color: var(--u-cream, #fff0d0); text-wrap: balance; }
+.mq-tagline { position: relative; margin: 1cqh 0 0; font-size: calc(3.8vw * var(--mq-t)); line-height: 1.35; padding-bottom: 0.1em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-style: italic; text-align: center; color: color-mix(in srgb, var(--u-cream, #fff0d0) 80%, transparent); text-wrap: balance; }
+.mq-meta { position: relative; margin: 1cqh 0 0; font-size: calc(4vw * var(--mq-t)); text-align: center; }
+.mq-dim { color: color-mix(in srgb, var(--u-cream, #fff0d0) 65%, transparent); }
+.mq-gold { color: var(--u-champagne, #f6d783); }
+.mq-center { margin-bottom: 2vw; }
+.mq-progress { width: min(86vw, calc(60cqh * var(--mq-p) * 2 / 3)); height: 1.4vw; margin-top: 3vw; border-radius: 1vw; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.mq-progress span { display: block; height: 100%; background: var(--u-champagne, #f6d783); }
+
+/* A trailer, with the film under it. */
+.mq-video { width: min(100%, calc(100% * var(--mq-p))); aspect-ratio: 16 / 9; border-radius: 2vw; overflow: hidden; background: black; box-shadow: 0 2vw 5vw rgba(0, 0, 0, 0.7); }
+.mq-video iframe { width: 100%; height: 100%; border: 0; pointer-events: none; }
+
+/* A grid of posters. */
+.mq-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 2.5cqh 5vw; width: 100%; }
+.mq-grid li { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.mq-grid img { aspect-ratio: 2 / 3; object-fit: cover; border-radius: 1.5vw; box-shadow: 0 1.5vw 3vw rgba(0, 0, 0, 0.6); height: calc(28cqh * var(--mq-p)); max-width: 42vw; width: auto; }
+.mq-grid strong { margin-top: 1.4vw; font-size: calc(3.6vw * var(--mq-t)); text-align: center; line-height: 1.3; padding-bottom: 0.1em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.mq-grid span { font-size: calc(3vw * var(--mq-t)); color: color-mix(in srgb, var(--u-cream, #fff0d0) 65%, transparent); }
+
+/* The week ahead, as a large-print list. */
+.mq-coming { align-items: stretch; gap: 3vw; }
+.mq-coming h3 { margin: 0 0 1vw; font-family: Georgia, 'Times New Roman', 'Noto Serif', serif; font-size: calc(5.6vw * var(--mq-t)); line-height: 1.3; color: var(--u-champagne, #f6d783); border-bottom: 0.3vw solid color-mix(in srgb, var(--u-gold, #c99a42) 40%, transparent); padding-bottom: 0.6vw; }
+.mq-coming ul { list-style: none; margin: 0; padding: 0; }
+.mq-coming li { display: flex; align-items: center; gap: 3vw; font-size: calc(4.4vw * var(--mq-t)); line-height: 1.35; padding: 0.8vw 0; }
+.mq-slim { flex: none; width: calc(9vw * var(--mq-p)); aspect-ratio: 2 / 3; object-fit: cover; border-radius: 0.8vw; box-shadow: 0 0.6vw 1.4vw rgba(0, 0, 0, 0.6); }
+.mq-slim-blank { background: color-mix(in srgb, var(--u-wine, #4b0d23) 70%, black); }
+.mq-what { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mq-type { flex: none; font-size: calc(3.4vw * var(--mq-t)); color: color-mix(in srgb, var(--u-cream, #fff0d0) 65%, transparent); }
+
+/* Quiet hours: a dim clock, or nothing at all. */
+.mq-quiet { display: grid; place-items: center; background: black; }
+.mq-quiet-clock { font-size: 14vw; color: rgba(255, 240, 208, 0.18); font-variant-numeric: tabular-nums; }
+
+/* A landscape screen: the same scenes, fitted to the height instead. */
+@media (orientation: landscape) {
+  .mq-title { font-size: calc(5vh * var(--mq-t)); }
+  .mq-marquee { --mq-sign: calc(6vh * var(--mq-t)); }
+  .mq-marquee h1.two { --mq-sign: calc(5vh * var(--mq-t)); }
+  .mq-meta, .mq-coming li { font-size: calc(3vh * var(--mq-t)); }
+  .mq-grid { grid-template-columns: repeat(6, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mq-bulbs { animation: none; }
+  .mq-scene { animation: none; }
+}

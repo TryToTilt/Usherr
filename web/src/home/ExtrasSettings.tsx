@@ -1,6 +1,7 @@
 // Home fork: Settings > Extras. One card for each thing the fork adds that
 // needs setting up, in the style of the setup wizard's service cards: what it
 // is, whether it's ready, what's missing, and a Test button.
+import type { MarqueeSettings, SceneKind } from './Marquee' // Usherr
 import HelpLink from '../components/HelpLink'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
@@ -125,6 +126,8 @@ export default function ExtrasSettings({ only }: { only?: string[] } = {}) {
       {show('ai') && <AICard />}
       {show('scores') && <ScoresCard />}
       {show('news') && <NewsCard />}
+      {show('cinema') && <CinemaCard />}
+      {show('marquee') && <MarqueeCard />}
       {show('comics') && <ComicsCard x={x} act={act} />}
       {show('direct') && <DirectCard x={x} save={save} />}
       {show('nsfw') && <NSFWCard x={x} act={act} />}
@@ -693,6 +696,285 @@ function newsCategoryName(c: string): string {
 }
 
 // Entertainment news (home fork): the feeds behind the news on the Dashboard.
+// Usherr: the Marquee (/marquee), the lobby display for a tablet by the TV.
+// What it shows and in what order, the sign, sizes and quiet hours. The
+// tablet picks changes up within a couple of minutes.
+const MQ_SCENE_LABEL: Record<SceneKind, string> = {
+  playing: t('Now showing (what is playing on the TV)'),
+  new: t('New on the server (one film)'),
+  trailer: t('Trailer'),
+  'theaters-film': t('In theaters now (one film)'),
+  arrivals: t('Just added (posters)'),
+  'coming-film': t('Coming soon (one film)'),
+  theaters: t('In theaters now (posters)'),
+  coming: t('Coming up (the week)'),
+}
+
+function MarqueeCard() {
+  const toast = useToast()
+  const [m, setM] = useState<MarqueeSettings | null>(null)
+  const [profiles, setProfiles] = useState<string[]>([])
+  const [dirty, setDirty] = useState(false)
+  useEffect(() => {
+    call<{ settings: MarqueeSettings; profiles: string[] }>('GET', '/api/home/marquee/settings')
+      .then((d) => {
+        setM(d.settings)
+        setProfiles(d.profiles ?? [])
+      })
+      .catch(() => undefined)
+  }, [])
+  if (!m) return null
+  const change = (patch: Partial<MarqueeSettings>) => {
+    setM({ ...m, ...patch })
+    setDirty(true)
+  }
+  const move = (i: number, by: number) => {
+    const list = [...m.scenes]
+    const j = i + by
+    if (j < 0 || j >= list.length) return
+    ;[list[i], list[j]] = [list[j], list[i]]
+    change({ scenes: list })
+  }
+  const scene = (i: number, patch: Partial<MarqueeSettings['scenes'][number]>) => change({ scenes: m.scenes.map((s, j) => (j === i ? { ...s, ...patch } : s)) })
+  const save = async () => {
+    try {
+      const d = await call<{ settings: MarqueeSettings }>('PUT', '/api/home/marquee/settings', m)
+      setM(d.settings)
+      setDirty(false)
+      toast.success(t('Marquee settings saved. The tablet shows them within a couple of minutes.'))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
+  const toggleProfile = (p: string, on: boolean) => change({ profiles: on ? [...m.profiles, p] : m.profiles.filter((x) => x !== p) })
+  return (
+    <Card
+      title={t('Marquee')}
+      state="ready"
+      blurb={t('The lobby display for a tablet next to the TV: open {address} on it, full-screen. Everything here applies to it within a couple of minutes.', { address: `${window.location.origin}/marquee` })}
+    >
+      <div className="mq-set">
+        <h3>{t('Scenes, in order')}</h3>
+        <ol className="mq-set-scenes">
+          {m.scenes.map((s, i) => (
+            <li key={s.kind} className={s.on ? '' : 'off'}>
+              <label className="cx-check">
+                <input type="checkbox" checked={s.on} onChange={(e) => scene(i, { on: e.target.checked })} /> {MQ_SCENE_LABEL[s.kind]}
+              </label>
+              <label className="mq-set-secs">
+                <input type="number" min={5} max={600} value={s.seconds} onChange={(e) => scene(i, { seconds: Number(e.target.value) || 5 })} aria-label={t('Seconds for {scene}', { scene: MQ_SCENE_LABEL[s.kind] })} /> {t('sec')}
+              </label>
+              <button className="icon-btn" onClick={() => move(i, -1)} disabled={i === 0} aria-label={t('Move {scene} up', { scene: MQ_SCENE_LABEL[s.kind] })}>
+                <Icon name="chevron-up" size={15} />
+              </button>
+              <button className="icon-btn" onClick={() => move(i, 1)} disabled={i === m.scenes.length - 1} aria-label={t('Move {scene} down', { scene: MQ_SCENE_LABEL[s.kind] })}>
+                <Icon name="chevron-down" size={15} />
+              </button>
+            </li>
+          ))}
+        </ol>
+        <p className="hint">{t('Scenes with nothing to show are skipped. A scene taller than the screen scrolls slowly down and back, and takes the time it needs.')}</p>
+
+        <h3>{t('The sign')}</h3>
+        <div style={row}>
+          <label className="cx-check">
+            <input type="radio" name="mq-sign" checked={m.signMode === 'auto'} onChange={() => change({ signMode: 'auto' })} /> {t('The name of each scene')}
+          </label>
+          <label className="cx-check">
+            <input type="radio" name="mq-sign" checked={m.signMode === 'custom'} onChange={() => change({ signMode: 'custom' })} /> {t('My own words')}
+          </label>
+        </div>
+        {m.signMode === 'custom' && (
+          <div className="grid-form">
+            <label>
+              {t('Line 1')}
+              <input value={m.signLine1} maxLength={40} onChange={(e) => change({ signLine1: e.target.value })} placeholder={t('Now Showing')} />
+            </label>
+            <label>
+              {t('Line 2 (optional)')}
+              <input value={m.signLine2} maxLength={40} onChange={(e) => change({ signLine2: e.target.value })} placeholder={t('The Living Room')} />
+            </label>
+            <span className="hint">{t('Each line stays on one line and gets smaller to fit. Leave both empty to hide the sign.')}</span>
+          </div>
+        )}
+
+        <h3>{t('Top bar')}</h3>
+        <div style={row}>
+          <label className="cx-check">
+            <input type="checkbox" checked={m.showIcon} onChange={(e) => change({ showIcon: e.target.checked })} /> {t('Icon')}
+          </label>
+          <label className="cx-check">
+            <input type="checkbox" checked={m.showName} onChange={(e) => change({ showName: e.target.checked })} /> {t('Name')}
+          </label>
+          <label className="cx-check">
+            <input type="checkbox" checked={m.showClock} onChange={(e) => change({ showClock: e.target.checked })} /> {t('Clock')}
+          </label>
+        </div>
+
+        <h3>{t('Sizes')}</h3>
+        <div className="grid-form">
+          <label>
+            {t('Text size: {n}%', { n: m.textScale })}
+            <input type="range" min={70} max={140} step={5} value={m.textScale} onChange={(e) => change({ textScale: Number(e.target.value) })} />
+          </label>
+          <label>
+            {t('Poster and trailer size: {n}%', { n: m.posterScale })}
+            <input type="range" min={60} max={120} step={5} value={m.posterScale} onChange={(e) => change({ posterScale: Number(e.target.value) })} />
+          </label>
+          <span className="hint">{t('Posters and the trailer also grow to fill the room left when the top bar or a sign line is switched off.')}</span>
+          <label>
+            {t('Scroll speed')}
+            <select value={m.scrollSpeed} onChange={(e) => change({ scrollSpeed: e.target.value as MarqueeSettings['scrollSpeed'] })}>
+              <option value="slow">{t('Slow')}</option>
+              <option value="normal">{t('Normal')}</option>
+              <option value="fast">{t('Fast')}</option>
+            </select>
+          </label>
+          <label className="cx-check">
+            <input type="checkbox" checked={m.trailerSound} onChange={(e) => change({ trailerSound: e.target.checked })} /> {t('Play trailers with sound (the tablet’s browser must allow it)')}
+          </label>
+        </div>
+
+        <h3>{t('Now showing comes from')}</h3>
+        <div style={row}>
+          <label className="cx-check">
+            <input type="checkbox" checked={m.fromJellyfin} onChange={(e) => change({ fromJellyfin: e.target.checked })} /> {t('The media server (Jellyfin or Emby)')}
+          </label>
+          <label className="cx-check">
+            <input type="checkbox" checked={m.fromStreamNZB} onChange={(e) => change({ fromStreamNZB: e.target.checked })} /> {t('StreamNZB (Nuvio, Stremio)')}
+          </label>
+        </div>
+        {m.fromStreamNZB && profiles.length > 0 && (
+          <div style={row}>
+            <span className="hint">{t('StreamNZB profiles to show (none ticked shows them all):')}</span>
+            {profiles.map((p) => (
+              <label key={p} className="cx-check">
+                <input type="checkbox" checked={m.profiles.includes(p)} onChange={(e) => toggleProfile(p, e.target.checked)} /> {p}
+              </label>
+            ))}
+          </div>
+        )}
+
+        <h3>{t('Quiet hours')}</h3>
+        <div style={row}>
+          <label className="cx-check">
+            <input type="checkbox" checked={m.quietOn} onChange={(e) => change({ quietOn: e.target.checked })} /> {t('Rest between')}
+          </label>
+          <input type="time" value={m.quietFrom} onChange={(e) => change({ quietFrom: e.target.value })} aria-label={t('Quiet from')} />
+          {t('and')}
+          <input type="time" value={m.quietTo} onChange={(e) => change({ quietTo: e.target.value })} aria-label={t('Quiet until')} />
+          <select value={m.quietMode} onChange={(e) => change({ quietMode: e.target.value as MarqueeSettings['quietMode'] })} aria-label={t('While quiet')}>
+            <option value="clock">{t('showing a dim clock')}</option>
+            <option value="black">{t('with a black screen')}</option>
+          </select>
+        </div>
+
+        <h3>{t('Colours')}</h3>
+        <select value={m.palette} onChange={(e) => change({ palette: e.target.value })} aria-label={t('Marquee colours')}>
+          <option value="">{t('As chosen on the tablet')}</option>
+          {['wine', 'cherry', 'amber', 'emerald', 'teal', 'blue', 'violet', 'rose', 'graphite'].map((p) => (
+            <option key={p} value={p}>
+              {p[0].toUpperCase() + p.slice(1)}
+            </option>
+          ))}
+        </select>
+
+        <div style={{ ...row, marginTop: 16 }}>
+          <button className="primary" onClick={() => void save()} disabled={!dirty}>
+            {t('Save')}
+          </button>
+          <a className="btn-sm btn-with-icon" href="/marquee" target="_blank" rel="noreferrer">
+            <Icon name="external" size={14} /> {t('Open the marquee')}
+          </a>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// Usherr: the household's cinema, for the "In theaters now" rows, the
+// openings on the calendar and the links to showtimes.
+interface CinemaSettings {
+  on: boolean
+  region: string
+  zip: string
+  theatre: string
+  hasAmcKey: boolean
+}
+
+function CinemaCard() {
+  const toast = useToast()
+  const [c, setC] = useState<CinemaSettings | null>(null)
+  const [zip, setZip] = useState('')
+  const [theatre, setTheatre] = useState('')
+  const [region, setRegion] = useState('US')
+  const [amcKey, setAmcKey] = useState('')
+  const fill = (d: CinemaSettings) => {
+    setC(d)
+    setZip(d.zip)
+    setTheatre(d.theatre)
+    setRegion(d.region)
+    setAmcKey('')
+  }
+  useEffect(() => {
+    call<CinemaSettings>('GET', '/api/home/cinema/settings').then(fill).catch(() => undefined)
+  }, [])
+  if (!c) return null
+  const save = async (body: Record<string, unknown>) => {
+    try {
+      fill(await call<CinemaSettings>('PUT', '/api/home/cinema/settings', body))
+      toast.success(t('Cinema settings saved.'))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
+  return (
+    <Card
+      title={t('In theaters')}
+      state={c.on ? 'ready' : 'off'}
+      blurb={t(
+        'Films in cinemas now, as a row on the Dashboard and in the Library, with their opening days on the calendar. Each film links to its showtimes at your theater, and to everywhere else it is playing near you.',
+      )}
+    >
+      <label className="cx-check" style={{ marginBottom: 10 }}>
+        <input type="checkbox" checked={c.on} onChange={(e) => void save({ on: e.target.checked })} /> {t('Show films in theaters')}
+      </label>
+      <div className="grid-form">
+        <label>
+          {t('Your ZIP or postcode')}
+          <input value={zip} onChange={(e) => setZip(e.target.value)} placeholder="73102" inputMode="text" autoComplete="postal-code" />
+        </label>
+        <label>
+          {t('Your theater')}
+          <input value={theatre} onChange={(e) => setTheatre(e.target.value)} placeholder="AMC Quail Springs Mall 24" />
+        </label>
+        <label>
+          {t('Country')}
+          <input value={region} onChange={(e) => setRegion(e.target.value.toUpperCase())} maxLength={2} style={{ width: 70 }} aria-describedby="cinema-region-hint" />
+          <span id="cinema-region-hint" className="hint">
+            {t('Two letters, such as US. Which country’s cinemas count.')}
+          </span>
+        </label>
+        <label>
+          {t('AMC key (optional)')}
+          <input type="password" value={amcKey} onChange={(e) => setAmcKey(e.target.value)} placeholder={c.hasAmcKey ? t('A key is saved') : t('From developers.amctheatres.com')} autoComplete="off" spellCheck={false} />
+          <span className="hint">{t('With your own AMC key, the row will follow what your AMC theater is showing, with its showtimes.')}</span>
+        </label>
+      </div>
+      <div style={row}>
+        <button className="primary" onClick={() => void save({ zip, theatre, region, ...(amcKey ? { amcKey } : {}) })}>
+          {t('Save')}
+        </button>
+        {c.hasAmcKey && (
+          <button className="btn-sm" onClick={() => void save({ amcKey: '' })}>
+            {t('Remove the AMC key')}
+          </button>
+        )}
+      </div>
+    </Card>
+  )
+}
+
 function NewsCard() {
   const toast = useToast()
   const [n, setN] = useState<NewsSettings | null>(null)

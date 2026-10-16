@@ -59,6 +59,7 @@ func (s *Server) handleCalendar(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	more = append(more, s.cinemaCalendarEntries(r.Context())...) // Usherr: cinema openings
 	if len(more) > 0 {
 		entries = append(entries, more...)
 		sort.SliceStable(entries, func(i, j int) bool { return entries[i].ReleaseDate < entries[j].ReleaseDate })
