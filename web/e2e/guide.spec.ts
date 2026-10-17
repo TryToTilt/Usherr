@@ -67,7 +67,7 @@ test('the ? key, the header button and the profile menu all open the guide', asy
   await expect(page).toHaveURL(/\/help$/)
   // Typing a question mark in a box does not leave the page.
   await page.goto('/library')
-  const box = page.getByRole('searchbox').first()
+  const box = page.locator('input:visible').first() // Usherr: the top bar's box is a searchbox or, in AI mode, a textbox
   await box.fill('')
   await box.press('?')
   await expect(page).toHaveURL(/\/library/)
