@@ -81,7 +81,7 @@ The card on someone's profile has a switch, **Send me these messages**, for peop
 
 - Under **Settings** they have **General** (app language and light or dark), their own **Your profile**, **Security** (passkeys, two-step sign-in, API keys), **Linked services** (not for view-only accounts), Statistics and About and credits. Any other settings address lands on General. The profile menu in the top-right corner has **Your profile** and **App language**.
 - The **Library** has no Select, Import existing, Remove or quality-profile controls.
-- **Activity** shows the queue and history, with a Retry button on failed and stopped downloads. There's no Pause, Resume, Stop, Remove, Clear finished, Blocklist or conflict button, and no Blocklist tab. A download waiting for a decision about an existing file is listed as waiting for an administrator.
+- **Activity** shows the queue and history (file names, but not the folders on the server), with a Retry button on failed and stopped downloads. There's no Pause, Resume, Stop, Remove, Clear finished, Blocklist or conflict button, and no Blocklist tab. A download waiting for a decision about an existing file is listed as waiting for an administrator.
 - The **Dashboard** leaves out setup warnings, folder locations and links into settings.
 - On the Wanted tab of Upcoming they can get subtitles (when subtitles are switched on), but not mark them as not needed.
 
@@ -124,6 +124,8 @@ An admin can do the following for any other account, using the buttons on its ca
 - **Edit**: change the name, email address or role. It applies straight away, including to that person's open sessions. Tick **Turn this account off** to stop the account without deleting it: its open sessions end at once, its API keys stop working, and it can't sign in (a right password is told "This account is turned off"). Untick it to bring it back. Nothing it added is touched. The card shows an **Off** badge.
 - **Edit**, again: set a new password, for example when a basic user has forgotten theirs, or when someone else may know it. That signs the account out everywhere: its sessions end, its API keys are revoked, and its e-reader password, Kobo address and calendar feed address stop working (the person makes new ones after signing in). Passkeys and a single sign-on link stay, since they need the person's own device or provider account. Leave the field empty to keep the current password. (Changing your own password from your profile also signs out every other browser, but not this one.)
 - **Remove**: delete the account, after a confirmation (from the web page only, not with an API key). Its sessions and API keys stop working at once. Titles it added stay in the library.
+
+Every account change an administrator makes (creating an account, changing a role, turning an account off or on, setting a password, removing an account) and every API key made, revoked or deleted is written to the Mediarium log and to the **Activity** page, with who did it and from which address. Only administrators see these lines. They never contain a password or a key.
 
 If something can't be done (the username is taken, or it would leave no admin), Mediarium shows its message as it is.
 

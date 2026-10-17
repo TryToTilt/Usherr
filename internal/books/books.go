@@ -42,6 +42,11 @@ type Book struct {
 	AddedAt     string
 	AddedBy     int64
 
+	// A cover a person chose (see owncover.go). Neither touches CoverID, the
+	// automatic one, so a later look-up can't undo the choice.
+	OwnCover      int64 // when the picture was saved (milliseconds); 0 = none
+	PickedCoverID int   // an Open Library cover id picked from another edition; 0 = none
+
 	WantEbook     bool
 	EbookStatus   string
 	EbookFormat   string // epub, azw3, mobi or pdf
@@ -114,13 +119,14 @@ func NewRepo(db *sql.DB) *Repo { return &Repo{db: db} }
 
 const columns = `id, ol_key, title, author, author_key, year, cover_id, description, added_at, COALESCE(added_by, 0),
 	want_ebook, ebook_status, ebook_format, ebook_path, want_audiobook, audiobook_status, audiobook_format, audiobook_path,
-	series_name, series_position, release_date, asin, narrators, runtime_min, audio_checked_at`
+	series_name, series_position, release_date, asin, narrators, runtime_min, audio_checked_at, own_cover, picked_cover_id`
 
 func scan(sc interface{ Scan(...any) error }) (Book, error) {
 	var b Book
 	err := sc.Scan(&b.ID, &b.OLKey, &b.Title, &b.Author, &b.AuthorKey, &b.Year, &b.CoverID, &b.Description, &b.AddedAt, &b.AddedBy,
 		&b.WantEbook, &b.EbookStatus, &b.EbookFormat, &b.EbookPath, &b.WantAudiobook, &b.AudioStatus, &b.AudioFormat, &b.AudioPath,
-		&b.SeriesName, &b.SeriesPosition, &b.ReleaseDate, &b.ASIN, &b.Narrators, &b.RuntimeMin, &b.AudioCheckedAt)
+		&b.SeriesName, &b.SeriesPosition, &b.ReleaseDate, &b.ASIN, &b.Narrators, &b.RuntimeMin, &b.AudioCheckedAt,
+		&b.OwnCover, &b.PickedCoverID)
 	return b, err
 }
 
@@ -232,6 +238,7 @@ func (r *Repo) ClearFile(id int64, f Format) error {
 
 // Delete removes a book and its queue entries.
 func (r *Repo) Delete(id int64) error {
+	_, _ = r.db.Exec(`DELETE FROM book_own_covers WHERE book_id = ?`, id) // also goes with the book by itself
 	res, err := r.db.Exec(`DELETE FROM books WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("delete book: %w", err)

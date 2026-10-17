@@ -115,7 +115,21 @@ func apiDoc(root string) ([]byte, error) {
 					docs[fn.Name.Name] = firstSentence(fn.Doc.Text(), fn.Name.Name)
 				}
 			}
+			// A group that needs a permission is made from member or admin with
+			// Need: either kept in a variable (releases := member.Need(...)) or
+			// used straight away (member.Need(...).HandleFunc(...)). Both are
+			// traced back to the group they were made from.
+			groupOf := map[string]string{}
 			ast.Inspect(f, func(n ast.Node) bool {
+				if as, ok := n.(*ast.AssignStmt); ok && len(as.Lhs) == len(as.Rhs) {
+					for i, rhs := range as.Rhs {
+						lhs, ok := as.Lhs[i].(*ast.Ident)
+						if base := needBase(rhs, groupOf); ok && base != "" {
+							groupOf[lhs.Name] = base
+						}
+					}
+					return true
+				}
 				call, ok := n.(*ast.CallExpr)
 				if !ok || len(call.Args) != 2 {
 					return true
@@ -125,6 +139,11 @@ func apiDoc(root string) ([]byte, error) {
 					return true
 				}
 				recv, _ := sel.X.(*ast.Ident)
+				if base := needBase(sel.X, groupOf); base != "" {
+					recv = ast.NewIdent(base)
+				} else if recv != nil && groupOf[recv.Name] != "" {
+					recv = ast.NewIdent(groupOf[recv.Name])
+				}
 				lit, ok := call.Args[0].(*ast.BasicLit)
 				if !ok || recv == nil {
 					return true
@@ -171,6 +190,30 @@ func apiDoc(root string) ([]byte, error) {
 	}
 	fmt.Fprintf(&b, "\n%d routes.\n", len(routes))
 	return []byte(b.String()), nil
+}
+
+// needBase returns the group a route group expression was made from when it
+// is a call of Need on a group (member.Need(...), or releases.Need(...) for a
+// group kept in a variable), and "" for anything else.
+func needBase(e ast.Expr, groupOf map[string]string) string {
+	call, ok := e.(*ast.CallExpr)
+	if !ok {
+		return ""
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Need" {
+		return ""
+	}
+	switch x := sel.X.(type) {
+	case *ast.Ident:
+		if base := groupOf[x.Name]; base != "" {
+			return base
+		}
+		return x.Name
+	case *ast.CallExpr:
+		return needBase(x, groupOf)
+	}
+	return ""
 }
 
 func group(path string) string {

@@ -353,7 +353,7 @@ func numberingQueries(title string, num *animemap.Numbering, season, episode, ab
 			if names == 2 {
 				break
 			}
-			if normalizeTitle(t) == normalizeTitle(title) && en.Offset == 0 {
+			if sameTitle(t, title) && en.Offset == 0 {
 				continue // the same search the show's own title already makes
 			}
 			add(fmt.Sprintf("%s %02d", t, n))

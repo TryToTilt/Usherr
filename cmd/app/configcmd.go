@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/rdborg/mediarium/internal/config"
 	"github.com/rdborg/mediarium/internal/configfile"
 )
 
@@ -23,6 +24,12 @@ Options for all of them:
 In Docker:  docker exec -e MEDIARIUM_API_KEY=... mediarium /app/app config apply /config/mediarium.yml
 `
 
+// defaultAppURL is where the running Mediarium is expected: this machine, on
+// the port the app itself would use (APP_PORT or APP_PORT_FILE, else 8264).
+func defaultAppURL() string {
+	return fmt.Sprintf("http://127.0.0.1:%d", config.Load().Port)
+}
+
 // runConfigCommand is "app config ...": it keeps a running Mediarium's
 // settings in a YAML file. It talks to the running app through its API, so
 // every value is checked as it is on the Settings pages.
@@ -34,11 +41,7 @@ func runConfigCommand(args []string, stdout, stderr io.Writer) int {
 	sub, rest := args[0], args[1:]
 	fs := flag.NewFlagSet("config "+sub, flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	port := os.Getenv("APP_PORT")
-	if port == "" {
-		port = "8264"
-	}
-	url := fs.String("url", firstEnv("MEDIARIUM_URL", "http://127.0.0.1:"+port), "")
+	url := fs.String("url", firstEnv("MEDIARIUM_URL", defaultAppURL()), "")
 	key := fs.String("key", os.Getenv("MEDIARIUM_API_KEY"), "")
 	out := fs.String("o", "", "")
 	dry := new(bool)

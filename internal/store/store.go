@@ -43,6 +43,13 @@ type Info struct {
 	JournalMode string
 	// WALProblem says why WAL could not be enabled ("" when it is on).
 	WALProblem string
+	// NewerMigrations lists the schema changes in the database that this
+	// program does not know: a newer version has already been here. Empty for
+	// a database this program (or an older one) migrated.
+	NewerMigrations []string
+	// SafetyCopy is the file made before this start applied schema changes
+	// ("" when there was nothing to apply or the copy could not be made).
+	SafetyCopy string
 }
 
 var (
@@ -70,7 +77,7 @@ func setInfo(db *sql.DB, in Info) {
 // Open opens (creating if needed) the SQLite database at path and applies
 // any pending migrations embedded from db/migrations (migrations.MigrationsFS).
 func Open(path string) (*sql.DB, error) {
-	conn, err := sql.Open(driverName, dsn(path))
+	conn, err := sql.Open(driverName, dsn(path, "NORMAL"))
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
@@ -80,17 +87,24 @@ func Open(path string) (*sql.DB, error) {
 		conn.SetMaxOpenConns(poolSize)
 		conn.SetMaxIdleConns(poolSize)
 	} else {
+		// NORMAL is only crash-safe with a write-ahead log. Without one (the
+		// file systems where that happens are the less reliable ones), every
+		// connection must sync fully, so the file is opened again with that.
+		conn.Close()
+		if conn, err = sql.Open(driverName, dsn(path, "FULL")); err != nil {
+			return nil, fmt.Errorf("open sqlite: %w", err)
+		}
 		// The rollback journal lets a reader block the writer, so keep the
 		// old rule of one connection at a time.
 		conn.SetMaxOpenConns(1)
 		log.Printf("database: WAL mode is not available here, using the older journal with one connection: %s", info.WALProblem)
 	}
-	setInfo(conn, info)
 
-	if err := migrate(conn); err != nil {
+	if err := migrate(conn, path, &info); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
+	setInfo(conn, info)
 	restrictFiles(path)
 	go watchPool(conn)
 	return conn, nil
@@ -110,14 +124,14 @@ func restrictFiles(path string) {
 }
 
 // dsn builds the connection string. The pragmas run on every new connection.
-func dsn(path string) string {
+func dsn(path, synchronous string) string {
 	// The path is part of a file: URI, so the characters that would start a
 	// query or fragment are escaped.
 	escaped := strings.NewReplacer("%", "%25", "?", "%3F", "#", "%23").Replace(path)
 	q := url.Values{}
 	q.Add("_pragma", "busy_timeout(10000)")
 	q.Add("_pragma", "foreign_keys(1)")
-	q.Add("_pragma", "synchronous(NORMAL)")
+	q.Add("_pragma", "synchronous("+synchronous+")")
 	q.Add("_pragma", "journal_size_limit(67108864)")
 	q.Set("_txlock", "immediate")
 	return "file:" + escaped + "?" + q.Encode()
@@ -136,7 +150,7 @@ func enableWAL(conn *sql.DB) Info {
 	return Info{JournalMode: ModeWAL}
 }
 
-func migrate(conn *sql.DB) error {
+func migrate(conn *sql.DB, path string, info *Info) error {
 	if _, err := conn.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')))`); err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
@@ -153,15 +167,51 @@ func migrate(conn *sql.DB) error {
 	}
 	sort.Strings(names)
 
+	applied, err := appliedVersions(conn)
+	if err != nil {
+		return err
+	}
+	known := map[string]bool{}
+	var pending []string
 	for _, name := range names {
 		version := strings.TrimSuffix(name, filepath.Ext(name))
-		var count int
-		if err := conn.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = ?`, version).Scan(&count); err != nil {
-			return fmt.Errorf("check migration %s: %w", version, err)
+		known[version] = true
+		if !applied[version] {
+			pending = append(pending, name)
 		}
-		if count > 0 {
-			continue
+	}
+
+	// A program older than the database: a newer one already changed it (an
+	// update that was rolled back, or an older image started by hand). Changes
+	// that only add columns are harmless to the older program, and nothing here
+	// can tell which kind they were, so this warns and does not refuse; the
+	// message says how to get out of it.
+	for v := range applied {
+		if !known[v] {
+			info.NewerMigrations = append(info.NewerMigrations, v)
 		}
+	}
+	sort.Strings(info.NewerMigrations)
+	if len(info.NewerMigrations) > 0 {
+		log.Printf("warning: %s", NewerMessage(info.NewerMigrations))
+	}
+
+	// A copy of the database as it is before this start changes its tables, so
+	// a change that goes wrong can be undone from something newer than the
+	// nightly backup. Not for a database that is just being created.
+	if len(pending) > 0 && len(applied) > 0 && !isMemory(path) {
+		last := strings.TrimSuffix(pending[len(pending)-1], filepath.Ext(pending[len(pending)-1]))
+		copyPath, err := snapshotBeforeMigrating(conn, path, last)
+		if err != nil {
+			log.Printf("warning: couldn't make a safety copy of the database before updating it: %v", err)
+		} else {
+			info.SafetyCopy = copyPath
+			log.Printf("database: saved a copy of it as %s before updating its tables", filepath.Base(copyPath))
+		}
+	}
+
+	for _, name := range pending {
+		version := strings.TrimSuffix(name, filepath.Ext(name))
 		sqlBytes, err := migrations.MigrationsFS.ReadFile("migrations/" + name)
 		if err != nil {
 			return fmt.Errorf("read %s: %w", name, err)

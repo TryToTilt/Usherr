@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/x509"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -48,6 +49,9 @@ func testNNTP(host string, port int, useSSL bool, username, password string) con
 		if download.IsTooManyConnections(err) {
 			return connTestResult{Message: download.TooManyConnectionsMessage}
 		}
+		if msg, ok := certificateProblem(err); ok {
+			return connTestResult{Message: msg}
+		}
 		return connTestResult{Message: err.Error()}
 	}
 	defer conn.Quit()
@@ -61,6 +65,26 @@ func testNNTP(host string, port int, useSSL bool, username, password string) con
 		return connTestResult{Message: "Connected, but signing in failed: " + err.Error()}
 	}
 	return connTestResult{OK: true, Message: "Connected and logged in."}
+}
+
+// certificateProblem puts a refused SSL certificate in plain words. Mediarium
+// only connects to news servers whose certificate a public authority vouches
+// for, so a self-signed one can't be used over SSL.
+func certificateProblem(err error) (string, bool) {
+	var (
+		unknown  x509.UnknownAuthorityError
+		hostname x509.HostnameError
+		invalid  x509.CertificateInvalidError
+	)
+	switch {
+	case errors.As(err, &unknown):
+		return "The server's certificate isn't trusted (it is self-signed, or signed by an authority Mediarium doesn't know), so Mediarium won't connect to it over SSL. Use the SSL address and port your provider gives, or turn SSL off for this server.", true
+	case errors.As(err, &hostname):
+		return "The server's certificate is for a different name. Use the exact server name your provider gives.", true
+	case errors.As(err, &invalid) && invalid.Reason == x509.Expired:
+		return "The server's certificate has expired or isn't valid yet. Check the clock of the computer Mediarium runs on, or ask your provider.", true
+	}
+	return "", false
 }
 
 // handleTestIndexerConfig tests an indexer that has not been saved yet.
@@ -121,7 +145,11 @@ func (s *Server) handleTestIndexer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	inst.Tracker.CountRequest(inst.ID, 1) // the test is a real search
 	res := s.testIndexerInstance(r.Context(), inst)
+	if !res.OK {
+		inst.Tracker.LearnLimit(inst.ID, res.Message) // "Request limit reached" is worth knowing
+	}
 	msg := ""
 	if !res.OK {
 		msg = res.Message

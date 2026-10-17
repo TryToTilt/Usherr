@@ -44,8 +44,9 @@ import (
 )
 
 type Server struct {
-	streamPause streamPauseState // pause while someone is watching (stream_pause.go)
-	appFrames   atomic.Value     // []string: the origins of add-ons shown in a frame, kept in memory so the security headers never wait for the database (app_links.go)
+	streamPause streamPauseState  // pause while someone is watching (stream_pause.go)
+	libStats    libraryStatsCache // the Statistics page's answer, kept for a few minutes (stats_library.go)
+	appFrames   atomic.Value      // []string: the origins of add-ons shown in a frame, kept in memory so the security headers never wait for the database (app_links.go)
 	cfg         config.Config
 	db          *sql.DB // for backups (VACUUM INTO); repos hold their own handles
 
@@ -86,6 +87,7 @@ type Server struct {
 	authorCheck       authorCheck    // when followed authors were last checked (books_authors.go)
 	seriesCheck       authorCheck    // when followed series were last checked (books_series.go)
 	hc                hardcoverState // the Hardcover client for the saved token (books_series.go)
+	coverLink         *http.Client   // downloads a book cover from a pasted link; nil = the public-internet-only client (books_owncover.go)
 
 	mediaClient    *mediaservers.Client
 	mediaRefresher *mediaservers.Refresher // rescans Plex/Jellyfin/Emby after imports
@@ -118,9 +120,15 @@ type Server struct {
 	mb    *musicbrainz.Client // one client, so its one-request-per-second limit is shared
 	music musicState          // music hunt position and library scan jobs (music*.go)
 
+	huntAt huntPosition // where the next scheduled movie and book searches start (automation.go, books_api.go)
+
 	statsCache   statsCache
 	metricsCache metricsCache // slow-to-count numbers the metrics page reuses between scrapes (handlers_metrics.go)
-	builtin      BuiltinKeys  // app-wide keys baked into official releases (see keys.go)
+	// The library's totals and the TV list's per-show numbers, kept until the
+	// library changes (library_overview.go).
+	overviewCache   sharedCache[libraryOverview]
+	seriesListCache sharedCache[seriesListData]
+	builtin         BuiltinKeys // app-wide keys baked into official releases (see keys.go)
 
 	importMu         sync.Mutex
 	importJobs       map[string]*importJob
@@ -179,21 +187,12 @@ const discoverCacheSeconds = 300
 
 func New(db *sql.DB, cfg config.Config, box *crypto.Box, defaultTMDBAPIKey, version string) (*Server, error) {
 	settingsStore := settings.New(db, box)
-	tmdbKey, err := settingsStore.Get(settings.KeyTMDBAPIKey)
-	if err != nil {
-		return nil, err
-	}
+	tmdbKey := optionalKey(settingsStore, settings.KeyTMDBAPIKey)
 	if tmdbKey == "" {
 		tmdbKey = defaultTMDBAPIKey
 	}
-	subsKey, err := settingsStore.Get(settings.KeyOpenSubtitlesAPIKey)
-	if err != nil {
-		return nil, err
-	}
-	traktClientID, err := settingsStore.Get(settings.KeyTraktClientID)
-	if err != nil {
-		return nil, err
-	}
+	subsKey := optionalKey(settingsStore, settings.KeyOpenSubtitlesAPIKey)
+	traktClientID := optionalKey(settingsStore, settings.KeyTraktClientID)
 
 	tracker, err := usage.NewTracker(db)
 	if err != nil {
@@ -392,6 +391,7 @@ func (s *Server) Routes() http.Handler {
 	// Calendar apps read the feed without signing in; the secret address is the key.
 	public.HandleFunc("GET /api/calendar/feed/{file}", s.handleCalendarFeed)
 	s.registerTVFeedRoutes(public)   // Mediarium TV feeds for Jellyfin (home fork)
+	s.registerTVHDHRRoutes(public)   // Usherr: the same channels as an HDHomeRun tuner, for Plex
 	s.registerTVLiveRoutes(public)   // Mediarium TV live channel relay (home fork)
 	s.registerTVLogoRoutes(public)   // Mediarium TV channel logos for Jellyfin (home fork)
 	s.registerStreamedRoutes(public) // streamed library pointers (home fork)
@@ -409,7 +409,7 @@ func (s *Server) Routes() http.Handler {
 	s.koboRoutes(root)
 	root.HandleFunc("GET /robots.txt", robotsTxt)
 	root.Handle("/", frontendHandlerBase(s.cfg.URLBase))
-	return s.harden(withURLBase(s.cfg.URLBase, root))
+	return withBodyDeadline(s.harden(withURLBase(s.cfg.URLBase, root)))
 }
 
 // protectedRoutes is the one table of every signed-in route and who may call
@@ -436,6 +436,8 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("GET /api/auth/me", s.handleMe)
 	member.HandleFunc("PUT /api/auth/profile", s.handleUpdateUserProfile)
 	member.HandleFunc("POST /api/auth/change-password", s.handleChangePassword)
+	member.HandleFunc("GET /api/auth/sessions", s.handleListSessions)
+	member.HandleFunc("DELETE /api/auth/sessions", s.handleEndOtherSessions)
 	member.HandleFunc("GET /api/auth/api-keys", s.handleListAPIKeys)
 	member.HandleFunc("POST /api/auth/api-keys", s.handleCreateAPIKey)
 	member.HandleFunc("DELETE /api/auth/api-keys/{id}", s.handleRevokeAPIKey)
@@ -514,6 +516,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("POST /api/home/ai/skip-guide", s.handleAISkipGuide)
 	member.HandleFunc("POST /api/home/ai/comic-guide", s.handleAIComicGuide)
 	member.HandleFunc("POST /api/home/ai/ask", s.handleAIAsk)
+	member.HandleFunc("POST /api/home/calendar/ask", s.handleCalendarAsk) // Usherr
 
 	admin.HandleFunc("GET /api/home/ai", s.handleGetAI)                // home fork
 	admin.HandleFunc("PUT /api/home/ai", s.handlePutAI)                // home fork
@@ -579,8 +582,8 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("GET /api/home/news/settings", s.handleGetNewsSettings)       // home fork
 	admin.HandleFunc("GET /api/home/cinema/settings", s.handleGetCinemaSettings)   // Usherr
 	admin.HandleFunc("GET /api/home/marquee/settings", s.handleGetMarqueeSettings) // Usherr
-	admin.HandleFunc("GET /api/home/anime-folder", s.handleGetAnimeFolder)         // Usherr
-	admin.HandleFunc("PUT /api/home/anime-folder", s.handlePutAnimeFolder)         // Usherr
+	admin.HandleFunc("GET /api/home/folders/{kind}", s.handleGetExtraFolder)       // Usherr: anime, comics, NSFW
+	admin.HandleFunc("PUT /api/home/folders/{kind}", s.handlePutExtraFolder)       // Usherr
 	admin.HandleFunc("PUT /api/home/marquee/settings", s.handlePutMarqueeSettings) // Usherr
 	admin.HandleFunc("PUT /api/home/cinema/settings", s.handlePutCinemaSettings)   // Usherr
 	admin.HandleFunc("PUT /api/home/news/settings", s.handlePutNewsSettings)       // home fork
@@ -612,6 +615,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	manage.HandleFunc("PUT /api/movies/{id}/folder", s.handleSetMovieFolder)
 	manage.HandleFunc("PUT /api/series/{id}/folder", s.handleSetSeriesFolder)
 	member.HandleFunc("GET /api/library/folders", s.handleLibraryFolders)
+	member.HandleFunc("GET /api/library/counts", s.handleLibraryCounts)
 
 	// Shows: the same.
 	member.HandleFunc("GET /api/series", revalidated(s.handleListSeries))
@@ -653,6 +657,12 @@ func (s *Server) protectedRoutes() *routeTable {
 	play.HandleFunc("GET /api/books/{id}/comic", s.handleComic)
 	play.HandleFunc("GET /api/books/{id}/comic/{n}", s.handleComicPage)
 	member.HandleFunc("GET /api/books/{id}/file-cover", s.handleBookFileCover)
+	member.HandleFunc("GET /api/books/{id}/own-cover", s.handleBookOwnCover)
+	manage.HandleFunc("POST /api/books/{id}/cover", s.handleUploadBookCover)
+	manage.HandleFunc("POST /api/books/{id}/cover/link", s.handleBookCoverLink)
+	manage.HandleFunc("GET /api/books/{id}/cover/editions", s.handleBookCoverEditions)
+	manage.HandleFunc("PUT /api/books/{id}/cover/edition", s.handlePickBookCover)
+	manage.HandleFunc("DELETE /api/books/{id}/cover", s.handleRemoveBookCover)
 	play.HandleFunc("GET /api/books/{id}/tracks", s.handleBookTracks)
 	play.HandleFunc("GET /api/books/{id}/listen/{n}", s.handleListenBook)
 	admin.HandleFunc("GET /api/books/import", s.handleBookImportStatus)
@@ -795,6 +805,10 @@ func (s *Server) protectedRoutes() *routeTable {
 	// Library management: removing titles, per-title profile and downloaders, imports.
 	admin.HandleFunc("POST /api/movies/{id}/rescan", s.handleRescanMovie)
 	admin.HandleFunc("POST /api/series/{id}/rescan", s.handleRescanSeries)
+	admin.HandleFunc("GET /api/library/browse", s.handleBrowse)
+	admin.HandleFunc("POST /api/movies/{id}/locate-file", s.handleLocateMovieFile)
+	admin.HandleFunc("POST /api/movies/{id}/locate-folder", s.handleLocateMovieFolder)
+	admin.HandleFunc("POST /api/series/{id}/change-folder", s.handleChangeSeriesFolder)
 	admin.HandleFunc("DELETE /api/movies/{id}/file", s.handleDeleteMovieFile)
 	admin.HandleFunc("DELETE /api/episodes/{id}/file", s.handleDeleteEpisodeFile)
 	admin.HandleFunc("DELETE /api/series/{id}/seasons/{season}/files", s.handleDeleteSeasonFiles)
@@ -836,7 +850,9 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("PUT /api/music/profiles/{id}", s.handleUpdateMusicProfile)
 	admin.HandleFunc("DELETE /api/music/profiles/{id}", s.handleDeleteMusicProfile)
 	admin.HandleFunc("POST /api/music/import/scan", s.handleMusicImportScan)
+	admin.HandleFunc("GET /api/music/import/scan", s.handleMusicImportLatest)
 	admin.HandleFunc("GET /api/music/import/scan/{id}", s.handleMusicImportResults)
+	admin.HandleFunc("DELETE /api/music/import/scan/{id}", s.handleMusicImportCancel)
 
 	// Moving over from Radarr, Sonarr, Prowlarr and SABnzbd (read-only on their side).
 	admin.HandleFunc("GET /api/system/backups", s.handleListSavedBackups)
@@ -849,7 +865,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("GET /api/system/backups/cloud/list", s.handleListCloudBackups)
 	admin.HandleFunc("GET /api/rename", s.handleRenamePreview)
 	admin.HandleFunc("POST /api/rename", s.handleRename)
-	s.registerSceneRoutes(admin, member) // scenes hook (home fork)
+	s.registerVideoRoutes(admin, member) // videos hook (home fork)
 	s.registerComicRoutes(admin, member) // comics hook (home fork)
 	admin.HandleFunc("POST /api/downloads/manual", s.handleManualDownload)
 	admin.HandleFunc("GET /api/manual-import", s.handleManualImportList)

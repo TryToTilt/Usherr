@@ -33,7 +33,7 @@ var Lists = []ListSection{
 	},
 	{
 		Name: "indexers", Path: "/api/indexers", Partial: true,
-		Fields:  []string{"name", "kind", "definitionId", "baseUrl", "apiKey", "protocol", "enabled", "settings", "priority"},
+		Fields:  []string{"name", "kind", "definitionId", "baseUrl", "apiKey", "protocol", "enabled", "settings", "priority", "requestsPerDay"},
 		Secrets: []string{"apiKey"},
 	},
 	{

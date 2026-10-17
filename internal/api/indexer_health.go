@@ -30,6 +30,13 @@ func addPauseInfo(p *indexerPayload, inst indexers.Instance) {
 	}
 }
 
+// addQuotaInfo fills in where the indexer stands against its daily limit.
+func addQuotaInfo(p *indexerPayload, inst indexers.Instance) {
+	q := inst.Tracker.Quota(inst.ID, inst.RequestsPerDay)
+	p.DailyLimit, p.LimitLearned, p.RequestsToday = q.Limit, q.Learned, q.Used
+	p.LimitNote = q.Message(nil)
+}
+
 // handleResumeIndexer is "Try again now": the indexer is asked by the next
 // search, and its failures are forgotten.
 func (s *Server) handleResumeIndexer(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +58,7 @@ func (s *Server) handleResumeIndexer(w http.ResponseWriter, r *http.Request) {
 
 // pausedIndexerProblems adds a Health line for every enabled indexer that is
 // being skipped.
-func (s *Server) pausedIndexerProblems(instances []indexers.Instance, add func(id, level, title, detail, action, link string)) {
+func (s *Server) pausedIndexerProblems(instances []indexers.Instance, addHealth func(id, level, title, detail, action, link string)) {
 	now := time.Now()
 	for _, inst := range instances {
 		if !inst.Enabled {
@@ -61,8 +68,8 @@ func (s *Server) pausedIndexerProblems(instances []indexers.Instance, add func(i
 		if !ok || !h.Paused(now) {
 			continue
 		}
-		add(fmt.Sprintf("indexer-paused-%d", inst.ID), "warn", inst.Name+" is paused",
-			indexers.PausedMessage(inst.Name, h, nil)+" Searches skip it until then. Press Try again now once it is fixed.",
+		addHealth(fmt.Sprintf("indexer-paused-%d", inst.ID), "warn", fmt.Sprintf("%s is paused", inst.Name),
+			fmt.Sprintf("%s Searches skip it until then. Press Try again now once it is fixed.", indexers.PausedMessage(inst.Name, h, nil)),
 			"Open indexers", "/settings/indexers")
 	}
 }

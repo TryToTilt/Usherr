@@ -41,14 +41,15 @@ func isBadRelease(err error) bool {
 	return errors.As(err, &b) || errors.As(err, &d)
 }
 
-// dropBlocked removes blocklisted releases from search results.
+// dropBlocked removes blocklisted releases from search results, and those
+// held back for now when blocked comes from searchSkipKeys.
 func dropBlocked(results []indexers.Result, blocked map[string]bool) []indexers.Result {
 	if len(blocked) == 0 {
 		return results
 	}
 	out := make([]indexers.Result, 0, len(results))
 	for _, r := range results {
-		if !blocked[blocklist.Key(r.Title)] {
+		if !searchSkips(r, blocked) {
 			out = append(out, r)
 		}
 	}
@@ -125,7 +126,7 @@ func (s *Server) retryMovie(movieID int64) {
 	if err != nil {
 		return
 	}
-	if !s.huntMovie(context.Background(), m, instances, profiles, s.blockedKeys(), false) {
+	if !s.huntMovie(context.Background(), m, instances, profiles, s.searchSkipKeys(), false) {
 		s.retryEvent(movieID, 0, noOtherRelease)
 	}
 }
@@ -185,10 +186,10 @@ func (s *Server) handleListBlocklist(w http.ResponseWriter, r *http.Request) {
 	}
 	out := []blocklistPayload{}
 	for _, e := range entries {
-		if hideBlocklistEntry(r, e.Reason) { // scenes hook (home fork)
+		if hideBlocklistEntry(r, e.Reason) { // videos hook (home fork)
 			continue
 		}
-		p := blocklistPayload{ID: e.ID, ReleaseTitle: e.ReleaseTitle, Protocol: e.Protocol, Reason: strings.TrimPrefix(e.Reason, sceneBlocklistTag)}
+		p := blocklistPayload{ID: e.ID, ReleaseTitle: e.ReleaseTitle, Protocol: e.Protocol, Reason: strings.TrimPrefix(e.Reason, videoBlocklistTag)}
 		if !e.CreatedAt.IsZero() {
 			p.CreatedAt = e.CreatedAt.Format(time.RFC3339)
 		}

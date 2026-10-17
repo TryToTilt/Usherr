@@ -267,7 +267,7 @@ function KindPanel({
           {saving ? t('Adding…') : t('Add {name}', { name: brand.label })}
         </button>
       </div>
-      <FormProblem v={v} verb={t('test the connection')} />
+      <FormProblem v={v} action="test" />
       {result && <TestResult r={result} />}
     </>
   )

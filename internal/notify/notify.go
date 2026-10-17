@@ -17,7 +17,9 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/netguard"
@@ -84,21 +86,37 @@ func doJSONSend(ctx context.Context, client *http.Client, method, target string,
 		steps.Add(true, "Preparing the message for %s", host)
 		ctx = traceRequest(ctx, steps, host, &failed)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, target, bytes.NewReader(raw))
-	if err != nil {
-		steps.Add(false, "The address is not valid")
-		return fmt.Errorf("build request: %w", redactURLError(err))
-	}
-	req.Header.Set("Content-Type", "application/json")
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		if !failed {
-			steps.Add(false, "%s", failureText(redactURLError(err)))
+	var resp *http.Response
+	for attempt := 0; ; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, method, target, bytes.NewReader(raw))
+		if err != nil {
+			steps.Add(false, "The address is not valid")
+			return fmt.Errorf("build request: %w", redactURLError(err))
 		}
-		return fmt.Errorf("send request: %w", redactURLError(err))
+		req.Header.Set("Content-Type", "application/json")
+		for k, v := range headers {
+			req.Header.Set(k, v)
+		}
+		resp, err = client.Do(req)
+		if err != nil {
+			if !failed {
+				steps.Add(false, "%s", failureText(redactURLError(err)))
+			}
+			return fmt.Errorf("send request: %w", redactURLError(err))
+		}
+		// "Too many requests": wait as long as the server asks (a little) and
+		// try once more, instead of dropping the message.
+		if resp.StatusCode != http.StatusTooManyRequests || attempt >= 1 {
+			break
+		}
+		wait := retryAfter(resp.Header.Get("Retry-After"))
+		resp.Body.Close()
+		steps.Add(true, "%s asked to slow down, trying again in %d seconds", host, int(wait.Seconds()))
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("send request: %w", ctx.Err())
+		case <-time.After(wait):
+		}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
@@ -371,11 +389,27 @@ func telegramHTML(ev Event) string {
 // first error — one bad notification target shouldn't suppress the
 // others, mirroring the indexer search engine's tolerate-one-failure
 // design.
+//
+// The targets are sent to at the same time and each gets a time of its own
+// (perTargetTimeout), so a slow target does not use up the time of the ones
+// after it. Errors come back in the order of senders.
 func NotifyAll(ctx context.Context, senders []Sender, event Event) []error {
 	event = Branded(event) // Usherr
+	results := make([]error, len(senders))
+	var wg sync.WaitGroup
+	for i, s := range senders {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sctx, cancel := context.WithTimeout(ctx, perTargetTimeout)
+			defer cancel()
+			results[i] = s.Send(sctx, event)
+		}()
+	}
+	wg.Wait()
 	var errs []error
-	for _, s := range senders {
-		if err := s.Send(ctx, event); err != nil {
+	for _, err := range results {
+		if err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -395,4 +429,19 @@ func Branded(ev Event) Event {
 		ev.Details = d
 	}
 	return ev
+}
+
+// perTargetTimeout is how long one target may take to accept a message.
+const perTargetTimeout = 20 * time.Second
+
+// maxRetryAfter is the longest pause a target's "slow down" answer is obeyed.
+const maxRetryAfter = 10 * time.Second
+
+// retryAfter reads a Retry-After header in seconds, capped; 1s when it is
+// missing or not a number of seconds.
+func retryAfter(h string) time.Duration {
+	if secs, err := strconv.Atoi(strings.TrimSpace(h)); err == nil && secs > 0 {
+		return min(time.Duration(secs)*time.Second, maxRetryAfter)
+	}
+	return time.Second
 }

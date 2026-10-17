@@ -101,11 +101,12 @@ func (s *Server) handleMovieSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	profile := s.profileForMovie(profiles, m)
-	blocked := s.blockedKeys()
+	blocked := s.searchSkipKeys()
 
 	_, beforeHome := s.homeReleaseHold(r.Context(), m, profile)
 	sizeReasons := s.movieSizeRejections(r.Context(), m, profile)
-	outcomes := indexers.SearchAll(r.Context(), instances, m.Title, movieCategory)
+	m = s.movieWithAltTitles(r.Context(), m)
+	outcomes := s.searchMovieTitles(r.Context(), instances, m, nil)
 	merged := indexers.MergeResults(outcomes)
 	out := []searchResultPayload{}
 	for _, res := range merged {
@@ -113,6 +114,7 @@ func (s *Server) handleMovieSearch(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		p := s.toSearchResultPayload(res)
+		p.MatchedTitle = matchedOtherTitle(res.Title, m.Title, m.AltTitles)
 		p.Blocklisted = blocked[blocklist.Key(res.Title)]
 		p.Rejections = append(p.Rejections, rejectionsFor(res.Title, profile, m.Status == library.StatusDownloaded, m.Quality, m.ReleaseTitle)...)
 		p.Rejections = append(p.Rejections, sizeReasons(res.Title, res.SizeBytes)...)
@@ -175,7 +177,7 @@ func (s *Server) handleMovieSearchNow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if s.huntMovie(r.Context(), m, instances, profiles, s.blockedKeys(), true) {
+	if s.huntMovie(r.Context(), m, instances, profiles, s.searchSkipKeys(), true) {
 		writeJSON(w, http.StatusOK, searchNowResponse{Grabbed: 1, Message: "Started a download. Follow it in Activity."})
 		return
 	}
@@ -266,8 +268,14 @@ func wantedPoster(posterPath string) string {
 // handleWanted lists what automation is still looking for: "missing"
 // (monitored, nothing downloaded; episodes only once aired) or "cutoff"
 // (downloaded but below the profile cutoff, upgrades allowed).
+//
+// Without paging it answers every movie and episode in one list, as it always
+// has; on a big TV library that can be hundreds of thousands of episodes, so
+// the app asks for ?group=1 (one row per movie or show, a page at a time; see
+// handleWantedGroups) and ?series=ID for one show's episodes.
 func (s *Server) handleWanted(w http.ResponseWriter, r *http.Request) {
-	kind := r.URL.Query().Get("kind")
+	q := r.URL.Query()
+	kind := q.Get("kind")
 	if kind == "" {
 		kind = "missing"
 	}
@@ -275,27 +283,73 @@ func (s *Server) handleWanted(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, `kind must be "missing" or "cutoff"`)
 		return
 	}
+	var seriesID int64
+	if v := q.Get("series"); v != "" {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || id <= 0 {
+			writeError(w, http.StatusBadRequest, "That isn't a valid show ID.")
+			return
+		}
+		seriesID = id
+	}
+	if q.Get("group") == "1" && seriesID == 0 {
+		s.handleWantedGroups(w, r, kind)
+		return
+	}
+	out, err := s.wantedItems(r.Context(), kind, seriesID)
+	if err != nil {
+		if r.Context().Err() == nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// wantedItems is the flat Wanted list: every movie, then every episode show by
+// show. seriesID, when not 0, keeps it to that show's episodes.
+func (s *Server) wantedItems(ctx context.Context, kind string, seriesID int64) ([]wantedItemPayload, error) {
 	profiles, err := s.loadProfiles()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, err
 	}
 	out := []wantedItemPayload{}
-
-	// Ask the database only for the monitored titles that could be wanted
-	// (missing ones, or downloaded ones for the cutoff list), then apply the
-	// rules that need the profile or the disk.
-	status := library.StatusMissing
-	if kind == "cutoff" {
-		status = library.StatusDownloaded
+	if seriesID == 0 {
+		movies, err := s.wantedMovieItems(ctx, kind, profiles)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, movies...)
 	}
-	movies, err := s.MovieRepo.ListMonitoredWithStatus(status)
+	episodes, err := s.wantedEpisodeItems(ctx, kind, profiles, seriesID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, err
 	}
-	var movieIDs []int64
-	var movieAt []int // where in out each movie sits
+	out = append(out, episodes...)
+	s.addLastSearches(out)
+	return out, nil
+}
+
+// wantedStatus is the status a title has when it can be on the list: missing
+// ones for "missing", downloaded ones (that may get a better version) for
+// "cutoff".
+func wantedStatus(kind string) library.Status {
+	if kind == "cutoff" {
+		return library.StatusDownloaded
+	}
+	return library.StatusMissing
+}
+
+// wantedMovieItems lists the wanted movies, newest added first.
+//
+// The database is asked only for the monitored titles that could be wanted,
+// and the rules that need the profile or the disk are applied here.
+func (s *Server) wantedMovieItems(ctx context.Context, kind string, profiles profileSet) ([]wantedItemPayload, error) {
+	movies, err := s.MovieRepo.ListMonitoredWithStatus(ctx, wantedStatus(kind))
+	if err != nil {
+		return nil, err
+	}
+	var out []wantedItemPayload
 	for _, m := range movies {
 		p := profiles.resolve(m.ProfileID)
 		switch {
@@ -308,28 +362,21 @@ func (s *Server) handleWanted(w http.ResponseWriter, r *http.Request) {
 			if kind == "cutoff" {
 				item.Quality, item.Cutoff = m.Quality, string(p.Cutoff)
 			}
-			movieIDs = append(movieIDs, m.ID)
-			movieAt = append(movieAt, len(out))
 			out = append(out, item)
 		}
 	}
-	if searches, err := s.QueueRepo.LastMovieSearches(movieIDs); err == nil {
-		for i, id := range movieIDs {
-			if e, ok := searches[id]; ok {
-				out[movieAt[i]].LastSearch, out[movieAt[i]].LastSearchAt = e.Message, e.At
-			}
-		}
-	}
+	return out, nil
+}
 
+// wantedEpisodeItems lists the wanted episodes show by show, newest added
+// show first (seriesID, when not 0: that show's only).
+func (s *Server) wantedEpisodeItems(ctx context.Context, kind string, profiles profileSet, seriesID int64) ([]wantedItemPayload, error) {
 	today := time.Now().UTC().Format("2006-01-02")
-	episodes, err := s.MovieRepo.ListWantedEpisodes(status, today)
+	episodes, err := s.MovieRepo.ListWantedEpisodes(ctx, wantedStatus(kind), today, seriesID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, err
 	}
-	var seriesIDs []int64
-	seenSeries := map[int64]bool{}
-	var episodeAt []int
+	var out []wantedItemPayload
 	for _, ep := range episodes {
 		p := profiles.resolveTV(ep.ProfileID)
 		if kind == "missing" && fileExists(ep.FilePath) {
@@ -352,21 +399,36 @@ func (s *Server) handleWanted(w http.ResponseWriter, r *http.Request) {
 		if kind == "cutoff" {
 			item.Quality, item.Cutoff = ep.Quality, string(p.Cutoff)
 		}
-		if !seenSeries[ep.SeriesID] {
-			seenSeries[ep.SeriesID] = true
-			seriesIDs = append(seriesIDs, ep.SeriesID)
-		}
-		episodeAt = append(episodeAt, len(out))
 		out = append(out, item)
 	}
-	if searches, err := s.QueueRepo.LastSeriesSearches(seriesIDs); err == nil {
-		for _, at := range episodeAt {
-			if e, ok := searches[out[at].SeriesID]; ok {
-				out[at].LastSearch, out[at].LastSearchAt = e.Message, e.At
-			}
+	return out, nil
+}
+
+// addLastSearches fills in what the latest automatic search for each title
+// said: a movie's own, and for an episode or a show row, the show's.
+func (s *Server) addLastSearches(items []wantedItemPayload) {
+	var movieIDs, seriesIDs []int64
+	seen := map[int64]bool{}
+	for _, it := range items {
+		if it.Kind == "movie" {
+			movieIDs = append(movieIDs, it.ID)
+		} else if it.SeriesID != 0 && !seen[it.SeriesID] {
+			seen[it.SeriesID] = true
+			seriesIDs = append(seriesIDs, it.SeriesID)
 		}
 	}
-	writeJSON(w, http.StatusOK, out)
+	movieSearches, _ := s.QueueRepo.LastMovieSearches(movieIDs)
+	showSearches, _ := s.QueueRepo.LastSeriesSearches(seriesIDs)
+	for i := range items {
+		it := &items[i]
+		if it.Kind == "movie" {
+			if e, ok := movieSearches[it.ID]; ok {
+				it.LastSearch, it.LastSearchAt = e.Message, e.At
+			}
+		} else if e, ok := showSearches[it.SeriesID]; ok {
+			it.LastSearch, it.LastSearchAt = e.Message, e.At
+		}
+	}
 }
 
 type monitoredRequest struct {

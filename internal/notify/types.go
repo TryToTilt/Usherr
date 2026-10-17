@@ -25,6 +25,7 @@ const (
 	EventUpdate   = "update"   // a new version of Mediarium is available
 	EventRequest  = "request"  // someone asked for a title (see Activity > Requests)
 	EventDigest   = "digest"   // the weekly summary
+	EventReminder = "reminder" // Usherr: a Live TV show someone asked about is starting
 )
 
 // EventInfo describes one subscribable event for the UI.
@@ -46,6 +47,7 @@ func EventKinds() []EventInfo {
 		{EventUpdate, "New version", "A new version of Mediarium is available."},
 		{EventRequest, "Requests", "Someone asked for a movie, show, artist or book."},
 		{EventDigest, "Weekly summary", "Once a week: what arrived, what failed and what is still missing."},
+		{EventReminder, "TV reminders", "A Live TV show you asked to be reminded of starts in five minutes."}, // Usherr
 	}
 }
 

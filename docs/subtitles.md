@@ -10,6 +10,10 @@ Subtitles that come inside a download are always imported and always listed in a
 
 For scripts: the switch is the setting `subtitles.enabled` (`subtitlesEnabled` in `GET`/`PUT /api/settings`). While it is off, `/api/subtitles/*`, `/api/movies/{id}/subtitles*` and `/api/episodes/{id}/subtitles*` answer `409` with "Subtitles are switched off".
 
+## Which languages
+
+**Languages to keep** under **Settings > Info, lists and subtitles > Subtitles** offers English, Spanish, French, German, Italian, Portuguese (Portugal and Brazil), Dutch, Swedish, Danish, Finnish, Norwegian, Polish, Czech, Slovak, Slovenian, Hungarian, Romanian, Bulgarian, Croatian, Serbian, Bosnian, Ukrainian, Greek, Turkish, Russian, Arabic, Hebrew, Japanese, Korean, Chinese (Simplified and Traditional), Hindi, Indonesian, Thai, Vietnamese and Catalan. They use the language codes OpenSubtitles uses (`hr`, `sr`, `bs`, `sl` and so on). OpenSubtitles has a single Serbian: its Latin and Cyrillic subtitles are both `sr`, so Mediarium keeps whichever one it is given, and reads the file in the right alphabet. Scripts can send any code made of two or three letters (`pt-BR` and `zh-CN` style regions are fine), up to 50 languages in `subtitleLanguages`.
+
 ## Where subtitles come from
 
 1. **The release itself.** When a movie or episode is imported, Mediarium copies the subtitle files from the finished download (`.srt`, `.ass`, `.ssa`, `.sub` with `.idx`, and `.sup`) next to the video, named the way Plex, Jellyfin and Kodi expect: `Movie (2020).en.srt`, `Movie (2020).fr.srt`. This is free and uses none of your daily allowance.
@@ -100,7 +104,7 @@ To add one, open **Settings > Info, lists and subtitles > Subtitles**, find the 
 
 For subs.ro, create a free account on subs.ro, get your API key from subs.ro/api, install its Stremio add-on from the add-on's page with that key, and paste the address it gives you (it contains the key).
 
-Add-ons are searched together with the other sources that are switched on, in automatic downloads and in the list you pick from by hand, where each result says which site it's from. They are asked with the title's IMDb id (read from TMDB), plus the file name and size when there is a file. Anything in a language you didn't pick is left out. Downloads can be SRT, WebVTT (converted to SRT) or a zip (for an episode, the file named for that episode). Subtitles saved in an older Windows code page, which is common for Romanian, Polish, Greek and Hebrew, are converted to UTF-8 so players show the letters correctly.
+Add-ons are searched together with the other sources that are switched on, in automatic downloads and in the list you pick from by hand, where each result says which site it's from. They are asked with the title's IMDb id (read from TMDB), plus the file name and size when there is a file. Anything in a language you didn't pick is left out. Downloads can be SRT, WebVTT (converted to SRT) or a zip (for an episode, the file named for that episode). Subtitles saved in an older Windows code page, which is common for Romanian, Polish, Greek and Hebrew, are converted to UTF-8 so players show the letters correctly. The same goes for Chinese (GBK, or Big5 for Traditional), Japanese (Shift-JIS), Korean (EUC-KR) and Thai. A language Mediarium knows no older code page for is saved as it came, and a UTF-8 file with a single damaged byte is kept as UTF-8.
 
 The address can hold your own key for the site, so the list is stored encrypted (`subtitles.addons`) and only the host is shown. Download links in search results are sealed with the server's key, so only links an add-on really offered can be fetched. For scripts: an administrator can list them with `GET /api/subtitles/addons` and add one with `POST /api/subtitles/addons` with `{"url": "..."}`, `DELETE /api/subtitles/addons/{id}` and `POST /api/subtitles/addons/{id}/test`. Results carry `"source": "addon"` and a `link` to pass back as it is.
 

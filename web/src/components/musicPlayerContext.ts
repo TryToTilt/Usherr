@@ -12,8 +12,6 @@ export interface PlayerApi {
   queue: QueuedTrack[]
   index: number
   playing: boolean
-  time: number
-  duration: number
   volume: number
   shuffle: boolean
   repeat: Repeat
@@ -56,6 +54,19 @@ export interface PlayerApi {
 }
 
 export const PlayerContext = createContext<PlayerApi | null>(null)
+
+// The position and length of the track change several times a second, so they
+// live in a context of their own. Only the seek bars and the lyrics read it;
+// every other part of the app that talks to the player stays still while a
+// song plays.
+export interface PlayerTime {
+  time: number
+  duration: number
+}
+export const PlayerTimeContext = createContext<PlayerTime>({ time: 0, duration: 0 })
+export function usePlayerTime(): PlayerTime {
+  return useContext(PlayerTimeContext)
+}
 
 // useMusicPlayer is null outside the app shell (the Books app has its own player).
 export function useMusicPlayer(): PlayerApi | null {

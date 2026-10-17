@@ -153,6 +153,9 @@ func TestCodeFor(t *testing.T) {
 		{"nzb fetch, no host", errors.New(`the download failed: couldn't get the NZB file: Get "https://api.example.com/getnzb/x.nzb": dial tcp: lookup api.example.com on 10.0.0.1:53: no such host`), problems.CodeIndexerFetchFailed},
 		{"nzb fetch, refused", errors.New("the download failed: couldn't get the NZB file: dial tcp 1.2.3.4:443: connect: connection refused"), problems.CodeIndexerFetchFailed},
 		{"nzb fetch, timeout", errors.New("the download failed: couldn't get the NZB file: i/o timeout"), problems.CodeIndexerFetchFailed},
+		{"nzb link sent a login page", errors.New("the download failed: the indexer sent a web page instead of the NZB file. It may be down for maintenance, or want you to sign in again"), problems.CodeIndexerNotNZB},
+		{"nzb link sent an error", errors.New("the download failed: the indexer refused to send the NZB file: Request limit reached"), problems.CodeIndexerNotNZB},
+		{"nzb link sent something else", errors.New("the download failed: the indexer didn't send an NZB file"), problems.CodeIndexerNotNZB},
 		{"torrent fetch", errors.New("the download failed: couldn't get the torrent: dial tcp: lookup t.example.com: no such host"), problems.CodeIndexerFetchFailed},
 		{"provider down is still usenet", errors.New("the download failed: news.example.com: dial tcp 1.2.3.4:563: connect: connection refused"), problems.CodeUsenetUnreachable},
 		{"no video", errors.New("couldn't find the movie file in the finished download: no video"), problems.CodeImportNoVideo},
@@ -229,6 +232,45 @@ func TestRecordKeepsWhatHappened(t *testing.T) {
 	}
 	if e.Detail != "bad header" || e.Title != "The Matrix" || e.Link != "/title/603" || e.DownloadID != 42 || e.Count != 1 || e.Read {
 		t.Errorf("wrong details: %+v", e)
+	}
+}
+
+// While another write holds the database for a long time (a big import), the
+// problem log waits and tries again instead of losing the problem: the
+// "database is slow" warning was the one that got lost.
+func TestAProblemIsKeptWhenTheDatabaseIsBusy(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	// The log's own handle gives up on a lock quickly, so the test does not
+	// wait for the usual ten seconds.
+	quick, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(50)&_txlock=immediate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { quick.Close() })
+	problems.SetBusyRetryWait(100 * time.Millisecond)
+	t.Cleanup(func() { problems.SetBusyRetryWait(3 * time.Second) })
+	l := problems.Open(quick)
+
+	hold, err := db.Begin() // takes the write lock
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := hold.Exec(`UPDATE problems SET is_read = 1 WHERE id = 0`); err != nil {
+		t.Fatal(err)
+	}
+	l.Record(problems.Problem{Code: problems.CodeDatabaseSlow, Message: "A database call took 31.7s."})
+	time.Sleep(250 * time.Millisecond) // the first save, and a retry, find the database busy
+	if err := hold.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	got := list(t, l, problems.Filter{})
+	if len(got) != 1 || got[0].Code != problems.CodeDatabaseSlow {
+		t.Fatalf("the problem was lost while the database was busy: %+v", got)
 	}
 }
 

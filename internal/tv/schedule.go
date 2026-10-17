@@ -19,6 +19,10 @@ type Item struct {
 	Path     string
 	Size     int64
 	Runtime  time.Duration
+	// Usherr: when an episode first aired (YYYY-MM-DD) and the youngest age
+	// the title suits (0 = not known), for premieres and family hours.
+	AirDate string
+	Age     int
 }
 
 // Library is where a channel's items come from.
@@ -47,6 +51,19 @@ type State struct {
 	MovieDeck []int64       `json:"movieDeck"` // movies still to come, shuffled
 	MovieDay  string        `json:"movieDay"`  // the day MoviesToday counts
 	MoviesDay int           `json:"moviesDay"`
+	// Usherr: where each daypart's own line-up is (blocks.go), where each
+	// holiday's list is, and which new episodes have had their premiere.
+	Parts     map[string]*PartState `json:"parts,omitempty"`
+	Holiday   map[string]int        `json:"holiday,omitempty"`
+	Premiered map[string]string     `json:"premiered,omitempty"` // file -> day it premiered
+}
+
+func errNothing(name string) error {
+	return fmt.Errorf("channel %q has nothing to play: add shows or movies that are in the library", name)
+}
+
+func errMeasure(name string) error {
+	return fmt.Errorf("channel %q: too many files couldn't be measured", name)
 }
 
 // Build lays out a channel's programs from from until until (the last one
@@ -54,6 +71,9 @@ type State struct {
 func Build(ch Channel, lib Library, probe Prober, st *State, from, until time.Time, rnd *rand.Rand) ([]Program, error) {
 	if st.Next == nil {
 		st.Next = map[int64]int{}
+	}
+	if usesBlocks(ch.Rules) { // Usherr: a grid, dayparts, slots or filler
+		return buildBlocks(ch, lib, probe, st, from, until, rnd)
 	}
 	shows, err := channelShows(ch.Rules, lib)
 	if err != nil {

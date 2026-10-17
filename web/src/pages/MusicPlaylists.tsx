@@ -89,7 +89,10 @@ export function MusicPlaylists() {
   const [shared, setShared] = useState(false)
   const [busy, setBusy] = useState(false)
 
+  // Nothing is asked while Music is switched off (the page says so below).
+  const musicOff = loaded && !on('music')
   const load = useCallback(() => {
+    if (musicOff) return
     api
       .musicPlaylists()
       .then((l) => {
@@ -97,7 +100,7 @@ export function MusicPlaylists() {
         setError('')
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-  }, [])
+  }, [musicOff])
   useEffect(load, [load])
 
   async function create() {

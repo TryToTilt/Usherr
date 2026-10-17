@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
+import ActionMenu from './ActionMenu' // Usherr
 import type { CastMember, Trailer } from '../api'
 import { plural, t } from '../i18n'
 import { trailerLabels } from '../trailerLabels'
@@ -366,24 +367,36 @@ export default function TitleHero({ info, status, actions, children, onPlay }: {
 
         {(trailers.length > 0 || (info.links ?? []).length > 0) && (
           <div className="title-links">
-            {trailers.map((t, i) => (
+            {/* Usherr: one Trailer button, or a menu of them */}
+            {trailers.length === 1 ? (
               <a
-                key={t.url}
-                href={t.url}
+                href={trailers[0].url}
                 target="_blank"
                 rel="noreferrer"
                 className="link-pill"
                 onClick={(e) => {
                   // A plain click plays it here; a click with Ctrl, Shift or the middle button still opens YouTube.
-                  if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0 || !t.key) return
+                  if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0 || !trailers[0].key) return
                   e.preventDefault()
+                  stopBackground()
+                  setTrailerOpen(0)
+                }}
+              >
+                <Icon name="play" size={13} /> {trailerNames[0]}
+              </a>
+            ) : trailers.length > 1 ? (
+              <ActionMenu
+                label={t('Trailers')}
+                icon="play"
+                choices={trailers.map((_tr, i) => ({ id: String(i), label: trailerNames[i] }))}
+                onPick={(id) => {
+                  const i = Number(id)
+                  if (!trailers[i]?.key) return void window.open(trailers[i]?.url, '_blank', 'noopener')
                   stopBackground()
                   setTrailerOpen(i)
                 }}
-              >
-                <Icon name="play" size={13} /> {trailerNames[i]}
-              </a>
-            ))}
+              />
+            ) : null}
             {canPlay && info.backdropUrl && (
               <button
                 type="button"
@@ -405,14 +418,13 @@ export default function TitleHero({ info, status, actions, children, onPlay }: {
                 <Icon name={soundOn ? 'volume' : 'volume-off'} size={14} />
               </button>
             )}
-            <a className="link-pill" href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${info.title} ${info.year ?? ''} review`)}`} target="_blank" rel="noreferrer">
-              <Icon name="external" size={13} /> {t('Reviews')}
-            </a>
-            {(info.links ?? []).map((l) => (
-              <a key={l.url} className="link-pill" href={l.url} target="_blank" rel="noreferrer">
-                <Icon name="external" size={13} /> {l.label}
-              </a>
-            ))}
+            {/* Usherr: reviews and the title's pages elsewhere, in one menu */}
+            <ActionMenu
+              label={t('Links')}
+              icon="external"
+              choices={[{ id: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${info.title} ${info.year ?? ''} review`)}`, label: t('Reviews') }, ...(info.links ?? []).map((l) => ({ id: l.url, label: l.label }))]}
+              onPick={(url) => void window.open(url, '_blank', 'noopener,noreferrer')}
+            />
           </div>
         )}
 

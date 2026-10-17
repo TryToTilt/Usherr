@@ -12,6 +12,7 @@ import { required } from '../validate'
 import { FieldError, FormProblem, useValidation } from '../useValidation'
 import { LANGUAGES, chooseLanguage, currentLanguage, plural, t, tx, type Lang } from '../i18n'
 import { withBase } from '../base'
+import { takeRestored } from '../restoreNotice'
 
 // Reads the problem code from the address and takes it out again, so a reload doesn't show it twice.
 function takeSignInError(): string {
@@ -32,6 +33,7 @@ export default function Login() {
   const { refresh } = useAuth()
   const [methods, setMethods] = useState<SignInMethods>({ local: true, oidc: null, ldap: false, passkeys: false })
   const [problemCode] = useState(takeSignInError)
+  const [restored] = useState(() => takeRestored())
   useEffect(() => {
     api.signInMethods().then(setMethods).catch(() => undefined)
   }, [])
@@ -110,6 +112,7 @@ export default function Login() {
           <span>{BRAND}</span>
         </div>
         <p className="auth-sub">{t('Sign in to continue')}</p>
+        {restored && !error && <p className="auth-done" role="status">{t('The backup was restored. Sign in again.')}</p>}
         {error && <p className="error-text">{error}</p>}
         {!error && problemCode && <p className="error-text">{signInProblem(problemCode, methods.oidc?.name ?? t('single sign-on'))}</p>}
         {showForm && (
@@ -127,7 +130,7 @@ export default function Login() {
         <button className="primary" type="submit" disabled={busy}>
           {busy ? t('Signing in…') : t('Sign in')}
         </button>
-        <FormProblem v={v} verb={t('sign in')} />
+        <FormProblem v={v} action="signin" />
           </>
         )}
         {(methods.oidc || methods.passkeys) && (

@@ -14,7 +14,6 @@ import (
 	"github.com/rdborg/mediarium/internal/crypto"
 	"github.com/rdborg/mediarium/internal/netproxy"
 	"github.com/rdborg/mediarium/internal/settings"
-	"github.com/rdborg/mediarium/internal/store"
 	"github.com/rdborg/mediarium/internal/vpn"
 )
 
@@ -22,7 +21,7 @@ func newBareServer(t *testing.T) *Server {
 	t.Helper()
 	dir := t.TempDir()
 	cfg := config.Config{ConfigDir: dir, DownloadsDir: dir, DownloadsIncomplete: dir, DownloadsComplete: dir, MoviesDir: dir}
-	db, err := store.Open(filepath.Join(dir, "app.db"))
+	db, err := OpenTestDB(filepath.Join(dir, "app.db"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}

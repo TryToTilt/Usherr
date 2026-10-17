@@ -739,7 +739,7 @@ func (s *Server) searchListAdditions(res listRunResult) {
 			slog.Warn("import list: load quality profiles for the new titles", "err", err)
 			return
 		}
-		blocked := s.blockedKeys()
+		blocked := s.searchSkipKeys()
 		for _, id := range res.searchMovies {
 			if !s.autoGrabRoom() {
 				holdBack("import-list")

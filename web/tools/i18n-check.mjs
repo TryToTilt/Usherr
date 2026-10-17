@@ -106,7 +106,7 @@ for (const lang of LANGS) {
   console.log(`${lang}: ${wanted.size - missing.length}/${wanted.size} translated, ${unused.length} unused${wrong.length ? `, ${wrong.length} with different {names}` : ''}`)
   for (const p of wrong.slice(0, 10)) console.log(`  names differ: ${JSON.stringify(p)} -> ${JSON.stringify(cat[p])}`)
   problems += wrong.length
-  for (const p of missing.slice(0, args.has('--strict') ? 20 : 5)) console.log(`  missing: ${JSON.stringify(p)} (${phrases.get(p)})`)
+  for (const p of missing.slice(0, args.has('--all') ? Infinity : args.has('--strict') ? 20 : 5)) console.log(`  missing: ${JSON.stringify(p)} (${phrases.get(p)})`)
   problems += missing.length
   if (args.has('--prune') && unused.length) {
     for (const p of unused) delete own[p], delete home[p]

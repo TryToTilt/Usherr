@@ -3,11 +3,32 @@ package music
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/dhowden/tag"
 )
+
+// Reading the tags of one file is capped, so a damaged file can't hold up a
+// whole import. A FLAC file that is a header followed by zeros (an
+// interrupted copy, a preallocated download) looks like millions of empty
+// metadata blocks, and the tag reader walks them all, a few bytes at a time.
+// Real tags, cover picture included, sit in the first few MB of a file, and a
+// FLAC metadata block is never bigger than 16 MB.
+var (
+	// TagReadLimit is the most bytes read from one file while looking for
+	// its tags.
+	TagReadLimit int64 = 16 << 20
+	// TagReadTimeout is the most time spent reading one file's tags.
+	TagReadTimeout = 5 * time.Second
+)
+
+// ErrTagReadLimit is returned when a file's tags weren't found within
+// TagReadLimit bytes or TagReadTimeout. The file is then identified by its
+// name alone.
+var ErrTagReadLimit = errors.New("tags not found within the read limit")
 
 // FileTagReader reads the tags embedded in audio files (ID3, Vorbis
 // comments, MP4 atoms) with github.com/dhowden/tag. It only ever reads:
@@ -30,11 +51,14 @@ func (FileTagReader) ReadTags(path string) (info FileInfo, ok bool, err error) {
 		return FileInfo{}, false, fmt.Errorf("open %s: %w", path, err)
 	}
 	defer f.Close()
-	st, err := f.Stat()
+	r, err := newCappedReader(f, TagReadLimit, time.Now().Add(TagReadTimeout))
 	if err != nil {
-		return FileInfo{}, false, fmt.Errorf("stat %s: %w", path, err)
+		return FileInfo{}, false, fmt.Errorf("read tags of %s: %w", path, err)
 	}
-	m, err := tag.ReadFrom(newReadSeekBuffer(f, st.Size())) // home fork: buffered (see home_tagbuf.go)
+	m, err := tag.ReadFrom(r)
+	if r.hitLimit {
+		return FileInfo{}, false, fmt.Errorf("read tags of %s: %w", path, ErrTagReadLimit)
+	}
 	if errors.Is(err, tag.ErrNoTagsFound) {
 		return FileInfo{}, false, nil
 	}
@@ -54,6 +78,78 @@ func (FileTagReader) ReadTags(path string) (info FileInfo, ok bool, err error) {
 		FileType:    string(m.FileType()),
 	}
 	return info, true, nil
+}
+
+// cappedReader reads a file through a 64 KB buffer (the tag reader asks for
+// a few bytes at a time, which over a network share is one round trip each),
+// and fails once it has read more than limit bytes or the deadline has
+// passed.
+type cappedReader struct {
+	f        io.ReaderAt
+	size     int64
+	pos      int64
+	read     int64 // bytes read from the file so far
+	limit    int64
+	deadline time.Time
+	buf      []byte
+	bufAt    int64 // file offset of buf[0]
+	hitLimit bool
+}
+
+func newCappedReader(f *os.File, limit int64, deadline time.Time) (*cappedReader, error) {
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	return &cappedReader{f: f, size: st.Size(), limit: limit, deadline: deadline}, nil
+}
+
+func (c *cappedReader) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	if c.pos >= c.size {
+		return 0, io.EOF
+	}
+	if c.pos < c.bufAt || c.pos >= c.bufAt+int64(len(c.buf)) {
+		if c.read >= c.limit || time.Now().After(c.deadline) {
+			c.hitLimit = true
+			return 0, ErrTagReadLimit
+		}
+		if c.buf == nil {
+			c.buf = make([]byte, 64<<10)
+		}
+		c.buf = c.buf[:cap(c.buf)]
+		n, err := c.f.ReadAt(c.buf, c.pos)
+		c.buf, c.bufAt = c.buf[:n], c.pos
+		c.read += int64(n)
+		if n == 0 {
+			if err == nil {
+				err = io.EOF
+			}
+			return 0, err
+		}
+	}
+	n := copy(p, c.buf[c.pos-c.bufAt:])
+	c.pos += int64(n)
+	return n, nil
+}
+
+func (c *cappedReader) Seek(offset int64, whence int) (int64, error) {
+	switch whence {
+	case io.SeekStart:
+	case io.SeekCurrent:
+		offset += c.pos
+	case io.SeekEnd:
+		offset += c.size
+	default:
+		return c.pos, errors.New("seek: bad whence")
+	}
+	if offset < 0 {
+		return c.pos, errors.New("seek: negative position")
+	}
+	c.pos = offset
+	return c.pos, nil
 }
 
 // variousArtists names the album artist compilations carry.

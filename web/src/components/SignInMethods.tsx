@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { cloneElement, isValidElement, useCallback, useEffect, useState, type ReactElement, type ReactNode } from 'react'
 import { api, type LdapReport, type LdapSettings, type OidcSettings, type OidcTestResult, type SignInSettings } from '../api'
 import { DOCS_URL } from '../docs'
 import { t } from '../i18n'
@@ -9,10 +9,15 @@ import TipLabel from './TipLabel'
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 function Field({ label, note, tip, children }: { label: string; note?: ReactNode; tip?: string; children: ReactNode }) {
+  // The text field gets the label as its name too, so a screen reader never says just "edit".
+  const named =
+    isValidElement(children) && children.type === 'input' && !(children.props as { 'aria-label'?: string })['aria-label']
+      ? cloneElement(children as ReactElement<{ 'aria-label'?: string }>, { 'aria-label': label })
+      : children
   return (
     <label>
       {tip ? <TipLabel text={tip}>{label}</TipLabel> : label}
-      {children}
+      {named}
       {note && <small style={{ color: 'var(--text-dim)' }}>{note}</small>}
     </label>
   )

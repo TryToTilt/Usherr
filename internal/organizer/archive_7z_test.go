@@ -304,7 +304,7 @@ func TestExtractEncryptedZipNeedsThePassword(t *testing.T) {
 
 // With the real 7z tool: a ZIP made with a password opens with that password
 // (both the old ZipCrypto and AES), and a wrong or missing one is "password
-// protected".
+// protected" (a wrong one says the password is wrong).
 func TestExtractReal7zEncryptedZip(t *testing.T) {
 	ex := organizer.NewExtractor()
 	if !ex.Available() {
@@ -329,7 +329,7 @@ func TestExtractReal7zEncryptedZip(t *testing.T) {
 				t.Fatalf("no password: %v", err)
 			}
 			wrong := &organizer.Extractor{BinaryPath: ex.BinaryPath, Password: "nope"}
-			if err := wrong.Extract(archive, filepath.Join(dir, "b")); !errors.Is(err, organizer.ErrPasswordProtected) {
+			if err := wrong.Extract(archive, filepath.Join(dir, "b")); !errors.Is(err, organizer.ErrWrongPassword) {
 				t.Fatalf("wrong password: %v", err)
 			}
 			right := &organizer.Extractor{BinaryPath: ex.BinaryPath, Password: "secret"}
@@ -370,7 +370,7 @@ func TestExtractReal7zEncrypted7z(t *testing.T) {
 				t.Fatalf("no password: %v", err)
 			}
 			wrong := &organizer.Extractor{BinaryPath: ex.BinaryPath, Password: "nope"}
-			if err := wrong.Extract(archive, filepath.Join(dir, "b")); !errors.Is(err, organizer.ErrPasswordProtected) {
+			if err := wrong.Extract(archive, filepath.Join(dir, "b")); !errors.Is(err, organizer.ErrWrongPassword) {
 				t.Fatalf("wrong password: %v", err)
 			}
 			right := &organizer.Extractor{BinaryPath: ex.BinaryPath, Password: "secret"}

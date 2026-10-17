@@ -340,6 +340,7 @@ type manualDownloadResponse struct {
 //	name    the release name (optional; the file or address gives one)
 //	movieId, or seriesId with season and episode (episode 0 = the whole season)
 func (s *Server) handleManualDownload(w http.ResponseWriter, r *http.Request) {
+	allowLongUpload(w)
 	r.Body = http.MaxBytesReader(w, r.Body, maxManualNZB+(1<<20))
 	if err := r.ParseMultipartForm(4 << 20); err != nil {
 		var tooBig *http.MaxBytesError

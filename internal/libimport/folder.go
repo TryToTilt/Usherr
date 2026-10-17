@@ -50,6 +50,44 @@ func ScanSeriesFolder(dir string) ([]File, []string, error) {
 	for _, f := range files {
 		fr := parser.Parse(fileBase(f.rel[len(f.rel)-1]))
 		if len(fr.Episodes) == 0 { // season 0 is the specials
+			// An anime file named only by its number from the first episode.
+			if len(fr.Absolute) > 0 && fr.Season == 0 && !fr.Special {
+				folders := append(nearestFolders(f.rel), filepath.Base(dir))
+				tier := tierFromNames(fileBase(f.rel[len(f.rel)-1]), folders)
+				key := fmt.Sprintf("a#%d", fr.Absolute[0])
+				file := File{Path: f.path, SizeBytes: f.size, Absolute: fr.Absolute, Quality: string(tier)}
+				if idx, dup := seen[key]; dup {
+					if out[idx].SizeBytes >= file.SizeBytes {
+						skipped = append(skipped, f.path+" - duplicate copy of the same episode")
+						continue
+					}
+					skipped = append(skipped, out[idx].Path+" - duplicate copy of the same episode")
+					out[idx] = file
+					continue
+				}
+				seen[key] = len(out)
+				out = append(out, file)
+				continue
+			}
+			// A daily show's file named by the day it aired.
+			if fr.AirDate != "" && fr.Season == 0 && !fr.Special {
+				folders := append(nearestFolders(f.rel), filepath.Base(dir))
+				tier := tierFromNames(fileBase(f.rel[len(f.rel)-1]), folders)
+				key := fmt.Sprintf("d#%s#%d", fr.AirDate, fr.DailyPart)
+				file := File{Path: f.path, SizeBytes: f.size, AirDate: fr.AirDate, DailyPart: fr.DailyPart, Quality: string(tier)}
+				if idx, dup := seen[key]; dup {
+					if out[idx].SizeBytes >= file.SizeBytes {
+						skipped = append(skipped, f.path+" - duplicate copy of the same episode")
+						continue
+					}
+					skipped = append(skipped, out[idx].Path+" - duplicate copy of the same episode")
+					out[idx] = file
+					continue
+				}
+				seen[key] = len(out)
+				out = append(out, file)
+				continue
+			}
 			skipped = append(skipped, f.path+" - couldn't read a season/episode number from the name")
 			continue
 		}
@@ -57,7 +95,7 @@ func ScanSeriesFolder(dir string) ([]File, []string, error) {
 		// the show's own folder.
 		folders := append(nearestFolders(f.rel), filepath.Base(dir))
 		tier := tierFromNames(fileBase(f.rel[len(f.rel)-1]), folders)
-		file := File{Path: f.path, SizeBytes: f.size, Season: fr.Season, Episodes: fr.Episodes, Quality: string(tier)}
+		file := File{Path: f.path, SizeBytes: f.size, Season: fr.Season, Episodes: fr.Episodes, Absolute: absoluteInName(fileBase(f.rel[len(f.rel)-1]), len(fr.Episodes)), Quality: string(tier)}
 		key := fmt.Sprintf("%d#%d", fr.Season, fr.Episodes[0])
 		if idx, dup := seen[key]; dup {
 			if out[idx].SizeBytes >= file.SizeBytes {

@@ -147,6 +147,8 @@ func (d ircDecider) finish(o announce.DecideOptions, item string, grab func(url 
 		switch {
 		case errors.Is(err, errAlreadyGrabbed):
 			return announce.Decision{Action: announce.DecisionSkipped, Reason: "Already being downloaded.", Item: item}
+		case errors.Is(err, errNZBLinkHeld):
+			return announce.Decision{Action: announce.DecisionSkipped, Reason: "That release is held back for a few hours because its indexer sent a web page instead of the NZB file.", Item: item}
 		case errors.Is(err, errBlocklisted):
 			return announce.Decision{Action: announce.DecisionSkipped, Reason: "That release is on the blocklist.", Item: item}
 		case errors.Is(err, errTorrentsDisabled):
@@ -186,7 +188,7 @@ func (d ircDecider) decideMovie(ctx context.Context, res indexers.Result, movies
 	s := d.s
 	var why string
 	var matched bool
-	blocked := s.blockedKeys()
+	blocked := s.searchSkipKeys()
 	for _, m := range movies {
 		if !matchesMovie(res.Title, m) {
 			continue
@@ -273,7 +275,7 @@ func (d ircDecider) decideMovie(ctx context.Context, res indexers.Result, movies
 // episode or season pack (autoGrabTV).
 func (d ircDecider) decideTV(ctx context.Context, rel parser.Release, res indexers.Result, series []library.Series, profiles profileSet, o announce.DecideOptions) announce.Decision {
 	s := d.s
-	blocked := s.blockedKeys()
+	blocked := s.searchSkipKeys()
 	var matched bool
 	var why string
 	for _, sr := range series {
@@ -287,7 +289,9 @@ func (d ircDecider) decideTV(ctx context.Context, rel parser.Release, res indexe
 		}
 		cands := filterSources(dropBlocked([]indexers.Result{res}, blocked), s.sourcesFor(sr.SourcePref))
 		if len(cands) == 0 {
-			if blocked[blocklist.Key(res.Title)] {
+			if blocked[nzbLinkHoldKey(res.DownloadURL, res.Title)] {
+				why = "That release is held back for a few hours because its indexer sent a web page instead of the NZB file."
+			} else if blocked[blocklist.Key(res.Title)] {
 				why = "That release is on the blocklist."
 			} else {
 				why = fmt.Sprintf("%s only uses Usenet downloads.", sr.Title)

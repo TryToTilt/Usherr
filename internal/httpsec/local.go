@@ -98,6 +98,12 @@ func (p *Proxies) FromHome(r *http.Request) bool {
 	if !ok {
 		return false
 	}
+	// A connection handed over by Docker's port forwarder or rootless Podman
+	// comes from the default gateway whoever the visitor is, and then Host and
+	// X-Forwarded-For are only what the visitor chose to send.
+	if isDefaultGateway(pa) {
+		return false
+	}
 	ip := p.ClientIP(r)
 	if !IsHomeAddress(ip) {
 		return false

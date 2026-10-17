@@ -29,6 +29,13 @@ services:
     image: mediarium:dev
     container_name: mediarium
     restart: unless-stopped
+    # Keeps Docker's log file for this container from growing without end:
+    # three files of 10 MB, the oldest is dropped.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       # Host port on the left (HOST_PORT in .env); the app listens on 8264 inside.
       - "${HOST_PORT:-8264}:8264"

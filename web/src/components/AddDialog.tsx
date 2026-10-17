@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom'
+import { useStreamed } from '../home/useHave' // Usherr
 import { sortProfiles } from './qualityBlurb'
 import { useEffect, useRef, useState } from 'react'
 import { api, can, isRequested, isViewer, type DashboardData, type QualityProfile, type RequestStatus, type SourcePref } from '../api'
@@ -70,6 +71,7 @@ function AddForm({
   const asks = !can(useAuth().user, 'addDirect')
   const toast = useToast()
   const isMovie = target.kind === 'movie'
+  const alreadyStreams = useStreamed(target.kind)(target.tmdbId) // Usherr
   const [profiles, setProfiles] = useState<QualityProfile[]>([])
   const [defaultProfileId, setDefaultProfileId] = useState(0)
   const [defaultSources, setDefaultSources] = useState<SourcePref>('both')
@@ -107,13 +109,8 @@ function AddForm({
     api.listProfiles().then((r) => {
       setProfiles(sortProfiles(r.profiles))
       setDefaultProfileId(defaultProfileFor(target.kind, r))
+      setDefaultSources(r.defaultSources || 'both')
     }).catch(() => undefined)
-    api
-      .getSettings()
-      .then((s) => {
-        setDefaultSources(s.defaultSources ?? 'both')
-      })
-      .catch(() => undefined)
     api
       .libraryFolders()
       .then((f) => setFolders(target.kind === 'movie' ? f.movies : f.tv))
@@ -179,6 +176,11 @@ function AddForm({
         </div>
 
         <div className="modal-body grid-form">
+          {alreadyStreams && (
+            <div className="notice notice-warn" style={{ gridColumn: '1 / -1' }}>
+              {t('You already stream this. Adding it downloads a copy to keep as well.')}
+            </div>
+          )}
           <label>
             <span className="has-tip">
               {t('Quality profile')}
@@ -321,9 +323,9 @@ function AddForm({
 
         <div className="modal-foot">
           <button onClick={onClose} disabled={busy}>{t('Cancel')}</button>
-          <AddAsStream kind={target.kind} tmdbId={target.tmdbId} title={target.title} disabled={busy} onDone={onClose} />
+          {!alreadyStreams && <AddAsStream kind={target.kind} tmdbId={target.tmdbId} title={target.title} disabled={busy} onDone={onClose} />}
           <button className="primary btn-with-icon" onClick={submit} disabled={busy}>
-            <Icon name="plus" size={16} /> {busy ? (asks ? t('Sending…') : t('Adding…')) : asks ? (isMovie ? t('Request movie') : t('Request show')) : isMovie ? t('Add movie') : t('Add show')}
+            <Icon name="plus" size={16} /> {busy ? (asks ? t('Sending…') : t('Adding…')) : alreadyStreams && !asks ? t('Download a copy anyway') : asks ? (isMovie ? t('Request movie') : t('Request show')) : isMovie ? t('Add movie') : t('Add show')}
           </button>
         </div>
       </div>

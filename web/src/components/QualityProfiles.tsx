@@ -420,7 +420,7 @@ export default function QualityProfilesSection({ rev = 0, onChanged, advanced = 
           {t('Save profile')}
         </button>
         <button onClick={() => openDraft(null)}>{t('Cancel')}</button>
-        <FormProblem v={v} verb={t('save this profile')} />
+        <FormProblem v={v} action="saveProfile" />
       </div>
     </div>
   )

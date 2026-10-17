@@ -180,7 +180,7 @@ func (s *Server) downloadSubtitle(w http.ResponseWriter, r *http.Request, kind s
 	case req.Source == subtitles.SourceSubDL && subtitles.ValidSubDLLink(req.Link):
 	case req.Source == subtitles.SourceWizdom && subtitles.ValidWizdomLink(req.Link):
 	case req.Source == subtitles.SourceAddon && req.Link != "":
-		if _, ok := s.openAddonLink(req.Link); !ok {
+		if _, _, ok := s.openAddonLink(req.Link); !ok {
 			err = errors.New("no subtitle")
 		}
 	case req.Source == subtitles.SourceOpenSubtitles && req.FileID > 0:
@@ -328,9 +328,7 @@ func (s *Server) handleSubtitlesWanted(w http.ResponseWriter, r *http.Request) {
 		}
 		p := subtitleWantedPayload{Kind: it.kind, ID: it.id, Title: it.title, Subtitle: it.subtitle, Missing: missing, MovieTMDB: it.tmdbID, Dismissed: isDismissed}
 		if it.kind == "episode" {
-			if ep, err := s.MovieRepo.GetEpisodeByID(it.id); err == nil {
-				p.SeriesID = ep.SeriesID
-			}
+			p.SeriesID = it.seriesID
 		}
 		out = append(out, p)
 	}

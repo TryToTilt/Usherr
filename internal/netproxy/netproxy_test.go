@@ -114,6 +114,11 @@ func (s *socksServer) serve(c net.Conn) {
 // requests, behind Basic auth when user is set.
 func httpProxy(t *testing.T, user, pass string, carried *atomic.Int32) *httptest.Server {
 	t.Helper()
+	// Its own transport, closed with the test: the shared default one keeps
+	// idle connections to the servers of earlier tests, and when the system
+	// hands one of those ports out again a stale connection can be picked.
+	forward := &http.Transport{}
+	t.Cleanup(forward.CloseIdleConnections)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if user != "" && r.Header.Get("Proxy-Authorization") != "Basic "+base64.StdEncoding.EncodeToString([]byte(user+":"+pass)) {
 			w.WriteHeader(http.StatusProxyAuthRequired)
@@ -136,7 +141,7 @@ func httpProxy(t *testing.T, user, pass string, carried *atomic.Int32) *httptest
 			return
 		}
 		out, _ := http.NewRequest(r.Method, r.URL.String(), r.Body)
-		resp, err := http.DefaultTransport.RoundTrip(out)
+		resp, err := forward.RoundTrip(out)
 		if err != nil {
 			w.WriteHeader(http.StatusBadGateway)
 			return
@@ -312,6 +317,24 @@ func TestProxyRefusesBlockedDestinations(t *testing.T) {
 	tgt := target(t)
 	if body, err := get(t, Client(5*time.Second, Indexers), tgt.URL); err != nil || body != "hello" {
 		t.Fatalf("an allowed destination: %q %v", body, err)
+	}
+}
+
+// A port number that happens to contain 407 must not turn an error into
+// "the proxy refused the user name or password".
+func TestPlainErrorsIgnoreThePortNumber(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want string
+	}{
+		{errors.New("through the proxy socks5://127.0.0.1:40781: dial tcp: i/o timeout"), "i/o timeout"},
+		{errors.New("socks connect tcp 127.0.0.1:40700->10.0.0.1:80: unknown error host unreachable"), "unreachable"},
+		{errors.New("the proxy refused the user name or password (407)"), "refused the user name or password"},
+		{errors.New("Proxy Authentication Required"), "refused the user name or password"},
+	} {
+		if got := plain(tc.err).Error(); !strings.Contains(got, tc.want) {
+			t.Errorf("plain(%q) = %q, want it to mention %q", tc.err, got, tc.want)
+		}
 	}
 }
 

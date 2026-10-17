@@ -69,6 +69,16 @@ func (c *coverLocks) noteWrite(dir string) {
 	}
 }
 
+// touchCover marks a cached cover as used now (at most once a day), so the
+// clean-up, which removes the oldest files first, keeps the covers people look
+// at and drops one-off ones.
+func touchCover(path string, st os.FileInfo) {
+	if time.Since(st.ModTime()) > 24*time.Hour {
+		now := time.Now()
+		_ = os.Chtimes(path, now, now)
+	}
+}
+
 // pruneCoverCache removes "no cover" marks older than missingFor, then the
 // oldest files until at most max remain.
 func pruneCoverCache(dir string, max int, missingFor time.Duration) {
@@ -169,6 +179,7 @@ func (s *Server) cachedReleaseGroupCover(ctx context.Context, mbid string) (stri
 	dir := s.coverCacheDir()
 	img, none := filepath.Join(dir, mbid+".img"), filepath.Join(dir, mbid+".none")
 	if st, err := os.Stat(img); err == nil && st.Size() > 0 {
+		touchCover(img, st)
 		return img, nil
 	}
 	unlock := s.music.covers.lock(mbid)

@@ -1,0 +1,65 @@
+/* Usherr: the calendar's search and its list of matches. */
+.cal-search-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cal-search-field { flex: 1 1 260px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); color: var(--text-dim); }
+.cal-search-field:focus-within { border-color: var(--accent); }
+.cal-search-field input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 10px 0; color: var(--text); font: inherit; outline: none; box-shadow: none; }
+.cal-search-field input::-webkit-search-cancel-button { display: none; }
+.cal-search-clear { border: 0; background: transparent; color: var(--text-dim); padding: 4px; display: inline-flex; cursor: pointer; }
+.cal-search-ai { white-space: nowrap; }
+.cal-search-answer { display: flex; gap: 8px; align-items: flex-start; margin: 10px 2px 0; color: var(--text); }
+.cal-search-answer svg { flex: none; margin-top: 3px; color: var(--accent); }
+.cal-search-none { color: var(--text-dim); margin: 0 0 18px; }
+.cal-matches { margin: 0 0 22px; }
+.cal-matches-count { color: var(--text-dim); font-size: 0.9rem; margin: 0 0 8px; }
+.cal-matches ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 420px; overflow-y: auto; }
+.cal-matches li { display: flex; align-items: center; gap: 12px; padding: 6px 10px 6px 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.cal-matches li.past { opacity: 0.6; }
+.cal-match-date { flex: none; width: 52px; display: grid; justify-items: center; padding: 4px 0; border: 0; border-radius: 9px; background: var(--surface-2); color: var(--text); cursor: pointer; line-height: 1.1; }
+.cal-match-date:hover { background: color-mix(in srgb, var(--accent) 18%, var(--surface-2)); }
+.cal-match-day { font-size: 1.15rem; font-weight: 700; }
+.cal-match-mon { font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; }
+.cal-match-body { min-width: 0; display: grid; color: inherit; text-decoration: none; }
+.cal-match-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-match-sub { font-size: 0.85rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+a.cal-match-body:hover .cal-match-title { color: var(--accent); }
+
+.cal-matches li a.cal-match-body, .cal-matches li a.cal-match-body:hover { text-decoration: none; }
+.cal-match-body:hover .cal-match-sub { text-decoration: none; }
+
+/* The calendar's bar at the top of Upcoming. */
+.cal-omni { margin-bottom: 14px; }
+.cal-missing { margin: 0 0 14px; }
+
+/* The kind picker at the end of Upcoming's tabs. */
+.page-tabs-end { margin-left: auto; display: flex; align-items: center; }
+.cal-kind-pick { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px 0 10px; margin: 4px 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); color: var(--kc, var(--text-dim)); cursor: pointer; }
+.cal-kind-pick select { border: 0; background: transparent; color: var(--text); font: inherit; padding: 7px 2px; cursor: pointer; box-shadow: none; max-width: 9.5em; }
+.cal-kind-pick select:focus { outline: none; }
+.cal-kind-pick:focus-within { border-color: var(--kc, var(--accent)); }
+@media (max-width: 760px) {
+  /* Room for the picker on a phone: the tabs drop their icons. */
+  .page-tabs:has(.cal-kind-pick) { flex-wrap: nowrap; }
+  .page-tabs:has(.cal-kind-pick) a { padding-inline: 8px; }
+  .page-tabs:has(.cal-kind-pick) a svg { display: none; }
+  .page-tabs-end { flex: 0 1 auto; min-width: 0; }
+  .cal-kind-pick { padding: 0 4px 0 8px; gap: 4px; }
+  .cal-kind-pick select { max-width: 6.2em; text-overflow: ellipsis; }
+}
+
+/* The calendar's menu at the end of Upcoming's tabs: just its icon on a phone. */
+@media (max-width: 760px) {
+  .page-tabs-end .action-menu .dropdown-btn > span, .page-tabs-end .action-menu .dropdown-btn > .ico-chevron-down { display: none; }
+  .page-tabs-end { gap: 4px; }
+}
+@media (max-width: 760px) {
+  /* The kind picker takes what room is left next to the tabs, so the menu stays on screen. */
+  .page-tabs:has(.cal-kind-pick) .page-tabs-end { flex: 1 1 0; min-width: 0; justify-content: flex-end; }
+  .page-tabs .cal-kind-pick { flex: 0 1 auto; min-width: 0; }
+  .page-tabs .cal-kind-pick select { max-width: none; width: 100%; min-width: 0; }
+}
+@media (max-width: 760px) {
+  .page-tabs-end .action-menu { flex: none; width: auto; }
+  .page-tabs-end .action-menu .dropdown-btn { width: auto; min-width: 0; padding: 0 10px; }
+  .page-tabs .cal-kind-pick { flex: 1 1 auto; }
+  .page-tabs:has(.cal-kind-pick) a { padding-inline: 6px; }
+}

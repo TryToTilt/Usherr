@@ -1,12 +1,11 @@
 import KindGlyph, { type GlyphKind } from '../components/KindGlyph'
-import OmniBar from '../home/OmniBar' // home fork
-import DashCalendar from '../home/DashCalendar' // home fork
+import { useComicsOn } from '../home/libraryKinds' // Usherr
 import Tonight from '../home/Tonight' // home fork
 import News from '../home/News' // home fork
 import InTheaters from '../home/InTheaters' // Usherr
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { api, displayName, isAdmin, type CalendarEntry, type DashboardData, type DashRecent, type HealthItem, type QueueItem } from '../api'
+import { api, displayName, isAdmin, type DashboardData, type DashRecent, type HealthItem, type QueueItem } from '../api'
 import { useAuth } from '../AuthContext'
 import { KindBadge } from '../components/CalendarGrid'
 import Icon, { type IconName } from '../components/Icon'
@@ -15,7 +14,7 @@ import Loading from '../components/Loading'
 import PosterCard from '../components/PosterCard'
 import { describeState, type ItemStateKey } from '../components/state'
 import { timeAgo } from '../format'
-import { locale, plural, t, tx } from '../i18n'
+import { locale, plural, st, t, tx } from '../i18n'
 import { useModules } from '../ModulesContext'
 import SetupGaps from '../components/SetupGaps'
 import { dismiss, factsFromDashboard, isDismissed, setupGaps } from '../setupStatus'
@@ -53,7 +52,7 @@ function useCountUp(target: number, ms = 700): number {
 // One card per kind of media. A kind that is switched off keeps its card,
 // dimmed with an "Off" badge and the count it had, so it is easy to switch back
 // on; one that is not built yet says "Coming soon".
-function ModuleCard({ icon, glyph, label, value, unit, sub, to, color, off, soon }: { icon: IconName; glyph?: GlyphKind; label: string; value?: number; unit?: string; sub?: string; to: string; color: string; off?: boolean; soon?: boolean }) {
+function ModuleCard({ icon, glyph, cut, label, value, unit, sub, to, color, off, soon }: { icon: IconName; glyph?: GlyphKind; cut?: string; label: string; value?: number; unit?: string; sub?: string; to: string; color: string; off?: boolean; soon?: boolean }) {
   const counted = useCountUp(value ?? 0)
   const dim = off || soon
   const body = (
@@ -75,7 +74,7 @@ function ModuleCard({ icon, glyph, label, value, unit, sub, to, color, off, soon
     </>
   )
   // The wrapper draws the outline (it follows the notch in the corner); the card inside is the cut shape.
-  const kind = glyph ?? 'movie'
+  const kind = cut ?? glyph ?? 'movie' // cut: Usherr, a notch of its own (anime)
   return (
     <div className={`mod-wrap mod-k-${kind}${dim ? ' dim' : ''}`} style={{ ['--tc' as string]: color }}>
       {dim ? (
@@ -103,12 +102,12 @@ function Health({ items, showOptional, errors = 0 }: { items: HealthItem[]; show
         <Icon name={LEVEL_ICON[it.level]} size={18} />
       </span>
       <div className="health-text">
-        <strong>{it.title}</strong>
-        <span>{it.impact}</span>
+        <strong>{st(it.title)}</strong>
+        <span>{st(it.impact)}</span>
       </div>
       {it.action && (
         <Link to={it.action.path} className="health-action">
-          {it.action.label} <Icon name="open" size={14} />
+          {st(it.action.label)} <Icon name="open" size={14} />
         </Link>
       )}
     </li>
@@ -250,7 +249,6 @@ export default function Dashboard() {
       .catch(() => undefined)
   }, [])
   const [active, setActive] = useState<QueueItem[]>([])
-  const [cal, setCal] = useState<CalendarEntry[]>([])
   const [error, setError] = useState('')
   const [showOptional, setShowOptional] = useState(false)
   // "Getting started" stays away once it is closed (remembered in this browser).
@@ -268,10 +266,6 @@ export default function Dashboard() {
   useEffect(loadDashboard, [loadDashboard])
   useLive(loadDashboard, 5000)
 
-  useEffect(() => {
-    api.calendar().then(setCal).catch(() => undefined)
-  }, [])
-
   // Downloads move quickly, so they refresh on their own faster clock.
   const loadActive = useCallback(() => {
     api
@@ -286,6 +280,7 @@ export default function Dashboard() {
   // Members get a trimmed dashboard: no setup warnings, no server paths and
   // no links into settings they cannot open.
   const admin = isAdmin(user)
+  const comicsOn = useComicsOn(admin) // Usherr: the Comics card
   const unreadErrors = useUnreadErrors(admin)
 
   // One failed refresh must not replace a dashboard that is already showing.
@@ -347,7 +342,7 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard">
-      <OmniBar page="dashboard" /> {/* home fork: search and AI at the top */}
+      <News /> {/* Usherr: the news, one line at the top */}
       <section className="hero-welcome">
         <div className="hero-drift" aria-hidden="true">
           {DRIFT.map((d, i) => (
@@ -374,7 +369,9 @@ export default function Dashboard() {
                   ? plural(inLine, '{n} download is waiting in line.', '{n} downloads are waiting in line.')
                 : wanted > 0
                   ? plural(wanted, 'Nothing is downloading right now. {n} item is still missing.', 'Nothing is downloading right now. {n} items are still missing.')
-                  : t('Everything is up to date.')}
+                  : admin && problems > 0
+                    ? t('Nothing is downloading and nothing is missing.')
+                    : t('Everything is up to date.')}
           </p>
         </div>
           {heroPills} {/* home fork: server details live in Settings > System */}
@@ -384,7 +381,6 @@ export default function Dashboard() {
       <TwoStepTip />
       <Tonight /> {/* home fork: what to watch tonight */}
       <InTheaters /> {/* Usherr: films in cinemas */}
-      <News /> {/* home fork: entertainment news */}
 
       {admin && !startedClosed && startedGaps.length > 0 && (
         <section className="card started-card" aria-labelledby="started-title">
@@ -420,6 +416,18 @@ export default function Dashboard() {
       <div className="dash-cards">
         <ModuleCard icon="film" glyph="movie" label={t('Movies')} value={lib.movies.total} sub={[t('{n} on disk', { n: lib.movies.downloaded }), lib.movies.streams ? t('{n} stream', { n: lib.movies.streams }) : '', t('{n} missing', { n: lib.movies.missing })].filter(Boolean).join(' · ')} to="/library?kind=movie" color="var(--c-movie)" off={!on('movies')} />
         <ModuleCard icon="tv" glyph="tv" label={t('TV shows')} value={lib.series.total} sub={[plural(lib.series.episodes, '{n} episode', '{n} episodes'), t('{n} on disk', { n: lib.series.episodesDownloaded }), lib.series.episodesStreams ? t('{n} stream', { n: lib.series.episodesStreams }) : ''].filter(Boolean).join(' · ')} to="/library?kind=tv" color="var(--c-tv)" off={!on('tv')} />
+        {/* Usherr: anime apart from TV */}
+        <ModuleCard
+          icon="tv"
+          glyph="tv"
+          cut="anime"
+          label={t('Anime')}
+          value={lib.anime?.total ?? 0}
+          sub={[plural(lib.anime?.episodes ?? 0, '{n} episode', '{n} episodes'), t('{n} on disk', { n: lib.anime?.episodesDownloaded ?? 0 }), lib.anime?.episodesStreams ? t('{n} stream', { n: lib.anime.episodesStreams }) : ''].filter(Boolean).join(' · ')}
+          to="/library?kind=anime"
+          color="var(--c-anime, var(--c-tv))"
+          off={!on('tv')}
+        />
         <ModuleCard
           icon="music"
           glyph="music"
@@ -453,6 +461,19 @@ export default function Dashboard() {
           color="var(--c-audiobook)"
           off={!on('audiobooks')}
         />
+        {comicsOn && (
+          // Usherr: comics
+          <ModuleCard
+            icon="book"
+            glyph="comic"
+            label={t('Comics')}
+            value={lib.comics?.series ?? 0}
+            unit={plural(lib.comics?.series ?? 0, 'series', 'series')}
+            sub={t('{downloaded} issues downloaded · {missing} missing', { downloaded: lib.comics?.downloaded ?? 0, missing: lib.comics?.missing ?? 0 })}
+            to="/comics"
+            color="var(--c-comics)"
+          />
+        )}
       </div>
 
       {!empty && data.recentlyAdded.length > 0 && (
@@ -518,7 +539,6 @@ export default function Dashboard() {
         </Tile>
       </div>
 
-      <DashCalendar entries={cal} /> {/* home fork: folded, Month / Week / Day */}
 
     </div>
   )

@@ -7,8 +7,9 @@ test('each kind of failure gets its own explanation', () => {
   const cases: [string, 'usenet' | 'torrent', RegExp][] = [
     ["repairing the download failed: 2567 articles couldn't be found on your Usenet servers and the release has no PAR2 files to repair it", 'usenet', /no longer complete/],
     ['the torrent got no data for 2 hours: no one seems to be sharing it', 'torrent', /Nobody is sharing/],
-    ['extract movie.rar: password protected', 'usenet', /password/],
-    ['write segment x: the disk is full', 'usenet', /ran out of space/],
+    ['extract movie.rar: password protected', 'usenet', /locked with a password/],
+    ["couldn't unpack the download: extract movie.rar: archive is password protected, and the password that came with it is wrong", 'usenet', /came with a password/],
+    ["Couldn't save the downloaded data. The disk is full. Free up some space and try again.", 'usenet', /ran out of space/],
     ['something nobody has seen before', 'usenet', /could not be finished/],
   ]
   for (const [msg, proto, want] of cases) {

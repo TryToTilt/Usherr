@@ -14,6 +14,7 @@ const RULES: [RegExp, string][] = [
   [/^\/music\/(albums|artists)\/\d+\/cover/, 'The Cover Art Archive'],
   [/^\/music\/tracks\/\d+\/lyrics/, 'LRCLIB'],
   [/^\/(books\/(discover|search)|book-authors)(\/|$|\?)/, 'Open Library'],
+  [/^\/books\/\d+\/cover\/editions/, 'Open Library'],
   [/^\/(search|movies\/\d+\/search|series\/\d+\/search|books\/\d+\/releases)(\/|$|\?)/, t('Your indexers')],
   [/^\/(media-servers\/links|books\/\d+\/links)/, t('Your media server')],
   [/^\/(movies|episodes)\/\d+\/subtitles(\/|$|\?)/, 'OpenSubtitles'],

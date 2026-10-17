@@ -39,11 +39,65 @@ func (l *LoginLimiter) Allow(key string) bool {
 func (l *LoginLimiter) RecordFailure(key string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if len(l.attempts) >= maxTrackedKeys {
+	l.add(key)
+}
+
+// Reserve counts one attempt against key before the slow check it guards, and
+// reports whether there was room for it. The check and the count happen under
+// one lock, so a burst of parallel requests cannot all see "no failures yet"
+// and get past the limit. The caller keeps the attempt when the check fails
+// and gives it back with Refund when it turns out fine.
+func (l *LoginLimiter) Reserve(key string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.prune(key)
+	if len(l.attempts[key]) >= l.maxAttempts {
+		return false
+	}
+	l.add(key)
+	return true
+}
+
+// Refund takes back the newest attempt counted against key (see Reserve).
+func (l *LoginLimiter) Refund(key string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	list := l.attempts[key]
+	if len(list) <= 1 {
+		delete(l.attempts, key)
+		return
+	}
+	l.attempts[key] = list[:len(list)-1]
+}
+
+// add appends one attempt, keeping the table below maxTrackedKeys. Caller
+// must hold l.mu.
+func (l *LoginLimiter) add(key string) {
+	if _, known := l.attempts[key]; !known && len(l.attempts) >= maxTrackedKeys {
 		l.sweep() // many different sources at once: forget the ones whose window is over
+		if len(l.attempts) >= maxTrackedKeys {
+			l.evictOldest() // still full inside one window: make room instead of growing
+		}
 	}
 	l.prune(key)
 	l.attempts[key] = append(l.attempts[key], time.Now())
+}
+
+// evictOldest drops the key whose newest attempt is the oldest. Caller must
+// hold l.mu.
+func (l *LoginLimiter) evictOldest() {
+	var oldestKey string
+	var oldest time.Time
+	first := true
+	for k, list := range l.attempts {
+		last := list[len(list)-1]
+		if first || last.Before(oldest) {
+			oldestKey, oldest, first = k, last, false
+		}
+	}
+	if !first {
+		delete(l.attempts, oldestKey)
+	}
 }
 
 // RecordSuccess clears key's attempt history — a successful login isn't

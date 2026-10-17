@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type BookFormat, type BookFound, type BookImportResult, type BookImportState } from '../api'
-import { canFindByHand, matchBody, resultLine, suggestedQuery } from '../bookMatch'
+import { canFindByHand, matchBody, resultLine } from '../bookMatch'
 import Icon from './Icon'
 import { PosterFallback } from './PosterCard'
 import { useToast } from './Toast'
@@ -17,14 +17,18 @@ export default function BookImport({ format, folder, onDone }: { format: BookFor
   const [starting, setStarting] = useState(false)
   const [showAll, setShowAll] = useState(false)
   const [finding, setFinding] = useState('') // the row whose search box is open
-  const running = st?.phase === 'running'
+  // One import runs at a time, for ebooks or audiobooks. The rows of the
+  // other kind are those of its own last run.
+  const busy = st?.phase === 'running'
+  const mine = !st?.kinds || st.kinds.length === 0 || st.kinds.includes(format)
+  const running = busy && mine
 
   const poll = useCallback(() => api.bookImportStatus().then(setSt).catch(() => undefined), [])
   useEffect(() => {
     void poll()
   }, [poll])
   useEffect(() => {
-    if (!running) return
+    if (!busy) return
     const timer = setInterval(() => {
       void api.bookImportStatus().then((s) => {
         setSt(s)
@@ -32,7 +36,7 @@ export default function BookImport({ format, folder, onDone }: { format: BookFor
       })
     }, 1500)
     return () => clearInterval(timer)
-  }, [running, onDone])
+  }, [busy, onDone])
 
   async function start() {
     setStarting(true)
@@ -60,7 +64,12 @@ export default function BookImport({ format, folder, onDone }: { format: BookFor
   const results = (st?.results ?? []).filter((r) => r.kind === format)
   const problems = results.filter((r) => r.status === 'unmatched' || r.status === 'failed')
   const listed = showAll ? results : problems
-  const sum = st?.summary ?? {}
+  const sum: Record<string, number> = {}
+  for (const r of results) sum[r.status] = (sum[r.status] ?? 0) + 1
+  // This kind's own state: the run in progress or just finished when it is
+  // about this kind, else its earlier results, if any.
+  const phase = mine ? st?.phase : results.length > 0 ? 'done' : ''
+  const ran = Boolean(st?.phase) && (mine || results.length > 0)
   return (
     <section className="card book-import">
       <div className="book-import-head">
@@ -72,8 +81,8 @@ export default function BookImport({ format, folder, onDone }: { format: BookFor
             })}
           </p>
         </div>
-        <button className="primary btn-with-icon" onClick={() => void start()} disabled={starting || running}>
-          <Icon name="folder" size={16} /> {running ? t('Importing…') : st?.phase ? t('Import again') : t('Start import')}
+        <button className="primary btn-with-icon" onClick={() => void start()} disabled={starting || busy}>
+          <Icon name="folder" size={16} /> {running ? t('Importing…') : ran ? t('Import again') : t('Start import')}
         </button>
       </div>
       {running && (
@@ -86,8 +95,8 @@ export default function BookImport({ format, folder, onDone }: { format: BookFor
           </small>
         </div>
       )}
-      {st?.phase === 'failed' && <p className="error-text">{st.error}</p>}
-      {st?.phase === 'done' && (
+      {phase === 'failed' && <p className="error-text">{st?.error}</p>}
+      {phase === 'done' && (
         <p>
           {results.length === 0 ? (
             ebooks ? t('No ebooks found in the folder.') : t('No audiobooks found in the folder.')
@@ -101,7 +110,7 @@ export default function BookImport({ format, folder, onDone }: { format: BookFor
       {results.length > 0 && (
         <>
           <div className="row-actions">
-            {problems.length > 0 && !running && (
+            {problems.length > 0 && !busy && (
               <button className="btn-sm" disabled={starting} onClick={() => void retry()} title={t('Looks again only at the books that were not found or could not be saved. It does not read the folders again.')}>
                 {t('Run the {n} not found again', { n: problems.length })}
               </button>
@@ -134,7 +143,7 @@ export default function BookImport({ format, folder, onDone }: { format: BookFor
                         <td title={serverText(r.message)}>
                           {r.bookId ? <Link to={`/book/${r.bookId}`}>{STATUS_LABEL[r.status] ?? r.status}</Link> : (STATUS_LABEL[r.status] ?? r.status)}
                           {r.message ? <small className="hint"> {serverText(r.message)}</small> : null}
-                          {canFindByHand(r.status) && !running && (
+                          {canFindByHand(r.status) && !busy && (
                             <div>
                               <button className="btn-sm" onClick={() => setFinding(finding === `${r.kind}-${r.path}` ? '' : `${r.kind}-${r.path}`)}>
                                 {t('Find it myself')}
@@ -171,10 +180,12 @@ export default function BookImport({ format, folder, onDone }: { format: BookFor
 }
 
 // "Find it myself": search Open Library for a book the import did not find,
-// pick it, and it is attached to that file.
+// pick it, and it is attached to that file. The title and the author are
+// searched apart, so the books by that author come first.
 function FindByHand({ row, onClose, onMatched }: { row: BookImportResult; onClose: () => void; onMatched: (st: BookImportState) => void }) {
   const toast = useToast()
-  const [q, setQ] = useState(suggestedQuery(row))
+  const [q, setQ] = useState((row.title ?? '').trim())
+  const [author, setAuthor] = useState((row.author ?? '').trim())
   const [results, setResults] = useState<BookFound[] | null>(null)
   const [error, setError] = useState('')
   const [rename, setRename] = useState(false)
@@ -182,7 +193,8 @@ function FindByHand({ row, onClose, onMatched }: { row: BookImportResult; onClos
 
   useEffect(() => {
     const term = q.trim()
-    if (term.length < 2) {
+    const by = author.trim()
+    if (term.length < 2 && by.length < 2) {
       setResults(null)
       return
     }
@@ -190,16 +202,15 @@ function FindByHand({ row, onClose, onMatched }: { row: BookImportResult; onClos
     // A slow answer for an earlier search must not replace the one for what is typed now.
     let stale = false
     const timer = setTimeout(() => {
-      api
-        .searchBooks(term)
-        .then((r) => !stale && setResults(r.slice(0, 8)))
-        .catch((e) => !stale && setError(e instanceof Error ? e.message : String(e)))
+      // With only an author, the author is the search.
+      const search = term.length >= 2 ? api.searchBooks(term, by) : api.searchBooks(by)
+      search.then((r) => !stale && setResults(r.slice(0, 8))).catch((e) => !stale && setError(e instanceof Error ? e.message : String(e)))
     }, 350)
     return () => {
       stale = true
       clearTimeout(timer)
     }
-  }, [q])
+  }, [q, author])
 
   async function pick(f: BookFound) {
     setBusy(f.key)
@@ -215,7 +226,8 @@ function FindByHand({ row, onClose, onMatched }: { row: BookImportResult; onClos
   return (
     <div className="book-add find-by-hand">
       <div className="book-add-head">
-        <input type="search" autoFocus placeholder={t('Title and author, for example The Hobbit Tolkien')} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t('Search Open Library')} />
+        <input type="search" autoFocus placeholder={t('Title')} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t('Title')} />
+        <input type="search" className="author" placeholder={t('Author')} value={author} onChange={(e) => setAuthor(e.target.value)} aria-label={t('Author')} />
         <label className="check-inline" title={t('Moves the file to where Mediarium puts a book it downloads, named after the book you pick.')}>
           <input type="checkbox" checked={rename} onChange={(e) => setRename(e.target.checked)} /> {t('Rename the file to match')}
         </label>

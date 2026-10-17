@@ -175,6 +175,11 @@ type Profile struct {
 	// is not stored with the profile. A release clearly in another language
 	// only is not accepted (see FitLanguage). Empty means any language.
 	Language string
+	// LanguageOnly is the "Only take releases in these languages" switch,
+	// filled in with Language and not stored with the profile. When it is on, a
+	// release that doesn't say it is in a wanted language is not accepted
+	// either (see FitLanguageOnly). Off leaves the fallbacks in place.
+	LanguageOnly bool
 	// OriginalLanguage is the language the title being judged was made in (a
 	// name such as "Japanese"), filled in by whoever loads the profile for a
 	// decision about one film or show. Custom formats with an "Original"

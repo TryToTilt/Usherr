@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -303,6 +304,32 @@ func TestRepoEventsSecretsAndUpdate(t *testing.T) {
 	}
 	if senders, _ := repo.SendersFor("added"); len(senders) != 1 {
 		t.Fatalf("a disabled target must not be built, got %d senders", len(senders))
+	}
+}
+
+// A failed send to a saved target names the target and its type, so the log
+// can say which one failed, and still doesn't hold its secret address.
+func TestSaveTargetFailuresNameTheTarget(t *testing.T) {
+	repo, _ := newTestRepoWithDB(t)
+	srv, _ := captureServer(t, http.StatusInternalServerError)
+	secret := srv.URL + "/hooks/s3cr3t-token"
+	if _, err := repo.Create(notify.Target{Name: "Home hook", Type: notify.TargetWebhook, Enabled: true, URL: secret}); err != nil {
+		t.Fatal(err)
+	}
+	senders, err := repo.SendersFor("failed")
+	if err != nil || len(senders) != 1 {
+		t.Fatalf("senders: %d, %v", len(senders), err)
+	}
+	errs := notify.NotifyAll(context.Background(), senders, fixtureEvent)
+	if len(errs) != 1 {
+		t.Fatalf("want one error, got %v", errs)
+	}
+	var te *notify.TargetError
+	if !errors.As(errs[0], &te) || te.Name != "Home hook" || te.Type != notify.TargetWebhook {
+		t.Fatalf("the error doesn't name the target: %#v", errs[0])
+	}
+	if strings.Contains(errs[0].Error(), "s3cr3t-token") {
+		t.Fatalf("the error holds the secret address: %v", errs[0])
 	}
 }
 

@@ -54,7 +54,7 @@ func (s *Server) handleMovieEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	events, err := s.QueueRepo.MovieEvents(id, maxItemEvents)
-	writeItemEvents(w, events, err)
+	writeItemEvents(w, events, err, isAdminRequest(r))
 }
 
 // handleSeriesEvents lists a show's own activity log (all its episodes), newest first (at most 200 events).
@@ -72,17 +72,21 @@ func (s *Server) handleSeriesEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	events, err := s.QueueRepo.SeriesEvents(id, maxItemEvents)
-	writeItemEvents(w, events, err)
+	writeItemEvents(w, events, err, isAdminRequest(r))
 }
 
-func writeItemEvents(w http.ResponseWriter, events []queue.Event, err error) {
+func writeItemEvents(w http.ResponseWriter, events []queue.Event, err error, admin bool) {
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	out := make([]itemEventPayload, len(events))
 	for i, e := range events {
-		out[i] = itemEventPayload{At: e.At, Kind: e.Kind, Message: plainFailure(e.Kind, e.Message), Level: string(e.Level)}
+		msg := plainFailure(e.Kind, e.Message)
+		if !admin {
+			msg = hideLibraryPaths(msg) // where files lie on the server is for administrators
+		}
+		out[i] = itemEventPayload{At: e.At, Kind: e.Kind, Message: msg, Level: string(e.Level)}
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -303,9 +307,12 @@ func pickedText(profile quality.Profile, best *indexers.Result) string {
 // same size limits and delay as the grab did, without recording anything.
 func (s *Server) noteMovieSearch(ctx context.Context, mode limitMode, m library.Movie, outcomes []indexers.Outcome, blocked map[string]bool, sources string,
 	profile quality.Profile, best *indexers.Result, upgradeFrom quality.Tier) {
+	if mode != limitManual && nobodyAsked(outcomes) {
+		return // every indexer was paused or out of searches: nothing was searched, so there is nothing to note
+	}
 	keep := func(res indexers.Result) (bool, string) {
 		rel := parser.Parse(res.Title)
-		if normalizeTitle(rel.Title) != normalizeTitle(m.Title) {
+		if !sameTitle(rel.Title, m.Title) && matchingAltTitle(rel.Title, m.AltTitles) == "" {
 			return false, "other films"
 		}
 		if m.Year != 0 && rel.Year != 0 && rel.Year != m.Year {
@@ -345,6 +352,9 @@ func (s *Server) noteMovieSearch(ctx context.Context, mode limitMode, m library.
 // size limits and the delay profile (unless force says a person started the
 // search) apply as they did to the grab.
 func (s *Server) noteTVSearch(ctx context.Context, force bool, series library.Series, season, episode int, outcomes []indexers.Outcome) {
+	if !force && nobodyAsked(outcomes) {
+		return
+	}
 	profiles, err := s.loadProfiles()
 	if err != nil {
 		slog.Warn("api: record tv search", "series", series.Title, "err", err)
@@ -378,7 +388,7 @@ func (s *Server) noteTVSearch(ctx context.Context, force bool, series library.Se
 		}
 		return ""
 	}
-	v := judgeSearchLimited(fresh, s.blockedKeys(), s.sourcesFor(series.SourcePref), profile, keep, "", "", limit)
+	v := judgeSearchLimited(fresh, s.searchSkipKeys(), s.sourcesFor(series.SourcePref), profile, keep, "", "", limit)
 	v.addExpired(expired, s.retentionDays())
 	v.failedIndexers = failedIndexers(outcomes)
 	what := fmt.Sprintf("Searched for season %d", season)
@@ -389,10 +399,24 @@ func (s *Server) noteTVSearch(ctx context.Context, force bool, series library.Se
 	s.itemEvent(0, series.ID, "searched", level, msg)
 }
 
+// nobodyAsked reports whether no indexer took part in a search: each was paused
+// after failures or had used up its searches for the day (or there was none).
+func nobodyAsked(outcomes []indexers.Outcome) bool {
+	for _, o := range outcomes {
+		if !o.Skipped {
+			return false
+		}
+	}
+	return true
+}
+
 func failedIndexers(outcomes []indexers.Outcome) []string {
 	var out []string
+	seen := map[string]bool{}
 	for _, o := range outcomes {
-		if o.Err != nil {
+		// An indexer is asked once for each title searched, so it can fail more than once.
+		if o.Err != nil && !seen[o.IndexerName] {
+			seen[o.IndexerName] = true
 			out = append(out, o.IndexerName)
 		}
 	}

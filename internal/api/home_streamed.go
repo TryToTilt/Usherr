@@ -1032,6 +1032,7 @@ func (s *Server) registerStreamedAppRoutes(play, admin routeGroup) {
 }
 
 // GET /api/streamed/lookup?kind=movie|series&tmdbId=&season=&episode=: the
+// (Without season, a show's id in the streamed library.)
 // saved release for a movie or episode, when it's in the streamed library
 // (so Stream now can offer it before searching).
 func (s *Server) handleStreamedLookup(w http.ResponseWriter, r *http.Request) {
@@ -1042,6 +1043,17 @@ func (s *Server) handleStreamedLookup(w http.ResponseWriter, r *http.Request) {
 	kind := q.Get("kind")
 	if (kind != "movie" && kind != "series") || tmdb <= 0 {
 		writeError(w, http.StatusBadRequest, "Say which movie or episode.")
+		return
+	}
+	// Usherr: a show without an episode: just its id in the streamed library,
+	// so its page can open the episode list.
+	if kind == "series" && q.Get("season") == "" {
+		var titleID int64
+		if err := s.db.QueryRowContext(r.Context(), `SELECT id FROM streamed_titles WHERE kind = 'series' AND tmdb_id = ?`, tmdb).Scan(&titleID); err != nil {
+			writeJSON(w, http.StatusOK, map[string]any{"found": false})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"found": true, "titleId": titleID})
 		return
 	}
 	var id int64

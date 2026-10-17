@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { api, type TwoStepSetup, type TwoStepStatus } from '../api'
 import { plural, t, tx } from '../i18n'
 import Icon from './Icon'
+import { copyText } from './CopyBox'
 import { useToast } from './Toast'
 import TipLabel from './TipLabel'
 
@@ -44,10 +45,7 @@ function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void 
         <button
           className="btn-with-icon"
           onClick={() =>
-            navigator.clipboard
-              .writeText(text)
-              .then(() => toast.success(t('Copied.')))
-              .catch(() => toast.error(t("Couldn't copy. Select the codes and copy them by hand.")))
+            void copyText(text).then((ok) => (ok ? toast.success(t('Copied.')) : toast.error(t("Couldn't copy. Select the codes and copy them by hand."))))
           }
         >
           <Icon name="list" size={15} /> {t('Copy')}

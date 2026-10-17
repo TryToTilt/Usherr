@@ -6,7 +6,7 @@ import { friendlyIndexerError } from './IndexerForm'
 import SeedRules from './SeedRules'
 import { useToast } from './Toast'
 import { FieldError, FormProblem, useValidation } from '../useValidation'
-import { apiKey as apiKeyCheck, firstError, maxLength, required, url as urlCheck } from '../validate'
+import { apiKey as apiKeyCheck, firstError, maxLength, numberRange, required, url as urlCheck } from '../validate'
 import { plural, t, st } from '../i18n'
 import { untilText } from '../delayText'
 import TipLabel from './TipLabel'
@@ -21,10 +21,12 @@ export default function IndexerCard({ indexer: i, onChanged, onToggle, onRemove 
   const [name, setName] = useState(i.name)
   const [baseUrl, setBaseUrl] = useState(i.baseUrl)
   const [apiKey, setApiKey] = useState('')
+  const [perDay, setPerDay] = useState(String(i.requestsPerDay ?? 0))
   const [saving, setSaving] = useState(false)
   const site = i.kind === 'cardigann'
   const v = useValidation({
     name: firstError(required(name, t('Give this indexer a name.')), maxLength(name, 80, t('The name'))),
+    perDay: numberRange(perDay, t('Requests per day'), { min: 0, max: 100000 }),
     ...(site
       ? {}
       : {
@@ -73,7 +75,7 @@ export default function IndexerCard({ indexer: i, onChanged, onToggle, onRemove 
     if (!v.attempt()) return
     setSaving(true)
     try {
-      await api.updateIndexer(i.id, { name: name.trim(), ...(site ? {} : { baseUrl: baseUrl.trim(), apiKey: apiKey.trim() }) })
+      await api.updateIndexer(i.id, { name: name.trim(), requestsPerDay: Number(perDay.trim() || '0'), ...(site ? {} : { baseUrl: baseUrl.trim(), apiKey: apiKey.trim() }) })
       toast.success(t('{name} saved.', { name: name.trim() || i.name }))
       setEditing(false)
       setApiKey('')
@@ -110,6 +112,11 @@ export default function IndexerCard({ indexer: i, onChanged, onToggle, onRemove 
                   why: i.pausedWhy ?? t('it returned an error'),
                 })}
               </TipLabel>
+            </small>
+          )}
+          {!!i.dailyLimit && (
+            <small className={`indexer-health ${i.limitNote ? 'bad' : 'ok'}`}>
+              {i.limitNote ? st(i.limitNote) : t('{used} of {limit} requests today', { used: i.requestsToday ?? 0, limit: i.dailyLimit })}
             </small>
           )}
           {!result && i.lastTestAt && (
@@ -179,6 +186,11 @@ export default function IndexerCard({ indexer: i, onChanged, onToggle, onRemove 
               </label>
             </>
           )}
+          <label>
+            <TipLabel text={t('The most requests a day Mediarium makes to this indexer. Free indexers often allow only a few, such as 25. Leave it at 0 to use the limit the indexer reports, if it reports one.')} learnMore="indexers#daily-limits">{t('Requests per day')}</TipLabel>
+            <input type="number" min={0} max={100000} value={perDay} onChange={(e) => setPerDay(e.target.value)} {...v.bind('perDay', perDay, setPerDay)} />
+            <FieldError v={v} name="perDay" />
+          </label>
           <div>
             <button className="primary btn-sm" onClick={() => void save()} disabled={saving}>
               {saving ? t('Saving…') : t('Save changes')}

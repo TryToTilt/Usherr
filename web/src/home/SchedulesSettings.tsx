@@ -273,7 +273,7 @@ function ScheduleEditor({ initial, onSave, onCancel }: { initial: Schedule; onSa
   )
 }
 
-// ---- one task's rule (also used by the Scenes page) ----
+// ---- one task's rule (also used by the NSFW page) ----
 
 export function TaskRuleEditor({
   task,

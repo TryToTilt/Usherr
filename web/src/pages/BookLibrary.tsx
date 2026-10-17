@@ -8,7 +8,7 @@ import Icon from '../components/Icon'
 import PosterCard, { PosterFallback } from '../components/PosterCard'
 import { describeState, type ItemState } from '../components/state'
 import { useToast } from '../components/Toast'
-import FilterToggle from '../components/FilterToggle'
+import { ActiveChips, CompactBar, FiltersButton, type ActiveFilter } from '../components/CompactBar' // Usherr
 import { t } from '../i18n'
 import { useUrlState } from '../useUrlState'
 import { useModules } from '../ModulesContext'
@@ -167,47 +167,59 @@ export default function BookLibrary({
     )
   }
 
+  // Usherr: the filters that are on, each a chip with an x.
+  const activeFilters: ActiveFilter[] = [
+    ...(text.trim() ? [{ key: 'q', label: `“${text.trim()}”`, clear: () => setText('') }] : []),
+    ...(filter !== 'all' ? [{ key: 'st', label: FILTERS.find((f) => f.id === filter)?.label ?? filter, clear: () => setFilter('all') }] : []),
+  ]
+
   return (
     <div>
-      <div className={`toolbar lib-toolbar collapsible${filtersOpen ? ' filters-open' : ''}`}>
-        {switcher}
-        <input type="search" placeholder={format === 'ebook' ? t('Find in your ebooks…') : t('Find in your audiobooks…')} value={text} onChange={(e) => setText(e.target.value)} aria-label={format === 'ebook' ? t('Find in your ebooks') : t('Find in your audiobooks')} />
-        <FilterToggle open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} active={text.trim() !== '' || filter !== 'all'} />
-        <div className="fold">
-        <Dropdown
-          label={t('Sort')}
-          value={sort}
-          onChange={(v) => setSort(v as Sort)}
-          options={[
-            { value: 'added', label: t('Recently added') },
-            { value: 'title', label: t('Title') },
-            { value: 'author', label: t('Author') },
-          ]}
-        />
-        <ShelfControls view={shelfView} />
-        <div className="toolbar-end">
-          {admin && (
-            <button className="btn-with-icon" onClick={() => setImporting((v) => !v)} aria-expanded={importing}>
-              <Icon name={importing ? 'x' : 'folder'} size={16} /> {importing ? t('Close') : t('Import')}
+      {/* Usherr: one slim row, pinned under the top bar (CompactBar.tsx) */}
+      <CompactBar
+        open={filtersOpen}
+        row={
+          <>
+            {switcher}
+            <FiltersButton open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} count={activeFilters.length} />
+            <span className="cbar-sort">
+              <Dropdown
+                icon="sort"
+                label={t('Sort')}
+                value={sort}
+                onChange={(v) => setSort(v as Sort)}
+                options={[
+                  { value: 'added', label: t('Recently added') },
+                  { value: 'title', label: t('Title') },
+                  { value: 'author', label: t('Author') },
+                ]}
+              />
+            </span>
+            <span className="spacer" />
+            <button className="primary btn-with-icon toolbar-add" onClick={() => setAdding((a) => !a)} aria-expanded={adding} aria-label={adding ? t('Close') : t('Add')}>
+              <Icon name={adding ? 'x' : 'plus'} size={16} /> <span className="cbar-add-label">{adding ? t('Close') : t('Add')}</span>
             </button>
-          )}
-        </div>
-        </div>
-        <button className="primary btn-with-icon toolbar-add" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
-          <Icon name={adding ? 'x' : 'plus'} size={16} /> {adding ? t('Close') : t('Add')}
-        </button>
-      </div>
+          </>
+        }
+        panel={
+          <>
+            <input type="search" className="cbar-find" placeholder={format === 'ebook' ? t('Find in your ebooks…') : t('Find in your audiobooks…')} value={text} onChange={(e) => setText(e.target.value)} aria-label={format === 'ebook' ? t('Find in your ebooks') : t('Find in your audiobooks')} />
+            <Dropdown icon="grid" label={t('Status')} value={filter} onChange={setFilter} options={FILTERS.map((f) => ({ value: f.id, label: books ? `${f.label} (${mine.filter((b) => f.test(bookState(b, format, queue))).length})` : f.label }))} />
+            <ShelfControls view={shelfView} />
+            <span className="spacer" />
+            {admin && (
+              <button className="btn-with-icon" onClick={() => setImporting((v) => !v)} aria-expanded={importing}>
+                <Icon name={importing ? 'x' : 'folder'} size={16} /> {importing ? t('Close') : t('Import')}
+              </button>
+            )}
+          </>
+        }
+        chips={<ActiveChips filters={activeFilters} onClearAll={() => (setText(''), setFilter('all'))} />}
+      />
 
       {importing && admin && <BookImport format={format} folder={folder} onDone={reload} />}
       {adding && <AddBook format={format} onAdded={reload} />}
 
-      <div className="chip-row" style={{ marginBottom: 18, alignItems: 'center' }}>
-        {FILTERS.map((f) => (
-          <button key={f.id} className={`chip${filter === f.id ? ' active' : ''}`} onClick={() => setFilter(f.id)}>
-            {f.label} {books ? <small>{mine.filter((b) => f.test(bookState(b, format, queue))).length}</small> : null}
-          </button>
-        ))}
-      </div>
 
       {error && <p className="error-text">{error}</p>}
 

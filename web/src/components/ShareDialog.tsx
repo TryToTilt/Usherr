@@ -4,6 +4,7 @@ import { COMMUNITIES, SHARE_IMAGES, sharePlaces, type SharePlace } from '../shar
 import { useFocusTrap } from '../useFocusTrap'
 import { t } from '../i18n'
 import Icon from './Icon'
+import { copyText } from './CopyBox'
 import { useToast } from './Toast'
 
 // "Tell others about Mediarium": pick where, copy the ready-made text,
@@ -22,12 +23,8 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
   }, [onClose])
 
   async function copy(text: string) {
-    try {
-      await navigator.clipboard.writeText(text)
-      toast.success(t('Copied.'))
-    } catch {
-      toast.error(t("Couldn't copy. Select the text and copy it by hand."))
-    }
+    if (await copyText(text)) toast.success(t('Copied.'))
+    else toast.error(t("Couldn't copy. Select the text and copy it by hand."))
   }
 
   const image = SHARE_IMAGES.find((i) => i.id === place.image) ?? SHARE_IMAGES[0]

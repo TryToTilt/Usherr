@@ -177,7 +177,7 @@ export default function IndexerSettings() {
         )}
         <label className="flare-field">
           <TipLabel text={t('Sites with a Cloudflare check are fetched through this helper. Leave it empty to turn the helper off, or to use the built-in one if you have it.')}>{bundled ? t('Use my own helper instead (optional)') : t('FlareSolverr address')}</TipLabel>
-          <input value={flare} onChange={(e) => setFlare(e.target.value)} placeholder="http://flaresolverr:8191" {...v.bind('flare', flare, setFlare)} />
+          <input aria-label={bundled ? t('Use my own helper instead (optional)') : t('FlareSolverr address')} value={flare} onChange={(e) => setFlare(e.target.value)} placeholder="http://flaresolverr:8191" {...v.bind('flare', flare, setFlare)} />
           <FieldError v={v} name="flare" />
         </label>
         <button className="primary" onClick={() => void saveFlare()} disabled={flare.trim() === flareSaved}>

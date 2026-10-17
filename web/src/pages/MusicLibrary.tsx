@@ -13,7 +13,7 @@ import { useToast } from '../components/Toast'
 import { chosenOf, failureLines, nameList, selectAllKeys, selectionText, selectRange, toggleKey } from '../librarySelection'
 import { removeOption } from '../diskUsage'
 import { artistQueue } from '../musicPlay'
-import FilterToggle from '../components/FilterToggle'
+import { ActiveChips, CompactBar, FiltersButton, type ActiveFilter } from '../components/CompactBar' // Usherr
 import { plural, t, tx } from '../i18n'
 import { useUrlState } from '../useUrlState'
 import Shelves from '../home/Shelves' // home fork
@@ -191,13 +191,20 @@ export default function MusicLibrary({
     await runBulk(() => api.bulkArtistRemove(ids(), answer.checked))
   }
 
-  const filtersActive = text.trim() !== '' || filter !== 'all' || monitored !== '' || genre !== ''
+
   function clearFilters() {
     setText('')
     setFilter('all')
     setMonitored('')
     setGenre('')
-  }
+  }  // Usherr: the filters that are on, each a chip with an x.
+  const activeFilters: ActiveFilter[] = [
+    ...(text.trim() ? [{ key: 'q', label: `“${text.trim()}”`, clear: () => setText('') }] : []),
+    ...(filter !== 'all' ? [{ key: 'st', label: FILTERS.find((f) => f.id === filter)?.label ?? filter, clear: () => setFilter('all') }] : []),
+    ...(genre ? [{ key: 'genre', label: genre, clear: () => setGenre('') }] : []),
+    ...(monitored ? [{ key: 'mon', label: monitored === 'yes' ? t('Followed') : t('Not followed'), clear: () => setMonitored('') }] : []),
+  ]
+
 
   const profileChoices = [
     { id: '0', label: t('Default ({name})', { name: profiles.find((p) => p.default)?.name ?? t('the default profile') }) },
@@ -278,65 +285,66 @@ export default function MusicLibrary({
 
   return (
     <div>
-      <div className={`toolbar lib-toolbar collapsible${filtersOpen ? ' filters-open' : ''}`}>
-        {switcher}
-        <input type="search" placeholder={t('Find in your artists…')} value={text} onChange={(e) => setText(e.target.value)} aria-label={t('Find in your artists')} />
-        <FilterToggle open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} active={filtersActive} />
-        <div className="fold">
-        {genreOptions.length > 0 && <Dropdown label={t('Genre')} value={genre} onChange={setGenre} options={[{ value: '', label: t('All genres') }, ...genreOptions.map((g) => ({ value: g, label: g }))]} />}
-        <Dropdown
-          label={t('Following')}
-          value={monitored}
-          onChange={setMonitored}
-          options={[
-            { value: '', label: t('Followed or not') },
-            { value: 'yes', label: t('Followed') },
-            { value: 'no', label: t('Not followed') },
-          ]}
-        />
-        <Dropdown
-          label={t('Sort')}
-          value={sort}
-          onChange={(v) => setSort(v as Sort)}
-          options={[
-            { value: 'added', label: t('Recently added') },
-            { value: 'name', label: t('Name A–Z') },
-            { value: 'missing', label: t('Most albums missing') },
-          ]}
-        />
-        <ShelfControls view={shelfView} />
-        <span className="spacer" />
-        {admin && (
-          <button className={`btn-with-icon${selecting ? ' primary' : ''}`} aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
-            <Icon name="check" size={16} /> {t('Select')}
-          </button>
-        )}
-        {admin && (
-          <button className="btn-with-icon" onClick={() => navigate('/music/import')}>
-            <Icon name="folder" size={16} /> {t('Import existing')}
-          </button>
-        )}
-        </div>
-        <button className="btn-with-icon toolbar-playlists" onClick={() => navigate('/music/playlists')}>
-          <Icon name="list" size={16} /> {t('Playlists')}
-        </button>
-        <button className="primary btn-with-icon toolbar-add" onClick={() => navigate('/discover?kind=music')}>
-          <Icon name="plus" size={16} /> {t('Add new')}
-        </button>
-      </div>
-
-      <div className="chip-row" style={{ marginBottom: 18, alignItems: 'center' }}>
-        {FILTERS.map((f) => (
-          <button key={f.id} className={`chip${filter === f.id ? ' active' : ''}`} onClick={() => setFilter(f.id)}>
-            {f.label} {artists ? <small>{artists.filter(f.test).length}</small> : null}
-          </button>
-        ))}
-        {filtersActive && (
-          <button className="btn-sm" onClick={clearFilters}>
-            {t('Clear filters')}
-          </button>
-        )}
-      </div>
+      {/* Usherr: one slim row, pinned under the top bar (CompactBar.tsx) */}
+      <CompactBar
+        open={filtersOpen}
+        row={
+          <>
+            {switcher}
+            <FiltersButton open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} count={activeFilters.length} />
+            <span className="cbar-sort">
+              <Dropdown
+                icon="sort"
+                label={t('Sort')}
+                value={sort}
+                onChange={(v) => setSort(v as Sort)}
+                options={[
+                  { value: 'added', label: t('Recently added') },
+                  { value: 'name', label: t('Name A–Z') },
+                  { value: 'missing', label: t('Most albums missing') },
+                ]}
+              />
+            </span>
+            <span className="spacer" />
+            <button className="btn-with-icon toolbar-playlists" onClick={() => navigate('/music/playlists')} aria-label={t('Playlists')} title={t('Playlists')}>
+              <Icon name="list" size={16} /> <span className="cbar-add-label">{t('Playlists')}</span>
+            </button>
+            <button className="primary btn-with-icon toolbar-add" onClick={() => navigate('/discover?kind=music')} aria-label={t('Add new')}>
+              <Icon name="plus" size={16} /> <span className="cbar-add-label">{t('Add new')}</span>
+            </button>
+          </>
+        }
+        panel={
+          <>
+            <input type="search" className="cbar-find" placeholder={t('Find in your artists…')} value={text} onChange={(e) => setText(e.target.value)} aria-label={t('Find in your artists')} />
+            <Dropdown icon="grid" label={t('Status')} value={filter} onChange={setFilter} options={FILTERS.map((f) => ({ value: f.id, label: artists ? `${f.label} (${artists.filter(f.test).length})` : f.label }))} />
+            {genreOptions.length > 0 && <Dropdown label={t('Genre')} value={genre} onChange={setGenre} options={[{ value: '', label: t('All genres') }, ...genreOptions.map((g) => ({ value: g, label: g }))]} />}
+            <Dropdown
+              label={t('Following')}
+              value={monitored}
+              onChange={setMonitored}
+              options={[
+                { value: '', label: t('Followed or not') },
+                { value: 'yes', label: t('Followed') },
+                { value: 'no', label: t('Not followed') },
+              ]}
+            />
+            <ShelfControls view={shelfView} />
+            <span className="spacer" />
+            {admin && (
+              <button className={`btn-with-icon${selecting ? ' primary' : ''}`} aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
+                <Icon name="check" size={16} /> {t('Select')}
+              </button>
+            )}
+            {admin && (
+              <button className="btn-with-icon" onClick={() => navigate('/music/import')}>
+                <Icon name="folder" size={16} /> {t('Import existing')}
+              </button>
+            )}
+          </>
+        }
+        chips={<ActiveChips filters={activeFilters} onClearAll={clearFilters} />}
+      />
 
       {selecting && admin && (
         <BulkBar text={selText} onSelectAll={() => setSelected(selectAllKeys(keyed))} onSelectNone={() => setSelected(new Set())} onDone={stopSelecting} busy={busy}>

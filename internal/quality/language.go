@@ -1,6 +1,8 @@
 package quality
 
 import (
+	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/rdborg/mediarium/internal/parser"
@@ -75,12 +77,27 @@ var languageOfISO = map[string]string{
 	"fi": "Finnish", "tr": "Turkish", "el": "Greek", "hu": "Hungarian", "cs": "Czech", "ro": "Romanian", "uk": "Ukrainian",
 	"ar": "Arabic", "he": "Hebrew", "hi": "Hindi", "ta": "Tamil", "te": "Telugu", "ja": "Japanese", "ko": "Korean",
 	"zh": "Chinese", "cn": "Chinese", "th": "Thai", "vi": "Vietnamese",
+	"hr": "Croatian", "sr": "Serbian", "bs": "Bosnian", "sl": "Slovenian", "bg": "Bulgarian",
 }
 
 // LanguageName is the release-name language for a TMDB language code, or ""
 // when there is no such name.
 func LanguageName(iso string) string {
 	return languageOfISO[strings.ToLower(strings.TrimSpace(iso))]
+}
+
+// LanguageCodes is the TMDB language codes for a release-name language ("German"
+// is "de"; "Chinese" has two, "cn" and "zh"), sorted, or nil for a name Mediarium
+// does not know.
+func LanguageCodes(name string) []string {
+	var out []string
+	for code, n := range languageOfISO {
+		if strings.EqualFold(n, strings.TrimSpace(name)) {
+			out = append(out, code)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // FitLanguage judges a release for a person who wants preferred audio: one
@@ -92,30 +109,40 @@ func LanguageName(iso string) string {
 // one that suits an earlier language ranks above one that only suits a later
 // language.
 func FitLanguage(r parser.Release, preferred string) LanguageFit {
+	return FitLanguageOnly(r, preferred, false)
+}
+
+// FitLanguageOnly is FitLanguage with the switch "Only take releases in these
+// languages". With only false it is the same as FitLanguage. With only true a
+// release must say it is in one of the wanted languages: an untagged release
+// (taken to be English) is turned down unless English is wanted, so is one
+// tagged English only, and so is a MULTi or DUAL release that does not name a
+// wanted language. A release in a wanted language is judged as usual.
+func FitLanguageOnly(r parser.Release, preferred string, only bool) LanguageFit {
 	langs := ParseLanguages(preferred)
 	if len(langs) <= 1 {
 		one := ""
 		if len(langs) == 1 && !strings.EqualFold(langs[0], OriginalLanguage) {
 			one = langs[0]
 		}
-		return fitOneLanguage(r, one)
+		return fitOneLanguage(r, one, only)
 	}
 	for i, l := range langs {
 		if strings.EqualFold(l, OriginalLanguage) {
 			continue
 		}
-		if fit := fitOneLanguage(r, l); fit.Accepted {
+		if fit := fitOneLanguage(r, l, only); fit.Accepted {
 			// Earlier languages count for more than how well the tag fits.
 			fit.Rank += (len(langs) - i) * 4
 			return fit
 		}
 	}
-	fit := fitOneLanguage(r, langs[0])
+	fit := fitOneLanguage(r, langs[0], only)
 	fit.Rank, fit.Accepted = 0, false
 	return fit
 }
 
-func fitOneLanguage(r parser.Release, preferred string) LanguageFit {
+func fitOneLanguage(r parser.Release, preferred string, only bool) LanguageFit {
 	fit := LanguageFit{Accepted: true, Rank: 3, Label: languageLabel(r)}
 	if preferred == "" {
 		return fit
@@ -134,19 +161,23 @@ func fitOneLanguage(r parser.Release, preferred string) LanguageFit {
 	switch {
 	case r.Multi && has:
 		fit.Rank = 2
+	case r.Multi && only:
+		fit.Rank, fit.Accepted = 0, false // several tracks, none of them said to be the wanted language
 	case r.Multi:
 		// Several audio tracks, and the original is nearly always one of
 		// them. Fine, but behind a release that says so.
 		fit.Rank = 1
 	case untagged && assumedEnglish:
 		fit.Rank = 3
+	case untagged && only:
+		fit.Rank, fit.Accepted = 0, false // taken to be English, which is not wanted
 	case untagged:
 		fit.Rank = 2 // taken to be English, not the wanted language
 	case has && !other:
 		fit.Rank = 3
 	case has:
 		fit.Rank = 2
-	case !assumedEnglish && onlyEnglish(r.Languages):
+	case !assumedEnglish && !only && onlyEnglish(r.Languages):
 		fit.Rank = 2 // tagged English, and English is what untagged releases are assumed to be
 	default:
 		fit.Rank, fit.Accepted = 0, false
@@ -173,23 +204,40 @@ func languageLabel(r parser.Release) string {
 	return label
 }
 
-// LanguageRank is FitLanguage(r, p.Language).Rank.
+// LanguageRank is the rank FitLanguageOnly gives a release under this
+// profile's Language and LanguageOnly.
 func (p Profile) LanguageRank(r parser.Release) int {
-	return FitLanguage(r, p.Language).Rank
+	return FitLanguageOnly(r, p.Language, p.LanguageOnly).Rank
 }
 
 // LanguageOK reports whether a release's audio language suits the language
-// this profile was loaded with (Language). It is true when none is set.
+// this profile was loaded with (Language, and LanguageOnly). It is true when
+// none is set.
 func (p Profile) LanguageOK(r parser.Release) bool {
-	return FitLanguage(r, p.Language).Accepted
+	return FitLanguageOnly(r, p.Language, p.LanguageOnly).Accepted
 }
 
 // LanguageReason explains, in plain words, why a release was turned down for
 // its language, or "" when it was not.
 func (p Profile) LanguageReason(r parser.Release) string {
-	fit := FitLanguage(r, p.Language)
-	if fit.Accepted {
+	if p.LanguageOK(r) {
 		return ""
 	}
-	return strings.Join(r.Languages, " and ") + " audio, not " + strings.Join(ParseLanguages(p.Language), " or ")
+	var wanted []string
+	for _, l := range ParseLanguages(p.Language) {
+		if !strings.EqualFold(l, OriginalLanguage) {
+			wanted = append(wanted, l)
+		}
+	}
+	want := strings.Join(wanted, " or ")
+	heard := strings.Join(r.Languages, " and ")
+	switch {
+	case len(r.Languages) == 0 && r.Multi:
+		return fmt.Sprintf("Multi-language release that doesn't name %s", want)
+	case len(r.Languages) == 0:
+		return fmt.Sprintf("Untagged release, taken to be English, not %s", want)
+	case r.Multi:
+		return fmt.Sprintf("Multi-language release with %s audio, not %s", heard, want)
+	}
+	return fmt.Sprintf("%s audio, not %s", heard, want)
 }

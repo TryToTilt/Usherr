@@ -164,11 +164,11 @@ export default function CloudBackupCard() {
             </label>
             <label>
               <TipLabel text={t('The region name of your storage, shown at your provider. Leave it empty for us-east-1, or type auto for Cloudflare R2.')}>{t('Region')}</TipLabel>
-              <input value={form.region} onChange={(e) => set('region', e.target.value)} placeholder={t('eu-central-003 (empty for us-east-1)')} autoComplete="off" spellCheck={false} />
+              <input aria-label={t('Region')} value={form.region} onChange={(e) => set('region', e.target.value)} placeholder={t('eu-central-003 (empty for us-east-1)')} autoComplete="off" spellCheck={false} />
             </label>
             <label>
               <TipLabel text={t('The container you made at your storage provider to hold the copies. It must already exist.')}>{t('Bucket')}</TipLabel>
-              <input value={form.bucket} onChange={(e) => set('bucket', e.target.value)} placeholder="my-backups" autoComplete="off" spellCheck={false} />
+              <input aria-label={t('Bucket')} value={form.bucket} onChange={(e) => set('bucket', e.target.value)} placeholder="my-backups" autoComplete="off" spellCheck={false} />
             </label>
             <label>
               {t('Folder in the bucket')}
@@ -176,7 +176,7 @@ export default function CloudBackupCard() {
             </label>
             <label>
               <TipLabel text={t('Made at your storage provider, with permission to write to the bucket. The secret key that goes with it is stored encrypted.')}>{t('Access key (key ID)')}</TipLabel>
-              <input value={form.accessKey} onChange={(e) => set('accessKey', e.target.value)} autoComplete="off" spellCheck={false} />
+              <input aria-label={t('Access key (key ID)')} value={form.accessKey} onChange={(e) => set('accessKey', e.target.value)} autoComplete="off" spellCheck={false} />
             </label>
             <label>
               {t('Secret key')}

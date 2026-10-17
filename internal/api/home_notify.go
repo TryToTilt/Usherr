@@ -1,7 +1,7 @@
 package api
 
-// Home fork: notifications. Scenes never notify (their pages live under
-// /scenes and their downloads are scene downloads); comics notify like
+// Home fork: notifications. NSFW never notify (their pages live under
+// /nsfw and their downloads are video downloads); comics notify like
 // books ("ready to read").
 
 import (
@@ -16,17 +16,17 @@ import (
 	"github.com/rdborg/mediarium/internal/notify"
 )
 
-// sceneSilent reports whether a notification is about the Scenes module.
-func sceneSilent(link string) bool {
-	return link == "/scenes" || strings.HasPrefix(link, "/scenes/") || strings.HasPrefix(link, "/scenes?")
+// videoSilent reports whether a notification is about the NSFW module.
+func videoSilent(link string) bool {
+	return link == "/nsfw" || strings.HasPrefix(link, "/nsfw/") || strings.HasPrefix(link, "/nsfw?")
 }
 
-// isSceneDownload reports whether a queue item is a scene download.
-func (s *Server) isSceneDownload(queueID int64) bool {
+// isVideoDownload reports whether a queue item is a video download.
+func (s *Server) isVideoDownload(queueID int64) bool {
 	if queueID <= 0 {
 		return false
 	}
-	ids, err := s.sceneRepo().SceneDownloadIDs()
+	ids, err := s.videoRepo().VideoDownloadIDs()
 	return err == nil && ids[queueID]
 }
 
@@ -62,7 +62,7 @@ func (s *Server) whatsNewJob(context.Context) {
 }
 
 // weeklyDigest sums up what joined the library since since: movies, shows
-// (with how many episodes), albums, books and comics. Scenes are left out.
+// (with how many episodes), albums, books and comics. NSFW 18+ is left out.
 func (s *Server) weeklyDigest(since time.Time) (title, message string, ok bool) {
 	rows, err := s.db.Query(`SELECT id, COALESCE(movie_id, 0), COALESCE(series_id, 0), COALESCE(album_id, 0), COALESCE(book_id, 0), COALESCE(book_format, ''), episode
 		FROM download_queue WHERE status = 'completed' AND completed_at >= ?`, since.UTC().Format(time.RFC3339))
@@ -82,7 +82,7 @@ func (s *Server) weeklyDigest(since time.Time) (title, message string, ok bool) 
 		}
 	}
 	rows.Close()
-	scenes, _ := s.sceneRepo().SceneDownloadIDs()
+	nsfw, _ := s.videoRepo().VideoDownloadIDs()
 	comicIDs := map[int64]bool{}
 	if cr, err := s.db.Query(`SELECT queue_id FROM comic_downloads`); err == nil {
 		for cr.Next() {
@@ -107,7 +107,7 @@ func (s *Server) weeklyDigest(since time.Time) (title, message string, ok bool) 
 	}
 	for _, it := range items {
 		switch {
-		case scenes[it.id]:
+		case nsfw[it.id]:
 			continue
 		case comicIDs[it.id]:
 			comicCount++

@@ -14,6 +14,7 @@ test('reads that wait on an outside service are named', () => {
     ['/books/discover?list=trending', 'Open Library'],
     ['/books/search?q=dune', 'Open Library'],
     ['/book-authors/OL1A/works', 'Open Library'],
+    ['/books/3/cover/editions', 'Open Library'],
     ['/search?q=x', 'Your indexers'],
     ['/movies/12/search', 'Your indexers'],
     ['/books/3/releases?format=ebook', 'Your indexers'],

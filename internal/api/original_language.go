@@ -17,6 +17,12 @@ import (
 // server runs (a title's original language doesn't change).
 var originalLanguages sync.Map // "movie:603" -> "English"
 
+// originalLanguageFailed holds when the lookup for a title last failed.
+var (
+	originalLanguageFailed sync.Map // "movie:603" -> time.Time
+	originalLanguageRetry  = 5 * time.Minute
+)
+
 func (s *Server) originalLanguageOf(kind string, tmdbID int) string {
 	if tmdbID == 0 {
 		return ""
@@ -29,22 +35,30 @@ func (s *Server) originalLanguageOf(kind string, tmdbID int) string {
 	if c == nil || !c.HasAPIKey() {
 		return ""
 	}
+	// A lookup that failed is not repeated for a few minutes: a TMDB that does
+	// not answer would otherwise hold every search for ten seconds a title.
+	if at, ok := originalLanguageFailed.Load(key); ok && time.Since(at.(time.Time)) < originalLanguageRetry {
+		return ""
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	code := ""
 	if kind == "movie" {
 		d, err := c.GetMovieDetail(ctx, tmdbID)
 		if err != nil {
-			return "" // not remembered, so the next search asks again
+			originalLanguageFailed.Store(key, time.Now())
+			return ""
 		}
 		code = d.OriginalLanguage
 	} else {
 		d, err := c.GetShowFull(ctx, tmdbID)
 		if err != nil {
+			originalLanguageFailed.Store(key, time.Now())
 			return ""
 		}
 		code = d.OriginalLanguage
 	}
+	originalLanguageFailed.Delete(key)
 	name := quality.LanguageName(code)
 	originalLanguages.Store(key, name)
 	return name

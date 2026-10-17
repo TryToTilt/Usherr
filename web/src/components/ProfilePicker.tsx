@@ -1,7 +1,7 @@
 import { sortProfiles } from './qualityBlurb'
 import { useEffect, useState } from 'react'
 import { defaultProfileFor } from '../profileDefaults'
-import { api, isAdmin, type QualityProfile, type SourcePref } from '../api'
+import { api, can, isAdmin, type QualityProfile, type SourcePref } from '../api'
 import { useAuth } from '../AuthContext'
 import { t } from '../i18n'
 import InfoTip from './InfoTip'
@@ -14,9 +14,11 @@ const SOURCE_NAME: Record<string, string> = { both: t('Usenet and torrents'), us
 // follows and which downloaders it may use. "Default" follows Settings.
 export default function ProfilePicker(props: { kind: 'movie' | 'series'; itemId: number; children?: React.ReactNode }) {
   const { user } = useAuth()
-  if (isAdmin(user)) return <Picker {...props} />
-  // Without the pickers (not an administrator) the tags still show.
-  return props.children ? <div className="picker-row">{props.children}</div> : null
+  // The profile, source and upgrade choices are for administrators; the folder
+  // and the tags (the children) follow the manage right.
+  const children = can(user, 'manage') ? props.children : null
+  if (isAdmin(user)) return <Picker {...props}>{children}</Picker>
+  return children ? <div className="picker-row">{children}</div> : null
 }
 
 function Picker({ kind, itemId, children }: { kind: 'movie' | 'series'; itemId: number; children?: React.ReactNode }) {
@@ -35,8 +37,8 @@ function Picker({ kind, itemId, children }: { kind: 'movie' | 'series'; itemId: 
     api.listProfiles().then((r) => {
       setProfiles(sortProfiles(r.profiles))
       setDefaultId(defaultProfileFor(kind, r))
+      setDefaultSources(r.defaultSources || 'both')
     }).catch(() => undefined)
-    api.getSettings().then((s) => setDefaultSources(s.defaultSources ?? 'both')).catch(() => undefined)
     const load = kind === 'movie' ? api.getMovie(itemId) : api.getSeries(itemId)
     load
       .then((item) => {

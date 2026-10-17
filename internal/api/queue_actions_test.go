@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -134,5 +135,31 @@ func TestQueueShowsFailuresInPlainWords(t *testing.T) {
 		if strings.Contains(got, bad) {
 			t.Fatalf("%q leaked %q", got, bad)
 		}
+	}
+}
+
+// A download that is gone (cleared, or never there) is "not found" for every
+// action on it, including the keep-or-replace decision.
+func TestQueueActionsOnAMissingDownloadAnswerNotFound(t *testing.T) {
+	_, base, client := loginNewServer(t)
+	for _, action := range []string{"resolve-conflict", "pause", "resume", "stop", "front", "blocklist", "retry"} {
+		resp, err := client.Post(base+"/api/queue/999999/"+action, "application/json", strings.NewReader(`{}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("%s on a missing download: status %d, want 404", action, resp.StatusCode)
+		}
+	}
+	resp, err := client.Post(base+"/api/queue/999999/resolve-conflict", "application/json", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var out map[string]string
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+	if out["error"] != "That download isn't in the list any more." {
+		t.Fatalf("message = %q", out["error"])
 	}
 }

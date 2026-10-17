@@ -3,13 +3,13 @@ package api
 import (
 	"context"
 	"log"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/automation"
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/library"
+	"github.com/rdborg/mediarium/internal/metadata"
 	"github.com/rdborg/mediarium/internal/parser"
 	"github.com/rdborg/mediarium/internal/quality"
 	"github.com/rdborg/mediarium/internal/settings"
@@ -44,12 +44,14 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "hunt", Interval: s.huntInterval(), IntervalFunc: s.huntInterval, Run: s.heavy(s.hunt)},
 		automation.Job{Name: "rss-sync", Interval: s.releaseCheckInterval(), IntervalFunc: s.releaseCheckInterval, Run: s.heavy(s.rssSync)},
 		automation.Job{Name: "delayed-grabs", Interval: time.Minute, Run: s.delayedGrabsJob}, // searches again when a held release has waited long enough
+		automation.Job{Name: "tv-reminders", Interval: time.Minute, Run: s.tvRemindJob},      // Usherr: Live TV reminders
 		automation.Job{Name: "download-line", Interval: downloadLineCheck, Run: func(context.Context) { s.kickDownloads() }},
 		automation.Job{Name: "series-refresh", Interval: seriesRefreshInterval, Run: s.heavy(s.refreshAllSeries)},
 		automation.Job{Name: "music-refresh", Interval: musicRefreshInterval, Run: s.heavy(s.refreshMusicArtists)},
 		automation.Job{Name: "subtitle-sweep", Interval: subtitleSweepInterval, Run: s.heavy(s.subtitleSweepJob)},
 		automation.Job{Name: "genre-backfill", Interval: genreBackfillInterval, Run: s.heavy(s.backfillGenres)},
 		automation.Job{Name: "collections", Interval: collectionsInterval, Run: s.heavy(s.collectionsJob)}, // finds the collection of each movie; adds new films of followed collections
+		automation.Job{Name: "title-names", Interval: titleNamesInterval, Run: s.heavy(s.titleNamesJob)},   // picks the other titles of each movie and show, when a language besides English is wanted
 		automation.Job{Name: "cleanup", Interval: cleanupCheckInterval, Run: s.cleanupJob},
 		automation.Job{Name: "stats-snapshot", Interval: statsSnapshotEvery, Run: s.statsSnapshotJob},
 		automation.Job{Name: "backup", Interval: backupCheck, Run: s.backupJob},
@@ -58,7 +60,7 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "calendar-art", Interval: artworkEvery, Run: s.heavy(s.artworkJob)},                 // fetches the backdrops and logos of what is on the calendar
 		automation.Job{Name: "weekly-summary", Interval: digestCheck, Run: s.digestJob},                          // does nothing until a day is chosen
 		automation.Job{Name: "home-schedules", Interval: scheduleWaitPoll, Run: s.scheduleJob},                   // home fork: schedules
-		automation.Job{Name: "scenes-find-warm", Interval: 5 * time.Hour, Run: s.heavy(s.warmDiscoverJob)},       // home fork: Find tab
+		automation.Job{Name: "nsfw-find-warm", Interval: 5 * time.Hour, Run: s.heavy(s.warmDiscoverJob)},         // home fork: Find tab
 		automation.Job{Name: "weekly-digest", Interval: 30 * time.Minute, Run: s.whatsNewJob},                    // home fork: Sunday "what's new", by title
 		automation.Job{Name: "tv-schedules", Interval: 15 * time.Minute, Run: s.tvJob},                           // home fork: Mediarium TV
 		automation.Job{Name: "streamed-pointers", Interval: 30 * time.Minute, Run: s.streamedSyncJob},            // home fork: one library in layers
@@ -138,7 +140,7 @@ func (s *Server) hunt(ctx context.Context) {
 		return
 	}
 	if !s.taskAllowed(taskSearch) { // schedules hook (home fork)
-		s.huntScenes(ctx) // scenes keep their own schedule
+		s.huntNsfw(ctx) // videos keep their own schedule
 		return
 	}
 	if !s.autoGrabRoom() {
@@ -160,22 +162,64 @@ func (s *Server) hunt(ctx context.Context) {
 		return
 	}
 
-	blocked := s.blockedKeys()
+	if !anyIndexerAvailable(instances) {
+		return // all paused or out of searches for today: nothing would be asked
+	}
+
+	blocked := s.searchSkipKeys()
 	if s.moviesEnabled() {
+		// Only so many movies per run, each run going on where the last one
+		// stopped, so a big library neither empties an indexer's daily limit in
+		// one go nor leaves the same movies for last.
+		var todo []library.Movie
 		for _, m := range movies {
-			if s.huntMovie(ctx, m, instances, profiles, blocked, false) && !s.autoGrabRoom() {
+			if huntWantsMovie(m, s.profileForMovie(profiles, m)) {
+				todo = append(todo, m)
+			}
+		}
+		s.huntAt.mu.Lock()
+		start, n := huntWindow(len(todo), s.huntAt.movies, maxMovieSearchesPerHunt)
+		s.huntAt.movies = start + n
+		s.huntAt.mu.Unlock()
+		for i := 0; i < n; i++ {
+			if ctx.Err() != nil {
+				return // shutting down: not a search that failed
+			}
+			if s.huntMovie(ctx, todo[(start+i)%len(todo)], instances, profiles, blocked, false) && !s.autoGrabRoom() {
 				holdBack("hunt")
 				return
 			}
 		}
+	}
+	if ctx.Err() != nil {
+		return
 	}
 	if s.tvEnabled() {
 		s.huntTV(ctx, instances, profiles)
 	}
 	s.huntMusic(ctx, instances) // only while the music module is on
 	s.huntBooks(ctx)            // only while ebooks or audiobooks are on
-	s.huntScenes(ctx)           // scenes hook (home fork): only while Scenes are on
+	s.huntNsfw(ctx)             // videos hook (home fork): only while NSFW 18+ is on
 	s.huntComics(ctx)           // comics hook (home fork): only while Comics are on
+}
+
+// maxMovieSearchesPerHunt is how many movies one scheduled run searches for
+// (each is one search, and up to two more under other titles).
+const maxMovieSearchesPerHunt = 50
+
+// huntWantsMovie reports whether a scheduled run would search for the movie at
+// all: it is monitored and either missing and out, or below what its profile wants.
+func huntWantsMovie(m library.Movie, profile quality.Profile) bool {
+	if !m.Monitored {
+		return false
+	}
+	switch m.Status {
+	case library.StatusMissing:
+		return !unreleased(m.ReleaseDate)
+	case library.StatusDownloaded:
+		return !m.NoUpgrade && wantsUpgrade(profile, m.Quality, m.ReleaseTitle)
+	}
+	return false
 }
 
 // huntMovie searches for one movie if it is monitored (or force is set, for
@@ -199,7 +243,14 @@ func (s *Server) huntMovie(ctx context.Context, m library.Movie, instances []ind
 				return false // only in cinemas so far: wait for the digital or disc release
 			}
 		}
-		outcomes := indexers.SearchAll(ctx, instances, m.Title, movieCategory)
+		m = s.movieWithAltTitles(ctx, m)
+		var enough func([]indexers.Outcome) bool
+		if !force {
+			enough = func(o []indexers.Outcome) bool {
+				return pickBestResult(filterSources(matchingResults(dropBlocked(s.freshOnly(indexers.MergeResults(o)), blocked), m), sources), profile, m.Year) != nil
+			}
+		}
+		outcomes := s.searchMovieTitles(ctx, instances, m, enough)
 		// A title search also returns other films with similar words; only
 		// releases of this movie may be grabbed.
 		best := pickBestResult(s.limitMovieResults(ctx, m, profile, !force, filterSources(matchingResults(dropBlocked(s.freshOnly(indexers.MergeResults(outcomes)), blocked), m), sources)), profile, m.Year)
@@ -218,7 +269,14 @@ func (s *Server) huntMovie(ctx context.Context, m library.Movie, instances []ind
 			return false // left alone, upgrades off, unknown baseline, or already at/above cutoff: skip the search entirely
 		}
 		currentTier := quality.Tier(m.Quality)
-		outcomes := indexers.SearchAll(ctx, instances, m.Title, movieCategory)
+		m = s.movieWithAltTitles(ctx, m)
+		var enough func([]indexers.Outcome) bool
+		if !force {
+			enough = func(o []indexers.Outcome) bool {
+				return pickUpgradeResult(filterSources(matchingResults(dropBlocked(s.freshOnly(indexers.MergeResults(o)), blocked), m), sources), profile, currentTier, m.ReleaseTitle, m.Year) != nil
+			}
+		}
+		outcomes := s.searchMovieTitles(ctx, instances, m, enough)
 		best := pickUpgradeResult(s.limitMovieResults(ctx, m, profile, !force, filterSources(matchingResults(dropBlocked(s.freshOnly(indexers.MergeResults(outcomes)), blocked), m), sources)), profile, currentTier, m.ReleaseTitle, m.Year)
 		s.noteMovieSearch(ctx, noteMode(force), m, outcomes, blocked, sources, profile, best, currentTier)
 		if best == nil {
@@ -293,7 +351,7 @@ func (s *Server) rssSync(ctx context.Context) {
 	}
 
 	outcomes := indexers.SearchAll(ctx, instances, "", movieCategory)
-	results := dropBlocked(s.freshOnly(indexers.MergeResults(outcomes)), s.blockedKeys())
+	results := dropBlocked(s.freshOnly(indexers.MergeResults(outcomes)), s.searchSkipKeys())
 
 	for _, m := range missing {
 		best := pickBestResult(s.limitMovieResults(ctx, m, s.profileForMovie(profiles, m), true, filterSources(matchingResults(results, m), s.sourcesFor(m.SourcePref))), s.profileForMovie(profiles, m), m.Year)
@@ -410,33 +468,49 @@ func pickUpgradeResult(results []indexers.Result, profile quality.Profile, curre
 	return best
 }
 
-var nonAlnum = regexp.MustCompile(`[^a-z0-9]+`)
-
 // matchesMovie does a normalized (lowercased, punctuation-stripped) title
 // comparison plus a year check when both sides have one. This is a
 // simplification, not fuzzy/edit-distance matching — a known
 // approximation worth revisiting if it mismatches often enough to matter
 // in practice.
+//
+// A release named by one of the movie's other titles (the German title of a
+// film added under its English one) is the movie too. The year rule is the
+// same for every title, and only this movie's own other titles are tried.
 func matchesMovie(releaseTitle string, movie library.Movie) bool {
 	release := parser.Parse(releaseTitle)
 	if release.Year != 0 && movie.Year != 0 && release.Year != movie.Year {
 		return false
 	}
-	return normalizeTitle(release.Title) == normalizeTitle(movie.Title)
+	if sameTitle(release.Title, movie.Title) {
+		return true
+	}
+	// A release named by another title has to say its year when the movie has
+	// one: a short name that is also the name of some other film is far too
+	// easy to hit otherwise.
+	if movie.Year != 0 && release.Year == 0 {
+		return false
+	}
+	return matchingAltTitle(release.Title, movie.AltTitles) != ""
 }
 
 // normalizeTitle reduces a title to letters and digits for comparison,
 // treating "&" as "and" and ignoring a leading "The", "A" or "An", so
 // "The Lord of the Rings" matches "Lord.of.the.Rings" and "Fast & Furious"
 // matches "Fast.and.Furious".
+//
+// Accents are folded ("Pokémon" is "pokemon", the way release names write it)
+// and letters of other alphabets stay, so a title in Japanese or Cyrillic
+// compares as real text. It is "" only for a title with no letter or digit at
+// all; sameTitle never calls two such titles the same.
 func normalizeTitle(s string) string {
-	s = strings.ReplaceAll(strings.ToLower(s), "&", " and ")
-	s = strings.TrimSpace(nonAlnum.ReplaceAllString(s, " ")) // dots, dashes and the like count as spaces
-	for _, article := range []string{"the ", "a ", "an "} {
-		if strings.HasPrefix(s, article) {
-			s = s[len(article):]
-			break
-		}
-	}
-	return nonAlnum.ReplaceAllString(s, "")
+	return strings.ReplaceAll(metadata.TitleKey(s), " ", "")
+}
+
+// sameTitle reports whether two titles are the same by normalizeTitle. An
+// empty key (a title with nothing to compare) matches nothing, not even
+// another empty one.
+func sameTitle(a, b string) bool {
+	key := normalizeTitle(a)
+	return key != "" && key == normalizeTitle(b)
 }

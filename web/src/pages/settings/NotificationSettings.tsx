@@ -24,6 +24,7 @@ const EVENTS: { key: string; label: string; hint: string }[] = [
   { key: 'health', label: t('Something is wrong'), hint: t('Your Usenet provider or an indexer stopped working, for example because a subscription expired') },
   { key: 'update', label: t('New version'), hint: t('A new version of Mediarium is available') },
   { key: 'digest', label: t('Weekly summary'), hint: t('A short summary once a week of what arrived, what failed and what is still missing') },
+  { key: 'reminder', label: t('TV reminders'), hint: t('A Live TV show you asked to be reminded of starts in five minutes') }, // Usherr
 ]
 
 const FALLBACK_TYPES: NotifyType[] = [
@@ -417,7 +418,7 @@ function TargetRow({
                   <button onClick={() => setEditing(false)}>{t('Cancel')}</button>
                 </div>
                 <TestLog note={note} running={busy === 'test'} />
-                <FormProblem v={v} verb={t('save')} />
+                <FormProblem v={v} action="save" />
               </>
             )}
           </MethodForm>
@@ -498,6 +499,7 @@ function Watch() {
             : minutes === 60
               ? t('Every hour Mediarium checks that your Usenet provider and indexers still accept your login.')
               : plural(minutes, 'Every {n} minute Mediarium checks that your Usenet provider and indexers still accept your login.', 'Every {n} minutes Mediarium checks that your Usenet provider and indexers still accept your login.')}{' '}
+        {minutes !== 0 && t("Indexers are asked less often than that: at most every 6 hours, and not at all when a search has worked since the last check, so the checks do not use up an indexer's daily limit.")}{' '}
         {minutes !== 0 &&
           tx('If one stops working (an expired subscription, a changed password, the service being down) it notifies you once, and again when it recovers. Turn on {event} on a notification to get these.', {
             event: <strong>{t('Something is wrong')}</strong>,
@@ -690,7 +692,7 @@ export default function NotificationSettings() {
                       </button>
                     </div>
                     <TestLog note={notes[current.type] ?? null} running={busy === 'test'} />
-                    <FormProblem v={v} verb={t('add this notification')} />
+                    <FormProblem v={v} action="notification" />
                   </>
                 )}
               </MethodForm>

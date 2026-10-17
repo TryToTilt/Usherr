@@ -478,10 +478,18 @@ func (im *Importer) importSeries(ctx context.Context, sp seriesPlan) (outcome, r
 	for _, ep := range eps {
 		byNumber[[2]int{ep.Season, ep.Episode}] = ep
 	}
+	// Anime from Sonarr is often numbered by TheTVDB's seasons, which TMDB
+	// does not have: the number counted from the first episode places those.
+	place := library.ImportPlacer(eps, series.SeriesType == library.SeriesAnime, nil)
 	already, unknown := 0, 0
 	for _, f := range files {
-		for _, n := range f.Episodes {
-			ep, ok := byNumber[[2]int{f.Season, n}]
+		season, numbers, placed := place(library.ImportFile{Path: f.Path, Quality: f.Quality, Season: f.Season, Episodes: f.Episodes, Absolute: f.Absolute})
+		if !placed {
+			unknown += max(len(f.Episodes), len(f.Absolute))
+			continue
+		}
+		for _, n := range numbers {
+			ep, ok := byNumber[[2]int{season, n}]
 			if !ok {
 				unknown++
 				continue

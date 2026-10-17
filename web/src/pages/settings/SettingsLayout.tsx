@@ -1,4 +1,5 @@
-import { Suspense } from 'react'
+import { Suspense, useRef } from 'react'
+import { useFoldCards } from './useFoldCards' // Usherr
 import { Outlet, useLocation } from 'react-router-dom'
 import { isAdmin } from '../../api'
 import { useAuth } from '../../AuthContext'
@@ -17,8 +18,11 @@ export default function SettingsLayout() {
   const parts = pageParts(pathname, admin)
   const blurb = pageBlurb(pathname, admin)
   const help = pageHelp(pathname, admin)
+  // Usherr: cards fold to their title row on pages with several of them.
+  const box = useRef<HTMLDivElement>(null)
+  const fold = useFoldCards(box, pathname)
   return (
-    <div className="settings-content">
+    <div className="settings-content" ref={box}>
       <h2 className="settings-phone-title">
         {parts.group && <small>{parts.group}</small>}
         {parts.page}
@@ -26,6 +30,17 @@ export default function SettingsLayout() {
       {blurb && (
         <p className="settings-blurb">
           {help ? <TipLabel help={help} label={t('Open the user guide for this page')}>{blurb}</TipLabel> : blurb}
+        </p>
+      )}
+      {fold.count > 0 && (
+        <p className="fold-all">
+          <button type="button" className="link-btn" onClick={fold.openAll}>
+            {t('Open all')}
+          </button>
+          {' · '}
+          <button type="button" className="link-btn" onClick={fold.foldAll}>
+            {t('Fold all')}
+          </button>
         </p>
       )}
       <Suspense fallback={null}>

@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -79,6 +80,29 @@ func noteCall(query string, started time.Time) {
 	}
 }
 
+// libraryVersion goes up with every write to the movie and TV tables
+// (movies, series, episodes, and the other names of titles), so a count worked out from them can be kept
+// until it changes. See LibraryVersion.
+var libraryVersion atomic.Uint64
+
+// LibraryVersion is a number that changes whenever a movie, show or episode
+// is added, changed or removed (and again when the transaction that did it
+// ends). Callers keep an answer together with the number it was made at, and
+// work it out again once the number has moved.
+func LibraryVersion() uint64 { return libraryVersion.Load() }
+
+// libraryWrite matches a statement that writes to one of the library tables.
+var libraryWrite = regexp.MustCompile(`(?is)^\s*(insert|update|delete|replace)\b.*\b(movies|series|episodes|title_names)\b`)
+
+// noteWrite moves the library version on for a statement that changes the
+// library, and marks the connection so the end of its transaction does too.
+func (c *watchedConn) noteWrite(query string) {
+	if libraryWrite.MatchString(query) {
+		libraryVersion.Add(1)
+		c.touched = true
+	}
+}
+
 type watchedDriver struct{ inner driver.Driver }
 
 func (d *watchedDriver) Open(name string) (driver.Conn, error) {
@@ -89,14 +113,18 @@ func (d *watchedDriver) Open(name string) (driver.Conn, error) {
 	return &watchedConn{inner: c}, nil
 }
 
-type watchedConn struct{ inner driver.Conn }
+type watchedConn struct {
+	inner driver.Conn
+	// touched: the open transaction wrote to the library tables.
+	touched bool
+}
 
 func (c *watchedConn) Prepare(query string) (driver.Stmt, error) {
 	s, err := c.inner.Prepare(query)
 	if err != nil {
 		return nil, err
 	}
-	return &watchedStmt{inner: s, query: query}, nil
+	return &watchedStmt{inner: s, query: query, conn: c}, nil
 }
 
 func (c *watchedConn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
@@ -105,21 +133,59 @@ func (c *watchedConn) PrepareContext(ctx context.Context, query string) (driver.
 		if err != nil {
 			return nil, err
 		}
-		return &watchedStmt{inner: s, query: query}, nil
+		return &watchedStmt{inner: s, query: query, conn: c}, nil
 	}
 	return c.Prepare(query)
 }
 
 func (c *watchedConn) Close() error { return c.inner.Close() }
 
-func (c *watchedConn) Begin() (driver.Tx, error) { return c.inner.Begin() } //nolint:staticcheck
+func (c *watchedConn) Begin() (driver.Tx, error) { //nolint:staticcheck
+	tx, err := c.inner.Begin() //nolint:staticcheck
+	if err != nil {
+		return nil, err
+	}
+	return &watchedTx{inner: tx, conn: c}, nil
+}
 
 func (c *watchedConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
 	defer noteCall("BEGIN", time.Now())
+	var tx driver.Tx
+	var err error
 	if b, ok := c.inner.(driver.ConnBeginTx); ok {
-		return b.BeginTx(ctx, opts)
+		tx, err = b.BeginTx(ctx, opts)
+	} else {
+		tx, err = c.inner.Begin() //nolint:staticcheck
 	}
-	return c.inner.Begin() //nolint:staticcheck
+	if err != nil {
+		return nil, err
+	}
+	return &watchedTx{inner: tx, conn: c}, nil
+}
+
+// watchedTx moves the library version on once more when a transaction that
+// changed the library ends: a count made while it was still open could not
+// see its changes yet.
+type watchedTx struct {
+	inner driver.Tx
+	conn  *watchedConn
+}
+
+func (t *watchedTx) Commit() error {
+	defer t.done()
+	return t.inner.Commit()
+}
+
+func (t *watchedTx) Rollback() error {
+	defer t.done()
+	return t.inner.Rollback()
+}
+
+func (t *watchedTx) done() {
+	if t.conn.touched {
+		t.conn.touched = false
+		libraryVersion.Add(1)
+	}
 }
 
 func (c *watchedConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
@@ -128,6 +194,7 @@ func (c *watchedConn) ExecContext(ctx context.Context, query string, args []driv
 		return nil, driver.ErrSkip
 	}
 	defer noteCall(query, time.Now())
+	defer c.noteWrite(query)
 	return e.ExecContext(ctx, query, args)
 }
 
@@ -164,6 +231,7 @@ func (c *watchedConn) IsValid() bool {
 type watchedStmt struct {
 	inner driver.Stmt
 	query string
+	conn  *watchedConn
 }
 
 func (s *watchedStmt) Close() error  { return s.inner.Close() }
@@ -171,6 +239,7 @@ func (s *watchedStmt) NumInput() int { return s.inner.NumInput() }
 
 func (s *watchedStmt) Exec(args []driver.Value) (driver.Result, error) {
 	defer noteCall(s.query, time.Now())
+	defer s.conn.noteWrite(s.query)
 	return s.inner.Exec(args) //nolint:staticcheck
 }
 
@@ -181,6 +250,7 @@ func (s *watchedStmt) Query(args []driver.Value) (driver.Rows, error) {
 
 func (s *watchedStmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
 	defer noteCall(s.query, time.Now())
+	defer s.conn.noteWrite(s.query)
 	if e, ok := s.inner.(driver.StmtExecContext); ok {
 		return e.ExecContext(ctx, args)
 	}

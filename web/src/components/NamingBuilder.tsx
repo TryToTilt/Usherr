@@ -8,6 +8,7 @@ import TipLabel from './TipLabel'
 type Kind = 'movie' | 'tv'
 
 const EXAMPLES = { a: '{ - Edition Tags}', b: '{[Quality Full]}' }
+const ORIGINAL_TOKENS = { file: '{Original Filename}', release: '{Original Title}', example: 'Example.Movie.2024.1080p.BluRay-GROUP' }
 
 // The server names the token groups and ready-made formats in English.
 function groupName(g: string): string {
@@ -143,6 +144,7 @@ export default function NamingBuilder({
               ? t("Click a token to add it to the movie file name. Text inside the braces, like {a} or {b}, only shows up when there's a value.", EXAMPLES)
               : t("Click a token to add it to the episode file name. Text inside the braces, like {a} or {b}, only shows up when there's a value.", EXAMPLES)}
           </small>
+          <small style={{ color: 'var(--text-dim)' }}>{t('{file} is the name the file came with, without its extension, like {example}. {release} is the name of the whole release.', ORIGINAL_TOKENS)}</small>
           {groups.map((g) => (
             <div key={g} className="naming-token-group">
               <span>{groupName(g)}</span>

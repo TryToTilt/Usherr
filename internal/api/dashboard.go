@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"os"
 	"sort"
@@ -28,6 +29,14 @@ type statsCache struct {
 	mu         sync.Mutex
 	stats      libraryStats
 	refreshing bool
+	first      *statsWalk // the very first walk, while it runs
+}
+
+// statsWalk is one walk that several callers wait for together.
+type statsWalk struct {
+	done  chan struct{}
+	stats libraryStats
+	err   error
 }
 
 // libraryStats returns the library totals. They come from a walk over every
@@ -59,16 +68,34 @@ func (s *Server) libraryStats() (libraryStats, error) {
 		s.statsCache.mu.Unlock()
 		return cached, nil
 	}
-	s.statsCache.mu.Unlock()
+	// Nothing is kept yet. Callers that arrive while the first walk runs (a
+	// few browser tabs after a restart, a monitoring scrape) wait for that one
+	// instead of each starting a walk of their own.
+	return s.statsCache.firstWalk(s.walkLibraryStats)
+}
 
-	st, err := s.walkLibraryStats()
-	if err != nil {
-		return st, err
+// firstWalk runs walk, or waits for the walk another caller already started,
+// and keeps its result. The caller holds c.mu; firstWalk releases it.
+func (c *statsCache) firstWalk(walk func() (libraryStats, error)) (libraryStats, error) {
+	if w := c.first; w != nil {
+		c.mu.Unlock()
+		<-w.done
+		return w.stats, w.err
 	}
-	s.statsCache.mu.Lock()
-	s.statsCache.stats = st
-	s.statsCache.mu.Unlock()
-	return st, nil
+	w := &statsWalk{done: make(chan struct{}), err: errors.New("the statistics could not be worked out")}
+	c.first = w
+	c.mu.Unlock()
+	defer func() { // also when walk panics, so nobody waits for ever
+		c.mu.Lock()
+		if w.err == nil {
+			c.stats = w.stats
+		}
+		c.first = nil
+		c.mu.Unlock()
+		close(w.done)
+	}()
+	w.stats, w.err = walk()
+	return w.stats, w.err
 }
 
 // walkLibraryStats adds up the size and quality of every downloaded file.
@@ -200,6 +227,19 @@ type dashboardPayload struct {
 			Streams            int `json:"streams"`         // home fork: streamed shows not in the library
 			EpisodesStreams    int `json:"episodesStreams"` // home fork: streamed episodes with nothing on disk
 		} `json:"series"`
+		// Usherr: anime apart from TV (the TV counts leave it out), and comics.
+		Anime struct {
+			Total              int `json:"total"`
+			Episodes           int `json:"episodes"`
+			EpisodesDownloaded int `json:"episodesDownloaded"`
+			EpisodesStreams    int `json:"episodesStreams"`
+		} `json:"anime"`
+		Comics struct {
+			Series     int `json:"series"`
+			Issues     int `json:"issues"`
+			Downloaded int `json:"downloaded"`
+			Missing    int `json:"missing"` // wanted, not downloaded yet
+		} `json:"comics"`
 		// Wanted is what the Wanted page lists under Missing: monitored, no
 		// file and (for episodes) already aired. Movies.Missing and
 		// Series.EpisodesMissing count everything without a file.
@@ -252,28 +292,22 @@ type dashboardPayload struct {
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	var out dashboardPayload
 
-	movieCounts, err := s.MovieRepo.MovieCounts()
+	// The totals are shared between callers and kept until the library
+	// changes, and the queries stop when the request gives up.
+	overview, err := s.libraryOverview(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	movieCounts, seriesCounts := overview.Movies, overview.Series
 	out.Library.Movies.Total, out.Library.Movies.Downloaded = movieCounts.Total, movieCounts.Downloaded
 	out.Library.Movies.Downloading, out.Library.Movies.Missing = movieCounts.Downloading, movieCounts.Missing
 	moviesDownloaded := movieCounts.Downloaded
-	seriesCounts, err := s.MovieRepo.SeriesCounts()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
 	out.Library.Series.Total = seriesCounts.Series
 	out.Library.Series.Episodes = seriesCounts.Episodes
 	out.Library.Series.EpisodesDownloaded = seriesCounts.EpisodesDownloaded
 	out.Library.Series.EpisodesMissing = out.Library.Series.Episodes - out.Library.Series.EpisodesDownloaded
-
-	if out.Library.Wanted.Movies, out.Library.Wanted.Episodes, err = s.wantedMissingCounts(); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
+	out.Library.Wanted.Movies, out.Library.Wanted.Episodes = overview.WantedMovies, overview.WantedEpisodes
 
 	counts, err := s.MusicRepo.Counts()
 	if err != nil {
@@ -354,7 +388,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	hideScene := s.sceneHider(r) // scenes hook (home fork)
+	hideVideo := s.videoHider(r) // videos hook (home fork)
 	recentDone, recentErr := s.QueueRepo.RecentCompleted(8)
 	doneItems := make([]queue.Item, len(recentDone))
 	for i, c := range recentDone {
@@ -362,7 +396,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	namer := s.newQueueNamer(queueItems, doneItems)
 	for _, it := range queueItems {
-		if hideScene(it.ID) { // scenes hook (home fork)
+		if hideVideo(it.ID) { // videos hook (home fork)
 			continue
 		}
 		title, subtitle, poster := namer.describe(it)
@@ -407,7 +441,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	out.RecentDownloads = []dashRecent{}
 	if recentErr == nil {
 		for _, c := range recentDone {
-			if hideScene(c.ID) { // scenes hook (home fork)
+			if hideVideo(c.ID) { // videos hook (home fork)
 				continue
 			}
 			title, subtitle, poster := namer.describe(c.Item)
@@ -476,7 +510,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 // (falling back to the release title) and finds its poster. A list of entries
 // uses a queueNamer instead, so the lookups are shared (queue_describe.go).
 func (s *Server) describeQueueItem(it queue.Item) (title, subtitle, poster string) {
-	if t, sub, img, ok := s.describeSceneItem(it.ID); ok { // scenes hook (home fork)
+	if t, sub, img, ok := s.describeVideoItem(it.ID); ok { // videos hook (home fork)
 		return t, sub, img
 	}
 	return s.newQueueNamer([]queue.Item{it}).describe(it)

@@ -27,9 +27,13 @@ import (
 // Sentinel errors returned (wrapped) by Extract so callers can tell a bad
 // release apart from a problem with the local setup.
 var (
-	// ErrPasswordProtected: the archive (or a file inside it) is encrypted.
-	// Mediarium never has a password, so the release is unusable.
+	// ErrPasswordProtected: the archive (or a file inside it) is encrypted
+	// and there is no password for it, so the release is unusable.
 	ErrPasswordProtected = errors.New("archive is password protected")
+	// ErrWrongPassword: the archive is encrypted and the password that came
+	// with the release does not open it. It wraps ErrPasswordProtected, so
+	// callers that only check for that still treat it as a bad release.
+	ErrWrongPassword = fmt.Errorf("%w, and the password that came with it is wrong", ErrPasswordProtected)
 	// ErrUnsafeArchive: an entry would land outside the destination folder
 	// (path traversal, absolute path, or a link pointing outside).
 	ErrUnsafeArchive = errors.New("archive contains an unsafe path or link")
@@ -156,7 +160,49 @@ func FindPrimaryArchives(dir string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read dir %s: %w", dir, err)
 	}
+	return primariesIn(dir, entries), nil
+}
 
+// FindPrimaryArchivesDeep is FindPrimaryArchives for dir and every folder
+// inside it: a torrent saves its files in a folder named after it, and a
+// debrid service returns folders too. Each archive is returned with its full
+// path, so it can be unpacked next to where it was found. Folders of the
+// app's own (hidden ones starting with a dot) and Sample folders are skipped.
+func FindPrimaryArchivesDeep(dir string) ([]string, error) {
+	var primaries []string
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if path == dir {
+				return fmt.Errorf("read dir %s: %w", dir, err)
+			}
+			return nil // an unreadable sub-folder is skipped, not fatal
+		}
+		if !d.IsDir() {
+			return nil
+		}
+		if path != dir {
+			name := strings.ToLower(d.Name())
+			if strings.HasPrefix(name, ".") || name == "sample" || name == "samples" {
+				return filepath.SkipDir
+			}
+		}
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			return nil
+		}
+		primaries = append(primaries, primariesIn(path, entries)...)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(primaries)
+	return primaries, nil
+}
+
+// primariesIn picks the first volume of each archive set out of one folder's
+// entries.
+func primariesIn(dir string, entries []os.DirEntry) []string {
 	var primaries []string
 	for _, e := range entries {
 		if e.IsDir() {
@@ -178,7 +224,7 @@ func FindPrimaryArchives(dir string) ([]string, error) {
 		}
 	}
 	sort.Strings(primaries)
-	return primaries, nil
+	return primaries
 }
 
 // Format is an archive format Extract knows.
@@ -262,9 +308,16 @@ func (e *Extractor) extractRAR(archivePath, destDir string) error {
 	if e.Password != "" {
 		opts = append(opts, rardecode.Password(e.Password))
 	}
+	// encrypted is set once an entry turns out to be encrypted. The library
+	// marks such entries even when the password given is right, so this alone
+	// says nothing about the password; it only helps read a later failure.
+	encrypted := false
+	fail := func(err error) error {
+		return fmt.Errorf("extract %s: %w", name, e.classifyRARError(archivePath, encrypted, err))
+	}
 	rc, err := rardecode.OpenReader(archivePath, opts...)
 	if err != nil {
-		return fmt.Errorf("extract %s: %w", name, classifyRARError(err))
+		return fail(err)
 	}
 	defer rc.Close()
 
@@ -276,10 +329,13 @@ func (e *Extractor) extractRAR(archivePath, destDir string) error {
 			return nil
 		}
 		if err != nil {
-			return fmt.Errorf("extract %s: %w", name, classifyRARError(err))
+			return fail(err)
 		}
 		if h.Encrypted || h.HeaderEncrypted {
-			return fmt.Errorf("extract %s: %w", name, ErrPasswordProtected)
+			if e.Password == "" {
+				return fmt.Errorf("extract %s: %w", name, ErrPasswordProtected)
+			}
+			encrypted = true
 		}
 		if err := x.countEntry(); err != nil {
 			return fmt.Errorf("extract %s: %w", name, err)
@@ -297,7 +353,7 @@ func (e *Extractor) extractRAR(archivePath, destDir string) error {
 			// RAR4 stores a symlink as a file whose content is the target.
 			target, err := io.ReadAll(io.LimitReader(rc, 4096))
 			if err != nil {
-				return fmt.Errorf("extract %s: %w", name, classifyRARError(err))
+				return fail(err)
 			}
 			if err := checkLink(destDir, h.Name, string(target)); err != nil {
 				return fmt.Errorf("extract %s: %w", name, err)
@@ -312,7 +368,7 @@ func (e *Extractor) extractRAR(archivePath, destDir string) error {
 				declared = -1
 			}
 			if err := x.writeFile(h.Name, declared, rc); err != nil {
-				return fmt.Errorf("extract %s: %w", name, classifyRARError(err))
+				return fail(err)
 			}
 		}
 	}
@@ -406,14 +462,61 @@ func normalizeRARVolumeNames(first string) (string, error) {
 	return renamed, nil
 }
 
-func classifyRARError(err error) error {
+// rarGarbled lists the errors the RAR reader gives when the bytes it decodes
+// make no sense. In an encrypted archive opened with a password, that is what
+// a wrong password looks like: RAR4 has no password check of its own, so the
+// wrong key only shows as bad checksums or headers.
+var rarGarbled = []error{
+	rardecode.ErrBadFileChecksum, rardecode.ErrBadHeaderCRC,
+	rardecode.ErrCorruptBlockHeader, rardecode.ErrCorruptFileHeader,
+	rardecode.ErrCorruptDecodeHeader, rardecode.ErrCorruptEncryptData,
+	rardecode.ErrHuffDecodeFailed, rardecode.ErrInvalidLengthTable,
+	rardecode.ErrCorruptPPM, rardecode.ErrDecoderOutOfData,
+	rardecode.ErrUnknownDecoder, rardecode.ErrInvalidFilter,
+	rardecode.ErrTooManyFilters, rardecode.ErrUnknownFilter,
+	rardecode.ErrInvalidVMInstruction, rardecode.ErrShortFile,
+	rardecode.ErrBadBlockHeader, rardecode.ErrMultiVolume,
+	// A garbled RAR4 header can claim sizes that run past the end of the file.
+	io.ErrUnexpectedEOF,
+}
+
+// classifyRARError turns an error from the RAR reader into one of ours.
+// encrypted says whether an encrypted entry was already seen.
+func (e *Extractor) classifyRARError(archivePath string, encrypted bool, err error) error {
 	switch {
+	case errors.Is(err, rardecode.ErrBadPassword):
+		// RAR5 checks the password itself and says so when it is wrong.
+		return fmt.Errorf("%w (%v)", ErrWrongPassword, err)
 	case errors.Is(err, rardecode.ErrArchiveEncrypted),
-		errors.Is(err, rardecode.ErrArchivedFileEncrypted),
-		errors.Is(err, rardecode.ErrBadPassword):
+		errors.Is(err, rardecode.ErrArchivedFileEncrypted):
 		return fmt.Errorf("%w (%v)", ErrPasswordProtected, err)
 	}
+	if e.Password == "" {
+		return err
+	}
+	for _, g := range rarGarbled {
+		if !errors.Is(err, g) {
+			continue
+		}
+		if encrypted || rarHeadersEncrypted(archivePath) {
+			return fmt.Errorf("%w (%v)", ErrWrongPassword, err)
+		}
+		break
+	}
 	return err
+}
+
+// rarHeadersEncrypted reports whether the archive's file list is encrypted
+// (made with rar -hp), by opening it again without a password: the reader
+// then refuses at once. With a wrong password such an archive fails before
+// any entry is read, so this is the only way to tell that apart from damage.
+func rarHeadersEncrypted(archivePath string) bool {
+	rc, err := rardecode.OpenReader(archivePath, rardecode.MaxDictionarySize(maxRARDictionary))
+	if err == nil {
+		_, err = rc.Next()
+		rc.Close()
+	}
+	return errors.Is(err, rardecode.ErrArchiveEncrypted)
 }
 
 // extractZip unpacks a ZIP with the standard library.
@@ -570,6 +673,9 @@ func (e *Extractor) sevenZipError(ctx context.Context, name string, out []byte, 
 	// With the file names encrypted and no password, 7z asks for one (it can't:
 	// stdin is the null device) and gives up.
 	if strings.Contains(lower, "wrong password") || strings.Contains(lower, "cannot open encrypted archive") || strings.Contains(lower, "enter password") {
+		if e.Password != "" {
+			return fmt.Errorf("extract %s: %w", name, ErrWrongPassword)
+		}
 		return fmt.Errorf("extract %s: %w", name, ErrPasswordProtected)
 	}
 	return fmt.Errorf("extract %s: %w: %s", name, err, truncateOutput(out))
@@ -916,6 +1022,12 @@ func normalizeEntryName(name string) (string, error) {
 	for _, part := range strings.Split(n, "/") {
 		if part == ".." {
 			return "", fmt.Errorf("path %q escapes the destination: %w", name, ErrUnsafeArchive)
+		}
+		// The downloader keeps its own notes in files with these names; a
+		// release must not be able to write one (one of them says which torrent
+		// to remove from an external client after the import).
+		if lower := strings.ToLower(part); strings.HasPrefix(lower, ".mediarium-") || lower == ".debrid-id" {
+			return "", fmt.Errorf("entry %q uses a name the app keeps for itself: %w", name, ErrUnsafeArchive)
 		}
 	}
 	return path.Clean(n), nil

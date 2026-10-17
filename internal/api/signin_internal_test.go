@@ -43,16 +43,29 @@ func TestCeremonyStore(t *testing.T) {
 			t.Errorf("%q was accepted", bad)
 		}
 	}
-	// A flood stops at a limit, and old ones are swept to make room.
-	for i := 0; i < maxCeremony; i++ {
-		if _, err := c.put(kindLogin, 0, sd, now); err != nil {
+	// A flood stops at a limit, and the oldest waiting one makes room, so real
+	// people are not locked out; expired ones are swept.
+	first, _ := c.put(kindLogin, 0, sd, now.Add(-time.Second)) // expires before all the others
+	for i := 1; i < maxCeremony; i++ {
+		if _, err := c.put(kindLogin, 0, sd, now.Add(time.Duration(i)*time.Millisecond)); err != nil {
 			t.Fatalf("put %d: %v", i, err)
 		}
 	}
-	if _, err := c.put(kindLogin, 0, sd, now); err == nil {
-		t.Error("no limit on waiting challenges")
+	later := now.Add(time.Second)
+	newest, err := c.put(kindLogin, 0, sd, later)
+	if err != nil {
+		t.Fatalf("a full store must still take a new challenge: %v", err)
 	}
-	if _, err := c.put(kindLogin, 0, sd, now.Add(ceremonyTTL+time.Second)); err != nil {
+	if len(c.m) > maxCeremony {
+		t.Errorf("%d challenges waiting, want at most %d", len(c.m), maxCeremony)
+	}
+	if _, ok := c.take(first, kindLogin, later); ok {
+		t.Error("the oldest challenge should have made room")
+	}
+	if _, ok := c.take(newest, kindLogin, later); !ok {
+		t.Error("the newest challenge was lost")
+	}
+	if _, err := c.put(kindLogin, 0, sd, now.Add(ceremonyTTL+time.Hour)); err != nil {
 		t.Errorf("expired challenges were not swept: %v", err)
 	}
 }

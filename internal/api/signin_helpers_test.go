@@ -16,7 +16,6 @@ import (
 	"github.com/rdborg/mediarium/internal/api"
 	"github.com/rdborg/mediarium/internal/config"
 	"github.com/rdborg/mediarium/internal/crypto"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 // signInEnv is a running server for the sign-in tests, with an administrator
@@ -47,7 +46,7 @@ func newSignInEnv(t *testing.T, mutate func(*config.Config)) *signInEnv {
 	if err := os.MkdirAll(cfg.ConfigDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	db, err := store.Open(filepath.Join(cfg.ConfigDir, "app.db"))
+	db, err := api.OpenTestDB(filepath.Join(cfg.ConfigDir, "app.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

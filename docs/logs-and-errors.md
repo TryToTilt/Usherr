@@ -19,6 +19,8 @@ It's not a copy of the log file. Normal activity (a movie was added, a download 
 | Notifications | a message could not be delivered |
 | Updates and system | a check for updates or an update failed, Mediarium restarted itself |
 
+If the database is busy with a long write when a problem happens, the problem waits and is saved a few seconds later (it tries up to five times), so a busy moment does not lose it.
+
 Every kind has a fixed name (a code, such as `usenet.too_many_connections`). The names, what each one means and what to try are in the [list of problem codes](reference/problem-codes.md).
 
 ## The page
@@ -59,7 +61,7 @@ Problems are kept for **30 days**, and at most 2000 of them. A shorter history t
 
 ## "Mediarium is slow to answer right now"
 
-A yellow notice under the top bar. It appears when Mediarium itself takes more than 10 seconds to answer the page, for example while a big download is being unpacked or a library import is running, and goes away by itself once answers come back at normal speed. Nothing needs doing; if it stays for a long time, check the server isn't out of memory or disk space (**Settings > System**).
+A small yellow notice in the bottom right corner, over the page (it never pushes the page down). It appears when Mediarium itself takes more than 10 seconds to answer the page, for example while a big download is being unpacked or a library import is running, and only once that has lasted a few seconds, so one slow answer doesn't make it flash. It stays while the slowness lasts and goes away by itself a moment after answers come back at normal speed. **Try again** reloads the page. Nothing needs doing; if it stays for a long time, check the server isn't out of memory or disk space (**Settings > System**).
 
 Lists that come from outside services don't raise it: Discover (TMDB, MusicBrainz, Open Library), the search box, release searches on your indexers, subtitles and media server links. Those show their own loading placeholders, and if one of the services doesn't answer at all, the message names it ("Open Library is slow to answer right now") instead of blaming Mediarium.
 

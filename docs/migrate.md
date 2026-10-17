@@ -140,7 +140,7 @@ When Mediarium does everything you need, run the import once more to pick up any
 - **"this address is Sonarr, not Radarr"**: the addresses are swapped.
 - **"answered 404"**: check the URL base (the part after the port, if you set one in the app).
 - **Many titles "folder not found"**: the folder mapping is wrong, or the folder isn't mounted into Mediarium's container. The root folder list in the preview shows where each root folder ends up.
-- **Episodes left out** ("aren't listed on TMDB for this show"): TMDB and TheTVDB sometimes number seasons differently (common with anime and long-running shows). Those files stay on disk, and Mediarium doesn't track them.
+- **Episodes left out** ("aren't listed on TMDB for this show"): TMDB and TheTVDB sometimes number seasons differently (common with anime and long-running shows). For an anime, a file whose name carries the episode number counted from the start of the show (`One Piece - S23E10 - 1100`) is placed on that episode instead, see [Anime numbered by TheTVDB seasons](./import-library.md#anime-numbered-by-thetvdb-seasons). The other files stay on disk, and Mediarium doesn't track them.
 
 ## API
 

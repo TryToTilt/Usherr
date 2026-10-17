@@ -185,10 +185,27 @@ func (s *Server) fetchSeriesDetails(ctx context.Context, item library.ImportItem
 	if err != nil {
 		return err
 	}
-	_, err = s.MovieRepo.CompleteSeriesImport(item, library.SeriesDetails{
+	details := library.SeriesDetails{
 		Title: detail.Name, Year: detail.Year(), Overview: detail.Overview, PosterPath: detail.PosterPath,
 		FirstAirDate: detail.FirstAirDate, Genres: s.TMDB().ShowGenres(ctx, detail.Show),
-	}, toLibraryEpisodes(infos))
+		GuessedType: guessSeriesType(detail.Show),
+	}
+	// A show that already has its other numberings (TheXEM, the anime lists)
+	// helps place files named by TheTVDB's seasons.
+	if sr, gerr := s.MovieRepo.GetSeries(item.TitleID); gerr == nil {
+		if num := s.numberingFor(sr); !num.Empty() {
+			details.SceneMap = num.MapScene
+		}
+	}
+	episodes := toLibraryEpisodes(infos)
+	// A daily show's files named by the day they aired go on that day's episode.
+	item.Files = library.PlaceByAirDate(item.Files, episodes)
+	_, err = s.MovieRepo.CompleteSeriesImport(item, details, episodes)
+	if err == nil {
+		if sr, gerr := s.MovieRepo.GetSeries(item.TitleID); gerr == nil {
+			s.noteSeriesNumbering(sr) // an anime gets its numbering read now
+		}
+	}
 	return err
 }
 

@@ -448,7 +448,7 @@ func matchTitle(ctx context.Context, tm *metadata.Client, t aiTitle) (*metadata.
 		if r.MediaType == "tv" {
 			name, date = r.Name, r.FirstAirDate
 		}
-		if !sameTitle(t.Title, name) {
+		if !sameTitleLoose(t.Title, name) {
 			continue
 		}
 		score := r.Popularity
@@ -488,10 +488,10 @@ func matchTitle(ctx context.Context, tm *metadata.Client, t aiTitle) (*metadata.
 	return &metadata.Movie{TMDBID: r.ID, Title: r.Title, Overview: r.Overview, ReleaseDate: r.ReleaseDate, PosterPath: r.PosterPath, VoteAverage: r.VoteAverage, VoteCount: r.VoteCount, Popularity: r.Popularity, GenreIDs: r.GenreIDs}, nil
 }
 
-// sameTitle: the same title, near enough. TMDB's name may add a subtitle
+// sameTitleLoose: the same title, near enough. TMDB's name may add a subtitle
 // ("Alien: Covenant" for "Alien: Covenant", but "Iron Fists" is not "Iron
 // Fist") or Marvel's prefix ("Marvel's Iron Fist").
-func sameTitle(asked, name string) bool {
+func sameTitleLoose(asked, name string) bool {
 	want, got := normTitle(asked), normTitle(name)
 	if got == want || strings.TrimPrefix(got, "marvel s ") == want {
 		return true

@@ -546,7 +546,7 @@ function ReportRow({ item }: { item: ImportBatchItem }) {
       <td>{added}</td>
       <td>{already}</td>
       <td className={problem ? 'error-text' : undefined} style={problem ? undefined : { color: 'var(--text-dim)' }}>
-        {waiting && !item.note ? t('Getting details…') : item.note || (waiting ? t('Getting details…') : '')}
+        {waiting && !item.note ? t('Getting details…') : st(item.note) || (waiting ? t('Getting details…') : '')}
       </td>
     </tr>
   )

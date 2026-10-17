@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -350,7 +351,36 @@ func (r *Repo) SendersFor(kind string) ([]Sender, error) {
 		if err != nil {
 			continue
 		}
-		senders = append(senders, s)
+		senders = append(senders, namedSender{Sender: s, name: t.Name, typ: t.Type})
 	}
 	return senders, nil
+}
+
+// TargetError is a message one saved target didn't accept. It carries the
+// target's name and type, so a log line can say which one failed.
+type TargetError struct {
+	Name string
+	Type TargetType
+	Err  error
+}
+
+func (e *TargetError) Error() string {
+	return fmt.Sprintf("%s (%s): %v", e.Name, e.Type, e.Err)
+}
+
+func (e *TargetError) Unwrap() error { return e.Err }
+
+// namedSender is a Sender built from a saved target; its failures come back as
+// a *TargetError.
+type namedSender struct {
+	Sender
+	name string
+	typ  TargetType
+}
+
+func (n namedSender) Send(ctx context.Context, event Event) error {
+	if err := n.Sender.Send(ctx, event); err != nil {
+		return &TargetError{Name: n.name, Type: n.typ, Err: err}
+	}
+	return nil
 }

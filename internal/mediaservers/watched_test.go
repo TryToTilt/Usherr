@@ -75,7 +75,7 @@ func TestEmbyWatched(t *testing.T) {
 			_ = json.NewEncoder(w).Encode([]item{{"Id": "u1"}, {"Id": "u2"}, {"Id": "u3", "Policy": map[string]any{"IsDisabled": true}}})
 		case r.URL.Path == "/Users/u1/Items/s1":
 			_ = json.NewEncoder(w).Encode(item{"ProviderIds": map[string]string{"Tmdb": "1399"}})
-		case r.URL.Query().Get("Filters") == "IsPlayed":
+		case r.URL.Query().Get("IncludeItemTypes") != "":
 			user := r.URL.Path[len("/Users/") : len(r.URL.Path)-len("/Items")]
 			if user == "u3" {
 				t.Error("a disabled user was read")
@@ -96,5 +96,8 @@ func TestEmbyWatched(t *testing.T) {
 	}
 	if e := st.Episodes[EpisodeKey{1399, 2, 5}]; e.Plays != 1 {
 		t.Fatalf("a played episode with no count counts once: %+v", st.Episodes)
+	}
+	if !st.Held[603] || st.Titles == 0 {
+		t.Fatalf("a movie the server lists counts as held: held %v titles %d", st.Held, st.Titles)
 	}
 }

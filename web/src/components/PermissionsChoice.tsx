@@ -1,5 +1,5 @@
 import { DEFAULT_PERMISSIONS, type Permission, type Permissions } from '../api'
-import { useComicsOn, useScenesOn } from '../home/libraryKinds' // home fork
+import { useComicsOn, useNsfwOn } from '../home/libraryKinds' // home fork
 import { useModules } from '../ModulesContext'
 import { t } from '../i18n'
 import TipLabel from './TipLabel'
@@ -22,7 +22,7 @@ export default function PermissionsChoice({ value, onChange, disabled }: { value
   const set = (k: Permission, v: boolean) => onChange({ ...p, [k]: v })
   // home fork: the Library's kinds, in its order (ebooks and audiobooks apart, comics, NSFW 18+)
   const comicsOn = useComicsOn(false)
-  const nsfwOn = useScenesOn(true)
+  const nsfwOn = useNsfwOn(true)
   const kinds: { key: Permission; label: string; show: boolean }[] = [
     { key: 'movies', label: t('Movies'), show: on('movies') },
     { key: 'tv', label: t('TV shows'), show: on('tv') },

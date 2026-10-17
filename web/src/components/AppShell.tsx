@@ -1,9 +1,9 @@
 import { BRAND, USAGE_STATS } from '../brand' // Usherr
-import SidebarScrollMark from './SidebarScrollMark'
 import TourGate from '../home/tourGate' // home fork
+import { useMoreBelow } from './useMoreBelow'
 import { MiniPlayer, MusicPlayerProvider } from './MusicPlayer'
 import { Fragment, useCallback, useEffect, useRef, useState, Suspense } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import { scrollToTop } from '../scrollTop'
 import { api, isAdmin, type AppLink, type WatchLink } from '../api'
 import { useAuth } from '../AuthContext'
@@ -14,18 +14,22 @@ import { inPage, pageParts, pageTitle, settingsGroupsFor } from '../settingsNav'
 import { useLive } from '../useLive'
 import { useUnreadErrors } from '../useProblems'
 import { useModules } from '../ModulesContext'
+import { libraryEntries, type LibraryTab } from '../libraryTabs'
+import { useComicsOn, useNsfwOn } from '../home/libraryKinds' // home fork
 import BrandMark from './BrandMark'
 import PageLoading from './PageLoading'
-import BusyNotice from './BusyNotice'
 import FeedbackNudge from './FeedbackNudge'
 import ImportBanner from './ImportBanner'
 import Icon, { type IconName } from './Icon'
+import KindGlyph from './KindGlyph'
 import ProfileMenu from './ProfileMenu'
 import ReportHost from './ReportHost'
 import SideTools from './SideTools'
 import { PlayerHost } from '../home/Player' // play hook (home fork)
 import '../home/look.css' // home fork: its pages in the v3 look
-import SearchBox from './SearchBox'
+import OmniBar, { type OmniPage } from '../home/OmniBar' // Usherr: the header's search is the search and AI bar
+import RouletteButton from '../home/RouletteButton' // Usherr
+import { CalendarHeaderSearch } from '../home/CalendarSearch' // Usherr
 import ThemeToggle from './ThemeToggle'
 import UsageStatsPrompt from './UsageStats'
 import WhatsNew from './WhatsNew'
@@ -42,6 +46,19 @@ const NAV: { to: string; label: string; icon: IconName; sec: SectionKey; end?: b
   { to: '/queue', label: t('Activity'), icon: 'activity', sec: 'activity' },
   { to: '/settings/media', label: t('Settings'), icon: 'sliders', sec: 'settings' },
 ]
+
+// The lines under "Library" in the left menu: what each one is called, the glyph
+// it wears and its colour (the same as the Library's tabs).
+const LIBRARY_LINE: Record<LibraryTab, { label: string; glyph: 'movie' | 'tv' | 'music' | 'book' | 'audiobook' | 'comic'; color: string }> = {
+  movie: { label: t('Movies'), glyph: 'movie', color: 'var(--c-movie)' },
+  tv: { label: t('TV shows'), glyph: 'tv', color: 'var(--c-tv)' },
+  music: { label: t('Music'), glyph: 'music', color: 'var(--c-music)' },
+  ebook: { label: t('Ebooks'), glyph: 'book', color: 'var(--c-book)' },
+  audiobook: { label: t('Audiobooks'), glyph: 'audiobook', color: 'var(--c-audiobook)' },
+  anime: { label: t('Anime'), glyph: 'tv', color: 'var(--c-tv)' }, // Usherr
+  comics: { label: t('Comics'), glyph: 'comic', color: 'var(--c-comics)' }, // Usherr
+  nsfw: { label: t('NSFW 18+'), glyph: 'movie', color: 'var(--c-nsfw)' }, // Usherr
+}
 
 // Where Back goes from a detail page that was opened directly; undefined
 // for pages that aren't a single title.
@@ -61,7 +78,7 @@ function backFallback(path: string): string | undefined {
 // the left.
 
 // home fork: where each page was left, for the session, by its address.
-const MAIN_PAGES = new Set(['/', '/discover', '/library', '/comics', '/scenes', '/calendar', '/queue', '/music/playlists', '/upcoming'])
+const MAIN_PAGES = new Set(['/', '/discover', '/library', '/comics', '/nsfw', '/calendar', '/queue', '/music/playlists', '/upcoming'])
 const spotKey = (path: string, search: string) => `page:${path}${search}`
 function spotOf(key: string): number {
   try {
@@ -174,17 +191,21 @@ function Shell() {
   const ebooksOn = moduleOn('ebooks')
   const audiobooksOn = moduleOn('audiobooks')
   const musicOn = moduleOn('music')
-  // home fork: Comics, NSFW 18+ and the streamed sheet are inside the Library.
-  const inLibraryPages = /^\/(comics|scenes|streamed)(\/|$)/.test(location.pathname)
+  const comicsOn = useComicsOn(admin) // home fork
+  const nsfwOn = useNsfwOn(admin) // home fork
+  // home fork: the streamed sheet is inside the Library.
+  const inLibraryPages = /^\/streamed(\/|$)/.test(location.pathname)
+  // The lines under "Library": each kind that is switched on opens the Library on its tab.
+  const libraryLines = libraryEntries(moduleOn, location.pathname, location.search, { comics: comicsOn, nsfw: nsfwOn })
   const inUpcoming = location.pathname.startsWith('/wanted') || location.pathname.startsWith('/calendar') || location.pathname.startsWith('/following') /* home fork */
   // Errors from the last day that nobody has marked as read (administrators only).
   const unreadErrors = useUnreadErrors(admin)
   const errorDot = <span className="nav-dot" role="img" aria-label={t('New errors')} title={t('New errors. See Settings, System, Logs and errors.')} />
 
-  // Close the mobile drawer whenever the page changes.
+  // Close the mobile drawer whenever the page changes (a Library line only changes the address's query).
   useEffect(() => {
     setMenuOpen(false)
-  }, [location.pathname])
+  }, [location.pathname, location.search])
 
   // On a phone the search is an icon that opens a bar over the header.
   const [searchOpen, setSearchOpen] = useState(false)
@@ -214,19 +235,40 @@ function Shell() {
   }, [currentGroup, location.pathname])
 
   const inSettings = location.pathname.startsWith('/settings')
+  // Usherr: what the top bar's AI expects, from the page: the kind on Discover and the Library, Comics on its pages.
+  const omniPage: OmniPage = (() => {
+    if (location.pathname.startsWith('/comics')) return 'comics'
+    if (location.pathname === '/discover' || location.pathname === '/library') {
+      const k = new URLSearchParams(location.search).get('kind') ?? 'movie'
+      return (['movie', 'tv', 'anime', 'ebook', 'audiobook', 'music', 'comics'] as const).find((p) => p === k) ?? 'dashboard'
+    }
+    return 'dashboard'
+  })()
+  // Usherr: the Library's kinds fold up under it like a settings group: open on
+  // a Library page, folded everywhere else, and pressing Library opens or folds them.
+  const inLibrary = /^\/(library|comics|nsfw|streamed)(\/|$)/.test(location.pathname)
+  const [libraryOpen, setLibraryOpen] = useState(inLibrary)
+  useEffect(() => {
+    setLibraryOpen(inLibrary)
+  }, [inLibrary, location.pathname])
 
   // The page name in the top bar, in the browser tab and (when the page has no
   // heading of its own) as the page's one <h1>.
   const heading = location.pathname.startsWith('/help') ? t('User guide') : pageTitle(location.pathname, admin)
   const parts = pageParts(location.pathname, admin)
-  const headingNode = parts.group ? (
-    <>
-      <span className="top-crumb">{parts.group}</span>
-      <span className="top-sep" aria-hidden="true"> · </span>
-      {parts.page}
-    </>
-  ) : (
-    heading
+  const headingText = parts.group ? `${parts.group} · ${parts.page}` : heading
+  const headingNode = (
+    <span className="top-text">
+      {parts.group ? (
+        <>
+          <span className="top-crumb">{parts.group}</span>
+          <span className="top-sep" aria-hidden="true"> · </span>
+          {parts.page}
+        </>
+      ) : (
+        heading
+      )}
+    </span>
   )
   useGuideShortcut()
   const specificTitle = useSpecificTitle()
@@ -235,6 +277,40 @@ function Shell() {
   }, [specificTitle, heading])
   const mainRef = useRef<HTMLElement>(null)
   const navRef = useRef<HTMLElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const moreBelow = useMoreBelow(scrollRef)
+  const menuButton = useRef<HTMLButtonElement>(null)
+  // The open drawer (phones and tablets): Escape closes it, Tab stays inside
+  // it, and focus goes back to the menu button when it closes.
+  useEffect(() => {
+    if (!menuOpen) return
+    const nav = navRef.current
+    if (!nav || !window.matchMedia('(max-width: 900px)').matches) return
+    const items = () => [...nav.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled])')].filter((el) => el.getClientRects().length > 0)
+    items()[0]?.focus({ preventScroll: true })
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMenuOpen(false)
+        menuButton.current?.focus({ preventScroll: true })
+        return
+      }
+      if (e.key !== 'Tab') return
+      const list = items()
+      if (list.length === 0) return
+      const first = list[0]
+      const last = list[list.length - 1]
+      const at = document.activeElement
+      if (e.shiftKey && (at === first || !nav.contains(at))) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && (at === last || !nav.contains(at))) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [menuOpen])
   const [pageHasHeading, setPageHasHeading] = useState(false)
   // Title, show, book and artist pages get a Back button: it returns to
   // wherever the page was opened from, or to its section when it was opened
@@ -256,8 +332,15 @@ function Shell() {
     return () => watch.disconnect()
   }, [location.pathname])
   const [version, setVersion] = useState('')
+  // What's new goes first; the usage-numbers question waits until it is closed
+  // (or has nothing to show), so the two never open on top of each other.
+  const [notesDone, setNotesDone] = useState(false)
+  const onNotesDone = useCallback(() => setNotesDone(true), [])
   useEffect(() => {
-    api.version().then((v) => setVersion(v.version)).catch(() => undefined)
+    api
+      .version()
+      .then((v) => setVersion(v.version))
+      .catch(() => setNotesDone(true))
   }, [])
   // A dot on the version when a newer release is waiting (administrators only).
   const [updateReady, setUpdateReady] = useState(false)
@@ -295,22 +378,54 @@ function Shell() {
       </a>
       <PlayerHost /> {/* play hook (home fork) */}
       <div className={`sidebar-backdrop${menuOpen ? ' open' : ''}`} onClick={() => setMenuOpen(false)} />
-      <nav ref={navRef} className={`sidebar${menuOpen ? ' open' : ''}`} aria-label={tc('menu', 'Main')}>
+      <nav id="main-menu" ref={navRef} className={`sidebar${menuOpen ? ' open' : ''}`} aria-label={tc('menu', 'Main')}>
         <div className="brand">
           <BrandMark />
           <span className="brand-text">
             <span className="brand-name">{BRAND}</span>
           </span>
         </div>
+        <div className={`side-scroll${moreBelow ? ' more-below' : ''}`} ref={scrollRef}>
         {nav.map((n) => (
           <Fragment key={n.to}>
-          <NavLink to={n.to} end={n.end} style={{ ['--nc' as string]: `var(--c-${n.sec})` }} className={({ isActive }) => (n.sec === 'settings' ? (inSettings ? 'active parent-open' : '') : isActive || (n.sec === 'calendar' && inUpcoming) || (n.sec === 'library' && inLibraryPages) ? 'active' : '')}>
+          <NavLink to={n.to} end={n.end} style={{ ['--nc' as string]: `var(--c-${n.sec})` }} onClick={
+            n.sec === 'library'
+              ? (e) => {
+                  // Usherr: an open Library folds up; a folded one opens, and shows the
+                  // Library too, except in the phone's menu, which would close on it.
+                  if (libraryOpen || menuOpen) e.preventDefault()
+                  setLibraryOpen(!libraryOpen)
+                }
+              : undefined
+          }
+          aria-expanded={n.sec === 'library' ? libraryOpen : undefined}
+          className={({ isActive }) => (n.sec === 'settings' ? (inSettings ? 'active parent-open' : '') : n.sec === 'library' ? (isActive || inLibraryPages || libraryLines.some((l) => l.active) ? 'active parent-open' : '') : isActive || (n.sec === 'calendar' && inUpcoming) ? 'active' : '')}>
             <span className="nav-ico">
               <Icon name={n.icon} size={17} />
             </span>
             <span className="nav-label">{n.label}</span>
             {n.to === '/queue' && active > 0 && <span className="nav-count">{active}</span>}
+            {n.sec === 'library' && (
+              <span className="nav-chev" style={{ transform: libraryOpen ? 'rotate(90deg)' : 'none' }}>
+                <Icon name="open" size={14} />
+              </span>
+            )}
           </NavLink>
+          {n.sec === 'library' && libraryOpen && (
+            <div className="subnav subnav-library" aria-label={t('Library')} role="group">
+              {libraryLines.map((l) => {
+                const line = LIBRARY_LINE[l.tab]
+                return (
+                  <Link key={l.tab} to={l.to} style={{ ['--sc' as string]: line.color }} className={l.active ? 'active' : ''} aria-current={l.active ? 'page' : undefined}>
+                    <span className="nav-ico">
+                      <KindGlyph kind={line.glyph} size={15} />
+                    </span>
+                    <span className="nav-label">{line.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
           </Fragment>
         ))}
         {(
@@ -387,6 +502,7 @@ function Shell() {
         <SideTools ebooksOn={ebooksOn} audiobooksOn={audiobooksOn} musicOn={musicOn} homes={homes} apps={apps} showSupport={admin && showSupport} variant="side">
           <ThemeToggle />
         </SideTools>
+        </div>
         {version && (
           <div className="side-version">
             {admin ? (
@@ -404,11 +520,10 @@ function Shell() {
           </div>
         )}
       </nav>
-      <SidebarScrollMark target={navRef} />
       <div className="main-area">
         <AmbientBackdrop />
         <header className="topbar">
-          <button className="menu-button" onClick={() => setMenuOpen((o) => !o)} aria-label={t('Open menu')} aria-expanded={menuOpen}>
+          <button ref={menuButton} className="menu-button" aria-controls="main-menu" onClick={() => setMenuOpen((o) => !o)} aria-label={t('Open menu')} aria-expanded={menuOpen}>
             <Icon name="menu" size={20} />
           </button>
           {backTo && (
@@ -417,13 +532,14 @@ function Shell() {
               <span>{t('Back')}</span>
             </button>
           )}
-          {pageHasHeading ? <p className="top-title">{headingNode}</p> : <h1 className="top-title">{headingNode}</h1>}
+          {pageHasHeading ? <p className="top-title" title={headingText}>{headingNode}</p> : <h1 className="top-title" title={headingText}>{headingNode}</h1>}
           <div className={`top-search${searchOpen ? ' open' : ''}`}>
-            <SearchBox />
+            {location.pathname === '/calendar' ? <CalendarHeaderSearch /> : <OmniBar key={omniPage} page={omniPage} header />} {/* Usherr: search or ask the AI, from any page, shaped by the page you are on; on the Calendar it searches the calendar */}
             <button type="button" className="icon-btn top-search-close" onClick={() => setSearchOpen(false)} aria-label={t('Close search')}>
               <Icon name="x" size={18} />
             </button>
           </div>
+          <RouletteButton iconOnly className="icon-btn top-dice" /> {/* Usherr: Roulette */}
           <button type="button" className="icon-btn search-toggle" onClick={() => setSearchOpen(true)} aria-label={t('Search')}>
             <Icon name="search" size={19} />
           </button>
@@ -440,7 +556,6 @@ function Shell() {
             <ProfileMenu />
           </div>
         </header>
-        <BusyNotice />
         <ImportBanner />
         <main id="main" className="content" ref={mainRef} tabIndex={-1}>
           <Suspense fallback={<PageLoading />}>
@@ -448,8 +563,8 @@ function Shell() {
           </Suspense>
         </main>
         <MiniPlayer />
-        {!demoEnabled() && <WhatsNew version={version} />}
-        {!demoEnabled() && admin && USAGE_STATS && <UsageStatsPrompt />}
+        {!demoEnabled() && <WhatsNew version={version} onDone={onNotesDone} />}
+        {!demoEnabled() && admin && USAGE_STATS && notesDone && <UsageStatsPrompt />}
         <FeedbackNudge />
         <ReportHost />
       </div>

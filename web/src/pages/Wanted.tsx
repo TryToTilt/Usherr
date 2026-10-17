@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ActiveChips, CompactBar, FiltersButton, type ActiveFilter } from '../components/CompactBar' // Usherr
+import Dropdown from '../components/Dropdown' // Usherr
 import { Link } from 'react-router-dom'
 import { useUrlState } from '../useUrlState'
-import { api, can, isAdmin, type Book, type BookFormat, type Movie, type MusicWanted, type Series, type SubtitleQuota, type SubtitleWanted, type WaitingRelease, type WantedItem } from '../api'
+import { api, can, isAdmin, type Book, type BookFormat, type Movie, type MusicWanted, type Series, type SubtitleQuota, type SubtitleWanted, type WaitingRelease, type WantedItem, type WantedPage, type WantedRow } from '../api'
+import { mergeRefreshed } from '../wantedPage'
 import { releaseLabel, localDate } from '../bookSeries'
 import { useAuth } from '../AuthContext'
 import { useConfirm } from '../components/ConfirmProvider'
 import Cover from '../components/Cover'
-import Icon, { type IconName } from '../components/Icon'
+import Icon from '../components/Icon'
 import Loading from '../components/Loading'
 import InfoTip from '../components/InfoTip'
 import HelpLink from '../components/HelpLink'
@@ -31,33 +34,22 @@ const PAGE = 50
 // many searches you may make.
 const ASK_ABOVE = 25
 
-// A row of the Missing and Upgrades lists: one movie, or one show with its
-// episodes folded together.
-type Row = { type: 'item'; item: WantedItem } | { type: 'show'; seriesId: number; title: string; items: WantedItem[] }
+// The most rows one request asks for (the server's limit), for "Search all".
+const MAX_PAGE = 500
+const emptyPage: WantedPage = { rows: [], total: 0, movies: 0, episodes: 0, offset: 0, limit: 0 }
 
-function groupRows(items: WantedItem[]): Row[] {
-  const rows: Row[] = []
-  const shows = new Map<number, Extract<Row, { type: 'show' }>>()
-  for (const i of items) {
-    if (i.kind === 'episode' && i.seriesId) {
-      let g = shows.get(i.seriesId)
-      if (!g) {
-        g = { type: 'show', seriesId: i.seriesId, title: i.title, items: [] }
-        shows.set(i.seriesId, g)
-        rows.push(g)
-      }
-      g.items.push(i)
-    } else {
-      rows.push({ type: 'item', item: i })
-    }
-  }
-  // A show with one episode reads better as that episode.
-  return rows.map((r) => (r.type === 'show' && r.items.length === 1 ? { type: 'item', item: r.items[0] } : r))
+// A row of the Missing and Upgrades lists: one movie (or the only episode of
+// a show), or one show with its episodes folded together. The server groups
+// them; a show's episodes are read when it is unfolded.
+type Row = { type: 'item'; item: WantedItem } | { type: 'show'; seriesId: number; title: string; count: number; first: WantedRow }
+
+function toRow(r: WantedRow): Row {
+  if (r.kind === 'show') return { type: 'show', seriesId: r.seriesId ?? r.id, title: r.title, count: r.episodes ?? 0, first: r }
+  return { type: 'item', item: { ...r, kind: r.kind } }
 }
 
 // The kinds the list can be narrowed to: the media kinds, and books.
 type ListKind = MediaKind | 'book'
-const KIND_ICON: Record<ListKind, IconName> = { movie: 'film', tv: 'tv', music: 'music', book: 'book' }
 const LIST_LABEL = (k: ListKind) => (k === 'book' ? t('Books') : KIND_LABEL[k])
 
 // Wanted: what Mediarium is still hunting for. "Missing" is monitored movies
@@ -65,6 +57,7 @@ const LIST_LABEL = (k: ListKind) => (k === 'book' ? t('Books') : KIND_LABEL[k])
 // downloaded items still below their profile's cutoff; "Subtitles" is
 // downloaded titles missing a language you asked for.
 export default function Wanted() {
+  const [filtersOpen, setFiltersOpen] = useState(false) // Usherr: the slim toolbar's panel
   const toast = useToast()
   // Marking subtitles as not needed is for administrators.
   const me = useAuth().user
@@ -74,14 +67,19 @@ export default function Wanted() {
   // The tab, the kind chip and the search live in the address, so Back returns to them.
   const [ui, patchUi] = useUrlState({ tab: 'missing', media: 'all', q: '' })
   const chosenKind: Kind = ui.tab === 'subtitles' ? 'subtitles' : ui.tab === 'cutoff' ? 'cutoff' : 'missing'
-  const setKind = (k: Kind) => patchUi({ tab: k })
+  const setKind = (k: Kind) => {
+    patchUi({ tab: k })
+    setLimit(PAGE)
+  }
   // The Subtitles tab, its count and its list exist only while subtitles are switched on.
   const { subtitlesOn } = useModules()
   const kind: Kind = chosenKind === 'subtitles' && !subtitlesOn ? 'missing' : chosenKind
   const [quota, setQuota] = useState<SubtitleQuota | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [showDismissed, setShowDismissed] = useState(false)
-  const [items, setItems] = useState<WantedItem[] | null>(null)
+  // The movie and TV rows loaded so far, with the totals of the whole list, and the episodes of the unfolded shows.
+  const [page, setPage] = useState<WantedPage | null>(null)
+  const [episodesOf, setEpisodesOf] = useState<Map<number, WantedItem[]>>(new Map())
   const [subs, setSubs] = useState<SubtitleWanted[] | null>(null)
   const [movies, setMovies] = useState<Movie[]>([])
   const [series, setSeries] = useState<Series[]>([])
@@ -98,7 +96,10 @@ export default function Wanted() {
   const booksOn = on('ebooks') || on('audiobooks')
   const kinds: ListKind[] = [...mediaKinds, ...(booksOn ? (['book'] as const) : [])]
   const media = ui.media as 'all' | ListKind
-  const setMedia = (m: 'all' | ListKind) => patchUi({ media: m })
+  const setMedia = (m: 'all' | ListKind) => {
+    patchUi({ media: m })
+    setLimit(PAGE)
+  }
   // Books wanted in a format that is still missing (books have no upgrades).
   const [bookList, setBookList] = useState<Book[] | null>(null)
   const [music, setMusic] = useState<MusicWanted[] | null>(null)
@@ -113,12 +114,17 @@ export default function Wanted() {
   const confirm = useConfirm()
 
   useEffect(() => {
+    api.searchWaiting().then(setWaiting).catch(() => undefined)
+    // Only the totals: the counts on the tabs.
+    api.getWantedPage('missing', { limit: 0 }).then((r) => setCounts((c) => ({ ...c, missing: r.movies + r.episodes }))).catch(() => undefined)
+    api.getWantedPage('cutoff', { limit: 0 }).then((r) => setCounts((c) => ({ ...c, cutoff: r.movies + r.episodes }))).catch(() => undefined)
+  }, [])
+  // The Subtitles list has no pictures of its own; they come from the library lists, read only for that tab.
+  useEffect(() => {
+    if (kind !== 'subtitles' || movies.length > 0 || series.length > 0) return
     api.listMovies().then(setMovies).catch(() => undefined)
     api.listSeries().then(setSeries).catch(() => undefined)
-    api.searchWaiting().then(setWaiting).catch(() => undefined)
-    api.getWanted('missing').then((r) => setCounts((c) => ({ ...c, missing: r.length }))).catch(() => undefined)
-    api.getWanted('cutoff').then((r) => setCounts((c) => ({ ...c, cutoff: r.length }))).catch(() => undefined)
-  }, [])
+  }, [kind, movies.length, series.length])
   useEffect(() => {
     if (!subtitlesOn) return setCounts((c) => ({ ...c, subtitles: undefined }))
     api.subtitlesWanted().then((r) => setCounts((c) => ({ ...c, subtitles: r.length }))).catch(() => undefined)
@@ -135,6 +141,20 @@ export default function Wanted() {
     return (i: { kind: string; tmdbId?: number; seriesId?: number }) => (i.kind === 'movie' ? byMovie.get(i.tmdbId ?? -1) : bySeries.get(i.seriesId ?? -1))
   }, [movies, series])
 
+  // Which kinds of media to list, when more than one is switched on. The
+  // movie and TV rows are narrowed by the server, as is the search (asked for
+  // once typing pauses).
+  const sel = media === 'all' || kinds.includes(media) ? media : 'all'
+  const serverMedia = sel === 'movie' ? 'movie' : sel === 'tv' ? 'tv' : undefined
+  const noServerRows = sel === 'music' || sel === 'book'
+  const [searchedQ, setSearchedQ] = useState(query)
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchedQ(query), 300)
+    return () => window.clearTimeout(timer)
+  }, [query])
+  const loadingMore = useRef(false) // a next page is on its way
+  const [moreFailed, setMoreFailed] = useState(false)
+
   // Each load and each quiet refresh belongs to the tab it started on; an answer that arrives after another tab was picked is dropped.
   const epoch = useRef(0)
   const load = useCallback(() => {
@@ -147,13 +167,70 @@ export default function Wanted() {
       api.subtitleQuota().then(setQuota).catch(() => undefined)
       return
     }
-    setItems(null)
+    setPage(null)
+    setEpisodesOf(new Map())
+    setMoreFailed(false)
     setMusic(null)
-    api.getWanted(kind).then((r) => current() && setItems(r)).catch((e) => current() && setError(e instanceof Error ? e.message : String(e)))
+    if (noServerRows) setPage(emptyPage)
+    else api.getWantedPage(kind, { limit: PAGE, media: serverMedia, q: searchedQ }).then((r) => current() && setPage(r)).catch((e) => current() && setError(e instanceof Error ? e.message : String(e)))
     if (musicOn) api.musicWanted(kind).then((r) => current() && setMusic(r)).catch(() => current() && setMusic([]))
     if (booksOn) api.listBooks().then(setBookList).catch(() => setBookList([]))
-  }, [kind, showDismissed, musicOn, booksOn])
+  }, [kind, showDismissed, musicOn, booksOn, serverMedia, noServerRows, searchedQ])
   useEffect(load, [load])
+
+  // "Show more" past the rows loaded so far reads the next page.
+  useEffect(() => {
+    if (kind === 'subtitles' || !page || loadingMore.current || moreFailed) return
+    const want = Math.min(limit, page.total)
+    if (page.rows.length >= want) return
+    const mine = epoch.current
+    loadingMore.current = true
+    api
+      .getWantedPage(kind, { limit: Math.min(MAX_PAGE, Math.max(PAGE, want - page.rows.length)), offset: page.rows.length, media: serverMedia, q: searchedQ })
+      .then((r) => mine === epoch.current && setPage((p) => (p ? { ...r, rows: [...p.rows, ...r.rows] } : p)))
+      .catch(() => setMoreFailed(true))
+      .finally(() => (loadingMore.current = false))
+  }, [kind, page, limit, moreFailed, serverMedia, searchedQ])
+
+  // A show's episodes are read when it is unfolded.
+  const showsOnTheWay = useRef(new Set<number>())
+  const loadEpisodes = useCallback(
+    (seriesId: number) => {
+      if (showsOnTheWay.current.has(seriesId)) return
+      showsOnTheWay.current.add(seriesId)
+      const mine = epoch.current
+      api
+        .getWantedShow(kind === 'cutoff' ? 'cutoff' : 'missing', seriesId)
+        .then((r) => mine === epoch.current && setEpisodesOf((m) => new Map(m).set(seriesId, r)))
+        .catch(() => undefined)
+        .finally(() => showsOnTheWay.current.delete(seriesId))
+    },
+    [kind],
+  )
+  function toggleShow(seriesId: number) {
+    setUnfolded((u) => {
+      const n = new Set(u)
+      if (n.has(seriesId)) n.delete(seriesId)
+      else n.add(seriesId)
+      return n
+    })
+  }
+  // An unfolded show whose episodes are not here yet (just unfolded, or the list was loaded again) gets them.
+  useEffect(() => {
+    for (const id of unfolded) if (!episodesOf.has(id)) loadEpisodes(id)
+  }, [unfolded, episodesOf, loadEpisodes])
+
+  // Every row, for "Search all": the pages not loaded yet are read first.
+  async function allRows(): Promise<Row[]> {
+    if (!page) return []
+    const rows = [...page.rows]
+    while (rows.length < page.total) {
+      const next = await api.getWantedPage(kind === 'cutoff' ? 'cutoff' : 'missing', { limit: MAX_PAGE, offset: rows.length, media: serverMedia, q: searchedQ })
+      if (next.rows.length === 0) break
+      rows.push(...next.rows)
+    }
+    return rows.map(toRow)
+  }
   // Quiet refresh: update the lists in place without flashing the loading state.
   useLive(() => {
     const mine = epoch.current
@@ -169,14 +246,17 @@ export default function Wanted() {
         .catch(() => undefined)
       api.subtitleQuota().then(setQuota).catch(() => undefined)
     } else {
-      api
-        .getWanted(kind)
-        .then((r) => {
-          if (!current()) return
-          setItems(r)
-          setError('')
-        })
-        .catch(() => undefined)
+      // The rows loaded so far are read again (at most one full request's worth), and the unfolded shows' episodes.
+      if (!noServerRows)
+        api
+          .getWantedPage(kind, { limit: Math.min(MAX_PAGE, Math.max(PAGE, page?.rows.length ?? 0)), media: serverMedia, q: searchedQ })
+          .then((r) => {
+            if (!current()) return
+            setPage((p) => ({ ...r, rows: p ? mergeRefreshed(p.rows, r) : r.rows }))
+            setError('')
+          })
+          .catch(() => undefined)
+      for (const id of unfolded) loadEpisodes(id)
       if (musicOn) api.musicWanted(kind).then((r) => current() && setMusic(r)).catch(() => undefined)
       if (booksOn) api.listBooks().then(setBookList).catch(() => undefined)
     }
@@ -318,7 +398,7 @@ export default function Wanted() {
     waiting.find((w) => (i.kind === 'movie' ? w.movieId === i.movieId : w.seriesId === i.seriesId && w.season === (i.season ?? 0) && ((w.episode ?? 0) === 0 || w.episode === i.episode)))
   const itemRow = (i: WantedItem) => (
             <div key={keyOf(i)} className={`wrow kind-${i.kind === 'movie' ? 'movie' : 'tv'}`}>
-              <div className="qthumb">{posterOf(i) ? <img src={posterOf(i)} alt="" loading="lazy" /> : <PosterFallback />}</div>
+              <div className="qthumb">{i.posterUrl ? <img src={i.posterUrl} alt="" loading="lazy" /> : <PosterFallback />}</div>
               <div className="wmain">
                 <Link to={link(i)}>
                   <strong>
@@ -362,68 +442,67 @@ export default function Wanted() {
   )
   const total = (k: Kind) => (counts[k] === undefined ? undefined : counts[k]! + (k === 'subtitles' ? 0 : (musicCounts[k] ?? 0)) + (k === 'missing' ? missingBooks.length : 0))
   const tab = (k: Kind, label: string) => (
-    <button className={kind === k ? 'active' : ''} onClick={() => setKind(k)}>
+    <button aria-pressed={kind === k} className={kind === k ? 'active' : ''} onClick={() => setKind(k)}>
       {label} {total(k) !== undefined && <small>({total(k)})</small>}
     </button>
   )
 
-  // Which kinds of media to list, when more than one is switched on.
-  const sel = media === 'all' || kinds.includes(media) ? media : 'all'
+  // The movie and TV rows come filtered from the server; music and books are filtered here.
   const q = query.trim().toLowerCase()
   const matches = (text: string) => q === '' || text.toLowerCase().includes(q)
-  const shownItems = (items ?? []).filter((i) => (sel === 'all' || (sel === 'movie' && i.kind === 'movie') || (sel === 'tv' && i.kind === 'episode')) && matches(i.title))
   const shownMusic = (sel === 'all' || sel === 'music' ? (music ?? []) : []).filter((a) => matches(`${a.artistName} ${a.title}`))
-  const rows = groupRows(shownItems)
-  const pagedRows = rows.slice(0, limit)
-  const musicRoom = Math.max(0, limit - rows.length)
+  const rowTotal = page?.total ?? 0 // movie and TV rows on all pages
+  const pagedRows = (page?.rows ?? []).slice(0, limit).map(toRow)
+  const musicRoom = Math.max(0, limit - rowTotal)
   const today = localDate(new Date())
   const shownBooks = kind === 'missing' && (sel === 'all' || sel === 'book') ? missingBooks.filter((x) => matches(`${x.book.author} ${x.book.title}`)) : []
   const bookRoom = Math.max(0, musicRoom - shownMusic.length)
-  const loadingList = items === null || (musicOn && music === null) || (booksOn && bookList === null)
-  const listed = rows.length + shownMusic.length + shownBooks.length
-  const kindChips = kinds.length > 1 && kind !== 'subtitles' && (
-    <div className="chip-row" style={{ marginBottom: 16, alignItems: 'center' }}>
-      {(['all', ...kinds] as const).map((k) => (
-        <button key={k} className={`chip${sel === k ? ' active' : ''}`} onClick={() => setMedia(k)}>
-          {k !== 'all' && <Icon name={KIND_ICON[k]} size={13} />} {k === 'all' ? t('All') : LIST_LABEL(k)}
-        </button>
-      ))}
-      {sel !== 'all' && (
-        <button className="btn-sm" onClick={() => setMedia('all')}>
-          {t('Clear filters')}
-        </button>
-      )}
-    </div>
-  )
+  const loadingList = page === null || (musicOn && music === null) || (booksOn && bookList === null)
+  const listed = rowTotal + shownMusic.length + shownBooks.length
+  // Everything on this tab before any filter, to tell "nothing matches" from "nothing wanted".
+  const unfiltered = (kind === 'subtitles' ? 0 : (counts[kind] ?? rowTotal)) + (music?.length ?? 0) + (kind === 'missing' ? missingBooks.length : 0)
+  // Usherr: the filters that are on, each a chip with an x.
+  const activeFilters: ActiveFilter[] = [
+    ...(sel !== 'all' && kind !== 'subtitles' ? [{ key: 'kind', label: LIST_LABEL(sel), clear: () => setMedia('all') }] : []),
+    ...(query.trim() && kind !== 'subtitles' ? [{ key: 'q', label: `“${query.trim()}”`, clear: () => setQuery('') }] : []),
+  ]
+  const hasList = kind !== 'subtitles' && unfiltered > 0
 
   return (
     <div>
-      <div className="page-header">
-        <h1>{t('Wanted')}</h1>
-        <div className="seg">
-          {tab('missing', t('Missing'))}
-          {tab('cutoff', t('Upgrades'))}
-          {subtitlesOn && tab('subtitles', t('Subtitles'))}
-        </div>
-        <HelpLink topic="activity#the-wanted-page" text={t('Missing: monitored titles that have no file yet. Upgrades: titles you have that are below the quality you asked for. Subtitles: downloaded titles that lack a subtitle in your languages.')} />
-      </div>
+      {/* Usherr: one slim row, pinned under the top bar (CompactBar.tsx) */}
+      <CompactBar
+        open={filtersOpen && hasList}
+        row={
+          <>
+            <div className="seg">
+              {tab('missing', t('Missing'))}
+              {tab('cutoff', t('Upgrades'))}
+              {subtitlesOn && tab('subtitles', t('Subtitles'))}
+            </div>
+            {hasList && <FiltersButton open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} count={activeFilters.length} />}
+            <span className="spacer" />
+            {hasList && rowTotal > 0 && canSearch && (
+              <button className="btn-with-icon" disabled={bulk !== null} onClick={() => void allRows().then(searchAll).catch((e) => toast.error(e instanceof Error ? e.message : String(e)))} title={t('Runs one search per title in this list, one after another, on every indexer. Many indexers allow only so many searches a day, so a long list can use up the limit.')}>
+                <Icon name="search" size={15} /> {bulk ? t('{done} of {total}…', { done: bulk.done, total: bulk.total }) : <><span className="cbar-add-label">{t('Search all')}</span> <small className="mono">{rowTotal}</small></>}
+              </button>
+            )}
+          </>
+        }
+        panel={
+          <>
+            <input className="cbar-find" type="search" placeholder={t('Find a title')} aria-label={t('Find a title in this list')} value={query} onChange={(e) => { setQuery(e.target.value); setLimit(PAGE) }} />
+            {kinds.length > 1 && (
+              <Dropdown icon="grid" label={t('Kind')} value={sel} onChange={(v) => setMedia(v as typeof media)} options={(['all', ...kinds] as const).map((k) => ({ value: k, label: k === 'all' ? t('Everything') : LIST_LABEL(k) }))} />
+            )}
+            <span className="spacer" />
+            <HelpLink topic="activity#the-wanted-page" text={t('Missing: monitored titles that have no file yet. Upgrades: titles you have that are below the quality you asked for. Subtitles: downloaded titles that lack a subtitle in your languages.')} />
+          </>
+        }
+        chips={<ActiveChips filters={activeFilters} onClearAll={() => (setMedia('all'), setQuery(''))} />}
+      />
 
       {error && <p className="error-text">{error}</p>}
-      {kindChips}
-      {kind !== 'subtitles' && (items?.length ?? 0) + (music?.length ?? 0) + (kind === 'missing' ? missingBooks.length : 0) > 0 && (
-        <div className="toolbar">
-          <input className="wanted-search" type="search" placeholder={t('Find a title')} aria-label={t('Find a title in this list')} value={query} onChange={(e) => { setQuery(e.target.value); setLimit(PAGE) }} />
-          <span className="spacer" />
-          {rows.length > 0 && canSearch && (
-            <button className="btn-with-icon" disabled={bulk !== null} onClick={() => void searchAll(rows)}>
-              <Icon name="search" size={15} /> {bulk ? t('Searching {done} of {total}…', { done: bulk.done, total: bulk.total }) : t('Search all {n}', { n: rows.length })}
-            </button>
-          )}
-          {rows.length > 0 && canSearch && (
-            <InfoTip text={t('Runs one search per title in this list, one after another, on every indexer. Many indexers allow only so many searches a day, so a long list can use up the limit.')} />
-          )}
-        </div>
-      )}
 
       {kind === 'subtitles' ? (
         subs === null ? (
@@ -494,13 +573,13 @@ export default function Wanted() {
         )
       ) : loadingList ? (
         error ? null : <Loading height={120} />
-      ) : shownItems.length === 0 && shownMusic.length === 0 && shownBooks.length === 0 ? (
+      ) : rowTotal === 0 && shownMusic.length === 0 && shownBooks.length === 0 ? (
         <div className="empty-state">
           <Icon name="check" size={44} />
-          {sel !== 'all' && (items?.length ?? 0) + (music?.length ?? 0) + (kind === 'missing' ? missingBooks.length : 0) > 0 ? (
+          {(sel !== 'all' || q !== '') && unfiltered > 0 ? (
             <>
               <p>{t('Nothing matches this filter.')}</p>
-              <button className="btn-with-icon" onClick={() => setMedia('all')}>
+              <button className="btn-with-icon" onClick={() => patchUi({ media: 'all', q: '' })}>
                 {t('Clear filters')}
               </button>
             </>
@@ -516,20 +595,20 @@ export default function Wanted() {
             ) : (
               <div key={`show-${r.seriesId}`} className="wgroup">
                 <div className="wrow kind-tv">
-                  <div className="qthumb">{posterOf(r.items[0]) ? <img src={posterOf(r.items[0])} alt="" loading="lazy" /> : <PosterFallback />}</div>
+                  <div className="qthumb">{r.first.posterUrl ? <img src={r.first.posterUrl} alt="" loading="lazy" /> : <PosterFallback />}</div>
                   <div className="wmain">
-                    <Link to={link(r.items[0])}>
+                    <Link to={link({ kind: 'episode', seriesId: r.seriesId })}>
                       <strong>
                         <Icon name="tv" size={13} /> {r.title}
                       </strong>
                     </Link>
                     <small>
-                      {kind === 'missing' ? plural(r.items.length, '{n} episode missing', '{n} episodes missing') : plural(r.items.length, '{n} episode below the quality you asked for', '{n} episodes below the quality you asked for')}
+                      {kind === 'missing' ? plural(r.count, '{n} episode missing', '{n} episodes missing') : plural(r.count, '{n} episode below the quality you asked for', '{n} episodes below the quality you asked for')}
                     </small>
                   </div>
-                  <div className="wmeta">{r.items[0].profileName && <span className="badge">{r.items[0].profileName}</span>}</div>
+                  <div className="wmeta">{r.first.profileName && <span className="badge">{r.first.profileName}</span>}</div>
                   <div className="row-actions">
-                    <button className="btn-sm" aria-expanded={unfolded.has(r.seriesId)} onClick={() => setUnfolded((u) => { const n = new Set(u); if (n.has(r.seriesId)) n.delete(r.seriesId); else n.add(r.seriesId); return n })}>
+                    <button className="btn-sm" aria-expanded={unfolded.has(r.seriesId)} onClick={() => toggleShow(r.seriesId)}>
                       {unfolded.has(r.seriesId) ? t('Hide episodes') : t('Show episodes')}
                     </button>
                     {canSearch && (
@@ -539,7 +618,7 @@ export default function Wanted() {
                     )}
                   </div>
                 </div>
-                {unfolded.has(r.seriesId) && <div className="wgroup-items">{r.items.map((i) => itemRow(i))}</div>}
+                {unfolded.has(r.seriesId) && <div className="wgroup-items">{episodesOf.has(r.seriesId) ? episodesOf.get(r.seriesId)!.map((i) => itemRow(i)) : <Loading height={48} />}</div>}
               </div>
             ),
           )}

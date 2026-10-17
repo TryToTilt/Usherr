@@ -88,8 +88,31 @@ type Log struct {
 }
 
 type queued struct {
-	p  Problem
-	at time.Time
+	p     Problem
+	at    time.Time
+	tries int // saves that failed because the database was busy
+}
+
+// A problem that could not be saved because another write held the database
+// (a long import, say) is tried again after busyRetryWait, up to busyTries
+// times in all. Otherwise the very warning that the database is slow was the
+// one that got lost.
+var busyRetryWait = 3 * time.Second
+
+const busyTries = 5
+
+// SetBusyRetryWait changes how long a busy save waits before it is tried
+// again (tests use a short one).
+func SetBusyRetryWait(d time.Duration) { busyRetryWait = d }
+
+// isBusy reports whether err is SQLite saying another connection holds the
+// write lock.
+func isBusy(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "SQLITE_BUSY") || strings.Contains(msg, "database is locked")
 }
 
 // Open returns a log stored in db, which must have the problems table.
@@ -158,8 +181,23 @@ func (l *Log) work() {
 		batch := l.pending
 		l.pending = nil
 		l.mu.Unlock()
+		var again []queued
 		for _, q := range batch {
-			l.save(q)
+			err := l.save(q)
+			switch {
+			case err == nil:
+			case isBusy(err) && q.tries+1 < busyTries:
+				q.tries++
+				again = append(again, q)
+			default:
+				log.Printf("problems: could not save %s: %v", q.p.Code, err)
+			}
+		}
+		if len(again) > 0 {
+			time.Sleep(busyRetryWait)
+			l.mu.Lock()
+			l.pending = append(again, l.pending...)
+			l.mu.Unlock()
 		}
 	}
 }
@@ -204,12 +242,16 @@ var saving atomic.Int32
 // own trouble and keep writing.
 func Saving() bool { return saving.Load() > 0 }
 
-func (l *Log) save(q queued) {
+// save writes one problem. A failure to write the row itself is returned
+// (the caller decides whether to try again); trimming the table is not
+// worth failing for, so that is only logged.
+func (l *Log) save(q queued) (err error) {
 	saving.Add(1)
 	defer saving.Add(-1)
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("problems: could not save a problem: %v", r)
+			err = nil
 		}
 	}()
 	p := q.p
@@ -237,8 +279,7 @@ func (l *Log) save(q queued) {
 
 	tx, err := l.db.Begin()
 	if err != nil {
-		log.Printf("problems: could not save %s: %v", p.Code, err)
-		return
+		return fmt.Errorf("begin: %w", err)
 	}
 	defer tx.Rollback()
 
@@ -266,40 +307,37 @@ func (l *Log) save(q queued) {
 			at.Format(timeFormat), string(level), message, detail,
 			title, title, p.Link, p.Link, p.DownloadID, p.DownloadID, id)
 		if err != nil {
-			log.Printf("problems: could not save %s: %v", p.Code, err)
-			return
+			return fmt.Errorf("update: %w", err)
 		}
 		if err := tx.Commit(); err != nil {
-			log.Printf("problems: could not save %s: %v", p.Code, err)
+			return fmt.Errorf("commit: %w", err)
 		}
-		return
+		return nil
 	case errors.Is(err, sql.ErrNoRows):
 	default:
-		log.Printf("problems: could not save %s: %v", p.Code, err)
-		return
+		return fmt.Errorf("look up: %w", err)
 	}
 
 	res, err := tx.Exec(`INSERT INTO problems (first_at, last_at, level, area, code, subject, message, detail, title, link, download_id, count, is_read)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)`,
 		at.Format(timeFormat), at.Format(timeFormat), string(level), string(area), p.Code, p.Subject, message, detail, title, p.Link, p.DownloadID)
 	if err != nil {
-		log.Printf("problems: could not save %s: %v", p.Code, err)
-		return
+		return fmt.Errorf("insert: %w", err)
 	}
 	id, _ = res.LastInsertId()
 	// Keep the table to its size limit.
 	if _, err := tx.Exec(`DELETE FROM problems WHERE id IN (SELECT id FROM problems ORDER BY last_at DESC, id DESC LIMIT -1 OFFSET ?)`, MaxRows); err != nil {
 		log.Printf("problems: could not trim the log: %v", err)
-		return
+		return nil
 	}
 	if err := tx.Commit(); err != nil {
-		log.Printf("problems: could not save %s: %v", p.Code, err)
-		return
+		return fmt.Errorf("commit: %w", err)
 	}
 	if level == LevelError && !p.Quiet && l.OnNew != nil {
 		l.OnNew(Entry{ID: id, FirstAt: at, LastAt: at, Level: level, Area: area, Code: p.Code, Subject: p.Subject,
 			Message: message, Detail: detail, Title: title, Link: p.Link, DownloadID: p.DownloadID, Count: 1})
 	}
+	return nil
 }
 
 // Filter narrows a list of problems. The zero value matches everything.

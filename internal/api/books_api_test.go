@@ -177,6 +177,54 @@ func TestImportBooksAlreadyOnDisk(t *testing.T) {
 	}
 }
 
+// Importing audiobooks used to wipe the ebook import's results, so the books
+// it hadn't found lost their "Find it myself". Each kind keeps its own.
+func TestAudiobookImportKeepsTheEbookResults(t *testing.T) {
+	server, base, client := loginNewServer(t)
+	server.TestSetOpenLibrary(newFakeOpenLibrary(t).URL)
+	dir := t.TempDir()
+	ebooks, audios := filepath.Join(dir, "ebooks"), filepath.Join(dir, "audio")
+	postJSONMethod[map[string]any](t, client, http.MethodPut, base+"/api/modules", map[string]any{"ebooks": true, "audiobooks": true}, http.StatusOK)
+	postJSONMethod[map[string]any](t, client, http.MethodPut, base+"/api/settings", map[string]any{"ebooksPath": ebooks, "audiobooksPath": audios}, http.StatusOK)
+	for _, p := range []string{
+		filepath.Join(ebooks, "J.R.R. Tolkien", "The Hobbit (1937)", "The Hobbit.epub"),
+		filepath.Join(ebooks, "Someone Else", "Unknown Thing.pdf"),
+		filepath.Join(audios, "J.R.R. Tolkien", "The Hobbit", "01.mp3"),
+	} {
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("book"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	postJSON[map[string]any](t, client, base+"/api/books/import", map[string]any{"format": "ebook"}, http.StatusAccepted)
+	waitBackground(t, server)
+	postJSON[map[string]any](t, client, base+"/api/books/import", map[string]any{"format": "audiobook"}, http.StatusAccepted)
+	waitBackground(t, server)
+	st := getJSON[map[string]any](t, client, base+"/api/books/import")
+	if kinds := st["kinds"].([]any); len(kinds) != 1 || kinds[0] != "audiobook" || st["total"] != float64(1) {
+		t.Fatalf("the last run was the audiobooks: %v", st)
+	}
+	byKind := map[string][]string{}
+	for _, r := range st["results"].([]any) {
+		m := r.(map[string]any)
+		byKind[m["kind"].(string)] = append(byKind[m["kind"].(string)], m["status"].(string))
+	}
+	if len(byKind["ebook"]) != 2 || len(byKind["audiobook"]) != 1 {
+		t.Fatalf("both kinds' results: %v", byKind)
+	}
+
+	// Running the ebooks again replaces only the ebook rows.
+	postJSON[map[string]any](t, client, base+"/api/books/import", map[string]any{"format": "ebook"}, http.StatusAccepted)
+	waitBackground(t, server)
+	st = getJSON[map[string]any](t, client, base+"/api/books/import")
+	if n := len(st["results"].([]any)); n != 3 {
+		t.Fatalf("results after the second ebook run: %d %v", n, st)
+	}
+}
+
 func TestBookInfoPage(t *testing.T) {
 	server, base, client := loginNewServer(t)
 	server.TestSetOpenLibrary(newFakeOpenLibrary(t).URL)

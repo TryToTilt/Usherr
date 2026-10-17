@@ -400,12 +400,12 @@ function NSFWCard({ x, act }: { x: Extras; act: Act }) {
     <Card
       title={t('NSFW 18+')}
       state={n.enabled ? 'ready' : 'off'}
-      blurb={t('Adult scenes, with performers and studios. Only administrators ever see it: it is hidden from everyone else, keeps its own library and never sends notifications. Off unless you turn it on.')}
+      blurb={t('Adult videos, with performers and studios. Only administrators ever see it: it is hidden from everyone else, keeps its own library and never sends notifications. Off unless you turn it on.')}
     >
       {n.enabled ? (
         <div style={row}>
-          <button onClick={() => void act('PUT', '/api/scenes/settings', { enabled: false })}>{t('Turn NSFW 18+ off')}</button>
-          <Link to="/scenes">{t('Open NSFW 18+')}</Link>
+          <button onClick={() => void act('PUT', '/api/nsfw/settings', { enabled: false })}>{t('Turn NSFW 18+ off')}</button>
+          <Link to="/nsfw">{t('Open NSFW 18+')}</Link>
         </div>
       ) : n.allowed === false ? (
         <div className="notice">
@@ -429,7 +429,7 @@ function NSFWCard({ x, act }: { x: Extras; act: Act }) {
               className="primary"
               disabled={!typed}
               onClick={() =>
-                void act('PUT', '/api/scenes/settings', { enabled: true, confirm: phrase }).then(() => {
+                void act('PUT', '/api/nsfw/settings', { enabled: true, confirm: phrase }).then(() => {
                   setAsked(false)
                   setPhrase('')
                 })
@@ -708,6 +708,7 @@ const MQ_SCENE_LABEL: Record<SceneKind, string> = {
   'coming-film': t('Coming soon (one film)'),
   theaters: t('In theaters now (posters)'),
   coming: t('Coming up (the week)'),
+  tvnow: t('On Live TV (what each channel has on)'),
 }
 
 function MarqueeCard() {

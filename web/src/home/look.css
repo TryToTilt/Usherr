@@ -102,3 +102,12 @@
 
 /* Help links in fork toolbars sit level with the buttons */
 .tv-seg .info-tip, .sl-head > .info-tip { align-self: center; }
+
+/* Usherr: the Anime and Comics cards' notches: a sparkle and a speech bubble. */
+.mod-k-anime { --sil: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path fill='%23fff' d='M32 3c2.5 15 8 21.5 29 29-21 7.5-26.5 14-29 29-2.5-15-8-21.5-29-29 21-7.5 26.5-14 29-29z'/></svg>"); }
+.mod-k-comic { --sil: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path fill='%23fff' d='M10 6h44a6 6 0 0 1 6 6v26a6 6 0 0 1-6 6H30L16 58V44h-6a6 6 0 0 1-6-6V12a6 6 0 0 1 6-6z'/></svg>"); }
+/* With an odd number of cards, the last one spans the row on a phone. */
+@media (max-width: 600px) {
+  .dash-cards > .mod-wrap:nth-child(5) { grid-column: auto; }
+  .dash-cards > .mod-wrap:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}

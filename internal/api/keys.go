@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -23,6 +24,19 @@ type BuiltinKeys struct {
 	TMDB          string
 	OpenSubtitles string
 	TraktClientID string
+}
+
+// optionalKey reads an optional API key at start-up. A key that cannot be read
+// (usually because secret.key does not match this database) is logged, without
+// its value, and treated as not set, so the app still starts and the person
+// can enter the key again in Settings.
+func optionalKey(st *settings.Store, key string) string {
+	v, err := st.Get(key)
+	if err != nil {
+		log.Printf("warning: could not read the saved setting %s, treating it as not set (does secret.key belong to this app.db?): %v", key, err)
+		return ""
+	}
+	return v
 }
 
 // SetBuiltinKeys installs the built-in keys and applies each one to its

@@ -27,7 +27,7 @@ import {
 import Icon from './Icon'
 import MusicMenu from './MusicMenu'
 import NowPlayingPanel from './MusicPanel'
-import { albumCoverUrl, PlayerContext, trackUrl, useMusicPlayer, type PanelTab, type PlayerApi } from './musicPlayerContext'
+import { albumCoverUrl, PlayerContext, PlayerTimeContext, trackUrl, useMusicPlayer, usePlayerTime, type PanelTab, type PlayerApi } from './musicPlayerContext'
 import { useToast } from './Toast'
 import '../player.css'
 import { withBase } from '../base'
@@ -707,8 +707,6 @@ export function MusicPlayerProvider({ children, popout = false }: { children: Re
       queue,
       index,
       playing,
-      time,
-      duration,
       volume,
       shuffle,
       repeat,
@@ -740,10 +738,16 @@ export function MusicPlayerProvider({ children, popout = false }: { children: Re
       scrobbling,
       refreshScrobbling,
     }),
-    [current, queue, index, playing, time, duration, volume, shuffle, repeat, problem, playQueue, playNextTracks, addToQueue, moveInQueue, removeFromQueue, clearQueue, toggle, advance, prev, seek, close, jumpTo, popOut, handBack, popout, taken, settings, setSettings, engine, panel, setPanel, scrobbling, refreshScrobbling],
+    [current, queue, index, playing, volume, shuffle, repeat, problem, playQueue, playNextTracks, addToQueue, moveInQueue, removeFromQueue, clearQueue, toggle, advance, prev, seek, close, jumpTo, popOut, handBack, popout, taken, settings, setSettings, engine, panel, setPanel, scrobbling, refreshScrobbling],
   )
 
-  return <PlayerContext.Provider value={api_}>{children}</PlayerContext.Provider>
+  const clock_ = useMemo(() => ({ time, duration }), [time, duration])
+
+  return (
+    <PlayerContext.Provider value={api_}>
+      <PlayerTimeContext.Provider value={clock_}>{children}</PlayerTimeContext.Provider>
+    </PlayerContext.Provider>
+  )
 }
 
 // The cover, or a pink note while the album has none.
@@ -763,11 +767,12 @@ function Cover({ albumId }: { albumId: number }) {
 // (queue, lyrics, settings) above it when that is open.
 export function MiniPlayer() {
   const p = useMusicPlayer()
+  const pos = usePlayerTime()
   const toast = useToast()
   if (!p || !p.current) return null
   const c = p.current
-  const total = p.duration || c.lengthMs / 1000
-  const pct = total > 0 ? Math.min(100, (p.time / total) * 100) : 0
+  const total = pos.duration || c.lengthMs / 1000
+  const pct = total > 0 ? Math.min(100, (pos.time / total) * 100) : 0
   const repeatLabel = p.repeat === 'one' ? t('Repeat this track') : p.repeat === 'all' ? t('Repeat the queue') : t('Repeat')
   const toggleTab = (tab: PanelTab) => p.setPanel(p.panel === tab ? null : tab)
   return (
@@ -791,13 +796,13 @@ export function MiniPlayer() {
           </button>
         </div>
         <div className="mp-seek">
-          <span className="mp-time">{clock(p.time)}</span>
+          <span className="mp-time">{clock(pos.time)}</span>
           <input
             type="range"
             min={0}
             max={Math.max(total, 1)}
             step={1}
-            value={Math.min(p.time, Math.max(total, 1))}
+            value={Math.min(pos.time, Math.max(total, 1))}
             onChange={(e) => p.seek(Number(e.target.value))}
             aria-label={t('Seek')}
             style={{ ['--p' as string]: `${pct}%` }}

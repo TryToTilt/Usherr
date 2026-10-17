@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useStreamed } from '../home/useHave' // Usherr
 import VoteButtons from '../home/VoteButtons' // home fork
 import { WhatsItLike } from '../home/AIGuides' // home fork
 import { StreamingOn } from '../home/Recipes' // home fork
@@ -23,6 +24,8 @@ import Switch from '../components/Switch'
 import TitleHero from '../components/TitleHero'
 import { CastCard, titleLinks } from '../components/TitlePreview'
 import WatchLinks from '../components/WatchLinks'
+import FolderLine from '../components/FolderLine'
+import LocateDialog from '../components/LocateDialog'
 import TitleEvents from '../components/TitleEvents'
 import SearchStatus from '../components/SearchStatus'
 import { describeState } from '../components/state'
@@ -57,6 +60,7 @@ function MoviePage() {
   const admin = isAdmin(me)
   const { subtitlesOn } = useModules()
   const { tmdbId } = useParams<{ tmdbId: string }>()
+  const streamedHere = useStreamed('movie')(Number(tmdbId)) // Usherr: a streamed title says so
   const navigate = useNavigate()
   const id = Number(tmdbId)
   const toast = useToast()
@@ -66,6 +70,7 @@ function MoviePage() {
   const [similar, setSimilar] = useState<DiscoverMovie[]>([])
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(false)
+  const [locating, setLocating] = useState(false)
   const [monitored, setMonitored] = useState<boolean | null>(null)
   const [results, setResults] = useState<SearchResult[] | null>(null)
   // The releases list is drawn above the files and settings: bring it into view when a search answers.
@@ -74,7 +79,7 @@ function MoviePage() {
   useEffect(() => {
     if (hasResults) releasesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [hasResults])
-  const [answered, setAnswered] = useState<{ sources: number; unanswered: Unanswered[] }>({ sources: 0, unanswered: [] })
+  const [answered, setAnswered] = useState<{ sources: number; unanswered: Unanswered[]; warnings?: string[] }>({ sources: 0, unanswered: [] })
   const [searching, setSearching] = useState(false)
   const [searchingNow, setSearchingNow] = useState(false)
   const [grabbing, setGrabbing] = useState<string | null>(null)
@@ -84,7 +89,10 @@ function MoviePage() {
     if (!movie?.libraryId) return
     setRescanning(true)
     try {
-      toast.success(rescanMessage(await api.rescanMovie(movie.libraryId)))
+      const found = await api.rescanMovie(movie.libraryId)
+      const text = rescanMessage(found, monitored !== false)
+      if (found.looked || found.busy) toast.info(text)
+      else toast.success(text)
       reload()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
@@ -193,7 +201,7 @@ function MoviePage() {
     setResults(null)
     try {
       const a = await api.movieSearch(libraryId)
-      setAnswered({ sources: a.sources, unanswered: a.unanswered })
+      setAnswered({ sources: a.sources, unanswered: a.unanswered, warnings: a.warnings })
       setResults(a.results)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
@@ -257,7 +265,7 @@ function MoviePage() {
   if (!movie) return <div className="skeleton" style={{ height: 380, borderRadius: 22 }} />
 
   const inLibrary = !!movie.libraryId
-  const stateKey = !inLibrary ? null : movie.status === 'downloaded' ? 'downloaded' : movie.status === 'downloading' ? 'downloading' : monitored === false ? 'added' : 'searching'
+  const stateKey = !inLibrary ? (streamedHere ? 'streams' : null) : movie.status === 'downloaded' ? 'downloaded' : movie.status === 'downloading' ? 'downloading' : monitored === false ? 'added' : 'searching'
   const state = stateKey ? describeState(stateKey) : null
 
   return (
@@ -326,8 +334,8 @@ function MoviePage() {
               {movie.status === 'downloaded' && <WatchLinks tmdbId={movie.tmdbId} kind="movie" />}
               <WhatsItLike kind="movie" tmdbId={movie.tmdbId} title={movie.title} /> {/* home fork */}
               <VoteButtons kind="movie" refId={movie.tmdbId} meta={{ title: movie.title, year: movie.year, image: movie.posterUrl }} /> {/* home fork */}
-              {admin && movie.status === 'downloaded' && movie.filePath && (
-                <button className="btn-with-icon" onClick={() => void rescan()} disabled={rescanning} title={t('Looks at the file on your disk again: if it was deleted by hand the movie is wanted again, and a renamed file is found.')}>
+              {admin && ((movie.status === 'downloaded' && movie.filePath) || movie.status === 'missing') && (
+                <button className="btn-with-icon" onClick={() => void rescan()} disabled={rescanning} title={movie.filePath ? t('Looks at the file on your disk again: if it was deleted by hand the movie is wanted again, and a renamed file is found.') : t("Looks in the movie's folder for a video file you put there by hand and adds it to the movie.")}>
                   <Icon name="folder" size={16} /> {rescanning ? t('Checking…') : t('Rescan files')}
                 </button>
               )}
@@ -360,13 +368,23 @@ function MoviePage() {
         {inLibrary && movie.status === 'missing' && movie.libraryId && <SearchStatus kind="movie" id={movie.libraryId} />}
         {inLibrary && (
           <div className="title-controls">
-            <Switch checked={monitored ?? true} onChange={toggleMonitored} disabled={!can(me, 'manage')} label={<span className="has-tip">{t('Monitored')}<InfoTip text={t('Mediarium keeps searching and downloads a release when one turns up. Switch it off to leave this movie alone; files you already have stay where they are.')} /></span>} description={t('Keeps looking until it finds this movie.')} />
+            <Switch checked={monitored ?? true} onChange={toggleMonitored} disabled={!can(me, 'manage')} label={<span className="has-tip">{t('Monitored')}<InfoTip text={t('Mediarium keeps searching and downloads a release when one turns up. Switch it off to leave this movie alone; files you already have stay where they are.')} /></span>} description={monitored ?? true ? t('Keeps looking until it finds this movie.') : t('Not looking for this movie. Files you already have stay where they are.')} />
             <ProfilePicker kind="movie" itemId={movie.libraryId!}>
               {movie.libraryId && <TitleTags kind="movie" id={movie.libraryId} />}
             </ProfilePicker>
             {movie.filePath && <code className="filepath">{movie.filePath}</code>}
           </div>
         )}
+        {inLibrary && admin && movie.folderPath && (
+          <FolderLine path={movie.folderPath} kind="movie">
+            {movie.libraryId && (
+              <button type="button" className="btn-sm btn-with-icon" onClick={() => setLocating(true)}>
+                <Icon name="folder" size={14} /> {t('Locate the file')}
+              </button>
+            )}
+          </FolderLine>
+        )}
+        {locating && movie.libraryId && <LocateDialog kind="movie" id={movie.libraryId} start={movie.folderPath} onClose={() => setLocating(false)} onDone={reload} />}
         {inLibrary && movie.libraryId && <WatchedLine kind="movie" id={movie.libraryId} />}
         <ScoresLine kind="movie" tmdbId={movie.tmdbId} /> {/* home fork */}
         <StreamingOn kind="movie" tmdbId={movie.tmdbId} /> {/* home fork */}
@@ -389,7 +407,7 @@ function MoviePage() {
       {results !== null && (
         <section ref={releasesRef} className="card" style={{ marginBottom: 24, scrollMarginTop: 80 }}>
           <h2>{t('Releases')}</h2>
-          <ReleaseNotice sources={answered.sources} unanswered={answered.unanswered} results={results.length} />
+          <ReleaseNotice sources={answered.sources} unanswered={answered.unanswered} warnings={answered.warnings} results={results.length} />
           {results.length === 0 && (
             <button className="btn-sm" onClick={() => setResults(null)}>
               {t('Close')}

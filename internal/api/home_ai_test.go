@@ -56,8 +56,8 @@ func TestSameTitle(t *testing.T) {
 		{"The Thomas Crown Affair", "Thomas Crown Affair", true},
 		{"Heat", "Heatwave", false},
 	} {
-		if got := sameTitle(c.asked, c.name); got != c.want {
-			t.Errorf("sameTitle(%q, %q) = %v", c.asked, c.name, got)
+		if got := sameTitleLoose(c.asked, c.name); got != c.want {
+			t.Errorf("sameTitleLoose(%q, %q) = %v", c.asked, c.name, got)
 		}
 	}
 }

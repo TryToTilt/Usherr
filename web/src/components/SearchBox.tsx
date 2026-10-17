@@ -1,10 +1,12 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useStreamed } from '../home/useHave' // Usherr
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api, type BookFound, type MusicArtistResult, type TitleResult } from '../api'
 import { useModules } from '../ModulesContext'
 import AddMusicDialog from './AddMusicDialog'
 import { BookAddDialog } from './BookDiscover'
 import { artistKind } from './artistKind'
+import { libraryFirst } from '../searchOrder'
 import Icon from './Icon'
 import { MusicFallback, PosterFallback } from './PosterCard'
 import { resultState } from './state'
@@ -22,6 +24,10 @@ export function capitalizeFirst(v: string): string {
 // home fork: the AI bar reuses it on pages, with its own placeholder, a slot
 // for its Search/AI switch, and without the "/" shortcut (the header keeps it).
 export default function SearchBox({ placeholderText, extra, noShortcut, autoFocus, onQuery }: { placeholderText?: string; extra?: ReactNode; noShortcut?: boolean; autoFocus?: boolean; onQuery?: (q: string) => void } = {}) {
+  // Usherr: titles streamed but not in the library say "Streams".
+  const streamedMovie = useStreamed('movie')
+  const streamedShow = useStreamed('tv')
+  const streamed = (r: TitleResult) => (r.kind === 'movie' ? streamedMovie : streamedShow)(r.tmdbId)
   const panelId = `searchbox-results${useId().replace(/:/g, '')}`
   const navigate = useNavigate()
   const location = useLocation()
@@ -61,7 +67,8 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
       api
         .discoverSearch(term, ctl.signal)
         .then((r) => {
-          setResults(r.slice(0, 8))
+          // Library titles are drawn first, so the arrow keys step in that order too.
+          setResults(libraryFirst(r.slice(0, 8)))
           setError('')
           setActive(-1)
         })
@@ -204,10 +211,11 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
   // A plain function, not a component: a component made inside another one is a
   // new type on every render, which would rebuild every row each time the mouse moves.
   function row(r: TitleResult, i: number) {
-    const st = resultState(r)
+    const st = resultState(r, streamed(r))
     return (
       <div
         key={`${r.kind}-${r.tmdbId}`}
+        id={`searchbox-opt-${i}`}
         className={`searchbox-row${i === active ? ' active' : ''}`}
         role="option"
         aria-selected={i === active}
@@ -260,6 +268,7 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
         role="combobox"
         aria-expanded={showPanel}
         aria-controls={panelId}
+        aria-activedescendant={showPanel && active >= 0 ? `searchbox-opt-${active}` : undefined}
         placeholder={placeholder}
         value={q}
         onChange={(e) => {
@@ -298,6 +307,7 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
           {artists?.map((a, i) => (
             <div
               key={a.mbid}
+              id={`searchbox-opt-${titleCount + i}`}
               className={`searchbox-row${titleCount + i === active ? ' active' : ''}`}
               role="option"
               aria-selected={titleCount + i === active}
@@ -333,6 +343,7 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
           {bookHits?.map((b, i) => (
             <div
               key={b.key}
+              id={`searchbox-opt-${artistEnd + i}`}
               className={`searchbox-row${artistEnd + i === active ? ' active' : ''}`}
               role="option"
               aria-selected={artistEnd + i === active}

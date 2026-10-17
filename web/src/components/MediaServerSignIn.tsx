@@ -344,7 +344,7 @@ export function JellyfinEmbySignIn({ kind, baseUrl, checkAddress, onAdded }: { k
           {t("Used once to get a key for Mediarium. The password isn't stored.")}
         </small>
       </div>
-      <FormProblem v={v} verb={t('sign in')} />
+      <FormProblem v={v} action="signin" />
       {error && <p className="error-text" style={{ margin: 0 }}>{error}</p>}
     </div>
   )

@@ -80,7 +80,9 @@ func (s *Server) runPipeline(queueID, movieID int64, movieTitle string, movieYea
 		_ = s.QueueRepo.LogActivity(movieID, "failed", message)
 		failedItem := s.movieItemByID(movieID, movieTitle, movieYear, tmdbID)
 		failedItem.Reason, failedItem.Release = plain, releaseTitle
-		s.notifyItem("failed", failedItem)
+		if s.failureNotifyWanted(stepErr, downloadURL, releaseTitle) {
+			s.notifyItem("failed", failedItem)
+		}
 		if blocklisted {
 			s.retryAfterBadRelease(movieID, 0)
 		}
@@ -163,7 +165,16 @@ func (s *Server) runPipeline(queueID, movieID int64, movieTitle string, movieYea
 			s.notifyItem("conflict", conflictItem)
 			return nil
 		}
-		return fail(fmt.Errorf("a file already exists at %s. Remove it, or change \"If a file already exists\" in Settings > Library > Folders", destPath))
+		// "If a file already exists" said to keep the file that is there (or the
+		// new one is not better): that is a decision, not a failure, so no
+		// "failed" notification and nothing in Logs and errors.
+		if err := s.QueueRepo.SetStatus(queueID, queue.StatusCompleted, keptExistingMessage); err != nil {
+			return fail(err)
+		}
+		s.discardWorkDir(incompleteDir, protocol)
+		_ = s.MovieRepo.SetStatus(movieID, restoreStatus, "", "")
+		_ = s.QueueRepo.LogActivity(movieID, "kept", fmt.Sprintf("%s: a file is already at %s, so Mediarium kept it and did not import %s.", movieTitle, destPath, releaseTitle))
+		return nil
 	}
 
 	if err := s.MovieRepo.SetStatus(movieID, library.StatusDownloaded, string(tier), result.DestPath); err == nil {
@@ -268,7 +279,7 @@ func (s *Server) prepareDownload(ctx context.Context, queueID int64, downloadURL
 	// files the client may still be seeding.
 	if !viaClient {
 		if err := s.verifyStep(queueID, incompleteDir, missing); err != nil {
-			return "", badRelease(fmt.Errorf("repairing the download failed: %w", err))
+			return "", repairFailure(err)
 		}
 	}
 	if err := ctx.Err(); err != nil {
@@ -365,7 +376,7 @@ func notAnNZB(b []byte, downloadURL string) error {
 	head := bytes.TrimSpace(bytes.TrimPrefix(b, []byte("\xef\xbb\xbf")))
 	lower := strings.ToLower(string(head[:min(len(head), 512)]))
 	if strings.HasPrefix(lower, "<!doctype html") || strings.HasPrefix(lower, "<html") {
-		return errors.New("the indexer sent a web page instead of the NZB file. It may be down for maintenance, or want you to sign in again")
+		return &nzbLinkError{"the indexer sent a web page instead of the NZB file. It may be down for maintenance, or want you to sign in again"}
 	}
 	dec := xml.NewDecoder(bytes.NewReader(head))
 	dec.CharsetReader = func(_ string, r io.Reader) (io.Reader, error) { return r, nil }
@@ -373,7 +384,7 @@ func notAnNZB(b []byte, downloadURL string) error {
 		tok, err := dec.Token()
 		if err != nil {
 			if len(head) == 0 || head[0] != '<' {
-				return errors.New("the indexer didn't send an NZB file")
+				return &nzbLinkError{"the indexer didn't send an NZB file"}
 			}
 			return nil // XML that breaks later: ParseNZB says what is wrong
 		}
@@ -392,14 +403,14 @@ func notAnNZB(b []byte, downloadURL string) error {
 				}
 			}
 			if description == "" {
-				return errors.New("the indexer refused to send the NZB file")
+				return &nzbLinkError{"the indexer refused to send the NZB file"}
 			}
 			if len(description) > 200 {
 				description = description[:200]
 			}
-			return fmt.Errorf("the indexer refused to send the NZB file: %s", description)
+			return &nzbLinkError{fmt.Sprintf("the indexer refused to send the NZB file: %s", description)}
 		default:
-			return errors.New("the indexer didn't send an NZB file")
+			return &nzbLinkError{"the indexer didn't send an NZB file"}
 		}
 	}
 }
@@ -465,9 +476,18 @@ func (s *Server) downloadTorrent(ctx context.Context, queueID int64, downloadURL
 	}
 	// A VPN tunnel that is replaced or closed would leave this torrent dialling
 	// through a dead connection until it stalls: stop it instead.
+	// The other way round, a torrent that started without a VPN must not go on
+	// sending from the home address once a VPN is connected, or once the kill
+	// switch (or a VPN that is switched on but down) says torrents need one.
 	var tunnelGone atomic.Bool
+	var still func() bool
 	if vt, ok := tunnel.(*vpn.Tunnel); ok && vt != nil {
-		go watchTunnel(ctx, tunnelCheck, func() bool { return s.VPNManager.Tunnel() == vt }, func() {
+		still = func() bool { return s.VPNManager.Tunnel() == vt }
+	} else if tunnel == nil {
+		still = s.directTorrentAllowed
+	}
+	if still != nil {
+		go watchTunnel(ctx, tunnelCheck, still, func() {
 			tunnelGone.Store(true)
 			slog.Warn("torrent: the VPN connection changed, stopping the torrent", "queueId", queueID)
 			s.torrents.stop(job)
@@ -629,6 +649,14 @@ func (s *Server) torrentTunnel() (torrentclient.TunnelDialer, error) {
 	return nil, nil
 }
 
+// directTorrentAllowed reports whether a torrent may still use the direct
+// connection: no VPN is connected, and torrents are not waiting for one (the
+// kill switch is off and no switched-on VPN is down).
+func (s *Server) directTorrentAllowed() bool {
+	_, err := s.torrentTunnel()
+	return err == nil && s.VPNManager.Tunnel() == nil
+}
+
 func (s *Server) vpnRequiredForTorrents() bool {
 	v, _ := s.Settings.GetBool(settings.KeyVPNRequireForTorrents)
 	return v
@@ -707,12 +735,14 @@ func (s *Server) resolveConflict(queueID int64, overwrite bool) error {
 	}
 
 	if !overwrite {
-		if err := s.QueueRepo.SetStatus(queueID, queue.StatusFailed, "you chose to keep the existing file"); err != nil {
+		if err := s.QueueRepo.SetStatus(queueID, queue.StatusCompleted, keptExistingMessage); err != nil {
 			return err
 		}
+		_ = s.QueueRepo.LogActivity(item.MovieID, "kept", fmt.Sprintf("You chose to keep the file at %s, so %s was not imported.", item.DestPath, item.ReleaseTitle))
 		// The download is not wanted: its working folder goes (a torrent
-		// still seeding keeps it until its seeding goal is met).
-		s.cleanupWorkDir(s.workDirFor(queueID), indexers.Protocol(item.Protocol))
+		// still seeding keeps it until its seeding goal is met). Nothing was
+		// imported, so a torrent in an external client is left there.
+		s.discardWorkDir(s.workDirFor(queueID), indexers.Protocol(item.Protocol))
 		// The movie keeps the file it has: downloaded when that is still
 		// there, missing otherwise.
 		m, err := s.MovieRepo.Get(item.MovieID)
@@ -749,6 +779,11 @@ func (s *Server) resolveConflict(queueID int64, overwrite bool) error {
 	s.movieImported(result.DestPath)
 	return nil
 }
+
+// keptExistingMessage is what a finished download says when the file already
+// in the library was kept and the new one was not imported, because "If a
+// file already exists" (or a person answering it) said so.
+const keptExistingMessage = "Kept the file you already have."
 
 func isMagnetURI(s string) bool {
 	return strings.HasPrefix(s, "magnet:")
@@ -953,12 +988,14 @@ func verifyAndRepair(dir string, missing int) error {
 func unpackArchives(dir string) error {
 	extractor := organizer.NewExtractor()
 	extractor.Password = readArchivePassword(dir)
-	archives, err := organizer.FindPrimaryArchives(dir)
+	// Archives inside a folder of the download count too (a torrent keeps its
+	// files in a folder of its own); each is unpacked next to where it lies.
+	archives, err := organizer.FindPrimaryArchivesDeep(dir)
 	if err != nil {
 		return err
 	}
 	for _, a := range archives {
-		if err := extractor.Extract(a, dir); err != nil {
+		if err := extractor.Extract(a, filepath.Dir(a)); err != nil {
 			return err
 		}
 	}
@@ -1016,7 +1053,7 @@ func readArchivePassword(dir string) string {
 // release's fault.
 func unpackFailure(err error) error {
 	wrapped := fmt.Errorf("couldn't unpack the download: %w", err)
-	if errors.Is(err, organizer.ErrInsufficientSpace) || errors.Is(err, organizer.ErrSevenZipMissing) || isDiskFull(err) {
+	if errors.Is(err, organizer.ErrInsufficientSpace) || errors.Is(err, organizer.ErrSevenZipMissing) || isLocalWriteProblem(err) {
 		return wrapped
 	}
 	return badRelease(wrapped)
@@ -1028,6 +1065,29 @@ func unpackFailure(err error) error {
 // another download fills the disk at the same time.
 func isDiskFull(err error) bool {
 	return errors.Is(err, syscall.ENOSPC) || errors.Is(err, syscall.EDQUOT)
+}
+
+// isLocalWriteProblem reports whether err is this machine failing to write
+// (a full disk or quota, a folder that is read-only or not ours, a disk error):
+// nothing to do with the release, so it must not be blocklisted.
+func isLocalWriteProblem(err error) bool {
+	return isDiskFull(err) || errors.Is(err, os.ErrPermission) || errors.Is(err, syscall.EROFS) || errors.Is(err, syscall.EIO)
+}
+
+// repairFailure classifies an error from the PAR2 step. PAR2 is an outside
+// program, so its trouble comes back as text: a full disk, a folder it may not
+// write to, a file list too long for the system, or the time limit. Those are
+// this machine's problem and the release is kept; anything else (too much is
+// missing, nothing to repair with) is the release's fault.
+func repairFailure(err error) error {
+	wrapped := fmt.Errorf("repairing the download failed: %w", err)
+	text := strings.ToLower(err.Error())
+	if isLocalWriteProblem(err) || errors.Is(err, syscall.E2BIG) || errors.Is(err, context.DeadlineExceeded) ||
+		strings.Contains(text, "no space left") || strings.Contains(text, "permission denied") ||
+		strings.Contains(text, "read-only file system") || strings.Contains(text, "argument list too long") {
+		return wrapped
+	}
+	return badRelease(wrapped)
 }
 
 // downloadsIncompleteDir resolves the root of in-progress downloads.
@@ -1078,12 +1138,40 @@ func (s *Server) buildDestPath(root, movieTitle string, year, tmdbID int, releas
 		Edition: release.Edition, ReleaseGroup: release.Group,
 		AudioCodec: release.AudioCodec, HDR: release.HDR, Is3D: release.Is3D,
 		Proper: release.Proper, Repack: release.Repack, Languages: release.Languages,
+		OriginalTitle: releaseTitle, OriginalFilename: originalStem(videoFile),
 	}
 
 	sanitizeMode, replacement := s.illegalCharSettings()
 	folder := organizer.Sanitize(organizer.Render(organizer.Presets["plex"], ctx), sanitizeMode, replacement)
+	if name, ok := s.keptName(videoFile, sanitizeMode, replacement); ok {
+		return filepath.Join(moviesPath, folder, name), nil
+	}
 	filename := organizer.Sanitize(organizer.Render(format, ctx), sanitizeMode, replacement) + filepath.Ext(videoFile)
 	return filepath.Join(moviesPath, folder, filename), nil
+}
+
+// keepOriginalNames reports whether "Keep the original file names" is on:
+// imported videos keep the name they came with, inside the usual folders.
+func (s *Server) keepOriginalNames() bool {
+	on, _ := s.Settings.GetBool(settings.KeyKeepOriginalNames)
+	return on
+}
+
+// keptName is the name videoFile keeps when "Keep the original file names"
+// is on. ok is false when the setting is off or the name is random letters
+// (an obfuscated post): the file is then named by the naming setting.
+func (s *Server) keptName(videoFile string, mode organizer.SanitizeMode, replacement string) (string, bool) {
+	if !s.keepOriginalNames() {
+		return "", false
+	}
+	return organizer.OriginalName(videoFile, mode, replacement)
+}
+
+// originalStem is a file's own name without its folder and extension, for
+// the {Original Filename} token.
+func originalStem(file string) string {
+	base := filepath.Base(file)
+	return strings.TrimSuffix(base, filepath.Ext(base))
 }
 
 // illegalCharSettings reads the configured illegal-filename-character

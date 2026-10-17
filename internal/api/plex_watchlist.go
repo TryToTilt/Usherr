@@ -85,7 +85,7 @@ func (s *Server) watchlistRow(userID int64) (plexWatchlistRow, bool, error) {
 }
 
 func (s *Server) watchlistRows() ([]plexWatchlistRow, error) {
-	rows, err := s.db.Query(`SELECT user_id FROM plex_watchlists WHERE auto_add = 1`)
+	rows, err := s.db.Query(`SELECT w.user_id FROM plex_watchlists w JOIN users u ON u.id = w.user_id WHERE w.auto_add = 1 AND u.disabled = 0`)
 	if err != nil {
 		return nil, fmt.Errorf("list plex watchlists: %w", err)
 	}
@@ -391,6 +391,12 @@ func (s *Server) syncWatchlist(ctx context.Context, row plexWatchlistRow) (added
 	user, err := s.Auth.GetUser(row.UserID)
 	if err != nil {
 		return 0, 0, fmt.Errorf("the account that connected this watchlist is gone: %w", err)
+	}
+	if user.Disabled {
+		return 0, 0, errors.New("the account that connected this watchlist is turned off, so nothing is added from it")
+	}
+	if user.Viewer {
+		return 0, 0, errors.New("the account that connected this watchlist is read-only, so nothing is added from it")
 	}
 	p, err := s.watchlistPlexTV()
 	if err != nil {

@@ -348,8 +348,15 @@ func (m *Manager) Begin(ctx context.Context, cfg Config, redirect string, mode M
 		}
 	}
 	if len(m.pend) >= maxPending {
-		m.mu.Unlock()
-		return Flow{}, fail(CodeState, errors.New("too many sign-ins waiting"))
+		// A flood of starts must not lock real people out: the oldest one waiting makes room.
+		var oldest string
+		var oldestAt time.Time
+		for k, v := range m.pend {
+			if oldest == "" || v.expires.Before(oldestAt) {
+				oldest, oldestAt = k, v.expires
+			}
+		}
+		delete(m.pend, oldest)
 	}
 	m.pend[state] = &pending{nonce: nonce, verifier: verifier, binding: sha256.Sum256([]byte(binding)), mode: mode, userID: userID,
 		next: SafeNext(next), issuer: cfg.Issuer, clientID: cfg.ClientID, redirect: redirect, expires: now.Add(StateTTL)}

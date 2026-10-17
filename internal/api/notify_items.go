@@ -22,7 +22,7 @@ func (s *Server) publicLinks() notify.Links {
 // notifyItem sends a download-related event with its details (title, quality,
 // size, where it went), a poster and a link.
 func (s *Server) notifyItem(eventType string, it notify.Item) {
-	if sceneSilent(it.LinkPath) { // home fork: Scenes never notify
+	if videoSilent(it.LinkPath) { // home fork: NSFW never notify
 		return
 	}
 	s.sendNotification(notify.Compose(eventType, it, s.publicLinks(), time.Now()))

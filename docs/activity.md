@@ -49,6 +49,15 @@ Scripts: `POST /api/downloads/manual` (administrators), a `multipart/form-data` 
 
 A title whose release is being held back by a delay profile (see "Wait for a better protocol" in [quality-profiles.md](./quality-profiles.md)) shows "Waiting for a better protocol until 14:20" here instead of "Waiting for a release".
 
+On a big TV library the list can hold hundreds of thousands of episodes, so the page loads it a page at a time: one line per movie and per show, 50 lines first and more with **Show more**. A show's episodes are only read when you press **Show episodes**. **Find a title** and the media chips ask the server for the matching lines, and **Search all** reads the rest of the list before it starts.
+
+For scripts, `GET /api/wanted?kind=missing` (or `kind=cutoff`) still answers the whole list, every movie and every episode, as before. Add these to get it in pages instead:
+
+- `group=1`: one row per movie and per show, movies first, newest added first. A show row has `"kind": "show"`, the show's id as `id` and `seriesId`, and `episodes` (how many of its episodes are listed). A show with only one episode listed comes as that episode. The answer is `{"rows": [...], "total": 412, "movies": 37, "episodes": 9120, "offset": 0, "limit": 50}`, where `total`, `movies` and `episodes` count the whole list, not just the page.
+- `limit` (default 50, at most 500, `0` for only the totals) and `offset`, with `group=1`.
+- `media=movie` or `media=tv`, and `q=` (words in the title), with `group=1`.
+- `series=ID`: just that show's episodes, as a plain list like the full one.
+
 ## The series page
 
 A show's seasons start folded, except the one that needs attention (the latest with missing episodes, or else the latest season). The row of season buttons at the top opens a season and jumps to it; a dot marks seasons with missing episodes. **Missing episodes only** shows just the episodes that have aired and are not downloaded. **Open all** and **Close all** do what they say. The facts at the top include the **Next episode** and the day it airs.
@@ -73,7 +82,7 @@ What is recorded (`kind`):
 |---|---|---|
 | `searched` | each automatic search (the scheduled search, **Search now**, the search after adding a title, the retry after a bad release) | `Searched: 12 releases, none acceptable: 8 CAM/TeleSync, 4 other years` (warn), or `Searched: 5 releases, 2 acceptable; picked "..." from MyIndexer with the "1080p" profile` |
 | `grabbed` | a release was queued, by hand or automatically. A grab that only a fallback profile accepted says which profile it used | `Grabbed "..." for ...` |
-| `download` | the download started, was paused or stopped, and finished (post-processing starts) | `Download started: <release>` |
+| `download` | the download started, was paused, resumed or stopped, was interrupted by a restart of Mediarium, and finished (post-processing starts) | `Download started: <release>`, `Mediarium was restarted while this was downloading, so it is paused: <release>` (warn) |
 | `postprocess` | PAR2 verify or repair, unpacking, and their failures | `Repairing 3 missing articles with PAR2: <release>`, `Unpacking failed (...): <release>` (error) |
 | `imported`, `failed`, `conflict` | the end of a download, with the plain reason when it failed. Network and file errors are put in plain words (for example "The address could not be found"). The exact error text is kept in [Logs and errors](logs-and-errors.md) under **Technical detail** | `The Film: Couldn't get the NZB file. The address could not be found. Check the address and your internet connection.` (error) |
 | `blocklisted` | a release was blocklisted, automatically (its own fault: corrupt, incomplete, holding programs or scripts) or by you | |
@@ -81,6 +90,7 @@ What is recorded (`kind`):
 | `retry` | after a blocklisted release, why no other release was taken right away | `No other acceptable release; will try again at the next scheduled search` (warn) |
 | `retried` | **Retry** on a failed download, and whether it reused the files already downloaded | `Retrying from the files already downloaded: <release>` |
 | `removed` | a download was removed from the download list | |
+| `kept` | a download finished but the file already in your library was kept, because **If a file already exists** said so (or you pressed **Skip**). It is a decision, not a failure: the row says "Kept the file you already have." and no "failed" notification is sent | `The Film: a file is already at /movies/The Film (2001)/The Film (2001).mkv, so Mediarium kept it and did not import <release>.` |
 
 A search can skip a release for these reasons: `blocklisted`, a downloader the title doesn't use (`from torrent sites (this title uses Usenet only)`), `other films` (a different movie), `other years`, `for another show`, `not this episode`, `not a season pack`, a quality no profile in the title's chain accepts (its tier, such as `CAM/TeleSync`, or `unknown quality`), `excluded by the profile's release terms`, `in another language`, `older than your Usenet retention of <n> days`, and for upgrade searches `not an upgrade over <tier>`. Indexers that didn't answer are named too.
 
@@ -96,8 +106,8 @@ The Queue tab always reads in the same order, and rows don't move while they dow
 
 1. **In progress.** Downloading and importing first (the one that started first on top), then the downloads **waiting in line** in the order they'll start, then paused ones. **Pause all** and **Resume all** sit at the top of this list.
 2. **Failed.** The newest failure first. Each one has **Retry**, **Blocklist & search again** (administrators only) and a remove button.
-3. **Needs your decision.** A file already exists and you chose to be asked. Administrators pick **Overwrite** or **Skip**, and members see "Waiting for an admin". **Skip** keeps the file that is there: a title that still has its file stays downloaded, so it isn't searched for again. Overwrite is refused when the file belongs to another movie or episode. Then **Stopped**.
-4. **Waiting for a release.** Monitored titles with nothing downloaded yet, with what the last search found. Each is a tile with its poster and year; a show is one tile however many of its episodes are missing ("6 episodes waiting"). The search note is cut short on the tile and reads in full when you point at it. A title that's already downloaded never shows up here. It lists the first 20, and a button opens the rest in Upcoming > Wanted.
+3. **Needs your decision.** A file already exists and you chose to be asked. Administrators pick **Overwrite** or **Skip**, and members see "Waiting for an admin". **Skip** keeps the file that is there (the row moves to History as "Kept the file you already have."): a title that still has its file stays downloaded, so it isn't searched for again. Overwrite is refused when the file belongs to another movie or episode. Then **Stopped**.
+4. **Waiting for a release.** Monitored titles with nothing downloaded yet, with what the last search found. Each is a tile with its poster and year; a show is one tile however many of its episodes are missing ("6 episodes waiting"). The search note is cut short on the tile and reads in full when you point at it. A title that's already downloaded never shows up here. It lists the first 20, and a button opens the rest in Upcoming > Wanted. Activity reads only the first titles of that list, not all of it, so it stays quick however many episodes are missing.
 
 Under each movie or show download's name there are small tags for what the release name says it is: the picture size (1080p, 2160p), the source (WEB-DL, BluRay), the video codec (x264, x265) and the audio language. They are read from the name, so a release that doesn't say (no language, for example) simply has no tag for it. `GET /api/queue` has them as `resolution`, `source`, `codec` and `language`.
 
@@ -132,7 +142,7 @@ The **Blocklist** tab (administrators) shows the newest 100 blocked releases, ne
 
 ## The calendar
 
-**Upcoming > Calendar** shows releases, episode air dates, album releases and book releases on their day. Chips at the top show only movies, TV, music or books (when more than one is switched on), and **Not downloaded yet only** hides what you already have.
+**Upcoming > Calendar** shows releases, episode air dates, album releases and book releases on their day. Movies and episodes start 30 days back, so a big library's old releases don't fill it (movies further ahead are all shown). Chips at the top show only movies, TV, music or books (when more than one is switched on), and **Not downloaded yet only** hides what you already have.
 
 The arrows next to the month go back and forward a month, and **Today** comes back to this one. **Posters** shows the month with a big poster in each day and the name in a frosted bubble over it; a day with more than one release has a **+n more** button that opens the whole day as a window of posters. **Backdrops** is the same, but each release is a wide still from the film or show with its logo over it. Mediarium fetches those from TMDB slowly in the background, a few every few minutes and only for what is on the calendar, so a title shows its poster until its picture has arrived (it can take a while the first time with a big calendar). **Month** shows the whole month as a grid, with a small poster for each release (titles show when there's room; point at a poster to read it). Today's square is lit. **Agenda** lists only the days that have something on, each with its date on a ticket stub and the releases as cards with their poster, episode code and status. Phones and narrow windows always show the agenda. The calendar remembers which view you picked.
 
@@ -167,7 +177,7 @@ Every download in progress, Usenet or torrent, has **Pause** and **Stop**. Only 
 | **Resume** | Carries on from what is saved. A Usenet download asks the news server only for the articles it doesn't have yet. A torrent is added to the torrent engine again and checks the pieces already on disk. |
 | **Stop** | Cancels the download. The movie or episode goes back to waiting for a release. A question asks whether to **also delete the partly downloaded files** (ticked). Only the download's own folder inside the downloads folder is deleted, never anything in your movie, TV or music folders. |
 | **Retry** | On a failed or stopped download: tries the same release again. If its files are still there (a partial download too), it carries on from them. |
-| **Remove** | Takes a completed, failed, stopped or paused download off the list. Removing a paused one stops it first, and asks whether to delete its partial files. |
+| **Remove** | Takes a completed, failed, stopped, paused or file-conflict download off the list. Removing a paused or conflict one stops it first (its movie goes back to missing, or downloaded if the old file is still there), and asks whether to delete its partial files. A torrent still seeding for the entry stops with it. |
 | **Pause all** / **Resume all** | Do the same for every download at once. |
 | **Pick** (the small box on a download's picture) | Pick several downloads (in progress, failed or stopped), then use the bar that appears above the list: **To the front**, **Pause**, **Resume**, **Stop** or **Remove** for all of them, **Pick all**, **Pick paused**, or **Clear**. **Remove** takes the picked downloads off the list (a running one, or one waiting in line, is refused and named: pause or stop it first). One that can't be changed (pausing a download that's already paused, say) is named in the message, and the rest still go through. Picked downloads keep the order they're shown in when you send them to the front. |
 
@@ -189,7 +199,7 @@ Setting a title to **Leave what I have alone**, or stopping monitoring it, remov
 
 ### Routes
 
-All administrator-only: `POST /api/queue/{id}/pause`, `POST /api/queue/{id}/resume`, `POST /api/queue/{id}/stop` (body `{"deleteFiles": true}`), `POST /api/queue/pause-all`, `POST /api/queue/resume-all`, `POST /api/queue/{id}/front` (send a waiting download to the front of the line), `POST /api/queue/bulk` (body `{"ids": [1, 2], "action": "pause|resume|stop|front", "deleteFiles": false}`; the answer lists `done` and the `failed` ones), and `DELETE /api/queue/{id}?deleteFiles=1`. The full list is in the [API reference](reference/api.md).
+All administrator-only: `POST /api/queue/{id}/pause`, `POST /api/queue/{id}/resume`, `POST /api/queue/{id}/stop` (body `{"deleteFiles": true}`), `POST /api/queue/pause-all`, `POST /api/queue/resume-all`, `POST /api/queue/{id}/front` (send a waiting download to the front of the line), `POST /api/queue/bulk` (body `{"ids": [1, 2], "action": "pause|resume|stop|front", "deleteFiles": false}`; the answer lists `done` and the `failed` ones), and `DELETE /api/queue/{id}?deleteFiles=1`. `POST /api/queue/{id}/retry` (the **Retry** button) works for administrators and for members whose account may retry downloads (Settings > Accounts). The full list is in the [API reference](reference/api.md).
 
 In `GET /api/queue`, `status` can also be `paused` or `stopped`, and `queued` means waiting in line: such an item carries `queuePosition` (1 is next). A paused item may carry `interrupted: true` (nobody paused it), `pending` (`pausing` or `stopping` while it winds down) and `keptFiles`.
 
@@ -211,4 +221,4 @@ If only part of a Usenet download was saved (it was paused, stopped or cut off),
 
 When an automatic download fails because of the release itself (corrupt or incomplete: PAR2 can't repair it, the archive can't be unpacked, no video file in it, or it holds programs or scripts), the release is blocklisted and Mediarium searches once more for another acceptable release. If there's none, the title's log says `No other acceptable release; will try again at the next scheduled search`, and the regular search (see [Automatic searching](./quality-profiles.md#automatic-searching)) keeps looking. If more than a few releases for the same title failed within a day, the immediate retry is skipped (and the log says so) until the next scheduled search. Books follow the same daily limit, counted for each format.
 
-**Blocklist & search again** also works on a paused download or one waiting for your decision: the title is freed first (so the new search can pick it up) and the download's partly downloaded files are deleted.
+**Blocklist & search again** also works on a paused download or one waiting for your decision: the title is freed first (so the new search can pick it up) and the download's partly downloaded files are deleted. The blocklist entry keeps why the release was bad and says it was you: "Blocklisted by you: archive is password protected", for example. For a release that was already on the blocklist by itself, the reason it was put there is the one kept.

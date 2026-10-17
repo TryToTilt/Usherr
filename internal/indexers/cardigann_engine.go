@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/netip"
@@ -202,6 +203,9 @@ type cgSession struct {
 	jar      http.CookieJar
 	client   *http.Client
 
+	hostMu      sync.Mutex
+	hostVerdict map[string]hostVerdict // see checkForeignHost
+
 	decode func([]byte) ([]byte, error)
 	encode func(string) string
 
@@ -253,8 +257,106 @@ func newSession(m *CardigannManager, def *Definition, inst Instance) (*cgSession
 	if transport == nil {
 		transport = netproxy.Transport(netproxy.Indexers)
 	}
-	s.client = &http.Client{Transport: transport, Jar: jar, Timeout: 30 * time.Second}
+	s.client = &http.Client{Transport: &cgTransport{s: s, site: transport, injected: m.Transport != nil}, Jar: jar, Timeout: 30 * time.Second}
 	return s, nil
+}
+
+// lookupAddrs resolves a host name for the checks on addresses that are not
+// the site's own. Tests replace it.
+var lookupAddrs = func(ctx context.Context, host string) ([]netip.Addr, error) {
+	return net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+}
+
+// cgTransport sends a site's requests. A request to the site itself (or a
+// host of its registered domain) goes the normal way. A request to any other
+// host is only made when the host is a public address: the name is resolved
+// and refused if any address it gives is on this machine or the home network,
+// and a direct connection is checked again when it is made, so a name that
+// answers differently the second time (DNS rebinding) cannot get through.
+type cgTransport struct {
+	s        *cgSession
+	site     http.RoundTripper
+	injected bool // the manager was given a transport (tests): use it for every host
+
+	once    sync.Once
+	foreign *http.Transport
+}
+
+func (t *cgTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	s := t.s
+	host := req.URL.Hostname()
+	if s.siteRelated(host) || localHost(s.base.Hostname()) {
+		return t.site.RoundTrip(req)
+	}
+	if err := s.checkForeignHost(req.Context(), host); err != nil {
+		return nil, err
+	}
+	if t.injected || netproxy.Routed(netproxy.Indexers) {
+		// a proxy or the VPN makes the connection: it can only be checked here
+		return t.site.RoundTrip(req)
+	}
+	t.once.Do(func() { t.foreign = netguard.PublicTransport() })
+	return t.foreign.RoundTrip(req)
+}
+
+func (t *cgTransport) CloseIdleConnections() {
+	if c, ok := t.site.(interface{ CloseIdleConnections() }); ok {
+		c.CloseIdleConnections()
+	}
+	t.once.Do(func() { t.foreign = netguard.PublicTransport() })
+	t.foreign.CloseIdleConnections()
+}
+
+// checkForeignHost refuses a host that is not the site's own when it is, or
+// resolves to, an address on this machine or the home network. A name that
+// cannot be looked up here is left to the connection, which is checked as it
+// is made (or to the proxy).
+func (s *cgSession) checkForeignHost(ctx context.Context, host string) error {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	refused := fmt.Errorf("%s: the site wants to connect to %s, which is on your own network, so Mediarium refused", s.name, host)
+	if host == "" || localHost(host) {
+		return refused
+	}
+	if _, err := netip.ParseAddr(host); err == nil {
+		return nil // an address that is public (localHost judged it above)
+	}
+	// A result list can link many files on one host: the answer is kept briefly.
+	s.hostMu.Lock()
+	v, ok := s.hostVerdict[host]
+	s.hostMu.Unlock()
+	if ok && time.Now().Before(v.until) {
+		if v.refuse {
+			return refused
+		}
+		return nil
+	}
+	lctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	addrs, err := lookupAddrs(lctx, host)
+	if err != nil {
+		return nil // not kept: a lookup that failed is tried again
+	}
+	refuse := false
+	for _, a := range addrs {
+		if netguard.NotPublic(a) || netguard.Blocked(a) {
+			refuse = true
+		}
+	}
+	s.hostMu.Lock()
+	if s.hostVerdict == nil || len(s.hostVerdict) > 200 {
+		s.hostVerdict = map[string]hostVerdict{}
+	}
+	s.hostVerdict[host] = hostVerdict{refuse: refuse, until: time.Now().Add(time.Minute)}
+	s.hostMu.Unlock()
+	if refuse {
+		return refused
+	}
+	return nil
+}
+
+type hostVerdict struct {
+	refuse bool
+	until  time.Time
 }
 
 // lock waits for the session's turn, giving up when ctx ends.
@@ -702,7 +804,8 @@ func (s *cgSession) resolve(ref string, base *url.URL) (string, error) {
 // that is a full address must lead to the site itself: the definitions come
 // from a public repository anyone can send changes to, and these requests
 // carry the person's login, cookie or passkey. An address on a host that has
-// nothing to do with the site would hand those to a stranger.
+// nothing to do with the site would hand those to a stranger. (A site that
+// sends no credentials may use another public host: see checkSiteAddress.)
 func (s *cgSession) resolvePath(p string) (string, error) {
 	p = strings.TrimSpace(p)
 	out, err := s.resolve(p, s.base)
@@ -721,7 +824,11 @@ func (s *cgSession) resolvePath(p string) (string, error) {
 }
 
 // checkSiteAddress refuses an address that is not a web address of the site
-// itself (see resolvePath).
+// itself (see resolvePath). A site that sends no login, cookie, key or
+// passkey has nothing to hand over, so its definition may name another public
+// host (a movie site whose search runs on a separate API host). The address
+// still may not point at this machine or the home network, and the request
+// goes through the same network checks as every other.
 func (s *cgSession) checkSiteAddress(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -730,10 +837,92 @@ func (s *cgSession) checkSiteAddress(raw string) error {
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return fmt.Errorf("%s: the site definition wants to use an address that is not a web address, so Mediarium refused", s.name)
 	}
-	if !s.siteRelated(u.Hostname()) {
-		return fmt.Errorf("%s: the site definition wants to connect to %s, which is not one of the site's own addresses, so Mediarium refused", s.name, u.Hostname())
+	if s.siteRelated(u.Hostname()) {
+		return nil
 	}
-	return nil
+	if !s.sendsCredentials() {
+		if localHost(s.base.Hostname()) {
+			return nil // a site the person runs on their own network
+		}
+		// The name is looked up here, not only read: a name that looks public
+		// can point at the home network. The connection itself is checked
+		// again when it is made (see cgTransport).
+		if err := s.checkForeignHost(context.Background(), u.Hostname()); err != nil {
+			return fmt.Errorf("%s: the site definition wants to connect to %s, which is on your own network, so Mediarium refused", s.name, u.Hostname())
+		}
+		return nil
+	}
+	return fmt.Errorf("%s: the site definition wants to connect to %s, which is not one of the site's own addresses, so Mediarium refused", s.name, u.Hostname())
+}
+
+// credentialNames are setting names that hold a sign-in, beyond the secret
+// ones SecretSetting already knows.
+var credentialNames = []string{"username", "user", "uid", "login", "email", "userid", "user_id"}
+
+// sendsCredentials reports whether requests to this site can carry something
+// the person would not want a stranger to have: the definition signs in, or a
+// setting that holds a login, cookie, key or passkey is filled in, or a
+// header the definition adds carries an authorisation or cookie.
+func (s *cgSession) sendsCredentials() bool {
+	if s.def == nil {
+		return true // nothing known about the site: stay strict
+	}
+	if s.def.Login != nil {
+		return true
+	}
+	for _, st := range s.def.Settings {
+		if strings.TrimSpace(s.settings[st.Name]) == "" {
+			continue
+		}
+		if SecretSetting(st.Type, st.Name) {
+			return true
+		}
+		n := strings.ToLower(st.Name)
+		for _, c := range credentialNames {
+			if n == c {
+				return true
+			}
+		}
+		// Any other filled-in text or password setting is taken for a credential
+		// too (a session id, a hash, an "auth" value), apart from the few that
+		// are plain preferences. Choices and check boxes hold nothing secret.
+		if t := strings.ToLower(strings.TrimSpace(st.Type)); (t == "" || t == "text" || t == "password") && !plainSettings[n] {
+			return true
+		}
+	}
+	headerBlocks := []map[string][]string{s.def.Search.Headers}
+	if s.def.Download != nil {
+		headerBlocks = append(headerBlocks, s.def.Download.Headers)
+	}
+	for _, h := range headerBlocks {
+		for k := range h {
+			if credentialHeader(k) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// plainSettings are text settings that are preferences, not sign-ins.
+var plainSettings = map[string]bool{
+	"useragent": true, "user-agent": true, "user_agent": true,
+	"language": true, "lang": true, "sort": true, "sortby": true, "sort_by": true,
+	"order": true, "orderby": true, "order_by": true, "category": true, "categories": true,
+	"cat": true, "sitelink": true,
+}
+
+// credentialHeader reports whether a header the definition adds can carry a
+// sign-in: its name speaks of authorisation, a token, a key, a session or a
+// cookie.
+func credentialHeader(name string) bool {
+	n := strings.ToLower(name)
+	for _, p := range []string{"auth", "token", "key", "session", "cookie"} {
+		if strings.Contains(n, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // siteRelated reports whether host is the site's address (the one the person
@@ -796,7 +985,10 @@ func (s *cgSession) checkPageAddress(raw string) error {
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return fmt.Errorf("%s: the site sent a link that is not a web address, so Mediarium refused it", s.name)
 	}
-	if s.siteRelated(u.Hostname()) || !localHost(u.Hostname()) || localHost(s.base.Hostname()) {
+	if s.siteRelated(u.Hostname()) || localHost(s.base.Hostname()) {
+		return nil
+	}
+	if err := s.checkForeignHost(context.Background(), u.Hostname()); err == nil {
 		return nil
 	}
 	return fmt.Errorf("%s: the site sent a link to %s, which is on your own network, so Mediarium refused it", s.name, u.Hostname())

@@ -171,10 +171,24 @@ const codeExpiredMessage = "That sign-in took too long or had too many tries. En
 func (s *Server) handleLoginCode(w http.ResponseWriter, r *http.Request) {
 	ip := s.clientIP(r)
 	ipKey := httpsec.LimitKey(ip)
-	if !s.LoginLimiter.Allow(ipKey) {
+	// The try is counted before the code is checked and given back when the
+	// code is right (or the check could not be made), so parallel guesses
+	// cannot all slip in ahead of the first recorded failure.
+	if !s.LoginLimiter.Reserve(ipKey) {
 		writeError(w, http.StatusTooManyRequests, "Too many sign-in attempts. Wait a few minutes and try again.")
 		return
 	}
+	ipHeld, codeHeld := true, false
+	byUser := s.sec().byUser
+	codeKey := ""
+	defer func() {
+		if ipHeld {
+			s.LoginLimiter.Refund(ipKey)
+		}
+		if codeHeld {
+			byUser.Refund(codeKey)
+		}
+	}()
 	var req struct {
 		Challenge    string `json:"challenge"`
 		Code         string `json:"code"`
@@ -208,12 +222,12 @@ func (s *Server) handleLoginCode(w http.ResponseWriter, r *http.Request) {
 	}
 	// Wrong codes are also counted per account, from every address and every challenge together, so
 	// signing in again with the password does not give a fresh set of guesses.
-	byUser := s.sec().byUser
-	codeKey := "code:" + strconv.FormatInt(userID, 10)
-	if !byUser.Allow(codeKey) {
+	codeKey = "code:" + strconv.FormatInt(userID, 10)
+	if !byUser.Reserve(codeKey) {
 		writeError(w, http.StatusTooManyRequests, "Too many wrong codes. Wait a few minutes and try again.")
 		return
 	}
+	codeHeld = true
 	extra := map[string]any{}
 	good := false
 	if rc := strings.TrimSpace(req.RecoveryCode); rc != "" {
@@ -237,8 +251,7 @@ func (s *Server) handleLoginCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !good {
-		s.LoginLimiter.RecordFailure(ipKey)
-		byUser.RecordFailure(codeKey)
+		ipHeld, codeHeld = false, false // the tries stay counted
 		slog.Warn("auth: wrong sign-in code", "user", user.Username, "ip", ip)
 		writeError(w, http.StatusUnauthorized, "That code isn't right. Use the newest code in your app, and check your phone sets its time automatically.")
 		return
@@ -377,17 +390,26 @@ func (s *Server) handleTwoStepEnable(w http.ResponseWriter, r *http.Request) {
 func (s *Server) checkPassword(w http.ResponseWriter, r *http.Request, user *auth.User, password string) bool {
 	ipKey := httpsec.LimitKey(s.clientIP(r))
 	byUser := s.sec().byUser
+	// Not the sign-in limit for the address: a signed-in person's wrong
+	// tries must never lock the administrator's sign-in from the same address.
+	confirmIP := s.sec().confirmIP
 	guessKey := passwordGuessKey(user.ID)
-	if !s.LoginLimiter.Allow(ipKey) || !byUser.Allow(guessKey) {
+	// The tries are counted before the slow check and given back if it passes.
+	if !confirmIP.Reserve(ipKey) {
+		writeError(w, http.StatusTooManyRequests, "Too many attempts. Wait a few minutes and try again.")
+		return false
+	}
+	if !byUser.Reserve(guessKey) {
+		confirmIP.Refund(ipKey)
 		writeError(w, http.StatusTooManyRequests, "Too many attempts. Wait a few minutes and try again.")
 		return false
 	}
 	if _, err := s.Auth.Authenticate(user.Username, password); err != nil {
-		s.LoginLimiter.RecordFailure(ipKey)
-		byUser.RecordFailure(guessKey)
 		writeError(w, http.StatusBadRequest, "That password isn't right.")
 		return false
 	}
+	confirmIP.Refund(ipKey)
+	byUser.Refund(guessKey)
 	return true
 }
 
@@ -395,6 +417,12 @@ func (s *Server) checkPassword(w http.ResponseWriter, r *http.Request, user *aut
 // person's own password.
 func passwordGuessKey(userID int64) string {
 	return "password:" + strconv.FormatInt(userID, 10)
+}
+
+// nameGuessKey is the per-name count of wrong sign-ins. The prefix keeps what
+// a visitor types in the user name box apart from the other keys above.
+func nameGuessKey(name string) string {
+	return "user:" + name
 }
 
 // POST /api/auth/two-step/disable {"password"}

@@ -77,6 +77,24 @@ test('the Settings entry always lists its groups, and one group is open at a tim
   await expect(library).toHaveAttribute('aria-expanded', 'false')
 })
 
+test('the Library entry lists its kinds, and each one opens the Library on that tab', async ({ page }) => {
+  await page.goto('/')
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  // Usherr: the kinds fold up under Library until it's opened.
+  await nav.getByRole('link', { name: /^Library/ }).first().click()
+  await expect(page).toHaveURL(/\/library/)
+  const movies = nav.getByRole('link', { name: 'Movies', exact: true })
+  const shows = nav.getByRole('link', { name: 'TV shows', exact: true })
+  await expect(movies).toBeVisible()
+  await shows.click()
+  await expect(page).toHaveURL(/\/library\?kind=tv$/)
+  await expect(shows).toHaveAttribute('aria-current', 'page')
+  await expect(movies).not.toHaveAttribute('aria-current', 'page')
+  await movies.click()
+  await expect(page).toHaveURL(/\/library\?kind=movie$/)
+  await expect(movies).toHaveAttribute('aria-current', 'page')
+})
+
 test('an unknown address shows the not-found page', async ({ page }) => {
   await page.goto('/no-such-page')
   await expect(page.getByRole('heading', { level: 1 }).filter({ hasText: /exist|found/i })).toBeVisible()

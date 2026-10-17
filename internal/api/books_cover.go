@@ -41,6 +41,7 @@ func (s *Server) cachedBookCover(ctx context.Context, id int, size string) (stri
 	key := fmt.Sprintf("%d-%s", id, size)
 	img, none := filepath.Join(dir, key+".img"), filepath.Join(dir, key+".none")
 	if st, err := os.Stat(img); err == nil && st.Size() > 0 {
+		touchCover(img, st)
 		return img, nil
 	}
 	unlock := bookCoverLocks.lock(key)

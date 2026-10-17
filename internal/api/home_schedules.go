@@ -8,7 +8,7 @@ package api
 // heavy task for a while on the spot.
 //
 // Searches, downloads and refreshes started by hand are never held back.
-// Scene tasks are set from the Scenes page only; the shared Settings page
+// Video tasks are set from the NSFW page only; the shared Settings page
 // never sees them.
 
 import (
@@ -38,13 +38,13 @@ const (
 	taskDownloads    = "downloads"           // the download line
 	taskPostprocess  = "postprocess"         // PAR2 repair and unpacking
 	taskMediaRefresh = "mediaserver.refresh" // asking Jellyfin/Plex/Emby to rescan
-	taskSceneSearch  = "scenes.search"       // automatic and batch scene searches
-	taskSceneFollow  = "scenes.follow"       // StashDB checks for followed performers and studios
+	taskVideoSearch  = "nsfw.search"         // automatic and batch video searches
+	taskVideoFollow  = "nsfw.follow"         // StashDB checks for followed performers and studios
 )
 
 var (
 	sharedTasks = []string{taskSearch, taskDownloads, taskPostprocess, taskMediaRefresh}
-	sceneTasks  = []string{taskSceneSearch, taskSceneFollow}
+	videoTasks  = []string{taskVideoSearch, taskVideoFollow}
 )
 
 // What a download rule does while downloads are held.
@@ -151,7 +151,7 @@ func (h homeSchedules) quietAt(t time.Time) bool {
 
 // allowedAt reports whether task may run at t.
 func (h homeSchedules) allowedAt(task string, t time.Time) bool {
-	if task != taskSceneFollow && h.quietAt(t) {
+	if task != taskVideoFollow && h.quietAt(t) {
 		return false
 	}
 	rule, ok := h.Tasks[task]
@@ -506,9 +506,9 @@ func (s *Server) handleSchedules(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.schedulesView(sharedTasks))
 }
 
-// GET/PUT /api/scenes/schedule: the scene tasks' rules (schedules are made
+// GET/PUT /api/nsfw/schedule: the video tasks' rules (schedules are made
 // on the shared page and only picked here).
-func (s *Server) handleSceneSchedule(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleVideoSchedule(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPut {
 		var req schedulesPut
 		if err := decodeJSON(r, &req); err != nil {
@@ -519,10 +519,10 @@ func (s *Server) handleSceneSchedule(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "Schedules are made in Settings > Schedules.")
 			return
 		}
-		s.putSchedules(w, req, sceneTasks)
+		s.putSchedules(w, req, videoTasks)
 		return
 	}
-	writeJSON(w, http.StatusOK, s.schedulesView(sceneTasks))
+	writeJSON(w, http.StatusOK, s.schedulesView(videoTasks))
 }
 
 // POST /api/home/quiet {"minutes":120,"when":"now"|"finish"} holds every heavy

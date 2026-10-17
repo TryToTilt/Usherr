@@ -13,6 +13,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -87,7 +88,19 @@ func Up(cfg Config) (*Tunnel, error) {
 
 	dev := device.NewDevice(tunDev, conn.NewDefaultBind(), device.NewLogger(device.LogLevelSilent, "vpn: "))
 
-	uapiConf, err := cfg.uapiConfig()
+	var candidates []string
+	if cfg.Endpoint != "" {
+		candidates, err = endpointCandidates(cfg.Endpoint)
+		if err != nil {
+			dev.Close()
+			return nil, fmt.Errorf("build wireguard config: %w", err)
+		}
+	}
+	first := ""
+	if len(candidates) > 0 {
+		first = candidates[0]
+	}
+	uapiConf, err := cfg.uapi(first)
 	if err != nil {
 		dev.Close()
 		return nil, fmt.Errorf("build wireguard config: %w", err)
@@ -108,7 +121,47 @@ func Up(cfg Config) (*Tunnel, error) {
 			break
 		}
 	}
+	// A name with both an IPv4 and an IPv6 address: if the first one doesn't
+	// answer, try the other before giving up.
+	if len(candidates) > 1 {
+		if err := cfg.tryOtherCandidates(t, candidates); err != nil {
+			dev.Close()
+			return nil, err
+		}
+	}
 	return t, nil
+}
+
+// candidateWait is how long one address of a server gets to complete a
+// handshake before the next one is tried.
+var candidateWait = 5 * time.Second
+
+// tryOtherCandidates waits for the first address to answer and, when it
+// doesn't, points the peer at the next one, and so on. The last address is not
+// waited on: the status shows whether it answers.
+func (c Config) tryOtherCandidates(t *Tunnel, candidates []string) error {
+	pubHex, err := base64KeyToHex(c.PeerPublicKey)
+	if err != nil {
+		return fmt.Errorf("peer public key: %w", err)
+	}
+	for i, ep := range candidates {
+		if i > 0 {
+			if err := t.dev.IpcSet(fmt.Sprintf("public_key=%s\nendpoint=%s\n", pubHex, ep)); err != nil {
+				return fmt.Errorf("switch wireguard endpoint: %w", err)
+			}
+		}
+		if i == len(candidates)-1 {
+			return nil
+		}
+		deadline := time.Now().Add(candidateWait)
+		for time.Now().Before(deadline) {
+			if at, err := t.LastHandshake(); err == nil && !at.IsZero() {
+				return nil
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+	return nil
 }
 
 // defaultTunnelDNS is used when a connection names no DNS server.
@@ -283,6 +336,20 @@ func parseAddrs(addrs []string) ([]netip.Addr, error) {
 // not the base64 used in on-disk .conf files, so user-pasted base64 keys
 // are converted here.
 func (c Config) uapiConfig() (string, error) {
+	ep := ""
+	if c.Endpoint != "" {
+		cands, err := endpointCandidates(c.Endpoint)
+		if err != nil {
+			return "", err
+		}
+		ep = cands[0]
+	}
+	return c.uapi(ep)
+}
+
+// uapi renders the config with ep, an IP:port that is already resolved, as the
+// peer's address (empty when the peer's address is unknown).
+func (c Config) uapi(ep string) (string, error) {
 	privHex, err := base64KeyToHex(c.PrivateKey)
 	if err != nil {
 		return "", fmt.Errorf("private key: %w", err)
@@ -298,15 +365,11 @@ func (c Config) uapiConfig() (string, error) {
 		fmt.Fprintf(&b, "listen_port=%d\n", c.ListenPort)
 	}
 	fmt.Fprintf(&b, "public_key=%s\n", pubHex)
-	if c.Endpoint != "" {
+	if ep != "" {
 		// Omitted when unknown — WireGuard learns a peer's endpoint
 		// dynamically from its first valid handshake (peer "roaming"),
 		// so a responder doesn't need to know an initiator's address
 		// ahead of time.
-		ep, err := resolveEndpoint(c.Endpoint)
-		if err != nil {
-			return "", err
-		}
 		fmt.Fprintf(&b, "endpoint=%s\n", ep)
 	}
 	if c.PresharedKey != "" {
@@ -332,38 +395,74 @@ func (c Config) uapiConfig() (string, error) {
 // lookupIP is net's resolver; a test swaps it so no real lookup is needed.
 var lookupIP = net.DefaultResolver.LookupNetIP
 
+// routeProbe says whether this machine has a route to ip. Connecting a UDP
+// socket sends nothing; the system only looks up the route, so it fails at once
+// with "network is unreachable" when there is none (a Docker container has no
+// IPv6 route unless IPv6 was turned on for it). A test swaps it.
+var routeProbe = func(ip netip.Addr, port string) bool {
+	c, err := net.DialTimeout("udp", net.JoinHostPort(ip.String(), port), time.Second)
+	if err != nil {
+		return false
+	}
+	_ = c.Close()
+	return true
+}
+
+// errIPv6Unreachable is returned when the only server address there is IPv6
+// and this machine can't reach IPv6.
+var errIPv6Unreachable = errors.New("the VPN server address is IPv6 and there is no IPv6 route")
+
 // resolveEndpoint turns the server address of a config into the IP:port that
-// WireGuard's config protocol accepts. Many providers (Surfshark among them)
-// write a host name, which wg-quick resolves when it brings the tunnel up; the
-// same is done here, each time a tunnel starts, while the stored config keeps
-// the name so a provider that changes the address behind it keeps working. An
-// address that already is an IP is left alone, and an IPv4 address is preferred
-// when the name has both.
+// WireGuard's config protocol accepts: the first of endpointCandidates.
 func resolveEndpoint(endpoint string) (string, error) {
+	c, err := endpointCandidates(endpoint)
+	if err != nil {
+		return "", err
+	}
+	return c[0], nil
+}
+
+// endpointCandidates turns the server address of a config into the IP:port
+// addresses to try, best first. Many providers (Surfshark among them) write a
+// host name, which wg-quick resolves when it brings the tunnel up; the same is
+// done here, each time a tunnel starts, while the stored config keeps the name
+// so a provider that changes the address behind it keeps working. IPv4 comes
+// first, and an IPv6 address is only listed when this machine can reach IPv6.
+// An address that already is an IPv6 address fails at once when there is no
+// route to it, instead of waiting for a handshake that can never happen.
+func endpointCandidates(endpoint string) ([]string, error) {
 	host, port, err := net.SplitHostPort(endpoint)
 	if err != nil {
-		return "", fmt.Errorf("server address %q: %w", endpoint, err)
+		return nil, fmt.Errorf("server address %q: %w", endpoint, err)
 	}
-	if _, err := netip.ParseAddr(host); err == nil {
-		return endpoint, nil
+	if ip, err := netip.ParseAddr(host); err == nil {
+		if ip.Unmap().Is6() && !routeProbe(ip, port) {
+			return nil, errIPv6Unreachable
+		}
+		return []string{endpoint}, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	addrs, err := lookupIP(ctx, "ip", host)
 	if err != nil {
-		return "", fmt.Errorf("look up the VPN server %s: %w", host, err)
+		return nil, fmt.Errorf("look up the VPN server %s: %w", host, err)
 	}
 	if len(addrs) == 0 {
-		return "", fmt.Errorf("look up the VPN server %s: no address found", host)
+		return nil, fmt.Errorf("look up the VPN server %s: no address found", host)
 	}
-	pick := addrs[0]
+	var v4, v6 []string
 	for _, a := range addrs {
 		if a.Unmap().Is4() {
-			pick = a.Unmap()
-			break
+			v4 = append(v4, net.JoinHostPort(a.Unmap().String(), port))
+		} else if routeProbe(a, port) {
+			v6 = append(v6, net.JoinHostPort(a.String(), port))
 		}
 	}
-	return net.JoinHostPort(pick.String(), port), nil
+	out := append(v4, v6...)
+	if len(out) == 0 {
+		return nil, errIPv6Unreachable
+	}
+	return out, nil
 }
 
 func base64KeyToHex(key string) (string, error) {

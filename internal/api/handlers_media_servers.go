@@ -443,12 +443,14 @@ func (s *Server) mediaServerHealth() []healthItem {
 		if !m.Enabled || m.LastError == "" {
 			continue
 		}
-		impact := "New downloads may not show up there until it rescans on its own, and \"Watch in " + m.Kind.Label() + "\" links can be missing."
-		if m.Kind.BookServer() {
-			impact = "New books may not show up there until it rescans on its own, and the links to it on book pages can be missing."
-		}
-		if m.Kind == mediaservers.KindWebhook {
-			impact = "It isn't told about new downloads."
+		var impact string
+		switch {
+		case m.Kind == mediaservers.KindWebhook:
+			impact = fmt.Sprintf("It isn't told about new downloads. The last check said: %s. Test it again once it is fixed.", strings.TrimRight(m.LastError, ". "))
+		case m.Kind.BookServer():
+			impact = fmt.Sprintf("New books may not show up there until it rescans on its own, and the links to it on book pages can be missing. The last check said: %s. Test it again once it is fixed.", strings.TrimRight(m.LastError, ". "))
+		default:
+			impact = fmt.Sprintf("New downloads may not show up there until it rescans on its own, and \"Watch in %s\" links can be missing. The last check said: %s. Test it again once it is fixed.", m.Kind.Label(), strings.TrimRight(m.LastError, ". "))
 		}
 		items = append(items, healthItem{
 			ID:     fmt.Sprintf("media-server-failed-%d", m.ID),

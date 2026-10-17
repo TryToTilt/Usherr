@@ -82,6 +82,12 @@ const (
 // server tries again. A variable so tests can shorten it.
 var reconnectWait = 2 * time.Second
 
+// deadRetryAfter is how long a worker passes every job on after it could not
+// connect to a server that has others behind it, before it tries that server
+// again. A server that had a bad moment is used again; one that is really down
+// costs one failed connect a minute. A variable so tests can shorten it.
+var deadRetryAfter = 45 * time.Second
+
 // tierHealth counts the connections (workers) to one server: how many are
 // still running, how many are waiting after a connection problem, and when the
 // server last delivered an article. When every running one is failing and the
@@ -202,7 +208,9 @@ func DownloadFromServers(ctx context.Context, servers []ClientConfig, nzb *NZB, 
 		for {
 			select {
 			case <-t.C:
-				resume.save()
+				// The files are flushed first, so after a power cut the progress
+				// file never claims articles the disk does not hold.
+				st.keepProgress()
 			case <-stopSaver:
 				return
 			}
@@ -430,6 +438,7 @@ func runWorker(ctx context.Context, st *dlState, nzb *NZB, cfg ClientConfig, job
 		stopWatch     func() bool
 		selectedGroup string
 		dead          error
+		deadAt        time.Time
 	)
 	gate := gateFor(cfg)
 
@@ -488,7 +497,7 @@ func runWorker(ctx context.Context, st *dlState, nzb *NZB, cfg ClientConfig, job
 					if ctx.Err() != nil {
 						return last, true
 					}
-					dead = plainConnError(cfg, err)
+					dead, deadAt = plainConnError(cfg, err), time.Now()
 					last = outcome{kind: failConn, err: dead}
 					break
 				}
@@ -533,7 +542,7 @@ func runWorker(ctx context.Context, st *dlState, nzb *NZB, cfg ClientConfig, job
 				break
 			}
 			if _, err := st.files[j.fileIndex].WriteAt(part.Data, offset); err != nil {
-				st.recordFatal(fmt.Errorf("write segment %s: %w", seg.MessageID, err))
+				st.recordFatal(fmt.Errorf("couldn't save the downloaded data: %w", err))
 				last = outcome{kind: failNone}
 				break
 			}
@@ -555,7 +564,7 @@ func runWorker(ctx context.Context, st *dlState, nzb *NZB, cfg ClientConfig, job
 			if !ok {
 				return
 			}
-			if dead != nil && !lastServer {
+			if dead != nil && !lastServer && time.Since(deadAt) < deadRetryAfter {
 				pass(j, outcome{kind: failConn, err: dead})
 				continue
 			}

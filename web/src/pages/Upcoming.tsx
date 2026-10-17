@@ -10,6 +10,7 @@ import { t } from '../i18n'
 export default function Upcoming({ tab }: { tab: 'calendar' | 'wanted' | 'following' }) {
   return (
     <div>
+      {/* Usherr: the calendar puts its kind picker and its menu at the end of the tabs (its search is in the top bar). */}
       <nav className="page-tabs" aria-label={t('Upcoming')} style={{ ['--tc' as string]: 'var(--c-calendar)' }}>
         <NavLink to="/calendar" className={({ isActive }) => (isActive ? 'active' : '')}>
           <Icon name="calendar" size={15} /> {t('Calendar')}
@@ -21,6 +22,7 @@ export default function Upcoming({ tab }: { tab: 'calendar' | 'wanted' | 'follow
         <NavLink to="/following" className={({ isActive }) => (isActive ? 'active' : '')}>
           <Icon name="user" size={15} /> {t('Following')}
         </NavLink>
+        <span id="upcoming-tabs-end" className="page-tabs-end" />
       </nav>
       {tab === 'calendar' ? <Calendar /> : tab === 'following' ? <Following /> : <Wanted />}
     </div>

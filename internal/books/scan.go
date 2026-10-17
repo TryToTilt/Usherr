@@ -161,7 +161,7 @@ type scannedFile struct {
 func ScanEbooks(root string) ([]LocalBook, error) {
 	var files []scannedFile
 	comics := map[string]int{} // comic files per folder
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	err := walkFollowing(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // an unreadable folder is skipped
 		}
@@ -240,7 +240,7 @@ func ScanEbooks(root string) ([]LocalBook, error) {
 // as part of the folder above them.
 func ScanAudiobooks(root string) ([]LocalBook, error) {
 	found := map[string]LocalBook{}
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	err := walkFollowing(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -314,10 +314,23 @@ func SameAuthor(a, b string) bool {
 // Open Library title. exact asks for the same words; otherwise every word of
 // the Open Library title has to be on disk (the name on disk may carry extra
 // words, like a subtitle or "Unabridged").
+//
+// A number counts the same as the number written out, so "1984" is the same
+// title as "Nineteen Eighty-Four".
 func SameTitle(local, catalogue string, exact bool) bool {
-	sig := func(s string) map[string]bool {
+	lw, cw := words(local), words(catalogue)
+	if sameTitleWords(lw, cw, exact) {
+		return true
+	}
+	ls, lok := spelledNumbers(lw)
+	cs, cok := spelledNumbers(cw)
+	return (lok || cok) && sameTitleWords(ls, cs, exact)
+}
+
+func sameTitleWords(local, catalogue []string, exact bool) bool {
+	sig := func(ws []string) map[string]bool {
 		out := map[string]bool{}
-		for _, w := range words(s) {
+		for _, w := range ws {
 			if !small[w] && len(w) > 1 {
 				out[w] = true
 			}

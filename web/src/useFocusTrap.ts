@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react'
+import { useEffect, useState, type RefObject } from 'react'
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
@@ -7,10 +7,14 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([t
 // behind, and focus goes back to where it was when the dialog closes.
 // Put the returned-to ref on the dialog box (give it tabIndex={-1}).
 export function useFocusTrap(ref: RefObject<HTMLElement | null>) {
+  // Taken while the dialog first renders, before React has focused anything in
+  // it (an autoFocus control would otherwise already hold the focus by the time
+  // the effect below runs, and there would be nothing to go back to).
+  const [opener] = useState(() => (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement ? document.activeElement : null))
   useEffect(() => {
     const box = ref.current
     if (!box) return
-    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const before = opener
     if (!box.contains(document.activeElement)) {
       // A form control is a better place to start than the close button.
       const first = box.querySelector<HTMLElement>('.modal-body select, .modal-body input, .modal-body textarea') ?? box.querySelector<HTMLElement>(FOCUSABLE) ?? box
@@ -39,5 +43,5 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>) {
       box.removeEventListener('keydown', onKey)
       if (before?.isConnected) before.focus({ preventScroll: true })
     }
-  }, [ref])
+  }, [ref, opener])
 }

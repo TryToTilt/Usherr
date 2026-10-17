@@ -1,9 +1,12 @@
 package queue_test
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -624,5 +627,49 @@ func TestHeldLineStartsNothingNewUntilTheHoldEnds(t *testing.T) {
 	h.mu.Unlock()
 	if n != 1 {
 		t.Fatalf("started %d after the hold, want 1", n)
+	}
+}
+
+// Once stopped (Mediarium shutting down), the line starts nothing more, and a
+// download that ends while the rest wind down does not look in the database
+// for the next one: by then it may be closed, and that only made a warning.
+func TestLineStartsNothingOnceStopped(t *testing.T) {
+	db := openDB(t)
+	repo := queue.NewRepo(db)
+	var started []int64
+	dones := map[int64]func(){}
+	d := queue.NewDispatcher(repo, queue.DispatchConfig{
+		Start: func(it queue.Item, done func()) error {
+			started = append(started, it.ID)
+			dones[it.ID] = done
+			return nil
+		},
+	})
+	first, err := repo.Enqueue(queue.Item{ReleaseTitle: "First"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.Enqueue(queue.Item{ReleaseTitle: "Second"}); err != nil {
+		t.Fatal(err)
+	}
+	d.Kick()
+	if !reflect.DeepEqual(started, []int64{first}) {
+		t.Fatalf("started %v, want only the first", started)
+	}
+
+	var logs bytes.Buffer
+	old := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(old) })
+
+	d.Stop()
+	db.Close() // what happens next on a real shutdown
+	dones[first]()
+	d.Kick()
+	if len(started) != 1 {
+		t.Fatalf("nothing starts after Stop, started %v", started)
+	}
+	if strings.Contains(logs.String(), "look for the next download") {
+		t.Fatalf("the stopped line looked for the next download: %s", logs.String())
 	}
 }

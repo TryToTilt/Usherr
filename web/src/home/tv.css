@@ -166,3 +166,116 @@
   .tvp-chlogo { max-width: 80px; max-height: 34px; }
 }
 .tv-upload { display: inline-flex; align-items: center; border: 1px solid var(--border); background: var(--surface-2, #161a21); border-radius: 8px; color: inherit; }
+
+/* Usherr: programming a channel (TVScheduling.tsx). */
+.tvs { display: grid; gap: 14px; margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--border); }
+.tvs-parts { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.tvs-parts > li { border: 1px solid var(--border); border-radius: 10px; }
+.tvs-parts > li.own { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.tvs-part-head { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 0; background: none; color: var(--text); font: inherit; cursor: pointer; text-align: left; }
+.tvs-part-sum { margin-left: auto; color: var(--text-dim); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 50%; }
+.tvs-part-body { display: grid; gap: 8px; padding: 0 10px 10px; }
+.tvs-part-body .tv-pick { max-height: 180px; }
+.tvs-slots { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.tvs-slots > li { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; }
+.tvs-slots .tv-field-row { flex-wrap: wrap; align-items: center; }
+.tvs-slots select { flex: 1 1 180px; min-width: 0; }
+.tvs-slots input[type='text'] { flex: 1 1 160px; min-width: 0; }
+.tvs-count { display: inline-flex; align-items: center; gap: 6px; }
+.tvs-count input { width: 60px; }
+.tvs-day { min-width: 38px; }
+
+/* Usherr: guide options and the guide's other looks (TVGuideStyles.tsx). */
+.tvo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 0 12px; }
+.tvo > .spacer { flex: 1; }
+.tvo-style { display: inline-flex; align-items: center; gap: 6px; padding: 0 4px 0 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.tvo-style select { border: 0; background: transparent; color: var(--text); font: inherit; padding: 7px 2px; }
+.tv-row-tools { display: inline-flex; gap: 2px; align-self: center; }
+.tv-row-tools .icon-btn.fav { color: #f4c95d; }
+.tv-list > li.hidden-ch { opacity: 0.5; }
+
+/* '90s cable box: the same grid, blocky, navy and cyan */
+.tvg.tvg-cable { background: #000a3d; border-color: #2f4bd6; border-radius: 4px; font-family: ui-monospace, 'Courier New', monospace; color: #e8ecff; }
+.tvg-cable .tvg-names { border-right-color: #2f4bd6; }
+.tvg-cable .tvg-name { border-top-color: #2f4bd6; text-transform: uppercase; color: #ffef6b; }
+.tvg-cable .tvg-times { color: #7fe9ff; opacity: 1; }
+.tvg-cable .tvg-times span { border-left-color: #2f4bd6; }
+.tvg-cable .tvg-row { border-top-color: #2f4bd6; }
+.tvg-cable .tvg-prog, .tvg-cable .tvg-prog[class*='tvg-c'] { background: #13238f; border: 2px solid #3e5bff; border-radius: 0; color: #fff; text-transform: uppercase; }
+.tvg-cable .tvg-prog.on { background: #1f37c9; border-color: #7fe9ff; }
+.tvg-cable .tvg-prog.sel { outline: 3px solid #ffef6b; }
+.tvg-cable .tvg-now { background: #ffef6b; }
+
+/* Prevue Channel */
+.pv { display: grid; gap: 0; border-radius: 6px; overflow: hidden; background: #071a5c; color: #fff; font-family: 'Arial Black', Arial, sans-serif; }
+.pv-top { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 0; background: #0b2a8a; }
+.pv-preview { aspect-ratio: 16 / 9; background: #000; }
+.pv-preview .hp-inline { border-radius: 0; height: 100%; }
+.pv-promo { display: grid; align-content: center; gap: 8px; padding: 16px 20px; background: linear-gradient(180deg, #1238b8, #071a5c); }
+.pv-brand { color: #ffd400; font-size: clamp(1.1rem, 2.6vw, 1.8rem); letter-spacing: 0.06em; text-shadow: 2px 2px 0 #b3001b; }
+.pv-time { font: 700 clamp(1.4rem, 3vw, 2.4rem) ui-monospace, monospace; color: #fff; }
+.pv-promo p { margin: 0; font-family: Arial, sans-serif; font-size: 1rem; }
+.pv-roll { position: relative; height: 340px; overflow: hidden; border-top: 4px solid #ffd400; }
+.pv-list { list-style: none; margin: 0; padding: 0; animation: pv-roll linear infinite; }
+.pv-roll:hover .pv-list { animation-play-state: paused; }
+@keyframes pv-roll { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+.pv-list li button { width: 100%; display: grid; grid-template-columns: 150px repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 2px; border: 0; padding: 0; background: #071a5c; color: #fff; font: inherit; cursor: pointer; text-align: left; border-bottom: 2px solid #000a3d; }
+.pv-ch { display: grid; align-content: center; padding: 8px 10px; background: #b3001b; color: #fff; }
+.pv-ch b { font-size: 1.3rem; }
+.pv-ch span { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-prog { display: grid; align-content: center; padding: 8px 10px; background: #0d2c99; color: #ffd400; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-prog i { font-style: normal; color: #fff; font-size: 0.75rem; }
+@media (prefers-reduced-motion: reduce) { .pv-list { animation: none; } .pv-roll { overflow-y: auto; } }
+@media (max-width: 760px) {
+  .pv-top { grid-template-columns: 1fr; }
+  .pv-list li button { grid-template-columns: 96px minmax(0, 1fr) minmax(0, 1fr); }
+  .pv-list .pv-prog:nth-of-type(4) { display: none; }
+}
+
+/* Newspaper listings */
+.lst { padding: 18px 20px; border-radius: 4px; background: #f3eee2; color: #1b1b1b; font-family: Georgia, 'Times New Roman', serif; box-shadow: inset 0 0 60px rgba(120, 90, 40, 0.15); }
+.lst-head { margin: 0 0 10px; padding-bottom: 6px; border-bottom: 3px double #1b1b1b; font-size: 1.8rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.lst-head small { font-size: 0.9rem; text-transform: none; letter-spacing: 0; color: #555; margin-left: 10px; }
+.lst-cols { columns: 3 260px; column-gap: 28px; column-rule: 1px solid #c9bfa8; }
+.lst-hour { break-inside: avoid; margin-bottom: 12px; }
+.lst-hour h3 { margin: 0 0 4px; font-size: 1.05rem; border-bottom: 1px solid #1b1b1b; }
+.lst-hour p { margin: 0 0 4px; font-size: 0.92rem; line-height: 1.35; }
+.lst-ch { display: inline-block; min-width: 1.6em; padding: 0 3px; background: #1b1b1b; color: #f3eee2; font: 700 0.75rem Arial, sans-serif; text-align: center; }
+.lst-at { color: #666; font-size: 0.8rem; }
+
+/* Now on: a tile a channel */
+.nowon { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.nowon-tile { display: grid; gap: 6px; align-content: start; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: linear-gradient(160deg, var(--surface-2), var(--surface)); color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.nowon-tile:hover { border-color: var(--accent); }
+.nowon-ch { display: flex; align-items: center; gap: 8px; color: var(--text-dim); font-size: 0.85rem; }
+.nowon-ch img { max-height: 28px; max-width: 70px; object-fit: contain; }
+.nowon-ch b { font: 700 1.1rem ui-monospace, monospace; color: var(--accent); }
+.nowon-tile strong { font-size: 1.15rem; line-height: 1.25; }
+.nowon-sub, .nowon-next { color: var(--text-dim); font-size: 0.85rem; }
+.nowon-bar { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.nowon-bar span { display: block; height: 100%; background: var(--accent); }
+
+/* Usherr: channel packs and the AI builder (TVPacks.tsx). */
+.tv-packs { width: min(820px, calc(100vw - 24px)); }
+.tv-packs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
+.tv-pack { display: grid; gap: 4px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.tv-pack:hover { border-color: var(--accent); }
+.tv-pack span { color: var(--text-dim); font-size: 0.88rem; }
+.tv-aibuild { width: min(620px, calc(100vw - 24px)); display: grid; gap: 10px; }
+.tv-aibuild textarea { width: 100%; }
+
+/* Usherr: Multiview and Other apps (TVMulti.tsx). */
+.tv-multi { position: fixed; inset: 0; z-index: 2000; background: #000; display: grid; grid-template-rows: auto 1fr; }
+.tv-multi-head { display: flex; align-items: center; gap: 12px; padding: 8px 12px; color: #fff; }
+.tv-multi-head .hint { flex: 1; color: #bbb; }
+.tv-multi-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 4px; padding: 4px; min-height: 0; }
+.tv-multi-cell { position: relative; background: #111; border: 2px solid transparent; border-radius: 6px; overflow: hidden; min-height: 0; display: grid; place-items: center; cursor: pointer; }
+.tv-multi-cell.loud { border-color: var(--accent); }
+.tv-multi-cell .hp-inline { width: 100%; height: 100%; aspect-ratio: auto; }
+.tv-multi-cell select { position: absolute; left: 8px; top: 8px; z-index: 2; max-width: 60%; background: rgba(0, 0, 0, 0.7); color: #fff; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 6px; padding: 4px 6px; }
+.tv-multi-sound { position: absolute; right: 8px; top: 8px; z-index: 2; color: #fff; background: rgba(0, 0, 0, 0.6); border-radius: 50%; padding: 6px; display: inline-flex; }
+@media (max-width: 760px) { .tv-multi-grid { grid-template-columns: 1fr; grid-template-rows: repeat(4, 1fr); } }
+.tv-apps { width: min(720px, calc(100vw - 24px)); display: grid; gap: 14px; }
+.tv-apps-row { display: grid; gap: 4px; }
+.tv-apps-link { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.tv-apps-link code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; padding: 6px 8px; border-radius: 8px; background: var(--surface-2); font-size: 0.82rem; }

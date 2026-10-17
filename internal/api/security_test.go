@@ -15,7 +15,6 @@ import (
 	"github.com/rdborg/mediarium/internal/api"
 	"github.com/rdborg/mediarium/internal/config"
 	"github.com/rdborg/mediarium/internal/crypto"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 // newSecurityServer is a server with the given proxy settings and nothing set
@@ -37,7 +36,7 @@ func newSecurityServer(t *testing.T, trusted, origins string) (*api.Server, stri
 			t.Fatal(err)
 		}
 	}
-	db, err := store.Open(filepath.Join(cfg.ConfigDir, "app.db"))
+	db, err := api.OpenTestDB(filepath.Join(cfg.ConfigDir, "app.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

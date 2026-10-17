@@ -109,7 +109,7 @@
 @media (max-width: 900px) {
   html, body { overflow-x: clip; max-width: 100%; overscroll-behavior-x: none; }
   .app-shell, .main-area { max-width: 100%; min-width: 0; overflow-x: clip; }
-  .content { overflow-x: hidden; touch-action: pan-y pinch-zoom; overscroll-behavior-x: none; }
+  .content { overflow-x: hidden; overflow-x: clip; touch-action: pan-y pinch-zoom; overscroll-behavior-x: none; } /* Usherr: clip (where it's known) keeps sticky toolbars working */
   .content input, .content select, .content textarea { max-width: 100%; box-sizing: border-box; }
   .content .card, .content section, .content .modal { min-width: 0; }
   .content p, .content small, .content li, .content h1, .content h2, .content h3, .content label { overflow-wrap: anywhere; }

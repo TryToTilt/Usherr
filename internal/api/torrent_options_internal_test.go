@@ -17,7 +17,6 @@ import (
 	"github.com/rdborg/mediarium/internal/queue"
 	"github.com/rdborg/mediarium/internal/settings"
 	"github.com/rdborg/mediarium/internal/speed"
-	"github.com/rdborg/mediarium/internal/store"
 	"github.com/rdborg/mediarium/internal/torrentclient"
 	"github.com/rdborg/mediarium/internal/torrentopts"
 )
@@ -25,7 +24,7 @@ import (
 // optionsServer is a bare server with what the torrent options need.
 func optionsServer(t *testing.T) (*Server, *sql.DB) {
 	t.Helper()
-	db, err := store.Open(filepath.Join(t.TempDir(), "app.db"))
+	db, err := OpenTestDB(filepath.Join(t.TempDir(), "app.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -29,7 +29,7 @@ var viewerAsks = map[string]bool{
 }
 
 var viewerMayWrite = map[string]bool{
-	"PUT /api/auth/profile": true, "POST /api/auth/change-password": true,
+	"PUT /api/auth/profile": true, "POST /api/auth/change-password": true, "DELETE /api/auth/sessions": true,
 	"POST /api/auth/two-step/setup": true, "POST /api/auth/two-step/enable": true,
 	"POST /api/auth/two-step/disable": true, "POST /api/auth/two-step/recovery": true,
 	"POST /api/auth/passkeys/register/begin": true, "POST /api/auth/passkeys/register/finish": true,

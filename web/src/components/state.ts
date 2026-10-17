@@ -91,8 +91,9 @@ export interface ItemStateInput {
 }
 
 // State of a search result that is already in the library (undefined when it is new).
-export function resultState(r: TitleResult): ItemState | undefined {
-  if (!r.inLibrary) return undefined
+// Usherr: a title that isn't in the library but is streamed says "Streams".
+export function resultState(r: TitleResult, streamed?: boolean): ItemState | undefined {
+  if (!r.inLibrary) return streamed ? describeState('streams') : undefined
   if (r.status === 'downloaded') return describeState('downloaded')
   if (r.status === 'downloading') return describeState('downloading')
   return describeState('searching')

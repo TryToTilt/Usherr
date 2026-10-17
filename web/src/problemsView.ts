@@ -25,6 +25,36 @@ export interface ProblemRow {
   known: boolean
 }
 
+// An area's name in the language in use. An area the page doesn't know
+// keeps the name the server gave it.
+export function areaName(id: string, fallback: string): string {
+  switch (id) {
+    case 'downloads':
+      return t('Downloads')
+    case 'usenet':
+      return t('Usenet')
+    case 'search':
+      return t('Indexers & Search')
+    case 'mediaservers':
+      return t('Media servers')
+    case 'import':
+      return t('Import')
+    case 'disk':
+      return t('Disk and folders')
+    case 'database':
+      return t('Database')
+    case 'metadata':
+      return t('Movie and show info')
+    case 'updates':
+      return t('Updates')
+    case 'notifications':
+      return t('Notifications')
+    case 'system':
+      return t('System')
+  }
+  return fallback
+}
+
 export interface ProblemCounts {
   errorsToday: number
   warningsToday: number

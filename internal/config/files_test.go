@@ -59,6 +59,27 @@ func TestFileVariablesWorkForNumbersAndFlags(t *testing.T) {
 	}
 }
 
+func TestInvalidPortFallsBackAndIsReported(t *testing.T) {
+	for _, bad := range []string{"abc", "0", "70000", "-5"} {
+		t.Run(bad, func(t *testing.T) {
+			t.Setenv("APP_PORT", bad)
+			t.Setenv("APP_PORT_FILE", "")
+			cfg := Load()
+			if cfg.Port != 8264 {
+				t.Fatalf("APP_PORT=%q gave port %d, want the default 8264", bad, cfg.Port)
+			}
+			p := Problems()
+			if len(p) != 1 || !strings.Contains(p[0], "APP_PORT") {
+				t.Fatalf("expected one problem naming APP_PORT, got %v", p)
+			}
+		})
+	}
+	t.Setenv("APP_PORT", "9000")
+	if cfg := Load(); cfg.Port != 9000 || len(Problems()) != 0 {
+		t.Fatalf("a good port should pass quietly: %d %v", cfg.Port, Problems())
+	}
+}
+
 func TestUnreadableFileIsReportedWithoutItsContents(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "nope")
 	t.Setenv("DOWNLOADS_DIR", "")
@@ -90,8 +111,8 @@ func TestURLBaseFromTheEnvironmentOrAFile(t *testing.T) {
 		t.Fatalf("got %q (%v)", cfg.URLBase, cfg.Validate())
 	}
 	t.Setenv("URL_BASE", "")
-	t.Setenv("URL_BASE_FILE", writeSecret(t, "/apps/media\n"))
-	if cfg := Load(); cfg.URLBase != "/apps/media" {
+	t.Setenv("URL_BASE_FILE", writeSecret(t, "/tools/media\n"))
+	if cfg := Load(); cfg.URLBase != "/tools/media" {
 		t.Fatalf("got %q", cfg.URLBase)
 	}
 	t.Setenv("URL_BASE_FILE", "")
@@ -114,7 +135,7 @@ func TestNormalizeURLBase(t *testing.T) {
 		{"mediarium", "/mediarium", false},
 		{"/mediarium/", "/mediarium", false},
 		{" /Media_Rium-2.0 ", "/Media_Rium-2.0", false},
-		{"/apps/mediarium", "/apps/mediarium", false},
+		{"/tools/mediarium", "/tools/mediarium", false},
 		{"/a//b", "", true},
 		{"/a/../b", "", true},
 		{"/a/./b", "", true},
@@ -127,6 +148,10 @@ func TestNormalizeURLBase(t *testing.T) {
 		{"/API/v2", "", true},
 		{"/settings", "", true},
 		{"/radarr", "", true},
+		{"/help", "", true},
+		{"/apps", "", true},
+		{"/opds", "", true},
+		{"/kobo/x", "", true},
 		{"/" + strings.Repeat("a", 120), "", true},
 	}
 	for _, tc := range tests {

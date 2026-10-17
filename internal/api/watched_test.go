@@ -108,7 +108,16 @@ func TestWatchedAndCleanup(t *testing.T) {
 		}
 	}
 
-	res := postJSON[map[string]any](t, client, base+"/api/watched/cleanup/run", nil, http.StatusOK)
+	// A run limited to a list that does not hold The Matrix removes nothing.
+	none := postJSON[map[string]any](t, client, base+"/api/watched/cleanup/run", map[string]any{"items": []map[string]any{{"kind": "movie", "id": 999}}}, http.StatusOK)
+	if len(none["removed"].([]any)) != 0 {
+		t.Fatalf("a run limited to other titles removed %v", none["removed"])
+	}
+	if _, err := os.Stat(matrixFile); err != nil {
+		t.Fatalf("the file went although it was not on the list: %v", err)
+	}
+
+	res := postJSON[map[string]any](t, client, base+"/api/watched/cleanup/run", map[string]any{"items": []map[string]any{{"kind": "movie", "id": matrix.ID}}}, http.StatusOK)
 	if len(res["removed"].([]any)) != 1 {
 		t.Fatalf("run: %v", res)
 	}

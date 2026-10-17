@@ -10,12 +10,11 @@ import (
 
 	"github.com/rdborg/mediarium/internal/monitor"
 	"github.com/rdborg/mediarium/internal/problems"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 func hookLog(t *testing.T) *problems.Log {
 	t.Helper()
-	db, err := store.Open(filepath.Join(t.TempDir(), "p.db"))
+	db, err := OpenTestDB(filepath.Join(t.TempDir(), "p.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

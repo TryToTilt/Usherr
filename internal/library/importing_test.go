@@ -1,11 +1,13 @@
 package library_test
 
 import (
+	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/library"
+	"github.com/rdborg/mediarium/internal/library/librarytest"
 	"github.com/rdborg/mediarium/internal/store"
 )
 
@@ -381,6 +383,52 @@ func TestRegisterImportMovieMonitoring(t *testing.T) {
 				t.Fatalf("the batch should remember monitor = %v: %+v", tc.monitor, b)
 			}
 		})
+	}
+}
+
+// "Look for missing episodes" on a big TV import is saved a group of shows at a
+// time, so other writes get in between instead of failing with "database is
+// locked" while it runs.
+func TestStartWatchingImportLetsOtherWritesIn(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.db")
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	if err := librarytest.Fill(db, librarytest.Size{Movies: 1, Shows: 45, EpisodesPerShow: 5}); err != nil {
+		t.Fatal(err)
+	}
+	batch, err := librarytest.ImportedShows(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Between two groups another write goes through at once: a handle that
+	// does not wait for the lock at all would fail if it were still held.
+	impatient, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(0)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { impatient.Close() })
+	groups := 0
+	library.SetAfterWatchGroup(func() {
+		groups++
+		if _, err := impatient.Exec(`UPDATE movies SET title = title WHERE id = 1`); err != nil {
+			t.Errorf("another write after group %d: %v", groups, err)
+		}
+	})
+	t.Cleanup(func() { library.SetAfterWatchGroup(nil) })
+
+	res, err := library.NewRepo(db).StartWatchingImport(batch, false, true)
+	if err != nil || res.Shows != 45 {
+		t.Fatalf("result %+v, %v", res, err)
+	}
+	if groups != 3 {
+		t.Fatalf("saved in %d groups, want 3 (20 shows each)", groups)
+	}
+	var unwanted int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM episodes WHERE monitored = 0 OR series_id NOT IN (SELECT id FROM series WHERE monitored = 1)`).Scan(&unwanted); err != nil || unwanted != 0 {
+		t.Fatalf("%d episodes were left out (%v)", unwanted, err)
 	}
 }
 

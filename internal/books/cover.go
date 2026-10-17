@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 )
 
 // maxCoverBytes bounds one downloaded cover; a medium or large Open Library
@@ -25,6 +27,39 @@ func LocalCoverURL(coverID int, size string) string {
 		return ""
 	}
 	return fmt.Sprintf("/api/book-covers/%d-%s.jpg", coverID, size)
+}
+
+// maxEditionCovers is how many covers WorkCovers returns.
+const maxEditionCovers = 12
+
+// WorkCovers lists the cover ids Open Library has for a book, the first being
+// the one it shows by default. Open Library keeps a cover for each edition it
+// has a picture of, so this is the book's other covers to choose from. A book
+// with none answers an empty list.
+func (c *Client) WorkCovers(ctx context.Context, key string) ([]int, error) {
+	key = strings.TrimPrefix(strings.TrimSpace(key), "/works/")
+	if key == "" || strings.ContainsAny(key, "/?#") {
+		return nil, ErrNotFound
+	}
+	var res struct {
+		Covers []int `json:"covers"`
+	}
+	if err := c.get(ctx, "/works/"+url.PathEscape(key)+".json", nil, &res); err != nil {
+		return nil, err
+	}
+	out := []int{}
+	seen := map[int]bool{}
+	for _, id := range res.Covers {
+		if id <= 0 || seen[id] { // Open Library marks a removed cover with -1
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+		if len(out) == maxEditionCovers {
+			break
+		}
+	}
+	return out, nil
 }
 
 // FetchCover downloads one cover by its Open Library cover id. It returns

@@ -69,7 +69,7 @@ func (s *Server) grabTV(series library.Series, hintSeason, hintEpisode int, rele
 	if len(episodes) > 0 {
 		firstEpisode = episodes[0]
 	}
-	if dest, err := s.buildTVDestPath(series, library.Episode{Season: season, Episode: firstEpisode}, parser.Parse(releaseTitle), "check.mkv"); err == nil {
+	if dest, err := s.buildTVDestPath(series, library.Episode{Season: season, Episode: firstEpisode}, parser.Parse(releaseTitle), releaseTitle, "check.mkv"); err == nil {
 		if err := destWritable(filepath.Dir(dest)); err != nil {
 			return 0, err
 		}
@@ -86,9 +86,9 @@ func (s *Server) grabTV(series library.Series, hintSeason, hintEpisode int, rele
 			return 0, err
 		}
 	}
-	if kind.refusesDuplicates() && s.releaseBlocklisted(releaseTitle) {
+	if err := s.grabRefused(kind, releaseTitle, downloadURL); err != nil {
 		s.grabMu.Unlock()
-		return 0, errBlocklisted
+		return 0, err
 	}
 	targets, err := s.tvGrabTargets(series.ID, season, episodes)
 	if err != nil {
@@ -137,7 +137,7 @@ func (s *Server) grabTV(series library.Series, hintSeason, hintEpisode int, rele
 // filename and imported into "Series (Year)/Season NN/". A season pack
 // therefore imports every episode it contains in one pass. targets are the
 // episodes grabTV claimed for this grab.
-func (s *Server) runTVPipeline(queueID int64, series library.Series, season int, targets []library.Episode, releaseTitle, downloadURL string, protocol indexers.Protocol) error {
+func (s *Server) runTVPipeline(queueID int64, series library.Series, season int, targets []library.Episode, pack bool, releaseTitle, downloadURL string, protocol indexers.Protocol) error {
 	ctx, run := s.pipelines.begin(queueID)
 	defer s.pipelines.end(queueID, run)
 	if s.pausedBeforeStart(queueID) {
@@ -186,7 +186,9 @@ func (s *Server) runTVPipeline(queueID int64, series library.Series, season int,
 		_ = s.QueueRepo.LogSeriesActivity(series.ID, "failed", message)
 		failedItem := seriesItemFor(series, season, targets)
 		failedItem.Reason, failedItem.Release = plain, releaseTitle
-		s.notifyItem("failed", failedItem)
+		if s.failureNotifyWanted(stepErr, downloadURL, releaseTitle) {
+			s.notifyItem("failed", failedItem)
+		}
 		if blocklisted {
 			s.retryAfterBadRelease(0, series.ID)
 		}
@@ -202,9 +204,17 @@ func (s *Server) runTVPipeline(queueID int64, series library.Series, season int,
 		return fail(err)
 	}
 
-	files, err := s.tvVideoFiles(dir, len(targets) == 1)
+	// A season pack with only one episode still missing is a pack: every file
+	// goes to the episode its own name says, not the biggest one to the
+	// missing episode.
+	single := len(targets) == 1 && !pack
+	files, err := s.tvVideoFiles(dir, single)
 	if err != nil {
 		return fail(err)
+	}
+	fileTargets := targets // a file without an episode marker can only be the one episode asked for
+	if !single {
+		fileTargets = nil
 	}
 
 	release := parser.Parse(releaseTitle)
@@ -226,7 +236,7 @@ func (s *Server) runTVPipeline(queueID int64, series library.Series, season int,
 	var importedEps []library.Episode
 	var subtitleItems []subtitleItem
 	for _, file := range files {
-		fileSeason, fileEpisodes := s.tvFileEpisodes(file, season, targets, mapper)
+		fileSeason, fileEpisodes := s.tvFileEpisodes(file, season, fileTargets, mapper)
 		if len(fileEpisodes) == 0 {
 			continue // e.g. an extra that isn't recognisably an episode of this show
 		}
@@ -242,7 +252,7 @@ func (s *Server) runTVPipeline(queueID int64, series library.Series, season int,
 			continue
 		}
 
-		destPath, err := s.buildTVDestPath(series, eps[0], release, file)
+		destPath, err := s.buildTVDestPath(series, eps[0], release, releaseTitle, file)
 		if err != nil {
 			return fail(err)
 		}
@@ -322,7 +332,14 @@ func (s *Server) runTVPipeline(queueID int64, series library.Series, season int,
 
 	if imported == 0 {
 		if skipped > 0 {
-			return fail(fmt.Errorf("files for this release already exist in your library, so nothing was imported. To replace them, delete the files first (Delete files on the season) or set \"If a file already exists\" to overwrite"))
+			// "If a file already exists" said to keep what is there: a decision,
+			// not a failure (no "failed" notification, nothing in Logs and errors).
+			if err := s.QueueRepo.SetStatus(queueID, queue.StatusCompleted, keptExistingMessage); err != nil {
+				return fail(err)
+			}
+			s.discardWorkDir(dir, protocol)
+			_ = s.QueueRepo.LogSeriesActivity(series.ID, "kept", fmt.Sprintf("%s: the files of %s are already in your library, so Mediarium kept them and imported nothing.", series.Title, releaseTitle))
+			return nil
 		}
 		return fail(badRelease(fmt.Errorf("no episode of %s could be matched in the downloaded files", series.Title)))
 	}
@@ -454,7 +471,8 @@ func (s *Server) tvRoot() string {
 
 // buildTVDestPath renders "<tv root>/Series (Year)/Season NN/<episode file>"
 // using the same naming preset and illegal-character handling as movies.
-func (s *Server) buildTVDestPath(series library.Series, ep library.Episode, release parser.Release, videoFile string) (string, error) {
+// releaseTitle is the release's own name, for {Original Title}.
+func (s *Server) buildTVDestPath(series library.Series, ep library.Episode, release parser.Release, releaseTitle, videoFile string) (string, error) {
 	root := s.seriesRootFor(series)
 	if root == "" && series.CopyOf != 0 {
 		return "", fmt.Errorf("the folder for second copies isn't set. Choose one in Settings > Library > Folders")
@@ -480,6 +498,7 @@ func (s *Server) buildTVDestPath(series library.Series, ep library.Episode, rele
 		Edition: release.Edition, ReleaseGroup: release.Group,
 		AudioCodec: release.AudioCodec, HDR: release.HDR, Is3D: release.Is3D,
 		Proper: release.Proper, Repack: release.Repack, Languages: release.Languages,
+		OriginalTitle: releaseTitle, OriginalFilename: originalStem(videoFile),
 	}
 	mode, replacement := s.illegalCharSettings()
 	clean := func(f string) string { return organizer.Sanitize(organizer.Render(f, ctx), mode, replacement) }
@@ -492,6 +511,10 @@ func (s *Server) buildTVDestPath(series library.Series, ep library.Episode, rele
 	seasonDir := filepath.Join(showDir, clean(s.seasonFolderFormat()))
 	if d := existingSeasonFolder(showDir, ep.Season); d != "" {
 		seasonDir = d
+	}
+	// Each file of a season pack keeps its own name.
+	if name, ok := s.keptName(videoFile, mode, replacement); ok {
+		return filepath.Join(seasonDir, name), nil
 	}
 	return filepath.Join(seasonDir, clean(format)+filepath.Ext(videoFile)), nil
 }

@@ -80,6 +80,16 @@ func (s *Server) cleanupWorkDir(dir string, protocol indexers.Protocol) {
 	s.removeWorkDir(dir)
 }
 
+// discardWorkDir is cleanupWorkDir for a download that was not imported (a
+// person chose to keep the file already in the library): its folder goes, but
+// the torrent stays in the external client, which may still be wanted there.
+func (s *Server) discardWorkDir(dir string, protocol indexers.Protocol) {
+	if protocol == indexers.ProtocolTorrent && s.torrents.activeDir(dir) {
+		return
+	}
+	s.removeWorkDir(dir)
+}
+
 // removeWorkDir deletes one queue-N working folder directly inside the
 // working folder (anything else is refused) and returns the space freed.
 func (s *Server) removeWorkDir(dir string) int64 {

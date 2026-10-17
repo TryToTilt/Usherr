@@ -31,6 +31,27 @@ func (s *Server) releaseBlocklisted(releaseTitle string) bool {
 	return err == nil && keys[blocklist.Key(releaseTitle)]
 }
 
+// errNZBLinkHeld is what a grab that is not a person's own pick is refused
+// with while the release is held back (see nzb_link_hold.go). It counts as
+// blocklisted for the callers that only check for that.
+var errNZBLinkHeld = fmt.Errorf("held back for a few hours because its indexer sent a web page instead of the NZB file: %w", errBlocklisted)
+
+// grabRefused says why a grab of this kind may not take the release now:
+// it is on the blocklist, or held back after its link sent no NZB. A release
+// a person picked is never refused here. Call with grabMu held.
+func (s *Server) grabRefused(kind grabKind, releaseTitle, downloadURL string) error {
+	if !kind.refusesDuplicates() {
+		return nil
+	}
+	if s.releaseBlocklisted(releaseTitle) {
+		return errBlocklisted
+	}
+	if s.nzbLinkHeld(downloadURL, releaseTitle) {
+		return errNZBLinkHeld
+	}
+	return nil
+}
+
 // The scheduled loops (the hunt and the RSS sync) may not add more than this
 // many downloads to the download line in any hour. A person grabbing by hand,
 // adding a title or pressing "search now" is never held back, and does not

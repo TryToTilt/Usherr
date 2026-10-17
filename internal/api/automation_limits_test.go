@@ -18,7 +18,6 @@ import (
 	"github.com/rdborg/mediarium/internal/crypto"
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/queue"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 // newBudgetIndexer offers one release for each of "Budget Movie 001".."00N".
@@ -137,7 +136,7 @@ func TestSafeModeSwitchesAutomationOff(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	db, err := store.Open(filepath.Join(cfg.ConfigDir, "app.db"))
+	db, err := api.OpenTestDB(filepath.Join(cfg.ConfigDir, "app.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

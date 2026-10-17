@@ -77,6 +77,12 @@ function LanguageSection() {
     (saved) => t('Saved: audio languages are {language}.', { language: saved.split(',').map((l) => (l === ORIGINAL ? t('Original language') : l)).join(', ') }),
     'English',
   )
+  const only = useAutosaveSetting<boolean>(
+    (s) => s.qualityLanguageOnly ?? false,
+    (v) => ({ qualityLanguageOnly: v }),
+    (saved) => (saved ? t('Saved: only releases in these languages are taken.') : t('Saved: releases with no language in the name are taken too when nothing else is found.')),
+    false,
+  )
   const list = language.value.split(',').map((l) => l.trim()).filter(Boolean)
   const name = (l: string) => (l === ORIGINAL ? t('Original language of the title') : l)
   const free = [ORIGINAL, ...AUDIO_LANGUAGES].filter((l) => !list.includes(l))
@@ -123,6 +129,14 @@ function LanguageSection() {
           />
         </label>
       )}
+      <Switch
+        checked={only.value}
+        onChange={only.change}
+        disabled={!only.loaded || only.saving}
+        label={t('Only take releases in these languages')}
+        description={t("Off, a release with no language in the name (counted as English) or tagged English only is still taken when nothing better turns up. On, it is skipped unless English is on your list, and so is a MULTi or DUAL release that doesn't name one of your languages. You can still pick any release yourself.")}
+        showState
+      />
     </section>
   )
 }

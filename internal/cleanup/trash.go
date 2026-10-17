@@ -45,6 +45,10 @@ type TrashEntry struct {
 	Paths     []string  `json:"paths"` // where each item was, to put it back
 	Size      int64     `json:"size"`
 	Files     int       `json:"files"`
+	// NoRecord marks a folder in the bin whose record is missing or unreadable
+	// (a removal cut short). Its files are listed so they can be deleted for
+	// good, but there is nothing to put them back by.
+	NoRecord bool `json:"noRecord,omitempty"`
 }
 
 // TrashFolder moves a title's folder into root's bin. It follows the same
@@ -123,8 +127,9 @@ func mustRel(root, path string) string {
 }
 
 // moveToTrash renames each path into a new entry folder, keeping its place
-// relative to root, and writes the entry's record. If one move fails, the
-// ones already made are put back.
+// relative to root. The entry's record is written first, before any file is
+// moved, so a stop part-way never leaves files in the bin that nothing knows
+// about. If one move fails, the ones already made are put back.
 func moveToTrash(absRoot, label string, paths []string, now time.Time) (TrashEntry, error) {
 	var rnd [4]byte
 	if _, err := rand.Read(rnd[:]); err != nil {
@@ -136,12 +141,33 @@ func moveToTrash(absRoot, label string, paths []string, now time.Time) (TrashEnt
 		return TrashEntry{}, fmt.Errorf("make the recycle bin folder: %w", err)
 	}
 	entry := TrashEntry{ID: id, Label: label, DeletedAt: now.UTC()}
+	for _, p := range paths {
+		entry.Paths = append(entry.Paths, p)
+		entry.Size += Size(p)
+		entry.Files += countFiles(p)
+	}
 	var moved [][2]string
+	// undo puts the moved files back and removes the entry's folder, but only
+	// when every one of them is back: a folder that still holds a file that
+	// could not be put back is kept, with its record, so the file can be found.
 	undo := func() {
+		allBack := true
 		for i := len(moved) - 1; i >= 0; i-- {
-			_ = os.Rename(moved[i][1], moved[i][0])
+			if err := os.Rename(moved[i][1], moved[i][0]); err != nil {
+				allBack = false
+			}
 		}
-		_ = os.RemoveAll(dir)
+		if allBack {
+			_ = os.RemoveAll(dir)
+		}
+	}
+	data, err := json.MarshalIndent(entry, "", "  ")
+	if err == nil {
+		err = os.WriteFile(filepath.Join(dir, "entry.json"), data, 0o644)
+	}
+	if err != nil {
+		_ = os.RemoveAll(dir) // nothing has been moved yet
+		return TrashEntry{}, fmt.Errorf("write the recycle bin record: %w", err)
 	}
 	for _, p := range paths {
 		dest := filepath.Join(dir, "files", mustRel(absRoot, p))
@@ -149,23 +175,11 @@ func moveToTrash(absRoot, label string, paths []string, now time.Time) (TrashEnt
 			undo()
 			return TrashEntry{}, fmt.Errorf("make the recycle bin folder: %w", err)
 		}
-		size, files := Size(p), countFiles(p)
 		if err := os.Rename(p, dest); err != nil {
 			undo()
 			return TrashEntry{}, fmt.Errorf("move %s to the recycle bin: %w", p, err)
 		}
 		moved = append(moved, [2]string{p, dest})
-		entry.Paths = append(entry.Paths, p)
-		entry.Size += size
-		entry.Files += files
-	}
-	data, err := json.MarshalIndent(entry, "", "  ")
-	if err == nil {
-		err = os.WriteFile(filepath.Join(dir, "entry.json"), data, 0o644)
-	}
-	if err != nil {
-		undo()
-		return TrashEntry{}, fmt.Errorf("write the recycle bin record: %w", err)
 	}
 	return entry, nil
 }
@@ -234,14 +248,27 @@ func ListTrash(root string) ([]TrashEntry, error) {
 		if !d.IsDir() || !trashID.MatchString(d.Name()) {
 			continue
 		}
-		e, err := readEntry(filepath.Join(absRoot, TrashDir, d.Name()))
+		dir := filepath.Join(absRoot, TrashDir, d.Name())
+		e, err := readEntry(dir)
 		if err != nil {
-			continue
+			e = orphanEntry(dir)
 		}
 		out = append(out, e)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].DeletedAt.After(out[j].DeletedAt) })
 	return out, nil
+}
+
+// orphanEntry describes a folder in the bin that has no readable record: when
+// it was removed comes from its name, how much it holds from what is inside.
+func orphanEntry(dir string) TrashEntry {
+	id := filepath.Base(dir)
+	e := TrashEntry{ID: id, Label: id, NoRecord: true}
+	if t, err := time.ParseInLocation("20060102-150405", id[:15], time.UTC); err == nil {
+		e.DeletedAt = t
+	}
+	e.Size, e.Files = Size(filepath.Join(dir, "files")), countFiles(filepath.Join(dir, "files"))
+	return e
 }
 
 // RestoreTrash puts an entry's files back where they were and removes the
@@ -260,12 +287,20 @@ func RestoreTrash(root, id string) (TrashEntry, error) {
 		if within(absRoot, p) != nil {
 			return e, fmt.Errorf("%s is not inside the library folder: %w", p, ErrOutside)
 		}
+		// An item that never made it into the bin (the removal was cut short)
+		// is still where it was: nothing to put back.
+		if _, err := os.Lstat(filepath.Join(dir, "files", mustRel(absRoot, p))); err != nil {
+			continue
+		}
 		if _, err := os.Lstat(p); err == nil {
 			return e, fmt.Errorf("%s: %w", p, ErrRestoreBlocked)
 		}
 	}
 	for _, p := range e.Paths {
 		src := filepath.Join(dir, "files", mustRel(absRoot, p))
+		if _, err := os.Lstat(src); err != nil {
+			continue
+		}
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			return e, err
 		}

@@ -91,7 +91,18 @@ After a restart, Mediarium switches the connection that was on back on by itself
 
 While a connection is switched on but not working, torrents wait instead of connecting directly, whatever the kill switch says, so your home address is never shown by accident. Press **Disconnect** if you would rather download without the VPN. Removing the connection that is switched on also disconnects it.
 
+A torrent that started without a VPN doesn't keep going from your home address once a VPN connects, or once the kill switch is switched on while none is connected (or a switched-on VPN is down). Within about a minute it is stopped with "the VPN connection changed" (a torrent that was only seeding just stops seeding). Press **Retry** to carry on through the VPN.
+
 **Check my IP address** appears while connected. It makes a real request through the tunnel and shows the public address the internet sees, so you can check that it is your VPN's address and not your own.
+
+### If the server address is IPv6
+
+Docker gives a container IPv4 only unless you turn IPv6 on. If the server address in your connection is an IPv6 address (it looks like `[2a03:1b20:6:f011::a09f]:51820`), Mediarium can't reach it from such a container and says right away: "This VPN server address is IPv6, and this computer or Docker container has no IPv6 connection." Either of these fixes it:
+
+- Use the server's IPv4 address instead. Mullvad lists both for every server. If the address is a host name (for Mullvad, something like `us-den-wg-208.relays.mullvad.net`), use the name: Mediarium looks it up each time and picks the IPv4 address when your container has no IPv6.
+- Turn on IPv6 for Docker. In `/etc/docker/daemon.json` set `{"ipv6": true, "fixed-cidr-v6": "fd00:db8:1::/64"}` and restart Docker. In a compose file, give the network `enable_ipv6: true` and an IPv6 subnet. Then recreate the container.
+
+When a host name has both kinds of address and your container can reach IPv6, Mediarium tries IPv4 first and switches to IPv6 if the server doesn't answer within a few seconds.
 
 ## The kill switch
 

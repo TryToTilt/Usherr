@@ -1,5 +1,5 @@
 // Home fork: the shelves' shared parts for the libraries that aren't films or
-// shows (books, music, comics, scenes): a remembered Shelves/Grid choice with
+// shows (books, music, comics, videos): a remembered Shelves/Grid choice with
 // its "Rows by" pick, the toolbar control for both, and grouping helpers.
 import { useState } from 'react'
 import Dropdown from '../components/Dropdown'

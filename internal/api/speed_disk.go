@@ -192,26 +192,37 @@ func (s *Server) minFreeGB() int {
 // the floor, in which case the download line starts nothing new. It records
 // the reason in Logs and errors (repeats fold into one line).
 func (s *Server) diskTooFull() bool {
-	floor := s.minFreeGB()
-	if floor == 0 {
-		return false
-	}
-	dir := s.downloadsRoot()
-	if dir == "" {
-		return false
-	}
-	u, err := fsinfo.DiskUsage(dir)
-	if err != nil || u.TotalBytes == 0 {
-		return false // cannot tell: never block on a guess
-	}
-	if u.FreeBytes >= uint64(floor)<<30 {
+	dir, message, short := s.diskSpaceShort()
+	if !short {
 		return false
 	}
 	problems.Record(problems.Problem{
 		Code:    problems.CodeDiskLow,
 		Subject: dir,
-		Message: fmt.Sprintf("Downloads are waiting: only %s free in the downloads folder, less than the %d GB you asked to keep.", humanBytes(int64(u.FreeBytes)), floor),
+		Message: message,
 		Quiet:   true,
 	})
 	return true
+}
+
+// diskSpaceShort reports whether the downloads folder has less free space than
+// the floor, with the folder and the sentence that says so. It records
+// nothing, so the Activity page can ask it as often as it likes.
+func (s *Server) diskSpaceShort() (dir, message string, short bool) {
+	floor := s.minFreeGB()
+	if floor == 0 {
+		return "", "", false
+	}
+	dir = s.downloadsRoot()
+	if dir == "" {
+		return "", "", false
+	}
+	u, err := fsinfo.DiskUsage(dir)
+	if err != nil || u.TotalBytes == 0 {
+		return "", "", false // cannot tell: never block on a guess
+	}
+	if u.FreeBytes >= uint64(floor)<<30 {
+		return "", "", false
+	}
+	return dir, fmt.Sprintf("Downloads are waiting: only %s free in the downloads folder, less than the %d GB you asked to keep.", humanBytes(int64(u.FreeBytes)), floor), true
 }

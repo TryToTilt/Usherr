@@ -44,20 +44,20 @@ func TestTaskRules(t *testing.T) {
 	night := schedule{ID: "night", Name: "Overnight", Ranges: []schedRange{{Days: []int{0, 1, 2, 3, 4, 5, 6}, Start: "01:00", End: "09:00"}}}
 	h := homeSchedules{Schedules: []schedule{tv, night}, Tasks: map[string]taskRule{
 		taskDownloads:   {Schedule: "tv", Mode: "never", Action: dlPause, When: "finish"},
-		taskSceneSearch: {Schedule: "night", Mode: "only"},
+		taskVideoSearch: {Schedule: "night", Mode: "only"},
 		taskSearch:      {Schedule: "gone", Mode: "only"}, // a deleted schedule never holds anything
 	}}
 	if h.allowedAt(taskDownloads, wed(19, 0)) || !h.allowedAt(taskDownloads, wed(12, 0)) {
 		t.Error("downloads should pause only during TV time")
 	}
-	if !h.allowedAt(taskSceneSearch, wed(3, 0)) || h.allowedAt(taskSceneSearch, wed(19, 0)) {
-		t.Error("scene searches should run only overnight")
+	if !h.allowedAt(taskVideoSearch, wed(3, 0)) || h.allowedAt(taskVideoSearch, wed(19, 0)) {
+		t.Error("video searches should run only overnight")
 	}
 	if !h.allowedAt(taskSearch, wed(19, 0)) || !h.allowedAt(taskPostprocess, wed(19, 0)) {
 		t.Error("tasks without a (valid) schedule always run")
 	}
-	if next := h.nextAllowed(taskSceneSearch, wed(19, 0)); !next.Equal(time.Date(2026, 10, 8, 1, 0, 0, 0, time.UTC)) {
-		t.Errorf("next scene search window = %v, want Thu 01:00", next)
+	if next := h.nextAllowed(taskVideoSearch, wed(19, 0)); !next.Equal(time.Date(2026, 10, 8, 1, 0, 0, 0, time.UTC)) {
+		t.Errorf("next video search window = %v, want Thu 01:00", next)
 	}
 	if next := h.nextAllowed(taskDownloads, wed(19, 0)); !next.Equal(wed(23, 0)) {
 		t.Errorf("downloads resume at %v, want 23:00", next)
@@ -65,12 +65,12 @@ func TestTaskRules(t *testing.T) {
 
 	// Quiet holds everything heavy, but not the light StashDB checks.
 	h.QuietUntil = wed(20, 0).Format(time.RFC3339)
-	for _, task := range []string{taskSearch, taskDownloads, taskPostprocess, taskMediaRefresh, taskSceneSearch} {
+	for _, task := range []string{taskSearch, taskDownloads, taskPostprocess, taskMediaRefresh, taskVideoSearch} {
 		if h.allowedAt(task, wed(12, 0)) {
 			t.Errorf("%s should be held while quiet", task)
 		}
 	}
-	if !h.allowedAt(taskSceneFollow, wed(12, 0)) {
+	if !h.allowedAt(taskVideoFollow, wed(12, 0)) {
 		t.Error("followed checks are not held by quiet")
 	}
 	if !h.allowedAt(taskSearch, wed(20, 1)) {

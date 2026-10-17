@@ -255,3 +255,12 @@
 @media (prefers-reduced-motion: reduce) { .activity-page .qrow .qpick { transition: none; } }
 .activity-page .qspecs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
 .activity-page .qspec { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.02em; }
+
+/* Usherr: the board is one line of small counts (each still opens its part of the page). */
+.act-board { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 18px; }
+.act-board .ab-cell { display: inline-flex; align-items: center; gap: 2px; }
+.act-board .ab-cell > .ab-tip { position: static; margin: 0; }
+.act-board .ab-slot { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 12px; border-radius: 999px; height: auto; }
+.act-board .ab-slot b { font-size: 1.05rem; }
+.act-board .ab-slot span { font-size: 0.85rem; }
+.act-board .ab-slot small { display: none; }

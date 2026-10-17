@@ -305,7 +305,7 @@ func (s *Server) matchGroup(ctx context.Context, kind libimport.Kind, g libimpor
 			return libimport.MatchUnmatched, nil, err
 		}
 		for _, m := range movies {
-			cands = append(cands, libimport.Candidate{TMDBID: m.TMDBID, Title: m.Title, Year: m.Year(), PosterPath: m.PosterPath})
+			cands = append(cands, libimport.Candidate{TMDBID: m.TMDBID, Title: m.Title, Year: m.Year(), PosterPath: m.PosterPath, OriginalTitle: m.OriginalTitle, Adult: m.Adult})
 		}
 	} else {
 		shows, err := s.TMDB().SearchTV(ctx, g.Title)
@@ -313,7 +313,7 @@ func (s *Server) matchGroup(ctx context.Context, kind libimport.Kind, g libimpor
 			return libimport.MatchUnmatched, nil, err
 		}
 		for _, sh := range shows {
-			cands = append(cands, libimport.Candidate{TMDBID: sh.TMDBID, Title: sh.Name, Year: sh.Year(), PosterPath: sh.PosterPath})
+			cands = append(cands, libimport.Candidate{TMDBID: sh.TMDBID, Title: sh.Name, Year: sh.Year(), PosterPath: sh.PosterPath, OriginalTitle: sh.OriginalName, Adult: sh.Adult})
 		}
 	}
 	status, ordered := libimport.Decide(g.Title, g.Year, cands)

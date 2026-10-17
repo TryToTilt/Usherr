@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"sort"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/metadata"
@@ -77,6 +79,20 @@ func (s *Server) artworkJob(ctx context.Context) {
 		kind string
 		id   int
 	}
+	// Nearest to today first, so the titles on screen get their pictures
+	// before the far past and future of a big library.
+	today := time.Now()
+	distance := func(date string) time.Duration {
+		d, err := time.Parse("2006-01-02", date)
+		if err != nil {
+			return 1<<63 - 1
+		}
+		if d.Before(today) {
+			return today.Sub(d)
+		}
+		return d.Sub(today)
+	}
+	sort.SliceStable(entries, func(i, j int) bool { return distance(entries[i].ReleaseDate) < distance(entries[j].ReleaseDate) })
 	seen := map[title]bool{}
 	byKind := map[string][]int{}
 	var order []title
@@ -124,8 +140,15 @@ func (s *Server) artworkJob(ctx context.Context) {
 		fetched++
 		art, err := s.TMDB().TitleArtwork(ctx, t.kind, t.id)
 		if err != nil {
-			slog.Debug("calendar: couldn't fetch artwork", "kind", t.kind, "tmdb", t.id, "err", err)
-			continue // asked again on the next run
+			var se *metadata.StatusError
+			if errors.As(err, &se) && se.Code == 404 {
+				// TMDB does not have the title (removed or merged). Remember an empty answer,
+				// or titles like this fill every batch and the others are never reached.
+				art = metadata.Artwork{}
+			} else {
+				slog.Debug("calendar: couldn't fetch artwork", "kind", t.kind, "tmdb", t.id, "err", err)
+				continue // asked again on the next run
+			}
 		}
 		if err := s.MovieRepo.SaveTitleArt(t.kind, t.id, art.Backdrop, art.Logo, time.Now()); err != nil {
 			slog.Warn("calendar: couldn't save the artwork", "err", err)

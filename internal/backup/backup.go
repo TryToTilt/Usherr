@@ -126,7 +126,8 @@ func highestMigration(ctx context.Context, db *sql.DB) (string, error) {
 // Create writes a backup zip of the live database db plus the key in
 // configDir to w. The database is snapshotted first with VACUUM INTO (a
 // transactionally consistent copy, unlike copying a file that is being
-// written), into a temporary file in configDir that is always deleted. If it
+// written), into a temporary folder in configDir (private to the owner from the
+// start) that is always deleted. If it
 // fails before anything has been written to w, w is untouched. Contents are
 // never logged.
 func Create(ctx context.Context, db *sql.DB, configDir, version string, now time.Time, w io.Writer) error {
@@ -139,21 +140,20 @@ func Create(ctx context.Context, db *sql.DB, configDir, version string, now time
 		return err
 	}
 
-	tmp, err := os.CreateTemp(configDir, ".backup-snapshot-*.db")
+	// VACUUM INTO makes the file itself, with the default mode, and refuses to
+	// overwrite one. So it gets a folder only the owner can open (MkdirTemp
+	// makes it 0700): the copy holds the whole database and is never readable
+	// by others, not even while it is being written.
+	snapDir, err := os.MkdirTemp(configDir, ".backup-snapshot-")
 	if err != nil {
-		return fmt.Errorf("create snapshot file: %w", err)
+		return fmt.Errorf("create snapshot folder: %w", err)
 	}
-	snapshot := tmp.Name()
-	tmp.Close()
-	defer os.Remove(snapshot)
-	// VACUUM INTO refuses to overwrite an existing file.
-	if err := os.Remove(snapshot); err != nil {
-		return fmt.Errorf("prepare snapshot file: %w", err)
-	}
+	defer os.RemoveAll(snapDir)
+	snapshot := filepath.Join(snapDir, "snapshot.db")
 	if _, err := db.ExecContext(ctx, "VACUUM INTO '"+strings.ReplaceAll(snapshot, "'", "''")+"'"); err != nil {
 		return fmt.Errorf("snapshot database: %w", err)
 	}
-	_ = os.Chmod(snapshot, 0o600) // the copy holds the whole database while it exists
+	_ = os.Chmod(snapshot, 0o600)
 
 	manifest, err := json.MarshalIndent(Manifest{
 		App:        appName,
@@ -527,20 +527,46 @@ func rollback(configDir, before string, moved []string) error {
 // removeStaleStaging deletes temporary staging/scratch folders left by a
 // crash mid-upload. They only ever hold copies of an uploaded backup; an
 // unlocked copy of a passphrase-locked one (.restore-unlocked-*) holds the
-// database and secret.key in the clear, so it must not outlive a crash.
+// database and secret.key in the clear, so it must not outlive a crash. The
+// half-written files of a backup that was cut short (.saving-*.zip) and of a
+// locked cloud copy (.cloud-upload-*) are each a whole copy of the database,
+// so they go too. It runs before anything else is started, so nothing it
+// removes is in use.
 func removeStaleStaging(configDir string) {
+	removeStaleSaving(filepath.Join(configDir, SavedDir), 0)
 	entries, err := os.ReadDir(configDir)
 	if err != nil {
 		return
 	}
 	for _, e := range entries {
 		n := e.Name()
-		if e.IsDir() && (strings.HasPrefix(n, PendingDir+".tmp-") || strings.HasPrefix(n, ".restore-validate-")) {
+		if e.IsDir() && (strings.HasPrefix(n, PendingDir+".tmp-") || strings.HasPrefix(n, ".restore-validate-") || strings.HasPrefix(n, ".backup-snapshot-")) {
 			os.RemoveAll(filepath.Join(configDir, n))
 		}
-		if !e.IsDir() && (strings.HasPrefix(n, ".backup-snapshot-") || strings.HasPrefix(n, ".restore-upload-") || strings.HasPrefix(n, ".restore-unlocked-")) {
+		// (.backup-snapshot-* was a single file before it became a folder.)
+		if !e.IsDir() && (strings.HasPrefix(n, ".backup-snapshot-") || strings.HasPrefix(n, ".restore-upload-") || strings.HasPrefix(n, ".restore-unlocked-") || strings.HasPrefix(n, ".cloud-upload-")) {
 			os.Remove(filepath.Join(configDir, n))
 		}
+	}
+}
+
+// removeStaleSaving deletes the half-written files of saved backups
+// (.saving-*) in dir that were last touched more than olderThan ago.
+func removeStaleSaving(dir string, olderThan time.Duration) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasPrefix(e.Name(), ".saving-") {
+			continue
+		}
+		if olderThan > 0 {
+			if info, err := e.Info(); err != nil || time.Since(info.ModTime()) < olderThan {
+				continue
+			}
+		}
+		os.Remove(filepath.Join(dir, e.Name()))
 	}
 }
 

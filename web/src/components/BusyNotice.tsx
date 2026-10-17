@@ -1,25 +1,25 @@
-import { useBusy } from '../busy'
+import { useBusyNotice } from '../useBusyNotice'
 import Icon from './Icon'
 import { t } from '../i18n'
 
-// A banner under the top bar, on every page, while Mediarium is slow to answer
-// (a page has been waiting more than ten seconds, or the app said it is busy).
-// It goes away by itself once the app answers normally again.
+// A toast in the bottom right corner (inside the toast stack, see Toast.tsx)
+// while Mediarium is slow to answer: a page has been waiting a good while, or
+// the app said it is busy. It floats over the page, so nothing moves, and it
+// shows only once the problem has lasted a few seconds. It stays while the
+// problem lasts and goes away by itself when the app answers again.
 export default function BusyNotice() {
-  if (!useBusy()) return null
+  if (!useBusyNotice()) return null
   return (
-    <div className="import-banners">
-      <div className="import-banner warn" role="status">
-        <span className="import-banner-icon">
-          <Icon name="warning" size={22} />
-        </span>
-        <div className="import-banner-body">
-          <strong>{t('Mediarium is slow to answer right now.')}</strong> {t('It may be busy with a download or import.')}
-        </div>
-        <button type="button" className="btn-sm" onClick={() => window.location.reload()}>
-          {t('Try again')}
-        </button>
-      </div>
+    <div className="toast toast-warn">
+      <span className="toast-icon" aria-hidden="true">
+        <Icon name="warning" size={14} />
+      </span>
+      <span className="toast-text">
+        <strong>{t('Mediarium is slow to answer right now.')}</strong> {t('It may be busy with a download or import.')}
+      </span>
+      <button type="button" className="btn-sm toast-action" onClick={() => window.location.reload()}>
+        {t('Try again')}
+      </button>
     </div>
   )
 }

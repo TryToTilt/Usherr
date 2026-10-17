@@ -8,7 +8,8 @@ import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/Toast'
 import { api, type Settings as SettingsData } from '../../api'
 import FolderStatus from '../../components/FolderStatus'
-import AnimeFolder from '../../home/AnimeFolder' // Usherr
+import ExtraFolder from '../../home/ExtraFolder' // Usherr
+import { useComicsOn, useNsfwOn } from '../../home/libraryKinds' // Usherr
 import Icon from '../../components/Icon'
 import HardlinkWarning from '../../components/HardlinkWarning'
 import NamingPreview from '../../components/NamingPreview'
@@ -34,8 +35,17 @@ function namingFormat(value: string): string | null {
 
 // One of the two Library pages shares this form: the folders, or the naming rules.
 // Each page saves only its own fields.
-function LibrarySection({ part }: { part: 'folders' | 'naming' }) {
-  const [settings, setSettings] = useState<SettingsData | null>(null)
+function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSettings?: (s: SettingsData) => void }) {
+  const comicsOn = useComicsOn(true) // Usherr: the folders the base app doesn't have (admin-only page)
+  const nsfwOn = useNsfwOn(true) // Usherr
+  const [settings, setSettingsState] = useState<SettingsData | null>(null)
+  const setSettings = useCallback(
+    (s: SettingsData) => {
+      setSettingsState(s)
+      onSettings?.(s)
+    },
+    [onSettings],
+  )
   const [moviesPath, setMoviesPath] = useState('')
   const [tvPath, setTvPath] = useState('')
   const [movieCopiesPath, setMovieCopiesPath] = useState('')
@@ -47,6 +57,7 @@ function LibrarySection({ part }: { part: 'folders' | 'naming' }) {
   const [namingPreset, setNamingPreset] = useState('plex')
   const [customFormat, setCustomFormat] = useState('')
   const [episodeFormat, setEpisodeFormat] = useState('')
+  const [keepOriginalNames, setKeepOriginalNames] = useState(false)
   const [illegalCharMode, setIllegalCharMode] = useState('strip')
   const [illegalCharReplacement, setIllegalCharReplacement] = useState('-')
   const [importConflictPolicy, setImportConflictPolicy] = useState('skip')
@@ -105,12 +116,13 @@ function LibrarySection({ part }: { part: 'folders' | 'naming' }) {
         setNamingPreset(s.namingPreset || 'plex')
         setCustomFormat(s.movieNameFormat)
         setEpisodeFormat(s.episodeNameFormat ?? '')
+        setKeepOriginalNames(s.keepOriginalNames === true)
         setIllegalCharMode(s.illegalCharMode || 'strip')
         setIllegalCharReplacement(s.illegalCharReplacement || '-')
         setImportConflictPolicy(s.importConflictPolicy || 'skip')
       })
       .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)))
-  }, [])
+  }, [setSettings])
   useEffect(load, [load])
 
   async function save() {
@@ -133,6 +145,7 @@ function LibrarySection({ part }: { part: 'folders' | 'naming' }) {
               namingPreset,
               movieNameFormat: customFormat,
               episodeNameFormat: episodeFormat,
+              keepOriginalNames,
               illegalCharMode,
               illegalCharReplacement,
               importConflictPolicy,
@@ -189,7 +202,7 @@ function LibrarySection({ part }: { part: 'folders' | 'naming' }) {
             </label>
             <FolderStatus path={tvPath} />
           </div>
-          <AnimeFolder /> {/* Usherr */}
+          <ExtraFolder kind="anime" /> {/* Usherr */}
           <div className={`path-col${musicOn ? '' : ' path-off'}`}>
             <label>
               {t('Music folder')}
@@ -225,10 +238,12 @@ function LibrarySection({ part }: { part: 'folders' | 'naming' }) {
             </label>
             {audiobooksOn ? <FolderStatus path={audiobooksPath} suggest={suggestFor('audiobooks')} onUse={setAudiobooksPath} /> : <small className="path-note">{t('Turn on Audiobooks in Media types first.')}</small>}
           </div>
+          {comicsOn && <ExtraFolder kind="comics" />} {/* Usherr */}
+          {nsfwOn && <ExtraFolder kind="nsfw" />} {/* Usherr */}
           <div className="path-col">
             <label>
               <TipLabel text={t('Where downloads are kept until they are imported. Put it next to your libraries so imports are hardlinks, not slow copies.')}>{t('Downloads folder')}</TipLabel>
-              <input value={downloadsPath} onChange={(e) => setDownloadsPath(e.target.value)} {...v.bind('downloadsPath', downloadsPath, setDownloadsPath)} />
+              <input aria-label={t('Downloads folder')} value={downloadsPath} onChange={(e) => setDownloadsPath(e.target.value)} {...v.bind('downloadsPath', downloadsPath, setDownloadsPath)} />
               <FieldError v={v} name="downloadsPath" />
             </label>
             <FolderStatus path={downloadsPath} />
@@ -309,14 +324,21 @@ function LibrarySection({ part }: { part: 'folders' | 'naming' }) {
                 <option value="custom">{t('Custom')}</option>
               </select>
             </label>
-            {namingPreset === 'custom' ? (
+            {namingPreset === 'custom' && !keepOriginalNames ? (
               <small style={{ color: 'var(--text-dim)' }}>{t('Build your own movie and episode file names below.')}</small>
             ) : (
               <>
-                <NamingPreview preset={namingPreset} />
-                <NamingPreview preset={namingPreset} kind="tv" />
+                <NamingPreview preset={namingPreset} keep={keepOriginalNames} />
+                <NamingPreview preset={namingPreset} kind="tv" keep={keepOriginalNames} />
               </>
             )}
+            <label className="check-row">
+              <input type="checkbox" checked={keepOriginalNames} onChange={(e) => setKeepOriginalNames(e.target.checked)} />
+              <span>{t('Keep the original file names')}</span>
+            </label>
+            <small style={{ color: 'var(--text-dim)' }}>
+              {t('Files keep the name they came with. Folders are still named after the movie or show, so media servers find them. A file with a random name, like a8f7d6e5c4b3.mkv, is named by the preset instead.')}
+            </small>
           </div>
           <div className="grid-form">
             <label>
@@ -373,11 +395,13 @@ export default function MediaSettings() {
 // Settings > Library > File names and importing: how files are named and what
 // happens after a download, including the script that can run afterwards.
 export function NamingSettings() {
+  const [keepNames, setKeepNames] = useState(false)
+  const onSettings = useCallback((s: SettingsData) => setKeepNames(s.keepOriginalNames === true), [])
   return (
     <div className="settings-stack">
-      <LibrarySection part="naming" />
+      <LibrarySection part="naming" onSettings={onSettings} />
       <MetadataFilesCard />
-      <RenameCard />
+      <RenameCard keepOriginalNames={keepNames} />
       <ScriptCard />
     </div>
   )

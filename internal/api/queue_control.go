@@ -69,6 +69,9 @@ func (s *Server) settleInterrupted(queueID int64, run *pipelineRun) (bool, error
 	case run.paused.Load():
 		_ = s.QueueRepo.Pause(queueID, false)
 		return true, errPaused
+	case run.shutdown.Load():
+		// Mediarium is stopping: leave the item as it is, it is found interrupted at the next start.
+		return true, errPaused
 	}
 	return false, nil
 }
@@ -124,6 +127,9 @@ func (s *Server) resumeItem(item queue.Item) error {
 	}
 	if !ok {
 		return errors.New("This download isn't paused.")
+	}
+	if err := s.QueueRepo.ReleaseEvent(item.ID, "download", queue.LevelInfo, "Download resumed"); err != nil {
+		slog.Warn("queue: record a resumed download", "queueId", item.ID, "err", err)
 	}
 	s.dispatch.Kick()
 	return nil
@@ -192,6 +198,7 @@ func (s *Server) preparePipeline(item queue.Item) (func(), error) {
 		_ = s.MovieRepo.SetStatus(movie.ID, library.StatusDownloading, "", "")
 		return func() {
 			if err := s.runPipeline(item.ID, movie.ID, movie.Title, movie.Year, movie.TMDBID, item.ReleaseTitle, item.NZBURL, protocol); err != nil {
+				s.stopFailedTorrent(item.ID)
 				slog.Info("queue: movie download ended", "queueId", item.ID, "err", err)
 			}
 		}, nil
@@ -221,7 +228,8 @@ func (s *Server) preparePipeline(item queue.Item) (func(), error) {
 			return nil, err
 		}
 		return func() {
-			if err := s.runTVPipeline(item.ID, series, season, targets, item.ReleaseTitle, item.NZBURL, protocol); err != nil {
+			if err := s.runTVPipeline(item.ID, series, season, targets, len(episodes) == 0, item.ReleaseTitle, item.NZBURL, protocol); err != nil {
+				s.stopFailedTorrent(item.ID)
 				slog.Info("queue: tv download ended", "queueId", item.ID, "err", err)
 			}
 		}, nil
@@ -234,6 +242,7 @@ func (s *Server) preparePipeline(item queue.Item) (func(), error) {
 		_ = s.MusicRepo.SetAlbumStatus(album.ID, music.StatusDownloading)
 		return func() {
 			if err := s.runMusicPipeline(item.ID, album.ArtistID, album.ID, restore, item.ReleaseTitle, item.NZBURL, protocol); err != nil {
+				s.stopFailedTorrent(item.ID)
 				slog.Info("queue: album download ended", "queueId", item.ID, "err", err)
 			}
 		}, nil
@@ -249,17 +258,30 @@ func (s *Server) preparePipeline(item queue.Item) (func(), error) {
 		_ = s.BookRepo.SetState(book.ID, f, books.StatusDownloading, "", "")
 		return func() {
 			if err := s.runBookPipeline(item.ID, book, f, item.ReleaseTitle, item.NZBURL, protocol); err != nil {
+				s.stopFailedTorrent(item.ID)
 				slog.Info("queue: book download ended", "queueId", item.ID, "err", err)
 			}
 		}, nil
 	}
-	if run, ok, err := s.prepareScenePipeline(item, protocol); ok { // scenes hook (home fork)
+	if run, ok, err := s.prepareVideoPipeline(item, protocol); ok { // videos hook (home fork)
 		return run, err
 	}
 	if run, ok, err := s.prepareComicPipeline(item, protocol); ok { // comics hook (home fork)
 		return run, err
 	}
 	return nil, errors.New("This download isn't linked to a movie, show, album or book.")
+}
+
+// stopFailedTorrent lets go of a built-in torrent whose download failed after
+// it had been added (the import was refused, the library folder is not
+// writable, and so on). Without this it keeps seeding for ever, a release
+// that was refused would still be shared, and Retry could not add the same
+// torrent again. Only an item that is really marked failed is touched: a
+// paused or resumed one keeps its torrent.
+func (s *Server) stopFailedTorrent(queueID int64) {
+	if it, err := s.QueueRepo.Get(queueID); err == nil && it.Status == queue.StatusFailed {
+		s.torrents.stopQueue(queueID)
+	}
 }
 
 // fileExists reports whether path names something on disk.
@@ -801,7 +823,7 @@ func (s *Server) recoverAtStartup() {
 	if paused > 0 || tidy.any() {
 		slog.Info("queue: start-up check", "pausedDownloads", paused, "moviesFixed", tidy.Movies, "episodesFixed", tidy.Episodes, "albumsFixed", tidy.Albums, "booksFixed", tidy.Books, "upgradesRemoved", tidy.Upgrades)
 	}
-	paused -= s.pausedSceneDownloads() // scenes hook (home fork): scene downloads aren't counted in shared activity
+	paused -= s.pausedVideoDownloads() // videos hook (home fork): video downloads aren't counted in shared activity
 	if paused > 0 {
 		_ = s.QueueRepo.LogActivity(0, "paused", fmt.Sprintf("Mediarium was restarted, so %s that was downloading is now paused. Press Resume in Activity to carry on.", plural(int(paused), "download")))
 	}

@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,8 +33,28 @@ func archiveNameFor(version string) string {
 	return updatecheck.ArchiveName(version, runtime.GOOS, runtime.GOARCH)
 }
 
+// tarGzCache keeps the packed archive of each program: packing the real
+// program (tens of megabytes) takes seconds, and many tests pack the same one.
+// Callers append to what they get, so a copy is handed out.
+var (
+	tarGzMu    sync.Mutex
+	tarGzCache = map[string][]byte{}
+)
+
 func tarGz(t *testing.T, program []byte) []byte {
 	t.Helper()
+	key := sumOf(program)
+	tarGzMu.Lock()
+	defer tarGzMu.Unlock()
+	if packed, ok := tarGzCache[key]; ok {
+		return append([]byte(nil), packed...)
+	}
+	packed := packTarGz(program)
+	tarGzCache[key] = packed
+	return append([]byte(nil), packed...)
+}
+
+func packTarGz(program []byte) []byte {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)

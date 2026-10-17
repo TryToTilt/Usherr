@@ -90,7 +90,7 @@ export default function ScriptCard() {
         </label>
         <label style={{ display: 'grid', gap: 4, width: 170 }}>
           <TipLabel text={t('The script is stopped if it runs longer than this, so a stuck script cannot hold up your imports.')}>{t('Time limit (minutes)')}</TipLabel>
-          <input type="number" min={1} max={60} value={minutes} onChange={(e) => setMinutes(Math.min(60, Math.max(1, Number(e.target.value) || 1)))} disabled={busy || state === null} />
+          <input aria-label={t('Time limit (minutes)')} type="number" min={1} max={60} value={minutes} onChange={(e) => setMinutes(Math.min(60, Math.max(1, Number(e.target.value) || 1)))} disabled={busy || state === null} />
         </label>
         <button className="primary" onClick={() => void save()} disabled={busy || !changed}>
           {t('Save')}

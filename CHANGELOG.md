@@ -8,6 +8,195 @@ under [Unreleased]. How releases are cut: [docs/RELEASING.md](docs/RELEASING.md)
 
 ## [Unreleased]
 
+## [3.1.3] - 2026-10-17
+
+In short: a big round of fixes from a full review and from testing Mediarium with real libraries.
+- Titles with accents or in other alphabets (Pokémon, Amélie, Japanese, Russian, Greek) are now found, matched and imported correctly.
+- Password-protected RAR releases now open with their password, and a release whose link gives a login page is no longer grabbed again and again.
+- Big libraries are much faster: the dashboard, Wanted (now in pages) and the Library tabs load in a fraction of the time.
+- Security: the setup code can't be skipped any more, sign-in limits hold however fast the guesses come, and a site entry can't be pointed at your home network.
+- Indexers with a daily request limit are no longer used up by Mediarium's own checks, and a learned limit can't lock an indexer out for good.
+- Keep the original file names if you like, locate a renamed file, change a show's folder, set your own book cover, see the folder of a title's files, and see and sign out your other devices.
+- Clearer messages in every language, a calmer layout on wide and small screens, and many smaller fixes listed below.
+
+### Added
+- Account changes (new accounts, role changes, turning accounts off or on, password resets, deleting accounts) and API keys made or removed are written to the log and the Activity page for administrators.
+- **Signed-in devices**: Settings > Account & Access > Security has a "Signed-in devices" list and a "Sign out all other devices" button.
+- **Keep the original file names** (asked for by Jisevind on GitHub, #75): a new switch under Settings > Library > File names and importing. Files keep the name they came with, while folders are still named after the movie or show; a file with a random name is named by the preset instead. Custom naming also gets the tokens `{Original Filename}` and `{Original Title}`.
+
+### Fixed
+- An indexer that once reported a small daily limit (or a wrong one) could stay held back for good. A limit is now forgotten after a week, dropped when a search works past it, and nonsense numbers or waits longer than 48 hours are ignored.
+- The connection check of an indexer is no longer hidden for hours after a real search failed, or by an out-of-date daily limit.
+- Security: a site list entry that needs no login can no longer be pointed at your own network through a web name that secretly points to it; any filled-in text or password setting now counts as a sign-in for this.
+- Change folder and Locate the folder no longer take files that belong to a movie or to another show, or links that lead out of your library. Change folder waits while the show is downloading and uses the bigger file when two files are the same episode.
+- Only administrators are shown the folder of a title's files.
+- Stopping Mediarium now keeps to one time limit for all steps, so the database closes before Docker's 10 seconds are over.
+- When secret.key is missing, the start-up message now says how to start fresh, and more kinds of saved secrets (VPN connections, notification secrets, media server tokens) are recognised.
+- Movies and shows with accents in their name (Pokémon, Amélie, Élite) and titles in other alphabets (Japanese, Russian, Greek) are now found and matched; before, they were never matched to their releases.
+- A release no longer gets taken for a title with no letters it can compare, so a Russian or Japanese release can't be downloaded for a different film from the same year.
+- A TV episode with a word like French, Dutch, Greek or Dual in its title is no longer refused as a foreign-language release.
+- The scheduled search for shows starts with the shows searched longest ago, and the book and movie searches carry on where the last run stopped, so a long list no longer keeps the same titles at the front forever. The movie search takes 50 movies a run.
+- Adding a show with "future episodes only" or "none", changing its profile, or blocklisting one of its releases no longer searches for old episodes you didn't monitor.
+- Torrents the indexer says have no seeders are only picked when nothing else is available, and more seeders win between equal releases.
+- "Quiet for a while" no longer skips the searches that were due; they run when the quiet time is over.
+- Picking a release from the search bar no longer adds a different film or show when TMDB has no title that matches; you get "couldn't find a match" instead.
+- When every indexer is paused or at its daily limit, titles no longer get a "no releases found" note.
+- Prowlarr and Jackett behind a reverse proxy folder now get the longer wait for slow feeds.
+- The default quality profile keeps its custom formats when no default is chosen.
+- a torrent whose import failed (for example a folder that wasn't writable) kept seeding and then couldn't be retried; it now stops, so Retry works.
+- removing a download that was waiting for a decision about a file that already exists left its movie stuck on "downloading" until the next restart.
+- audiobooks that come in several folders with the same file names (CD1, CD2) lost files on import; every part is kept now.
+- archives inside the folder of a torrent or debrid download weren't unpacked, and the release was blocklisted for having no video.
+- torrents that were already running when a VPN was connected, or the kill switch was switched on, kept sending from your home address; they are now stopped within about a minute and can be retried through the VPN.
+- picking a season pack when only one episode was missing imported the biggest file instead of the missing episode.
+- a full or read-only disk, or PAR2 running out of time, no longer puts a good release on the blocklist; the same for an error reported by qBittorrent or Transmission, whose torrent now stays where it is.
+- Real-Debrid and TorBox downloads fetched every file, samples and notes included, without checking that the disk had room.
+- choosing to keep the existing file removed the torrent from your own torrent client; it stays now.
+- one failed connection to the main Usenet server sent that connection to the backup server for the rest of the download.
+- the progress file of a Usenet download could get ahead of the data on disk after a power cut.
+- a release can no longer plant the files the app keeps its notes in (this could make Mediarium remove an unrelated torrent from your own client).
+- A saved indexer key that can't be read (usually after copying only `app.db` to a new install) now only switches off that indexer, and Health names it, instead of silently stopping every automatic search and saying "No indexer is set up".
+- At start, Mediarium now says plainly when `secret.key` does not belong to the database.
+- Saving settings with one wrong value now saves nothing, instead of keeping the values that came before it.
+- Before an update changes the database, a copy of it is saved next to it as `pre-migration-<number>-<date>-<time>.db` (the newest two are kept), so restoring an older backup never replaces the copy from the real update.
+- An older version started on a database that a newer version already changed now warns about it in the log and on Health.
+- Half-written backups and locked cloud copies left behind when the container was stopped are cleaned up at the next start.
+- The temporary copy of the database made for a backup is no longer readable by other users on the machine.
+- Recycle bin folders left by a removal that was cut short now show up in the list and are cleaned up after the usual days instead of using disk space for ever.
+- Several people opening the dashboard right after a restart no longer start several library scans at once.
+- Databases on storage that can't use the faster journal now sync fully, which protects them better against a power cut.
+- The Docker start script now says when `/config` can't be written and rejects a `PUID` or `PGID` that isn't a number.
+- The example compose files now keep Docker's log file for Mediarium to three files of 10 MB.
+- Importing a library whose folders are named in Japanese, Chinese, Russian, Greek or another non-Latin script no longer lumps every title of one year into a single entry, so none of your films or episodes are dropped.
+- Cleanup no longer removes a movie as "never watched" unless one of your Plex, Jellyfin or Emby servers actually lists it, and a server that answers with no libraries (for example Plex before its drive is mounted) is no longer taken as nobody having watched anything.
+- The Statistics page loads quickly on a big library, and the statistics snapshot no longer reads every file again each time.
+- A Plex watchlist of an account that was turned off (or is read-only) no longer adds titles.
+- One person searching the music database in a burst can no longer hold up everyone else's music lookups.
+- The Subtitles wanted page is much quicker on a big library.
+- Episodes that TMDB removes or renumbers no longer stay behind as missing; episodes you already have are never removed.
+- Other people's accounts see a file's name instead of its full folder path on movies, episodes and music.
+- The calendar no longer lists every old movie release, and the Backdrops pictures are fetched for the nearest dates first.
+- Subtitles from add-ons in Chinese, Japanese, Korean and Thai are converted to UTF-8 correctly instead of showing garbled text.
+- A subtitle add-on can no longer make Mediarium read files from other machines on your home network.
+- An add-on on the same address as Mediarium can no longer be shown inside a frame; it opens in a new tab.
+- Music and book folders that are links to other folders are now scanned, and one unreadable music folder no longer stops the whole scan.
+- Notifications go to all your targets at the same time, a service that says "slow down" gets the message again a moment later, and messages held back during quiet hours go out one by one.
+- "Remove these now" in the cleanup rules removes exactly the titles shown in the preview.
+- A bad TMDB key no longer produces one failed request and one log line for every show on each refresh.
+- Looking up which movie or show owns a file is faster on big libraries.
+- Book release matching and Kavita/Audiobookshelf lookups now work for titles in non-Latin scripts.
+- sign-in limits could be passed by sending many guesses at once; now the five tries per address and 25 per account count however fast they arrive.
+- on a new Docker install, anyone reaching the sign-up page through Docker's port forwarding could skip the setup code by sending a made-up address; the code is now always asked for on those visits (a visit from the same computer too). It is in the log: `docker logs mediarium`.
+- if Mediarium could not read whether an account has two-step sign-in, a right password signed in without the code; it now refuses and asks to try again.
+- turning an account off now also stops its Plex watchlist from adding titles and stops request messages going to it.
+- people who are not administrators no longer see folder paths on the server in the Activity page and in a title's history, only file names.
+- a flood of single sign-on or passkey sign-in starts can no longer lock real sign-ins out.
+- typing a name like `code:1` as a user name can no longer lock another account's two-step or password check.
+- Accounts that are not administrators no longer see the folder and tag controls on a title's page unless they may manage the library, and the "Download from" default now shows the right choice for them.
+- Typing a tag that starts with an existing tag (for example "Kids movies" when "Kids" exists) no longer adds the shorter tag half way through.
+- On phones and tablets the closed menu can no longer be reached with the Tab key or a screen reader, and the open menu closes with Escape and keeps the keyboard inside it.
+- The Copy buttons for the two-step recovery codes and the share dialog now work when Mediarium is opened over plain http.
+- The "site definitions" link in the indexer picker opens the community list instead of a not-found page.
+- Years and port numbers no longer show a thousands separator (2,020 or 52,100).
+- Playing music no longer slows down artist and album pages with many tracks.
+- Tab, filter and view buttons now tell screen readers which one is chosen.
+- The search box's arrow keys follow the order the results are shown in, and screen readers hear the highlighted result.
+- A refresh of the file list no longer stops a video that is playing if the refresh fails once.
+- The migration page keeps updating after one slow answer.
+- Search for all missing albums on an artist asks first for long lists and carries on if one search fails.
+- The Activity page no longer fetches the history and blocklist every 3 seconds while you are on another tab.
+- Activity messages, download errors and blocklist reasons are translated in every case.
+- Messages pop-ups stay while you point at them.
+- Opening a shared Activity link to a tab you cannot see now shows the queue.
+- The red line under a form's button ("A field above needs fixing before you can ...") is now a proper sentence in every language, instead of a broken one in Italian, Dutch, Russian, Ukrainian, Polish and Portuguese (Portugal).
+- The dashboard's "Needs your attention" messages (missing TMDB key, no indexer, folder problems and so on) are shown in your language once translated.
+- The "Edit profile" form under Settings > Quality is no longer right-aligned.
+- The version badge in the sidebar no longer hides the last menu items on a short screen.
+- "What's new" opens at the top on a phone, even after skipping several versions.
+- The memory line in the dashboard's server card wraps instead of being cut off on a phone.
+- Activity now says it cannot reach the server, with a Try again button, instead of showing zeros and "Nothing is downloading".
+- The "slow to answer" message no longer shows twice at the same time.
+- Several settings fields now have a name for screen readers.
+- The music playlists page and the bookshelf no longer ask the server while music or books are switched off.
+- Typing wrong passwords to confirm a change (turning off two-step sign-in, adding a passkey, linking single sign-on) no longer stops the administrator from signing in from the same address.
+- Choosing keep or replace on a download that has already gone from the list now says so instead of showing a server error.
+- A connection that starts sending a request and then goes silent is now closed after a minute instead of being held open; backup, cover and NZB uploads still get up to half an hour.
+- with a proxy on a port from 40700 to 40799, connection problems were always reported as a wrong user name or password; the real reason is shown now.
+- Connecting to a VPN server whose address is IPv6 from a Docker container without IPv6 now says so straight away and what to do about it, and a server name that has both IPv4 and IPv6 addresses uses IPv4 (and tries IPv6 if IPv4 doesn't answer) instead of hanging.
+- The release list and other wide tables no longer squeeze short columns so that "Age" breaks into two lines or sizes like "12.1 GB" wrap. The release name takes the remaining room, and the table scrolls inside its own box only when the window is really too narrow (reported by SanketBaraiya on GitHub, #74).
+- Folder names no longer overlap the free-space text in the Folders list of the Dashboard's server card (reported by SanketBaraiya on GitHub, #74).
+- The Dashboard's Connected folders now lists only the media types that are switched on, with one line naming the ones that are off.
+- Scrollbars now match the app's look, the sidebar menu scrolls above the version badge so it never covers an entry, and long page names in the top bar end in an ellipsis instead of running under the search box.
+- Password-protected RAR downloads now open with the password from the NZB or the `{{password}}` after the release name. Before, every encrypted RAR was refused, even with the right password. A wrong password now says so instead of just "password protected".
+- When an indexer answers a download link with a sign-in or maintenance page, Mediarium no longer grabs that release again on every automatic search. It leaves the release alone on that indexer for six hours, the Activity row says so, and you get the "failed" notification once instead of every time.
+- With "If a file already exists" set to keep the existing file (or Skip in Activity), the download now ends as "Kept the file you already have." instead of Failed, and no "Download failed" notification is sent.
+- Downloads waiting because the disk is nearly full now say so on their Activity row.
+- The disk-full message during a download no longer starts with a technical article id.
+- Testing a news server with a self-signed SSL certificate now explains the problem in plain words.
+- "Blocklist & search again" keeps the reason the release was bad and adds that you blocklisted it, instead of replacing the reason.
+- A download interrupted by a restart, and one you resume, now leave a line in the title's history.
+- The harmless "database is closed" warning when Mediarium stops during a download is gone.
+- Logs and errors files an indexer's sign-in or maintenance page as its own problem with matching advice, instead of "A download failed".
+- The "file already exists" help and its link now point to Settings > Library > File names and importing, where the setting is.
+- The API reference now lists the routes for adding movies, shows, books and artists, following authors and book series, and Retry.
+- The API key box in the add-indexer form has its own label for screen readers.
+- Big TV libraries: the Dashboard no longer takes seconds or fails with "Mediarium is busy right now", and its database queries stop when a request gives up.
+- Big TV libraries: Wanted and Activity load the wanted list a page at a time, one line per show, instead of every missing episode at once (93 MB in one report). Scripts that call `GET /api/wanted` without paging get the same full list as before.
+- Big TV libraries: the Library reads only the tab you have open, and the TV list answers quickly when you open it again.
+- Look for missing episodes on a big TV import no longer blocks other saves for half a minute.
+- A problem that happens while the database is busy is saved a few seconds later instead of being lost.
+- Music import: a damaged or zero-filled audio file no longer stalls the scan for hours. Its tags are given up on after a few seconds, it's matched by its name, and the album says so. You can stop a scan, and it shows again when you come back to the page.
+- Library import: Check match rows now start on the film with the folder's year (and the film's original title counts), and adult titles never come first.
+- Library import: daily shows named by air date (`Show - 2024-01-15 - Guest.mkv`) are no longer skipped. Each file goes on the episode that aired that day, in the TV import and in Change folder.
+- Books import: importing audiobooks no longer clears the ebook import's list, so Find it myself stays available for the ebooks that weren't found (and the other way round).
+- Books import: `Author - 1984.epub` and titles with accents or apostrophes such as `L'Étranger` are found on Open Library, and Find it myself has separate title and author boxes and lists that author's books first.
+- Translations: the import report's notes, the Change folder message, the area names and problem texts in Settings > Logs, and the dashboard's folder cards (folder names, counts, file sizes) now follow the chosen language.
+- Library import: the TV report no longer counts shows that were already in your library as added.
+- Library import: two folders of the same film in one import are reported as the same film with the copy that's in use, a second copy next to it is named, and a release by a group called OTHER is no longer dropped as an extra.
+- Import banners no longer stack up after several imports: only the newest finished one of each kind shows.
+- Locate the file and Look in a different folder read the new file's quality instead of keeping the old one's.
+- The Monitored switch, the dashboard greeting and the Rescan message no longer contradict what's on screen for titles that aren't monitored or have things to fix.
+- After an update, What's new now opens first and the question about anonymous usage numbers waits until it is closed, instead of both opening on top of each other.
+- After restoring a backup from Settings, the sign-in page now says the backup was restored.
+- Members and viewers no longer get "not allowed" errors in the browser console from the dashboard asking for settings and server numbers only administrators can see.
+- A notification that can't be delivered is now logged as a warning that names the notification and its type.
+- If secret.key is missing, the start-up message now names the folder Mediarium is actually using instead of always saying /config.
+
+## [3.1.2] - 2026-10-16
+
+### Added
+- **Daily limits for indexers** (reported by anguyen1776 on GitHub, #61): Mediarium now learns an indexer's daily limit from its "Request limit reached" answer, stops automatic searches two requests before it, shows "12 of 25 requests today" on the indexer's card and uses the indexer again after midnight (UTC). A search you start yourself still asks the indexer and warns you. A new optional **Requests per day** setting on each indexer (also `requestsPerDay` in the settings file) is there for a limit you know.
+
+### Fixed
+- Free indexers with a daily request cap (such as Drunken Slug and Althub) are no longer used up by Mediarium's own connection checks: the check no longer runs a search, skips an indexer that has just answered a real search, and asks at most every 6 hours (reported by anguyen1776 on GitHub, #61).
+
+## [3.1.1] - 2026-10-16
+
+### Added
+- **More subtitle languages** (asked for by nexus4004 on GitHub, through the website idea form): Croatian, Serbian, Bosnian, Slovenian, Slovak, Bulgarian, Ukrainian, Catalan, Indonesian, Thai, Vietnamese and Hindi. A Serbian subtitle is read correctly whether it is written in Latin or Cyrillic letters. You can also choose Croatian, Serbian, Bosnian, Slovenian or Bulgarian as an audio language, and releases tagged for them are recognised.
+- **Rescan files on a movie that has no file** (asked for by nexus4004 on GitHub, through the website idea form): if you put the video in the movie's folder yourself, Rescan files finds it and adds it, and tells you which file it found or which folder it looked in.
+- **Library in the left menu** (asked for by nexus4004 on GitHub, through the website idea form): Movies, TV shows, Music, Ebooks and Audiobooks are listed under Library, so you can open a tab directly. Only the kinds that are switched on are listed.
+- **Change cover for books** (asked for by varnakube on GitHub, #68): a book with no cover, or the wrong one, can get a cover of your own from its page. Upload a picture, paste a link, or pick the cover of another edition when Open Library has one. **Remove my cover** brings the automatic one back.
+- **Only take releases in these languages** (reported by mirisbowring on GitHub, #67): a new switch under Settings > Library > Quality > Audio language, off by default. With it on, releases with no language in the name, releases tagged English only, and MULTi or DUAL releases that don't name one of your languages are skipped, so someone who wants only German no longer gets an English release as a last choice.
+- **Search under other titles** (asked for by mirisbowring on GitHub, #67): if you want audio in another language than English (German, Italian, French, Spanish and so on), Mediarium also searches your indexers under the title's other names from TMDB, such as "Der Herr der Ringe", and recognises a release named by one of them. The release list says which title it was found under. Nothing changes when English is the only language you want.
+- **Folder for its files** (asked for by nexus4004 on GitHub, #71): a movie's and a show's page now show the full folder where its files are, or will go, with a Copy button, so you can find it to put files there by hand. Under Docker it is the path inside the container, and the hint says so.
+- **Locate the file / Change folder** (reported by dxtrlws on GitHub, #71): if you renamed or moved a movie's file, **Locate the file** on the movie page lets you pick it from your library folders. If you renamed a show's folder, **Change folder** on the show page reads the episodes in the new folder and tells you how many it found and how many are still missing. Nothing is moved, renamed or deleted.
+
+### Fixed
+- When Mediarium was slow to answer, a bar kept appearing and disappearing at the top and pushed the page down. It is now a small notice in the bottom right corner that only shows after the slowness has lasted a few seconds, stays while it lasts, and goes away by itself. (Reported by nexus4004 on GitHub, through the website idea form.)
+- **Anime numbered by TheTVDB seasons** (reported by SanketBaraiya on GitHub, #69): anime that Sonarr numbers by TheTVDB seasons (such as One Piece, `S23E10 - 1100`) is now imported from an existing library, from a Sonarr move and by hand. The file is placed by the episode number counted from the first episode in its name, and a file that can't be placed says why and what to do. Import the folder again to pick up files that were left out before.
+- If the encryption key file (secret.key) is missing but the database already has saved passwords or keys, Mediarium now stops with a clear message telling you to put your old secret.key back, instead of writing a new key that cannot open anything. A saved TMDB, OpenSubtitles or Trakt key it cannot read no longer stops the app from starting.
+- Book covers under "Other editions" now show up when Mediarium is served under a sub-path (URL_BASE).
+- The calendar's backdrops and the other-language titles no longer get stuck behind titles that TMDB has removed or keeps failing on.
+- Stopping or restarting Mediarium now stops downloads and the built-in torrent client cleanly and never waits longer than a few seconds on background jobs, so downloads that were running come back as interrupted rather than failed.
+- If saving the first-run legal acknowledgement failed right after creating the admin account, setup now carries on instead of getting stuck on "An admin account already exists".
+- After closing a confirmation or notice dialog, keyboard focus goes back to the button that opened it.
+- Restore errors on the Backup page are now translated.
+- An APP_PORT that is not a valid port is now reported in the log, and `app config` finds the port from APP_PORT_FILE. URL_BASE can no longer start with help, apps, opds or kobo.
+- In the release list, the "Matched on the title" line wraps on narrow screens, and the age tooltip uses the app language. Screen readers announce error messages as alerts, and each other-edition cover button has its own label.
+- Two manual book matches of the same file at the same moment no longer leave the book pointing at a file that is not there, and Rescan files on a movie only takes a folder whose year fits the movie.
+- Fixed the YTS site failing its Test with a message about "movies-api.accel.li": public sites where you have entered no login, cookie or key can now search on another public address, while sites with a login or key still only talk to their own addresses (reported by SanketBaraiya on GitHub, #73).
+
 ## [3.1.0] - 2026-10-14
 
 ### Added

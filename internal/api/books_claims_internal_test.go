@@ -7,13 +7,12 @@ import (
 
 	"github.com/rdborg/mediarium/internal/books"
 	"github.com/rdborg/mediarium/internal/queue"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 // A book download that will not finish hands the book back: missing, or
 // downloaded when its file is still there.
 func TestBookClaimIsReleased(t *testing.T) {
-	db, err := store.Open(filepath.Join(t.TempDir(), "app.db"))
+	db, err := OpenTestDB(filepath.Join(t.TempDir(), "app.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

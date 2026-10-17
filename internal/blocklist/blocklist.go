@@ -53,6 +53,20 @@ func (r *Repo) Add(e Entry) error {
 	return nil
 }
 
+// Reason returns the reason a release is blocklisted for, and false when it
+// is not on the blocklist.
+func (r *Repo) Reason(releaseTitle string) (string, bool, error) {
+	var reason string
+	err := r.db.QueryRow(`SELECT reason FROM blocklist WHERE title_key = ?`, Key(releaseTitle)).Scan(&reason)
+	if err == sql.ErrNoRows {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("look up blocklist reason of %q: %w", releaseTitle, err)
+	}
+	return reason, true, nil
+}
+
 // Keys returns the set of blocklisted title keys, for filtering search
 // results.
 func (r *Repo) Keys() (map[string]bool, error) {

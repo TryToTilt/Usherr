@@ -34,6 +34,10 @@ func CodeFor(err error, fallback string) string {
 		return CodeFolderPermission
 	case errors.Is(err, syscall.ENOSPC), hasAny(msg, "no space left", "not enough free disk space", "not enough space", "disk full", "disk quota exceeded"):
 		return CodeDiskFull
+	case hasAny(msg, "sent a web page instead of the nzb file", "didn't send an nzb file", "refused to send the nzb file"):
+		// The link answered, but with a sign-in or maintenance page or an
+		// error instead of the file: the indexer's doing, not the release's.
+		return CodeIndexerNotNZB
 	case hasAny(msg, "couldn't get the nzb file", "couldn't get the torrent"):
 		// The file comes from the indexer, not from the Usenet provider,
 		// so a network failure here is the indexer's problem.

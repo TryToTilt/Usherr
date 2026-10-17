@@ -1,5 +1,5 @@
 // Home fork: schedules. Named schedules are made on Settings > Schedules and
-// picked by each task; the Scenes page sets its own tasks with the same names.
+// picked by each task; the NSFW page sets its own tasks with the same names.
 import { locale, t } from '../i18n'
 
 export interface SchedRange {
@@ -58,8 +58,8 @@ export const schedulesApi = {
   get: () => call<SchedulesView>('GET', '/home/schedules'),
   save: (body: { schedules?: Schedule[]; tasks?: Record<string, TaskRule | null> }) => call<SchedulesView>('PUT', '/home/schedules', body),
   quiet: (body: { minutes?: number; untilMorning?: boolean; when?: 'now' | 'finish' }) => call<SchedulesView>('POST', '/home/quiet', body),
-  scenes: () => call<SchedulesView>('GET', '/scenes/schedule'),
-  saveScenes: (tasks: Record<string, TaskRule | null>) => call<SchedulesView>('PUT', '/scenes/schedule', { tasks }),
+  nsfw: () => call<SchedulesView>('GET', '/nsfw/schedule'),
+  saveNsfw: (tasks: Record<string, TaskRule | null>) => call<SchedulesView>('PUT', '/nsfw/schedule', { tasks }),
 }
 
 // Short day names in the reader's language, Sunday first (7 Jan 2024 was a Sunday).

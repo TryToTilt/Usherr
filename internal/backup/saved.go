@@ -110,6 +110,8 @@ func Prune(configDir string, keep int) (int, error) {
 	if keep < 1 {
 		keep = 1
 	}
+	// A backup still being written is hours younger than this at most.
+	removeStaleSaving(filepath.Join(configDir, SavedDir), 6*time.Hour)
 	list, err := ListSaved(configDir)
 	if err != nil {
 		return 0, err

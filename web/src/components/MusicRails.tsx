@@ -69,7 +69,7 @@ export function MusicFilters({ type, onType, genre, onGenre, genres }: { type: M
     <>
       <div className="seg" role="group" aria-label={t('Kind of release')}>
         {TYPES.map((t) => (
-          <button key={t.value} className={type === t.value ? 'active' : ''} onClick={() => onType(t.value)}>
+          <button key={t.value} aria-pressed={type === t.value} className={type === t.value ? 'active' : ''} onClick={() => onType(t.value)}>
             {t.label}
           </button>
         ))}

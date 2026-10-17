@@ -2,13 +2,13 @@ package api
 
 import "testing"
 
-func TestSceneSilent(t *testing.T) {
+func TestVideoSilent(t *testing.T) {
 	for link, want := range map[string]bool{
-		"/scenes": true, "/scenes/12": true, "/scenes?tab=find": true,
-		"/series/4": false, "/title/9": false, "/comics/3": false, "": false, "/scenesque": false,
+		"/nsfw": true, "/nsfw/12": true, "/nsfw?tab=find": true,
+		"/series/4": false, "/title/9": false, "/comics/3": false, "": false, "/nsfwque": false,
 	} {
-		if got := sceneSilent(link); got != want {
-			t.Errorf("sceneSilent(%q) = %v, want %v", link, got, want)
+		if got := videoSilent(link); got != want {
+			t.Errorf("videoSilent(%q) = %v, want %v", link, got, want)
 		}
 	}
 }

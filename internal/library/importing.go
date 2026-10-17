@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -27,6 +28,9 @@ const (
 	ImportAdded   = "added"
 	ImportAlready = "already"
 	ImportFailed  = "failed"
+	// ImportDuplicate is a second copy of a film another folder of the same
+	// import was used for. Nothing is added for it.
+	ImportDuplicate = "duplicate"
 )
 
 // ImportFile is an episode file found on disk for a show.
@@ -35,6 +39,14 @@ type ImportFile struct {
 	Quality  string `json:"quality"`
 	Season   int    `json:"season"`
 	Episodes []int  `json:"episodes"`
+	// Absolute is the number counted from the show's first episode that the
+	// file name carries, when it does (see libimport.File).
+	Absolute []int `json:"absolute,omitempty"`
+	// AirDate is the day a daily show's episode aired ("2024-01-15") for a
+	// file named that way, and DailyPart the N of "Part N" after it. Such a
+	// file has no season or episode until PlaceByAirDate gives it one.
+	AirDate   string `json:"airDate,omitempty"`
+	DailyPart int    `json:"dailyPart,omitempty"`
 }
 
 // ImportEntry is one title the person confirmed.
@@ -48,6 +60,13 @@ type ImportEntry struct {
 	FilePath   string       // movies: the main file
 	Files      []ImportFile // shows: the episode files found on disk
 	AddedAt    time.Time    // zero means now
+	// DuplicateOf is, for a movie, the file of another entry of the same
+	// import that is the same film and is the copy used; this one is then
+	// only reported.
+	DuplicateOf string
+	// OtherFiles are a movie's other video files that were found with it but
+	// not used (a second copy in the same group), to be named in the report.
+	OtherFiles []string
 }
 
 // ImportOptions are the choices made for a whole import.
@@ -101,6 +120,9 @@ type ImportBatch struct {
 	Failed         int // titles that could not be added at all
 	Pending        int // added titles still waiting for their details
 	Problems       int // failed titles plus added titles whose details failed
+	// Existing counts the shows among Added that were in the library before
+	// the import: they get the episodes found on disk, but weren't added.
+	Existing int
 	// Elapsed is how long the import has run (or ran), by the server's clock,
 	// so an estimate of the time left does not depend on the browser's clock.
 	Elapsed time.Duration
@@ -195,6 +217,10 @@ func registerMovie(tx *sql.Tx, batchID int64, opts ImportOptions, e ImportEntry,
 		return ImportOutcome{}, fmt.Errorf("look up movie: %w", err)
 	}
 	known := err == nil
+	if e.DuplicateOf != "" {
+		note := fmt.Sprintf("Same film as another folder in this import. The copy in use is %s.", e.DuplicateOf)
+		return recordImportItem(tx, batchID, e, 0, ImportDuplicate, ImportDone, note, nil, false)
+	}
 	if known && Status(status) == StatusDownloaded {
 		return recordImportItem(tx, batchID, e, id, ImportAlready, ImportDone, "Already in your library.", nil, false)
 	}
@@ -223,7 +249,28 @@ func registerMovie(tx *sql.Tx, batchID int64, opts ImportOptions, e ImportEntry,
 		id, fmt.Sprintf("%s: registered existing file %s", e.Title, e.FilePath)); err != nil {
 		return ImportOutcome{}, fmt.Errorf("log import: %w", err)
 	}
-	return recordImportItem(tx, batchID, e, id, ImportAdded, state, "", nil, !known)
+	// A movie's files are its other copies, kept to be named in the report.
+	var others []ImportFile
+	for _, p := range e.OtherFiles {
+		others = append(others, ImportFile{Path: p})
+	}
+	return recordImportItem(tx, batchID, e, id, ImportAdded, state, otherFilesNote(others), others, !known)
+}
+
+// otherFilesNote names the copies of a movie that were found with it and
+// left where they are.
+func otherFilesNote(others []ImportFile) string {
+	files := make([]string, len(others))
+	for i, f := range others {
+		files[i] = f.Path
+	}
+	switch len(files) {
+	case 0:
+		return ""
+	case 1:
+		return fmt.Sprintf("Found another copy and left it where it is, unused: %s.", files[0])
+	}
+	return fmt.Sprintf("Found %d other copies and left them where they are, unused: %s.", len(files), strings.Join(files, ", "))
 }
 
 func registerSeries(tx *sql.Tx, batchID int64, opts ImportOptions, e ImportEntry, now time.Time) (ImportOutcome, error) {
@@ -290,13 +337,14 @@ const importBatchSelect = `
 	       COALESCE(SUM(i.outcome = 'already'), 0),
 	       COALESCE(SUM(i.outcome = 'failed'), 0),
 	       COALESCE(SUM(i.outcome = 'added' AND i.state = 'pending'), 0),
-	       COALESCE(SUM(i.outcome = 'failed' OR (i.outcome = 'added' AND i.state = 'problem')), 0)
+	       COALESCE(SUM(i.outcome = 'failed' OR (i.outcome = 'added' AND i.state = 'problem')), 0),
+	       COALESCE(SUM(i.outcome = 'added' AND i.kind = 'series' AND i.created = 0), 0)
 	FROM import_batches b LEFT JOIN import_items i ON i.batch_id = b.id`
 
 func scanBatch(scan func(dest ...any) error) (ImportBatch, error) {
 	var b ImportBatch
 	if err := scan(&b.ID, &b.Kind, &b.Root, &b.CreatedAt, &b.FinishedAt, &b.Dismissed, &b.Monitor, &b.NoUpgrade, &b.MonitorMissing,
-		&b.Added, &b.Already, &b.Failed, &b.Pending, &b.Problems); err != nil {
+		&b.Added, &b.Already, &b.Failed, &b.Pending, &b.Problems, &b.Existing); err != nil {
 		return ImportBatch{}, fmt.Errorf("scan import batch: %w", err)
 	}
 	end := time.Now()
@@ -371,23 +419,13 @@ type ImportWatchResult struct {
 // report and banner say what is switched on now.
 func (r *Repo) StartWatchingImport(batchID int64, watch, missing bool) (ImportWatchResult, error) {
 	var out ImportWatchResult
-	tx, err := r.db.Begin()
-	if err != nil {
-		return out, fmt.Errorf("begin start watching: %w", err)
-	}
-	defer tx.Rollback()
-
-	rows, err := tx.Query(`SELECT kind, item_id FROM import_items WHERE batch_id = ? AND outcome = 'added' AND created = 1 AND item_id > 0`, batchID)
+	rows, err := r.db.Query(`SELECT kind, item_id FROM import_items WHERE batch_id = ? AND outcome = 'added' AND created = 1 AND item_id > 0`, batchID)
 	if err != nil {
 		return out, fmt.Errorf("list imported titles: %w", err)
 	}
-	type title struct {
-		kind string
-		id   int64
-	}
-	var titles []title
+	var titles []watchTitle
 	for rows.Next() {
-		var t title
+		var t watchTitle
 		if err := rows.Scan(&t.kind, &t.id); err != nil {
 			rows.Close()
 			return out, fmt.Errorf("scan imported title: %w", err)
@@ -400,7 +438,67 @@ func (r *Repo) StartWatchingImport(batchID int64, watch, missing bool) (ImportWa
 	}
 	rows.Close()
 
+	// A big TV import touches hundreds of thousands of episodes. Done in one
+	// transaction, that held the write lock for half a minute and the other
+	// writes in the app failed meanwhile, so the titles are changed a group at
+	// a time, each group in its own short transaction. Every step only
+	// switches monitoring on, so pressing the button again after a failure
+	// finishes the job.
 	today := time.Now().UTC().Format("2006-01-02")
+	for start := 0; start < len(titles); start += watchGroup {
+		res, err := r.watchTitles(titles[start:min(start+watchGroup, len(titles))], watch, missing, today)
+		if err != nil {
+			return out, err
+		}
+		out.Movies += res.Movies
+		out.Shows += res.Shows
+		if afterWatchGroup != nil {
+			afterWatchGroup()
+		}
+	}
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return out, fmt.Errorf("begin start watching: %w", err)
+	}
+	defer tx.Rollback()
+	if watch {
+		if _, err := tx.Exec(`UPDATE import_batches SET monitor = 1, no_upgrade = 0 WHERE id = ?`, batchID); err != nil {
+			return out, fmt.Errorf("record watch on import %d: %w", batchID, err)
+		}
+	}
+	if missing {
+		if _, err := tx.Exec(`UPDATE import_batches SET monitor_missing = 1 WHERE id = ?`, batchID); err != nil {
+			return out, fmt.Errorf("record missing episodes on import %d: %w", batchID, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return out, fmt.Errorf("commit start watching: %w", err)
+	}
+	return out, nil
+}
+
+type watchTitle struct {
+	kind string
+	id   int64
+}
+
+// watchGroup is how many titles StartWatchingImport changes in one
+// transaction: a show with a long run is a few thousand episodes, so one
+// group keeps the write lock for well under a second.
+const watchGroup = 20
+
+// afterWatchGroup, when set, runs after each group is saved (tests).
+var afterWatchGroup func()
+
+// watchTitles switches monitoring on for one group of imported titles.
+func (r *Repo) watchTitles(titles []watchTitle, watch, missing bool, today string) (ImportWatchResult, error) {
+	var out ImportWatchResult
+	tx, err := r.db.Begin()
+	if err != nil {
+		return out, fmt.Errorf("begin start watching: %w", err)
+	}
+	defer tx.Rollback()
 	for _, t := range titles {
 		if t.kind == "movie" {
 			if !watch {
@@ -422,7 +520,7 @@ func (r *Repo) StartWatchingImport(batchID int64, watch, missing bool) (ImportWa
 				return out, fmt.Errorf("watch show %d: %w", t.id, err)
 			}
 			changed, _ = res.RowsAffected()
-			if _, err := tx.Exec(`UPDATE episodes SET monitored = 1 WHERE series_id = ? AND season > 0 AND (status = 'downloaded' OR COALESCE(air_date, '') = '' OR air_date > ?)`, t.id, today); err != nil {
+			if _, err := tx.Exec(`UPDATE episodes SET monitored = 1 WHERE series_id = ? AND season > 0 AND monitored = 0 AND (status = 'downloaded' OR COALESCE(air_date, '') = '' OR air_date > ?)`, t.id, today); err != nil {
 				return out, fmt.Errorf("watch episodes of show %d: %w", t.id, err)
 			}
 		}
@@ -434,23 +532,12 @@ func (r *Repo) StartWatchingImport(batchID int64, watch, missing bool) (ImportWa
 			if n, _ := res.RowsAffected(); n > changed {
 				changed = n
 			}
-			if _, err := tx.Exec(`UPDATE episodes SET monitored = 1 WHERE series_id = ? AND season > 0 AND status != 'downloaded'`, t.id); err != nil {
+			if _, err := tx.Exec(`UPDATE episodes SET monitored = 1 WHERE series_id = ? AND season > 0 AND status != 'downloaded' AND monitored = 0`, t.id); err != nil {
 				return out, fmt.Errorf("want missing episodes of show %d: %w", t.id, err)
 			}
 		}
 		if changed > 0 {
 			out.Shows++
-		}
-	}
-
-	if watch {
-		if _, err := tx.Exec(`UPDATE import_batches SET monitor = 1, no_upgrade = 0 WHERE id = ?`, batchID); err != nil {
-			return out, fmt.Errorf("record watch on import %d: %w", batchID, err)
-		}
-	}
-	if missing {
-		if _, err := tx.Exec(`UPDATE import_batches SET monitor_missing = 1 WHERE id = ?`, batchID); err != nil {
-			return out, fmt.Errorf("record missing episodes on import %d: %w", batchID, err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -551,7 +638,7 @@ func (r *Repo) CompleteMovieImport(item ImportItem, d MovieDetails) error {
 	if err != nil {
 		return fmt.Errorf("store movie details: %w", err)
 	}
-	note := ""
+	note := otherFilesNote(item.Files)
 	if n, _ := res.RowsAffected(); n == 0 {
 		note = "This title was removed from your library."
 	}
@@ -583,6 +670,14 @@ type SeriesDetails struct {
 	PosterPath   string
 	FirstAirDate string
 	Genres       []string
+	// GuessedType is the type the movie database's details suggest
+	// (SeriesAnime for Japanese animation). A show this import adds starts
+	// with it.
+	GuessedType string
+	// SceneMap says which episode of the show a season and episode of another
+	// numbering (TheTVDB's, as anime releases use it) stands for. Nil when
+	// nothing is known about the show's other numberings.
+	SceneMap func(season, episode int) (int, int, bool)
 }
 
 // SeriesImportResult counts what a show's import did with its files.
@@ -590,6 +685,96 @@ type SeriesImportResult struct {
 	Imported int // episodes marked downloaded
 	Skipped  int // episodes that already were
 	Unknown  int // episodes on disk that the movie database does not list
+	Remapped int // episodes found through their absolute number or the show's other numbering
+}
+
+// ImportPlacer returns a function that says which episodes of a show a file
+// is, by the rules of resolveImportFile: as named when the show lists them,
+// and for an anime also by the absolute number in the name or the show's
+// other numbering. ok is false when no rule names them for certain.
+func ImportPlacer(episodes []Episode, anime bool, scene func(season, episode int) (int, int, bool)) func(ImportFile) (season int, eps []int, ok bool) {
+	listed := map[[2]int]bool{}
+	for _, e := range episodes {
+		listed[[2]int{e.Season, e.Episode}] = true
+	}
+	order := AbsoluteOrder(episodes)
+	has := func(season, episode int) bool { return listed[[2]int{season, episode}] }
+	var byDate map[string][]Episode
+	return func(f ImportFile) (int, []int, bool) {
+		if f.AirDate != "" && len(f.Episodes) == 0 {
+			if byDate == nil {
+				byDate = episodesByDate(episodes)
+			}
+			e, ok := episodeOnDate(byDate, f.AirDate, f.DailyPart)
+			if !ok {
+				return 0, nil, false
+			}
+			return e.Season, []int{e.Episode}, true
+		}
+		t, ok, _ := resolveImportFile(f, has, order, anime, scene)
+		return t.season, t.episodes, ok
+	}
+}
+
+// importTarget is where one file's episodes sit in the show's own episode list.
+type importTarget struct {
+	season   int
+	episodes []int
+}
+
+// resolveImportFile says which episodes of the show a file is. A file whose
+// season and episode the show lists is taken as named. A file of an anime
+// whose season and episode the show does not list (TheTVDB counts One Piece
+// in 23 seasons, the movie database in one) is looked up by the number counted
+// from the first episode that its name carries, against the show's episode
+// order, or else through the show's other numbering. Nothing is guessed:
+// an episode that no rule names for certain stays unresolved.
+func resolveImportFile(f ImportFile, has func(season, episode int) bool, order []Episode, anime bool, scene func(season, episode int) (int, int, bool)) (importTarget, bool, bool) {
+	listed := false
+	for _, n := range f.Episodes {
+		listed = listed || has(f.Season, n)
+	}
+	if listed {
+		return importTarget{f.Season, f.Episodes}, true, false
+	}
+	if !anime || f.Season < 0 || (f.Season == 0 && len(f.Episodes) > 0) {
+		return importTarget{}, false, false
+	}
+	if len(f.Absolute) > 0 {
+		t := importTarget{}
+		for _, n := range f.Absolute {
+			if n < 1 || n > len(order) {
+				t = importTarget{}
+				break
+			}
+			e := order[n-1]
+			if t.season != 0 && e.Season != t.season {
+				t = importTarget{}
+				break
+			}
+			t.season = e.Season
+			t.episodes = append(t.episodes, e.Episode)
+		}
+		if t.season > 0 && len(t.episodes) > 0 {
+			return t, true, true
+		}
+	}
+	if scene != nil && f.Season > 0 {
+		t := importTarget{}
+		for _, n := range f.Episodes {
+			s, e, ok := scene(f.Season, n)
+			if !ok || !has(s, e) || (t.season != 0 && s != t.season) {
+				t = importTarget{}
+				break
+			}
+			t.season = s
+			t.episodes = append(t.episodes, e)
+		}
+		if t.season > 0 && len(t.episodes) > 0 {
+			return t, true, true
+		}
+	}
+	return importTarget{}, false, false
 }
 
 // CompleteSeriesImport stores a show's details and full episode list and
@@ -611,10 +796,10 @@ func (r *Repo) CompleteSeriesImport(item ImportItem, d SeriesDetails, episodes [
 	// details are stored, which clear the show's "pending" mark.
 	var (
 		monitored, wantMissing, watch bool
-		state                         string
+		state, seriesType             string
 	)
-	err = tx.QueryRow(`SELECT s.monitored, s.details_state, b.monitor_missing, b.monitor FROM series s, import_batches b WHERE s.id = ? AND b.id = ?`,
-		item.TitleID, item.BatchID).Scan(&monitored, &state, &wantMissing, &watch)
+	err = tx.QueryRow(`SELECT s.monitored, s.details_state, b.monitor_missing, b.monitor, s.series_type FROM series s, import_batches b WHERE s.id = ? AND b.id = ?`,
+		item.TitleID, item.BatchID).Scan(&monitored, &state, &wantMissing, &watch, &seriesType)
 	if errors.Is(err, sql.ErrNoRows) {
 		if err := markItemDone(tx, item, "This title was removed from your library.", 0, 0); err != nil {
 			return out, err
@@ -635,6 +820,14 @@ func (r *Repo) CompleteSeriesImport(item ImportItem, d SeriesDetails, episodes [
 	}
 
 	newShow := state != ""
+	// A show this import adds is an anime when the movie database says so, so
+	// that files named by their number from the first episode can be placed.
+	if newShow && seriesType != SeriesAnime && d.GuessedType == SeriesAnime {
+		if _, err := tx.Exec(`UPDATE series SET series_type = ? WHERE id = ? OR copy_of = ?`, SeriesAnime, item.TitleID, item.TitleID); err != nil {
+			return out, fmt.Errorf("set show type: %w", err)
+		}
+		seriesType = SeriesAnime
+	}
 	monitorNew := monitored
 	if newShow {
 		monitorNew = wantMissing
@@ -681,12 +874,37 @@ func (r *Repo) CompleteSeriesImport(item ImportItem, d SeriesDetails, episodes [
 		return out, fmt.Errorf("prepare mark episode: %w", err)
 	}
 	defer mark.Close()
+	anime := seriesType == SeriesAnime
+	listed := make([]Episode, 0, len(byNumber))
+	for key := range byNumber {
+		listed = append(listed, Episode{Season: key[0], Episode: key[1]})
+	}
+	order := AbsoluteOrder(listed)
+	has := func(season, episode int) bool { _, ok := byNumber[[2]int{season, episode}]; return ok }
+	// What the files left out were numbered by, to tell the person what to do.
+	var leftByNumber, leftByAbsolute int
 	for _, f := range item.Files {
-		for _, n := range f.Episodes {
-			k, ok := byNumber[[2]int{f.Season, n}]
+		target, resolved, remapped := resolveImportFile(f, has, order, anime, d.SceneMap)
+		if !resolved {
+			left := len(f.Episodes)
+			if left == 0 {
+				left = len(f.Absolute)
+			}
+			out.Unknown += left // specials, or numbering that differs from the movie database
+			if f.Season > 0 || len(f.Absolute) > 0 {
+				if len(f.Absolute) > 0 {
+					leftByAbsolute += left
+				} else {
+					leftByNumber += left
+				}
+			}
+			continue
+		}
+		for _, n := range target.episodes {
+			k, ok := byNumber[[2]int{target.season, n}]
 			switch {
 			case !ok:
-				out.Unknown++ // specials, or numbering that differs from the movie database
+				out.Unknown++
 			case Status(k.status) == StatusDownloaded:
 				out.Skipped++
 			default:
@@ -694,16 +912,16 @@ func (r *Repo) CompleteSeriesImport(item ImportItem, d SeriesDetails, episodes [
 					return out, fmt.Errorf("mark episode downloaded: %w", err)
 				}
 				k.status = string(StatusDownloaded)
-				byNumber[[2]int{f.Season, n}] = k
+				byNumber[[2]int{target.season, n}] = k
 				out.Imported++
+				if remapped {
+					out.Remapped++
+				}
 			}
 		}
 	}
 
-	note := ""
-	if out.Unknown > 0 {
-		note = fmt.Sprintf("Left out %s that the movie database doesn't list for this show.", countOf(out.Unknown, "episode"))
-	}
+	note := leftOutNote(out.Unknown, leftByAbsolute > 0, leftByNumber > 0, anime)
 	if _, err := tx.Exec(`INSERT INTO activity (series_id, event_type, message) VALUES (?, 'imported', ?)`,
 		item.TitleID, fmt.Sprintf("%s: registered %s that were already on disk", d.Title, countOf(out.Imported, "episode"))); err != nil {
 		return out, fmt.Errorf("log import: %w", err)

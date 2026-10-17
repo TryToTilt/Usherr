@@ -18,7 +18,9 @@ import (
 type DBLibrary struct{ DB *sql.DB }
 
 func (l DBLibrary) Episodes(seriesID int64) ([]Item, error) {
-	rows, err := l.DB.Query(`SELECT e.id, s.title, e.season, e.episode, e.title, e.file_path
+	// Usherr: with the air date (premieres) and the age the show suits (family hours).
+	rows, err := l.DB.Query(`SELECT e.id, s.title, e.season, e.episode, e.title, e.file_path, COALESCE(e.air_date, ''),
+			COALESCE((SELECT age FROM home_family_ages fa WHERE fa.kind = 'tv' AND fa.tmdb_id = s.tmdb_id), 0), COALESCE(s.genres, '')
 		FROM episodes e JOIN series s ON s.id = e.series_id
 		WHERE e.series_id = ? AND e.season > 0 AND e.file_path <> ''
 		ORDER BY e.season, e.episode`, seriesID)
@@ -30,9 +32,9 @@ func (l DBLibrary) Episodes(seriesID int64) ([]Item, error) {
 	seen := map[string]bool{} // a multi-episode file plays once
 	for rows.Next() {
 		var id int64
-		var show, title, path string
-		var season, episode int
-		if err := rows.Scan(&id, &show, &season, &episode, &title, &path); err != nil {
+		var show, title, path, aired, genres string
+		var season, episode, age int
+		if err := rows.Scan(&id, &show, &season, &episode, &title, &path, &aired, &age, &genres); err != nil {
 			return nil, err
 		}
 		if seen[path] {
@@ -43,7 +45,7 @@ func (l DBLibrary) Episodes(seriesID int64) ([]Item, error) {
 		if strings.TrimSpace(title) != "" {
 			sub += " · " + title
 		}
-		out = append(out, Item{Kind: "episode", ID: id, SeriesID: seriesID, Title: show, Subtitle: sub, Path: path})
+		out = append(out, Item{Kind: "episode", ID: id, SeriesID: seriesID, Title: show, Subtitle: sub, Path: path, AirDate: aired, Age: ageOr(age, genres)})
 	}
 	return out, rows.Err()
 }
@@ -107,7 +109,9 @@ func (l DBLibrary) Movies(ids []int64, all bool, genres []string, decades []int)
 	if len(want) == 0 && !all {
 		return nil, nil
 	}
-	rows, err := l.DB.Query(`SELECT id, title, year, COALESCE(genres, ''), file_path FROM movies WHERE file_path <> '' ORDER BY title`)
+	rows, err := l.DB.Query(`SELECT id, title, year, COALESCE(genres, ''), file_path,
+			COALESCE((SELECT age FROM home_family_ages fa WHERE fa.kind = 'movie' AND fa.tmdb_id = movies.tmdb_id), 0)
+		FROM movies WHERE file_path <> '' ORDER BY title`)
 	if err != nil {
 		return nil, err
 	}
@@ -116,8 +120,8 @@ func (l DBLibrary) Movies(ids []int64, all bool, genres []string, decades []int)
 	for rows.Next() {
 		var id int64
 		var title, g, path string
-		var year int
-		if err := rows.Scan(&id, &title, &year, &g, &path); err != nil {
+		var year, age int
+		if err := rows.Scan(&id, &title, &year, &g, &path, &age); err != nil {
 			return nil, err
 		}
 		if want[id] || (all && matches(g, year, genres, decades)) {
@@ -125,7 +129,7 @@ func (l DBLibrary) Movies(ids []int64, all bool, genres []string, decades []int)
 			if year > 0 {
 				sub = strconv.Itoa(year)
 			}
-			out = append(out, Item{Kind: "movie", ID: id, Title: title, Subtitle: sub, Path: path})
+			out = append(out, Item{Kind: "movie", ID: id, Title: title, Subtitle: sub, Path: path, Age: ageOr(age, g)})
 		}
 	}
 	return out, rows.Err()
@@ -192,4 +196,16 @@ func Extend(repo *Repo, lib Library, probe Prober, ch Channel, now time.Time) (i
 		}
 	}
 	return len(list), err
+}
+
+// ageOr is a title's age, or, when not worked out yet, 17 for horror (left
+// out of family hours) and 0 (not known: allowed) for the rest.
+func ageOr(age int, genresJSON string) int {
+	if age > 0 {
+		return age
+	}
+	if strings.Contains(strings.ToLower(genresJSON), "horror") {
+		return 17
+	}
+	return 0
 }

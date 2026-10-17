@@ -54,6 +54,15 @@ test('rebasePictures puts the prefix on picture addresses from this server', () 
   assert.deepEqual(rebasePictures('/m', [{ posterUrl: '/api/p' }]), [{ posterUrl: '/m/api/p' }])
 })
 
+test('book edition thumbnails are prefixed by the dialog itself', () => {
+  // The editions come in a field called "url", which rebasePictures leaves alone,
+  // so ChangeCoverDialog puts the prefix on with withBase (here the same as prefixed).
+  const editions = { editions: [{ coverId: 1, url: '/api/book-covers/7-S.jpg' }, { coverId: 2, url: 'https://covers.openlibrary.org/b/id/2-S.jpg' }] }
+  assert.deepEqual(rebasePictures('/m', structuredClone(editions)), editions)
+  assert.equal(prefixed('/m', editions.editions[0].url), '/m/api/book-covers/7-S.jpg')
+  assert.equal(prefixed('/m', editions.editions[1].url), editions.editions[1].url)
+})
+
 test('with no page around there is no prefix', () => {
   assert.equal(BASE_PATH, '')
   assert.equal(withBase('/api/x'), '/api/x')

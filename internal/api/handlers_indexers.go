@@ -39,6 +39,13 @@ type indexerPayload struct {
 	PausedUntil string `json:"pausedUntil,omitempty"` // RFC 3339; searches skip the indexer until then
 	PausedNote  string `json:"pausedNote,omitempty"`  // the same in plain words
 	PausedWhy   string `json:"pausedWhy,omitempty"`   // why the last failure happened, for example "it could not be reached"
+	// Daily limit: RequestsPerDay is what a person set (0 = none); DailyLimit is
+	// the limit in use, set or learned from the indexer (0 = none known).
+	RequestsPerDay int    `json:"requestsPerDay"`
+	DailyLimit     int    `json:"dailyLimit,omitempty"`
+	LimitLearned   bool   `json:"limitLearned,omitempty"`  // DailyLimit came from the indexer's own answers
+	RequestsToday  int    `json:"requestsToday,omitempty"` // requests Mediarium made to it today (UTC)
+	LimitNote      string `json:"limitNote,omitempty"`     // plain words, while automatic searches leave the indexer alone
 }
 
 // isCardigann reports whether a create/test request is for a
@@ -51,13 +58,14 @@ func (p indexerPayload) isCardigann() bool {
 func (s *Server) toIndexerPayload(inst indexers.Instance) indexerPayload {
 	p := indexerPayload{
 		ID: inst.ID, Name: inst.Name, Kind: string(inst.Kind), DefinitionID: inst.DefinitionID, BaseURL: inst.BaseURL,
-		Protocol: string(inst.Protocol), Enabled: inst.Enabled, LastTestError: inst.LastTestError,
+		Protocol: string(inst.Protocol), Enabled: inst.Enabled, LastTestError: inst.LastTestError, RequestsPerDay: inst.RequestsPerDay,
 		HasAPIKey: inst.APIKey != "", Priority: indexerRank(inst.Priority),
 	}
 	if !inst.LastTestAt.IsZero() {
 		p.LastTestAt = inst.LastTestAt.UTC().Format(time.RFC3339)
 	}
 	addPauseInfo(&p, inst)
+	addQuotaInfo(&p, inst)
 	if !inst.IsCardigann() {
 		return p
 	}
@@ -114,6 +122,7 @@ func (s *Server) handleCreateIndexer(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Name, req.BaseURL, req.APIKey = strings.TrimSpace(req.Name), strings.TrimSpace(req.BaseURL), strings.TrimSpace(req.APIKey)
 	if rejectBad(w,
+		checkRequestsPerDay(req.RequestsPerDay),
 		checkRequired(req.Name, "Give this indexer a name, for example the name of the website."),
 		checkIndexerName(req.Name),
 		checkRequired(req.BaseURL, "Add the address of the indexer, for example https://api.example.com."),
@@ -130,6 +139,7 @@ func (s *Server) handleCreateIndexer(w http.ResponseWriter, r *http.Request) {
 	}
 	created, err := s.IndexerRepo.Create(indexers.Instance{
 		Name: req.Name, DefinitionID: req.DefinitionID, BaseURL: req.BaseURL, APIKey: req.APIKey, Protocol: protocol, Enabled: true,
+		RequestsPerDay: req.RequestsPerDay,
 	}, nil)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -212,6 +222,9 @@ func (s *Server) createCardigannIndexer(w http.ResponseWriter, r *http.Request, 
 	if !ok {
 		return
 	}
+	if rejectBad(w, checkRequestsPerDay(req.RequestsPerDay)) {
+		return
+	}
 	base := strings.TrimSpace(req.BaseURL)
 	if base == "" && len(sum.Links) > 0 {
 		base = sum.Links[0]
@@ -238,7 +251,7 @@ func (s *Server) createCardigannIndexer(w http.ResponseWriter, r *http.Request, 
 	}
 	created, err := s.IndexerRepo.Create(indexers.Instance{
 		Name: name, Kind: indexers.KindCardigann, DefinitionID: sum.ID, BaseURL: base, Protocol: protocol,
-		Enabled: true, Settings: settingsMap,
+		Enabled: true, Settings: settingsMap, RequestsPerDay: req.RequestsPerDay,
 	}, sum.IsSecret)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -254,6 +267,9 @@ type indexerUpdate struct {
 	Enabled  *bool          `json:"enabled"`
 	Protocol *string        `json:"protocol"` // Newznab/Torznab only: "usenet" or "torrent"
 	Settings map[string]any `json:"settings"` // secret settings left blank keep their saved value
+	// RequestsPerDay is the most requests a day Mediarium makes to the indexer
+	// (0 = no limit set). Left out keeps the saved value.
+	RequestsPerDay *int `json:"requestsPerDay"`
 }
 
 // handleUpdateIndexer edits a saved indexer. Every field is optional: what
@@ -287,6 +303,12 @@ func (s *Server) handleUpdateIndexer(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Enabled != nil {
 		inst.Enabled = *req.Enabled
+	}
+	if req.RequestsPerDay != nil {
+		if rejectBad(w, checkRequestsPerDay(*req.RequestsPerDay)) {
+			return
+		}
+		inst.RequestsPerDay = *req.RequestsPerDay
 	}
 	var secret indexers.Secrets
 	if inst.IsCardigann() {
@@ -470,6 +492,17 @@ func checkIndexerAddress(v string) string {
 		checkMaxLen(v, "The address", 2000),
 		checkNoControl(v, "The address"),
 	)
+}
+
+// maxRequestsPerDay is the largest daily limit that can be set.
+const maxRequestsPerDay = 100000
+
+// checkRequestsPerDay wants 0 (no limit) or a number of requests a day.
+func checkRequestsPerDay(n int) string {
+	if n < 0 || n > maxRequestsPerDay {
+		return fmt.Sprintf("Requests per day must be a number from 0 to %d. Use 0 for no limit.", maxRequestsPerDay)
+	}
+	return ""
 }
 
 func checkIndexerProtocol(p string) string {

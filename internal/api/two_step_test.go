@@ -204,3 +204,34 @@ func TestTwoStepGuessesRunOutAcrossSignIns(t *testing.T) {
 		t.Fatal("twelve rounds of password plus a wrong code were never slowed down")
 	}
 }
+
+// Wrong passwords typed by a signed-in person (to confirm a change) are
+// counted for that person, and for their own address under a separate limit.
+// They must not use up the address's sign-in allowance, or anyone at home
+// could keep the administrator from signing in.
+func TestWrongPasswordConfirmationsDoNotLockSignInForTheAddress(t *testing.T) {
+	_, base, admin := loginNewServer(t)
+	postJSON[map[string]any](t, admin, base+"/api/users", map[string]any{"username": "kim", "password": "kim-password-1", "role": "member"}, http.StatusCreated)
+	jar, _ := cookiejar.New(nil)
+	kim := &http.Client{Jar: jar}
+	postJSON[map[string]any](t, kim, base+"/api/auth/login", map[string]string{"username": "kim", "password": "kim-password-1"}, http.StatusOK)
+
+	blocked := false
+	for range 8 {
+		resp, err := kim.Post(base+"/api/auth/two-step/disable", "application/json", strings.NewReader(`{"password":"wrong"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusTooManyRequests {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Fatal("guessing the password again and again was never slowed down")
+	}
+
+	jar2, _ := cookiejar.New(nil)
+	other := &http.Client{Jar: jar2}
+	postJSON[map[string]any](t, other, base+"/api/auth/login", map[string]string{"username": "ryan", "password": "correct-horse-battery-staple"}, http.StatusOK)
+}

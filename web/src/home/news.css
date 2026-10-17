@@ -159,7 +159,7 @@ a.news-title:hover { text-decoration: underline; }
 .shelf-row > * { min-width: 0; }
 .shelf-row.music-shelf { grid-auto-columns: min(var(--shelf-w, 160px), 42vw); }
 .shelf-row.comic-shelf { grid-auto-columns: min(140px, 40vw); }
-.shelf-row.scene-shelf { grid-auto-columns: min(300px, 80vw); }
+.shelf-row.video-shelf { grid-auto-columns: min(300px, 80vw); }
 .shelves-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
 
 /* "Story arcs for you" (home fork): the highlighted row on Comics */
@@ -467,3 +467,58 @@ a.score-chip:hover { border-color: var(--accent, #2dd4bf); }
 /* Usherr: the heading opens and closes the full list. */
 .news-toggle { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font: inherit; color: inherit; }
 .news-toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; border-radius: 4px; }
+
+/* Usherr: the search and AI bar in the top bar. Its answers open below it. */
+.topbar .omni-header { margin: 0; position: relative; width: 100%; }
+.topbar .omni-header .omni-bar { padding: 3px 6px; border-radius: 12px; }
+.topbar .omni-header .omni-bar .searchbox { flex: 1; max-width: none; min-width: 0; margin: 0; }
+.topbar .omni-header .omni-result,
+.topbar .omni-header > .error-text { position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 60; max-height: min(70vh, 640px); overflow-y: auto; margin: 0; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45); }
+/* Tonight: just its button, on its own line. */
+.tonight-head.tonight-solo { display: flex; flex-wrap: wrap; gap: 8px; }
+.tonight-head.tonight-solo .tonight-ask { flex: 1 1 100%; justify-content: center; }
+/* Roulette's dice, next to search in the top bar. */
+.topbar .top-dice { display: inline-grid; place-items: center; width: 40px; height: 40px; flex: none; }
+@media (max-width: 760px) {
+  .topbar .top-dice { margin-left: auto; }
+  .topbar .top-dice + .search-toggle { margin-left: 0; }
+}
+.tonight-card.tonight-idle { background: none; border: 0; box-shadow: none; padding: 0; backdrop-filter: none; }
+
+/* Usherr: the news line at the top of the Dashboard. */
+.news-line { display: flex; align-items: center; gap: 10px; min-width: 0; margin: 0 0 14px; padding: 6px 6px 6px 12px; border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--surface) 70%, transparent); font-size: 0.92rem; }
+.news-line-tag { flex: none; display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; }
+.news-line-track { flex: 1; min-width: 0; overflow: hidden; position: relative; }
+.news-line-item { border: 0; background: none; padding: 2px 0; margin: 0; color: var(--text); font: inherit; cursor: pointer; text-align: left; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.news-line-item:hover { color: var(--accent); }
+.news-line-item.fade { animation: news-fade 0.6s ease; }
+@keyframes news-fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.news-line.ticker .news-line-track { -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); }
+.news-line-crawl { display: flex; width: max-content; animation: news-crawl linear infinite; }
+.news-line:hover .news-line-crawl, .news-line:focus-within .news-line-crawl, .news-line-crawl:active { animation-play-state: paused; }
+.news-line-run { display: flex; flex: none; }
+.news-line-run .news-line-item { display: inline-flex; align-items: center; overflow: visible; max-width: none; }
+.news-line-dot { margin: 0 14px; color: var(--text-dim); }
+@keyframes news-crawl { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .news-line-crawl { animation: none; } .news-line-item.fade { animation: none; } }
+.news-line-all { flex: none; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--text-dim); font: inherit; font-size: 0.85rem; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+.news-line-all:hover { color: var(--text); border-color: var(--accent); }
+@media (max-width: 760px) { .news-line-label { display: none; } .news-line { padding-left: 10px; } }
+/* All news */
+.news-modal { width: min(760px, calc(100vw - 24px)); max-height: calc(100dvh - 40px); display: flex; flex-direction: column; }
+.news-modal > .news-card { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 2px; }
+.news-modal .news-head h2 { flex: 1; margin: 0; font-size: 1.15rem; }
+.news-modal-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: 12px; margin-top: 8px; border-top: 1px solid var(--border); }
+.news-style button { white-space: nowrap; }
+
+/* Usherr: the Diary's toolbar is one row. */
+.diary .diary-bar { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
+.diary .diary-bar > .spacer { flex: 1; }
+.diary .diary-bar .diary-buttons { display: flex; gap: 6px; flex: none; }
+.diary .diary-bar .dropdown { flex: 0 1 auto; min-width: 0; }
+.diary .diary-bar .dropdown-btn { width: 100%; min-width: 0; overflow: hidden; }
+@media (max-width: 760px) {
+  .diary .diary-bar .cbar-add-label { display: none; }
+  .diary .diary-bar .diary-buttons { width: auto; }
+  .diary .diary-bar .diary-buttons button { flex: none; }
+}

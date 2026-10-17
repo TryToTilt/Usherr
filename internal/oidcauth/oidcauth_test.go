@@ -303,12 +303,12 @@ func TestTooManyStartedSignIns(t *testing.T) {
 	idp := oidctest.New(t)
 	m := newManager()
 	cfg := config(idp)
-	var err error
-	for i := 0; i < 1100 && err == nil; i++ {
-		_, err = m.Begin(context.Background(), cfg, redirect, oidcauth.ModeSignIn, 0, "")
-	}
-	if err == nil {
-		t.Fatal("no limit on waiting sign-ins")
+	// A flood of starts stays bounded and never refuses a real person: the
+	// oldest waiting one makes room.
+	for i := 0; i < 1100; i++ {
+		if _, err := m.Begin(context.Background(), cfg, redirect, oidcauth.ModeSignIn, 0, ""); err != nil {
+			t.Fatalf("start %d refused: %v", i, err)
+		}
 	}
 	if m.Pending() > 1000 {
 		t.Errorf("pending = %d", m.Pending())

@@ -72,7 +72,29 @@ func (s *Server) handleMatchBookImport(w http.ResponseWriter, r *http.Request) {
 	if at >= 0 {
 		res = job.results[at]
 	}
+	// One request at a time for a file: two at once (a double click, a retry
+	// after a slow answer) would both move it, and the second would record the
+	// place it was moved from.
+	lock := string(req.Kind) + "\x00" + req.Path
+	busy := at >= 0 && job.matching[lock]
+	if at >= 0 && !busy {
+		if job.matching == nil {
+			job.matching = map[string]bool{}
+		}
+		job.matching[lock] = true
+	}
 	job.mu.Unlock()
+	if busy {
+		writeError(w, http.StatusConflict, "That file is being matched right now. Give it a moment and look at the list again.")
+		return
+	}
+	if at >= 0 {
+		defer func() {
+			job.mu.Lock()
+			delete(job.matching, lock)
+			job.mu.Unlock()
+		}()
+	}
 	if at < 0 {
 		writeError(w, http.StatusNotFound, "That file isn't in the last import. Run the import again.")
 		return

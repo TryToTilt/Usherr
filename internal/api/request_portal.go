@@ -423,7 +423,7 @@ func (s *Server) tellPerson(userID int64, title, message, path string) {
 		return
 	}
 	u, err := s.Auth.GetUser(userID)
-	if err != nil {
+	if err != nil || u.Disabled {
 		return
 	}
 	links := s.publicLinks()

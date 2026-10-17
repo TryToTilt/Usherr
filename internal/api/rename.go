@@ -32,9 +32,13 @@ type renameItem struct {
 }
 
 // renamePlan lists every library file whose name differs from what the
-// naming setting would give it now.
+// naming setting would give it now. While "Keep the original file names" is
+// on, nothing is renamed.
 func (s *Server) renamePlan(kind string) ([]renameItem, error) {
 	var out []renameItem
+	if s.keepOriginalNames() {
+		return out, nil
+	}
 	if kind == "" || kind == "movie" {
 		movies, err := s.MovieRepo.ListWithCopies()
 		if err != nil {
@@ -76,8 +80,8 @@ func (s *Server) renamePlan(kind string) ([]renameItem, error) {
 					continue
 				}
 				done[ep.FilePath] = true
-				rel := parser.Parse(strings.TrimSuffix(filepath.Base(ep.FilePath), filepath.Ext(ep.FilePath)))
-				to, err := s.buildTVDestPath(sr, ep, rel, ep.FilePath)
+				stem := strings.TrimSuffix(filepath.Base(ep.FilePath), filepath.Ext(ep.FilePath))
+				to, err := s.buildTVDestPath(sr, ep, parser.Parse(stem), stem, ep.FilePath)
 				if err != nil {
 					return nil, err
 				}
@@ -135,6 +139,10 @@ func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
 	var req renameRequest
 	if err := decodeJSON(r, &req); err != nil || len(req.Items) == 0 {
 		writeError(w, http.StatusBadRequest, "Choose the files to rename.")
+		return
+	}
+	if s.keepOriginalNames() {
+		writeError(w, http.StatusConflict, "Files keep their original names right now, so nothing is renamed. Turn off Keep the original file names first.")
 		return
 	}
 	plan, err := s.renamePlan("")

@@ -363,6 +363,9 @@ func (s *Server) delayedGrabsJob(ctx context.Context) {
 	if s.delays == nil || !s.automationEnabled() {
 		return
 	}
+	if _, quiet := s.quietUntil(); quiet {
+		return // it asks the indexers again; the held releases stay held until it is over
+	}
 	_ = s.delays.Prune()
 	due, err := s.delays.DueSearches()
 	if err != nil {
@@ -396,7 +399,7 @@ func (s *Server) delayedGrabsJob(ctx context.Context) {
 				s.forgetHeldMovie(it.MovieID) // the movie is gone
 				continue
 			}
-			s.huntMovie(ctx, m, instances, profiles, s.blockedKeys(), false)
+			s.huntMovie(ctx, m, instances, profiles, s.searchSkipKeys(), false)
 		case "episode":
 			if _, err := s.MovieRepo.GetSeries(it.SeriesID); err != nil {
 				s.forgetHeldSeries(it.SeriesID) // the show is gone

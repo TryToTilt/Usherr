@@ -79,6 +79,7 @@
 .settings-content .profiles-table tr.is-default > td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .settings-content .profiles-table tr.is-default > td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 .settings-content .profiles-table tr.profile-edit-row > td { background: none; padding: 0 0 12px; }
+.settings-content .profiles-table tr.profile-edit-row > td:last-child { text-align: left; }
 
 @media (max-width: 900px) {
   .settings-content .profiles-table td:first-child { width: 100%; min-width: 0; }
@@ -218,3 +219,12 @@ label.field { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px
 .settings-content label:not(.field):not(.check-hint):not(.grid-form label):not(.form-cols > label):not(.picker-row label):not(.switch-row) > :is(select, input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'])) {
   margin: 4px 0 4px 10px;
 }
+
+/* Usherr: folding settings cards (useFoldCards.ts). */
+section.card[data-foldable] > h2 { cursor: pointer; position: relative; padding-right: 30px; }
+section.card[data-foldable] > h2::after { content: ''; position: absolute; right: 6px; top: 50%; width: 9px; height: 9px; border-right: 2px solid var(--text-dim); border-bottom: 2px solid var(--text-dim); transform: translateY(-70%) rotate(45deg); transition: transform 0.18s ease; }
+section.card[data-folded] > h2::after { transform: translateY(-40%) rotate(-45deg); }
+section.card[data-folded] > :not(h2) { display: none !important; }
+section.card[data-folded] > h2 { margin-bottom: 0; }
+section.card[data-foldable] > h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 6px; }
+.fold-all { margin: -4px 0 12px; font-size: 0.88rem; color: var(--text-dim); text-align: right; }

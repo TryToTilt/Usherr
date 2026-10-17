@@ -14,6 +14,8 @@ import SeriesTypePicker from '../components/SeriesTypePicker'
 import Switch from '../components/Switch'
 import TitleHero from '../components/TitleHero'
 import WatchLinks from '../components/WatchLinks'
+import FolderLine from '../components/FolderLine'
+import LocateDialog from '../components/LocateDialog'
 import TitleEvents from '../components/TitleEvents'
 import { useToast } from '../components/Toast'
 import ReleaseTable from '../components/ReleaseTable'
@@ -86,7 +88,7 @@ function SeriesPage() {
   const [message, setMessage] = useState('')
   const [target, setTarget] = useState<SearchTarget | null>(null)
   const [results, setResults] = useState<SearchResult[] | null>(null)
-  const [answered, setAnswered] = useState<{ sources: number; unanswered: Unanswered[] }>({ sources: 0, unanswered: [] })
+  const [answered, setAnswered] = useState<{ sources: number; unanswered: Unanswered[]; warnings?: string[] }>({ sources: 0, unanswered: [] })
   const [searching, setSearching] = useState(false)
   const [grabbing, setGrabbing] = useState<string | null>(null)
   const [searchingNow, setSearchingNow] = useState(false)
@@ -143,7 +145,7 @@ function SeriesPage() {
     try {
       const a = await api.seriesSearch(seriesId, st.season, st.episode)
       if (mine !== searchId.current) return
-      setAnswered({ sources: a.sources, unanswered: a.unanswered })
+      setAnswered({ sources: a.sources, unanswered: a.unanswered, warnings: a.warnings })
       setResults(a.results)
     } catch (e) {
       if (mine === searchId.current) setError(e instanceof Error ? e.message : String(e))
@@ -241,11 +243,12 @@ function SeriesPage() {
 
   const [refreshing, setRefreshing] = useState(false)
   const [rescanning, setRescanning] = useState(false)
+  const [changingFolder, setChangingFolder] = useState(false)
   async function rescan() {
     setError('')
     setRescanning(true)
     try {
-      setMessage(rescanMessage(await api.rescanSeries(seriesId)))
+      setMessage(rescanMessage(await api.rescanSeries(seriesId), series?.monitored !== false))
       load()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -395,12 +398,20 @@ function SeriesPage() {
         }
       >
         <div className="title-controls">
-          <Switch checked={series.monitored} onChange={toggleSeries} disabled={!canManage} label={<span className="has-tip">{t('Monitored')}<InfoTip text={t('Mediarium keeps searching for the episodes of this show that are monitored and missing. Switch it off to leave the show alone; files you already have stay where they are.')} /></span>} description={t('Keeps looking for missing episodes.')} />
+          <Switch checked={series.monitored} onChange={toggleSeries} disabled={!canManage} label={<span className="has-tip">{t('Monitored')}<InfoTip text={t('Mediarium keeps searching for the episodes of this show that are monitored and missing. Switch it off to leave the show alone; files you already have stay where they are.')} /></span>} description={series.monitored ? t('Keeps looking for missing episodes.') : t('Not looking for missing episodes. Files you already have stay where they are.')} />
           <ProfilePicker kind="series" itemId={seriesId}>
             <TitleTags kind="tv" id={seriesId} />
           </ProfilePicker>
           {canManage && <SeriesTypePicker id={seriesId} value={series.seriesType ?? 'standard'} onChange={(type) => setSeries((cur) => (cur ? { ...cur, seriesType: type } : cur))} />}
         </div>
+        {admin && series.folderPath && (
+          <FolderLine path={series.folderPath} kind="series">
+            <button type="button" className="btn-sm btn-with-icon" onClick={() => setChangingFolder(true)}>
+              <Icon name="folder" size={14} /> {t('Change folder')}
+            </button>
+          </FolderLine>
+        )}
+        {changingFolder && <LocateDialog kind="series" id={seriesId} start={series.folderPath} onClose={() => setChangingFolder(false)} onDone={load} />}
         <WatchedLine kind="tv" id={seriesId} />
         <ScoresLine kind="tv" tmdbId={series.tmdbId} /> {/* home fork */}
         <StreamingOn kind="tv" tmdbId={series.tmdbId} /> {/* home fork */}
@@ -413,7 +424,7 @@ function SeriesPage() {
         <section ref={releasesRef} className="card" style={{ marginBottom: 24, scrollMarginTop: 80 }}>
           <h2>{t('Releases for {target}', { target: target.label })}</h2>
           {searching && <p>{t('Looking for releases…')}</p>}
-          {results !== null && <ReleaseNotice sources={answered.sources} unanswered={answered.unanswered} results={results.length} />}
+          {results !== null && <ReleaseNotice sources={answered.sources} unanswered={answered.unanswered} warnings={answered.warnings} results={results.length} />}
           {!searching && (results === null || results.length === 0) && (
             <button className="btn-sm" onClick={() => setTarget(null)}>
               {t('Close')}

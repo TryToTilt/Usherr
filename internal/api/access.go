@@ -36,6 +36,7 @@ const readOnlyKeyMessage = "This API key is read-only. It can only be used for G
 var viewerWritable = map[string]bool{
 	"PUT /api/auth/profile":                   true,
 	"POST /api/auth/change-password":          true,
+	"DELETE /api/auth/sessions":               true,
 	"POST /api/auth/two-step/setup":           true,
 	"POST /api/auth/two-step/enable":          true,
 	"POST /api/auth/two-step/disable":         true,

@@ -18,9 +18,19 @@ type Dispatcher struct {
 	repo *Repo
 	cfg  DispatchConfig
 
-	mu     sync.Mutex
-	active map[int64]struct{} // started and not yet ended: these hold a place
-	holds  int                // while above zero nothing new starts (see Hold)
+	mu      sync.Mutex
+	active  map[int64]struct{} // started and not yet ended: these hold a place
+	holds   int                // while above zero nothing new starts (see Hold)
+	stopped bool               // set by Stop: the app is shutting down
+}
+
+// Stop makes the dispatcher start nothing more, for good. Mediarium calls it
+// when it shuts down, before the database closes: the downloads that end
+// while it winds down must not look in the closed database for the next one.
+func (d *Dispatcher) Stop() {
+	d.mu.Lock()
+	d.stopped = true
+	d.mu.Unlock()
 }
 
 // DispatchConfig is what a Dispatcher needs from the app around it.
@@ -98,7 +108,7 @@ func (d *Dispatcher) Hold() (release func()) {
 func (d *Dispatcher) Kick() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if d.holds > 0 {
+	if d.holds > 0 || d.stopped {
 		return
 	}
 	if d.cfg.Hold != nil && len(d.active) < d.Limit() && d.cfg.Hold() {

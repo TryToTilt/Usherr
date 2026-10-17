@@ -1,6 +1,7 @@
 package library_test
 
 import (
+	"context"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -39,7 +40,7 @@ func TestMovieCountsLeaveCopiesOut(t *testing.T) {
 	if _, err := repo.AddCopy(main.ID, 90); err != nil {
 		t.Fatalf("add a second copy: %v", err)
 	}
-	got, err := repo.MovieCounts()
+	got, err := repo.MovieCounts(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +68,7 @@ func TestSeriesCountsFollowTheShowTotals(t *testing.T) {
 			}
 		}
 	}
-	got, err := repo.SeriesCounts()
+	got, err := repo.SeriesCounts(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,9 +93,17 @@ func TestMissingFilesAndWantedEpisodes(t *testing.T) {
 	}
 	_ = a
 	_ = b
-	files, err := repo.MissingMovieFiles()
-	if err != nil || len(files) != 1 || files[0] != "" {
-		t.Fatalf("missing movies = %v, %v", files, err)
+	ctx := context.Background()
+	noFile, files, err := repo.MissingMovies(ctx)
+	if err != nil || noFile != 1 || len(files) != 0 {
+		t.Fatalf("missing movies = %d, %v, %v", noFile, files, err)
+	}
+	// A movie marked missing that still names a file is listed with its path.
+	if err := repo.SetStatus(c.ID, library.StatusMissing, "", "/movies/c.mkv"); err != nil {
+		t.Fatal(err)
+	}
+	if noFile, files, err = repo.MissingMovies(ctx); err != nil || noFile != 1 || len(files) != 1 || files[0] != "/movies/c.mkv" {
+		t.Fatalf("missing movies = %d, %v, %v", noFile, files, err)
 	}
 
 	sr, err := repo.AddSeries(library.Series{TMDBID: 20, Title: "Show", Monitored: true, Year: 2020}, []library.Episode{
@@ -112,17 +121,50 @@ func TestMissingFilesAndWantedEpisodes(t *testing.T) {
 			_ = repo.SetEpisodeStatus(e.ID, library.StatusDownloaded, "WEBDL-720p", "/tv/4.mkv")
 		}
 	}
-	paths, err := repo.MissingEpisodeFiles("2026-10-09")
-	if err != nil || len(paths) != 1 {
-		t.Fatalf("missing episodes = %v, %v (only the aired one counts)", paths, err)
+	shows, err := repo.WantedShows(ctx, "2026-10-09", true)
+	if err != nil || len(shows) != 1 || shows[0].ID != sr.ID || shows[0].Episodes != 1 || shows[0].WithFile != 0 || shows[0].Title != "Show" {
+		t.Fatalf("wanted shows = %+v, %v (only the aired one counts)", shows, err)
 	}
-	missing, err := repo.ListWantedEpisodes(library.StatusMissing, "2026-10-09")
+	if paths, err := repo.WantedEpisodeFiles(ctx, "2026-10-09", true); err != nil || len(paths) != 0 {
+		t.Fatalf("wanted episode files = %v, %v", paths, err)
+	}
+	// An unmonitored show has nothing wanted.
+	if err := repo.SetSeriesMonitored(sr.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if shows, err := repo.WantedShows(ctx, "2026-10-09", true); err != nil || len(shows) != 0 {
+		t.Fatalf("an unmonitored show is listed: %+v, %v", shows, err)
+	}
+	if err := repo.SetSeriesMonitored(sr.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	missing, err := repo.ListWantedEpisodes(context.Background(), library.StatusMissing, "2026-10-09", 0)
 	if err != nil || len(missing) != 1 || missing[0].Title != "Aired" || missing[0].SeriesTitle != "Show" || missing[0].SeriesYear != 2020 {
 		t.Fatalf("wanted missing = %+v, %v", missing, err)
 	}
-	have, err := repo.ListWantedEpisodes(library.StatusDownloaded, "2026-10-09")
+	have, err := repo.ListWantedEpisodes(context.Background(), library.StatusDownloaded, "2026-10-09", 0)
 	if err != nil || len(have) != 1 || have[0].Quality != "WEBDL-720p" {
 		t.Fatalf("wanted downloaded = %+v, %v", have, err)
+	}
+	// One show's episodes only.
+	if one, err := repo.ListWantedEpisodes(ctx, library.StatusMissing, "2026-10-09", sr.ID); err != nil || len(one) != 1 {
+		t.Fatalf("the show's wanted episodes = %+v, %v", one, err)
+	}
+	if none, err := repo.ListWantedEpisodes(ctx, library.StatusMissing, "2026-10-09", sr.ID+100); err != nil || len(none) != 0 {
+		t.Fatalf("another show's wanted episodes = %+v, %v", none, err)
+	}
+	// An episode marked missing that still names a file: counted, and its path listed.
+	for _, e := range eps {
+		if e.Episode == 1 {
+			if err := repo.SetEpisodeStatus(e.ID, library.StatusMissing, "", "/tv/1.mkv"); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	shows, _ = repo.WantedShows(ctx, "2026-10-09", false)
+	paths, _ := repo.WantedEpisodeFiles(ctx, "2026-10-09", false)
+	if len(shows) != 1 || shows[0].Episodes != 1 || shows[0].WithFile != 1 || len(paths) != 1 || paths[0].Path != "/tv/1.mkv" || paths[0].SeriesID != sr.ID {
+		t.Fatalf("with a file: shows %+v, paths %+v", shows, paths)
 	}
 }
 

@@ -305,6 +305,9 @@ func Explain(err error) string {
 	if err == nil {
 		return ""
 	}
+	if errors.Is(err, errIPv6Unreachable) {
+		return "This VPN server address is IPv6, and this computer or Docker container has no IPv6 connection. Use the IPv4 address of the server (Mullvad lists both), or turn on IPv6 for Docker. With Mullvad you can also pick the server by its name, like us-den-wg-208.relays.mullvad.net, instead of the IPv6 address."
+	}
 	msg := strings.ToLower(err.Error())
 	switch {
 	case strings.Contains(msg, "no such host"), strings.Contains(msg, "lookup"):

@@ -83,7 +83,7 @@ func clock(d time.Duration) string {
 // arrQueueRecords lists the app's part of the queue, newest first. A season
 // pack is one record per episode in it, as Sonarr shows it.
 func (s *Server) arrQueueRecords(app arrApp, r *http.Request) ([]arrQueueRecord, error) {
-	items, err := s.QueueRepo.List()
+	items, err := s.QueueRepo.ListUnfinished()
 	if err != nil {
 		return nil, err
 	}

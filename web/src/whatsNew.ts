@@ -10,6 +10,14 @@ export interface ReleaseNotes {
 
 export const WHATS_NEW: ReleaseNotes[] = [
   {
+    version: '3.1.1',
+    items: [
+      t('More subtitle and audio languages, searching under other titles, and a switch to take only the languages you list.'),
+      t('Movies and shows: see the folder where their files go, point a title at a renamed file or folder, and rescan a movie that has no file. Books: choose a cover by hand.'),
+      t('Anime numbered by TheTVDB seasons, such as One Piece, now imports, and Library has its own entries in the left menu.'),
+    ],
+  },
+  {
     version: '3.1.0',
     items: [
       t('Five more screen languages: Italian, Dutch, Polish, Russian and Ukrainian. Error messages and notes from the server now come in your language too.'),

@@ -30,14 +30,38 @@ func (s *Server) quietUntil() (until time.Time, active bool) {
 	return until, time.Now().Before(until)
 }
 
-// heavy wraps a background job so it does nothing during the quiet time. It
-// runs again at its next turn.
+// quietRecheck is how often a held job looks again whether the quiet time is
+// over, so ending it early lets the jobs go at once.
+var quietRecheck = 30 * time.Second
+
+// heavy wraps a background job so it waits out the quiet time and then runs. A
+// run that came due during the quiet time is delayed, not dropped: with a long
+// interval (a day or a week) dropping it would cost the whole interval.
 func (s *Server) heavy(run func(context.Context)) func(context.Context) {
 	return func(ctx context.Context) {
-		if _, active := s.quietUntil(); active {
+		if !s.waitOutQuiet(ctx) {
 			return
 		}
 		run(ctx)
+	}
+}
+
+// waitOutQuiet returns when the quiet time is over (at once when it is not on),
+// or false when ctx ended first.
+func (s *Server) waitOutQuiet(ctx context.Context) bool {
+	for {
+		until, active := s.quietUntil()
+		if !active {
+			return true
+		}
+		wait := min(time.Until(until), quietRecheck)
+		t := time.NewTimer(max(wait, time.Millisecond))
+		select {
+		case <-ctx.Done():
+			t.Stop()
+			return false
+		case <-t.C:
+		}
 	}
 }
 

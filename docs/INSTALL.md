@@ -83,6 +83,13 @@ services:
     # Nothing running in the container can gain more privileges than it starts with.
     security_opt:
       - no-new-privileges:true
+    # Keeps Docker's log file for this container from growing without end:
+    # three files of 10 MB, the oldest is dropped.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       # The web page. To use another port, change only the LEFT number,
       # for example "8300:8264", then open http://<your-server-ip>:8300.
@@ -111,6 +118,11 @@ services:
       # - MUSIC_DIR=/data/music
       # - EBOOKS_DIR=/data/ebooks
       # - AUDIOBOOKS_DIR=/data/audiobooks
+      # Comics and NSFW 18+ use /data/comics and /data/nsfw on their own;
+      # anime goes in the TV folder unless it has one. To choose others:
+      # - COMICS_DIR=/data/comics
+      # - ANIME_DIR=/data/anime
+      # - NSFW_DIR=/data/nsfw
     volumes:
       # CHANGE the left side of each line (the right side must stay as it is).
       # Mediarium's own settings and database. Keep it on a local disk and back it up.
@@ -124,6 +136,9 @@ services:
       # - /path/to/music:/music
       # - /path/to/ebooks:/ebooks
       # - /path/to/audiobooks:/audiobooks
+      # - /path/to/comics:/comics
+      # - /path/to/anime:/anime
+      # - /path/to/nsfw:/nsfw
 
   # Optional: only needed for torrent sites that show a Cloudflare
   # "checking your browser" page. Start everything with:
@@ -203,7 +218,7 @@ A good layout looks like this:
 - **Disk format:** the disk must support hardlinks. ext4, XFS, Btrfs, ZFS and NTFS all do; exFAT and FAT (common on USB sticks) do not.
 - Moving over from Radarr, Sonarr, Prowlarr or SABnzbd? Use the same folders they use: see [Move from Radarr, Sonarr, Prowlarr, SABnzbd and other apps](./migrate.md).
 
-### Optional folders: music, ebooks and audiobooks
+### Optional folders: music, books, comics, anime and NSFW 18+
 
 Each kind of media has its own folder setting. You only need the ones you use.
 
@@ -212,6 +227,11 @@ Each kind of media has its own folder setting. You only need the ones you use.
 | Music | `MUSIC_DIR` | `/music` | Works today. Switch it on under Settings > Media types ([music.md](./music.md)). |
 | Ebooks | `EBOOKS_DIR` | `/ebooks` | Works today. Switch it on under Settings > Media types ([books.md](./books.md)). |
 | Audiobooks | `AUDIOBOOKS_DIR` | `/audiobooks` | Works today. Switch it on under Settings > Media types ([books.md](./books.md)). |
+| Comics | `COMICS_DIR` | `/comics`, else `/data/comics` | Usherr. Made on the first download when it doesn't exist. |
+| Anime | `ANIME_DIR` | `/anime`, else `/data/anime` when it exists | Usherr. Without one, anime goes in the TV folder. |
+| NSFW 18+ | `NSFW_DIR` | `/nsfw`, else `/data/nsfw` | Usherr. Only with `USHERR_ALLOW_ADULT=1`. |
+
+Comics, anime and NSFW 18+ can also be set under **Settings > Library > Folders**, next to the movie and TV folders.
 
 There are two ways to give one of them a folder:
 
@@ -299,7 +319,7 @@ environment:
 
 Restart the container and Mediarium answers under that path: the pages, the API, the Radarr, Sonarr and Lidarr addresses for [other apps](./other-apps.md) (`https://home.example.com/mediarium/radarr`), the metrics, the "Add to home screen" files, push notifications, and the addresses for e-readers (the OPDS catalogue and the Kobo address on your profile page both include the path). You don't rebuild anything; the same program works under any path. Leave `URL_BASE` empty (or don't set it) and nothing changes.
 
-Rules for the value: a path with letters, numbers, dashes, underscores and dots, like `/mediarium` or `/apps/media`. A slash at the start and end doesn't matter. It can't start with a name Mediarium already uses (`api`, `radarr`, `sonarr`, `lidarr`, `settings`, `library` and the other page names); the container then stops with a message saying so.
+Rules for the value: a path with letters, numbers, dashes, underscores and dots, like `/mediarium` or `/tools/media`. A slash at the start and end doesn't matter. It can't start with a name Mediarium already uses (`api`, `radarr`, `sonarr`, `lidarr`, `settings`, `library`, `help`, `apps`, `opds`, `kobo` and the other page names); the container then stops with a message saying so.
 
 Your proxy has to send the path on to Mediarium. Both of these work, so use whichever your proxy does by default: pass the path along unchanged, or remove it before passing the request on. Examples:
 
@@ -357,7 +377,7 @@ Today none of those variables is a password or a key: indexers, Usenet logins, A
 
 Open `http://<your-server-ip>:8264`. The first time, a short wizard walks you through:
 
-1. **Admin account.** The first account you make is the administrator. From outside your home network (through a reverse proxy, or on a server) the page also asks for a one-time setup code. Find it in the log: `docker logs mediarium`, look for `setup_code`. You also tick that you have read the responsible-use notice ([LEGAL.md](./LEGAL.md)).
+1. **Admin account.** The first account you make is the administrator. From outside your home network (through a reverse proxy, or on a server), and also when you open it on the same computer Docker runs on (Docker hands those visits over from its own gateway address), the page also asks for a one-time setup code. Find it in the log: `docker logs mediarium`, look for `setup_code`. You also tick that you have read the responsible-use notice ([LEGAL.md](./LEGAL.md)).
 2. **Media types.** Pick movies, TV shows, music, ebooks and audiobooks. At least one has to stay on. Later steps only ask about what you picked.
 3. **Library paths.** One box for each kind you picked, plus downloads. They show the folders your compose file maps (from `MOVIES_DIR`, `TV_DIR`, `DOWNLOADS_DIR`, `MUSIC_DIR` and so on) and check each one live: whether it exists, whether Mediarium can write to it, whether it is **Mapped to your device**, and the free space. A folder that isn't mapped shows the exact line to add to your compose file. When your folders share one mapped folder such as `/data`, the wizard suggests a folder inside it (for example `/data/Ebooks`) and can create it for you.
 4. **Connect services.** Movie and show details, subtitles and lists come from TMDB, OpenSubtitles and Trakt. The official image has these built in, so there is usually nothing to do. If a key is needed, the wizard explains how to get a free one. Subtitles are switched on later, under Settings > Info, lists and subtitles > Subtitles.
@@ -444,7 +464,7 @@ docker compose up -d
 
 That downloads the newest image and restarts Mediarium with it. Your settings and library stay put, and the database updates itself on start. Nothing updates on its own unless you switch on **Install new versions overnight** (see below). A restart pauses running downloads; press **Resume** in Activity.
 
-- Read the [changelog](../CHANGELOG.md) first, and [back up](#backup-and-restore) `/config` before a big update. There is no way back to an older version once the database has been updated, except restoring a backup.
+- Read the [changelog](../CHANGELOG.md) first, and [back up](#backup-and-restore) `/config` before a big update. There is no way back to an older version once the database has been updated, except restoring a backup. When an update is going to change the database, Mediarium first saves a copy next to it (`pre-migration-<number>-<date>-<time>.db` in `/config`, the newest two are kept); that is the file to put back as `app.db` if an update goes wrong. From 3.1.3 on, if that version or a later one is started on a database that a newer version already changed, it still starts, but writes a warning to the log and to Health that says so. Versions before 3.1.3 don't check this and start without any warning.
 - `:latest` always follows the newest release. To stay on a version, use its number instead. Each release has these tags (add `-full` for the [Cloudflare helper version](#optional-getting-past-cloudflare-checks)):
 
   | Tag | Moves when |
@@ -512,11 +532,11 @@ Maintainers can use `tools/push-update.sh`, which builds the program from the co
 
 ## Backup and restore
 
-Everything that is not a media file lives in `/config`. The two files that matter are `app.db` (settings, library, history, accounts) and `secret.key`. **Keep the two together:** `secret.key` unlocks the passwords and keys saved in `app.db`. The folder also holds caches (for example music covers and the list of torrent sites) and, if you use one, the `update` folder.
+Everything that is not a media file lives in `/config`. The two files that matter are `app.db` (settings, library, history, accounts) and `secret.key`. **Keep the two together:** `secret.key` unlocks the passwords and keys saved in `app.db`. If `app.db` holds saved passwords, keys or accounts and `secret.key` is missing, Mediarium won't start (it would only write a new key that can't open anything). Put the old `secret.key` back; if it is gone for good, move `app.db` away to start again from scratch. If the `secret.key` is there but belongs to another `app.db` (for example you copied only the database to a new install), Mediarium says so in the log and on Health, and an indexer whose saved key can't be read is named on Health and left out of searches while the others keep working: open it and enter the key again. The folder also holds caches (for example music covers and the list of torrent sites) and, if you use one, the `update` folder.
 
-**From the app (easiest):** administrators can download a backup zip with **Download a backup** on **Settings > System > Backup and restore**. It is safe to make while downloads are running. The zip holds `app.db`, `secret.key` and a small note about the version, and no media files. It contains your encryption key, so keep it as private as a password. To restore, choose the zip in the **Restore** box on the same page and press **Restore this backup**: Mediarium checks it (a backup made by a newer version of Mediarium than yours is refused; a backup can be up to 1 GB), restarts, and keeps your previous files in a `before-restore-<date>` folder inside `/config`. Restoring needs something that starts Mediarium again, like `restart: unless-stopped`; otherwise start it yourself and the restore is applied then.
+**From the app (easiest):** administrators can download a backup zip with **Download a backup** on **Settings > System > Backup and restore**. It is safe to make while downloads are running. The zip holds `app.db`, `secret.key` and a small note about the version, and no media files. It contains your encryption key, so keep it as private as a password. To restore, choose the zip in the **Restore** box on the same page and press **Restore this backup**: Mediarium checks it (a backup made by a newer version of Mediarium than yours is refused; a backup can be up to 1 GB), restarts, and keeps your previous files in a `before-restore-<date>` folder inside `/config`. After the restart you sign in again (with an account from the backup), and the sign-in page says the backup was restored. Restoring needs something that starts Mediarium again, like `restart: unless-stopped`; otherwise start it yourself and the restore is applied then.
 
-**Automatic backups:** every night, and just before every update, Mediarium saves the same zip in `/config/backups` and keeps the newest 7 (change it to 3, 5, 14 or 30 in the **Backup** box). The box lists them with the time and size, each with **Download**, and has **Back up now**. To restore one, download it and choose it under **Restore**. Switch the nightly backup off with **Save a backup every night** (stored as `backup.auto`; how many are kept is `backup.keep`). The files sit next to your database, so also keep a copy somewhere else: switch on [cloud backups](#cloud-backups), or copy one by hand now and then. A backup on the same disk does not help if that disk fails. If a nightly backup can't be saved, it is listed in Logs and errors. Scripts: `GET /api/system/backups`, `POST /api/system/backups` and `GET /api/system/backups/{name}` (the last two need a signed-in administrator, not an API key, because a backup holds every stored secret).
+**Automatic backups:** every night, and just before every update, Mediarium saves the same zip in `/config/backups` and keeps the newest 7 (change it to 3, 5, 14 or 30 in the **Backup** box). The box lists them with the time and size, each with **Download**, and has **Back up now**. To restore one, download it and choose it under **Restore**. Switch the nightly backup off with **Save a backup every night** (stored as `backup.auto`; how many are kept is `backup.keep`). The files sit next to your database, so also keep a copy somewhere else: switch on [cloud backups](#cloud-backups), or copy one by hand now and then. A backup on the same disk does not help if that disk fails. A backup that was cut short (the container was stopped while it was being written) leaves no file behind: half-written files are removed at the next start. If a nightly backup can't be saved, it is listed in Logs and errors. Scripts: `GET /api/system/backups`, `POST /api/system/backups` and `GET /api/system/backups/{name}` (the last two need a signed-in administrator, not an API key, because a backup holds every stored secret).
 
 ### Cloud backups
 

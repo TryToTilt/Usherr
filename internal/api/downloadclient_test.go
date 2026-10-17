@@ -19,7 +19,6 @@ import (
 	"github.com/rdborg/mediarium/internal/config"
 	"github.com/rdborg/mediarium/internal/crypto"
 	"github.com/rdborg/mediarium/internal/library"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 const fixtureHash = "0123456789abcdef0123456789abcdef01234567"
@@ -36,6 +35,8 @@ type fakeQbit struct {
 	// extra are torrents that are in the client already, listed as they are; actions are the controls pressed.
 	extra   []map[string]any
 	actions []string
+	// state, when set, is the state the torrent reports instead of downloading.
+	state string
 }
 
 func (f *fakeQbit) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +72,9 @@ func (f *fakeQbit) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			state, progress := "downloading", 0.5
 			if f.polls > 2 {
 				state, progress = "stalledUP", 1.0
+			}
+			if f.state != "" {
+				state = f.state
 			}
 			list = append(list, map[string]any{"hash": fixtureHash, "name": "x", "progress": progress, "state": state, "content_path": f.content, "tags": f.tags[0]})
 		}
@@ -111,7 +115,7 @@ func newClientEnv(t *testing.T) *clientEnv {
 			t.Fatal(err)
 		}
 	}
-	db, err := store.Open(filepath.Join(cfg.ConfigDir, "app.db"))
+	db, err := api.OpenTestDB(filepath.Join(cfg.ConfigDir, "app.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,6 +265,25 @@ func TestDownloadClientSingleFileTorrent(t *testing.T) {
 	defer e.qb.mu.Unlock()
 	if len(e.qb.deleted) != 0 {
 		t.Errorf("the torrent must keep seeding: %v", e.qb.deleted)
+	}
+}
+
+// The client's own trouble (a full or read-only disk) is not the release's
+// fault: the release is not blocklisted and the torrent is left in the client.
+func TestDownloadClientErrorStateKeepsTheTorrent(t *testing.T) {
+	defer api.SetDownloadClientPollForTest(10 * time.Millisecond)()
+	e := newClientEnv(t)
+	e.qb.state = "error"
+	e.save(t, map[string]any{})
+	item, _ := e.grab(t)
+	if item["status"] != "failed" || !strings.Contains(fmt.Sprint(item["error"]), "reports a problem") {
+		t.Fatalf("status %v: %v", item["status"], item["error"])
+	}
+	if len(e.qb.deleted) != 0 {
+		t.Errorf("the torrent must stay in the client: %v", e.qb.deleted)
+	}
+	if list, err := e.server.Blocklist.List(); err != nil || len(list) != 0 {
+		t.Errorf("the release must not be blocklisted: %v, %v", list, err)
 	}
 }
 

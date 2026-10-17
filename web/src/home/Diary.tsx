@@ -1,6 +1,7 @@
 // Home fork: the Diary, on the You page. What you watched and when, newest
 // first, by month: from Jellyfin by itself, logged by hand, or imported
 // from Letterboxd or Trakt. Rate with stars, write a note, take an entry out.
+import Dropdown from '../components/Dropdown' // Usherr
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
@@ -357,38 +358,22 @@ export default function Diary() {
     setEntries((l) => (l ?? []).filter((x) => x.id !== e.id))
     void send(`/api/home/diary/${e.id}`, { method: 'DELETE' }).catch(load)
   }
-  const chip = (on: boolean) => `room-chip${on ? ' on' : ''}`
 
   return (
     <section className="card you-card diary">
       <div className="diary-bar">
-        <div className="room-row" role="group" aria-label={t('Kind')}>
-          <button type="button" className={chip(kind === '')} aria-pressed={kind === ''} onClick={() => setKind('')}>
-            {t('Everything')}
-          </button>
-          <button type="button" className={chip(kind === 'movie')} aria-pressed={kind === 'movie'} onClick={() => setKind('movie')}>
-            <Icon name="film" size={14} /> {t('Films')}
-          </button>
-          <button type="button" className={chip(kind === 'tv')} aria-pressed={kind === 'tv'} onClick={() => setKind('tv')}>
-            <Icon name="tv" size={14} /> {t('Shows')}
-          </button>
-          {years.length > 0 && (
-            <select value={year} onChange={(e) => setYear(e.target.value)} aria-label={t('Year')}>
-              <option value="">{t('Every year')}</option>
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
+        {/* Usherr: one slim row: the kind and the year as drop-downs */}
+        <Dropdown icon="grid" label={t('Kind')} value={kind} onChange={(v) => setKind(v as typeof kind)} options={[{ value: '', label: t('Everything') }, { value: 'movie', label: t('Films') }, { value: 'tv', label: t('Shows') }]} />
+        {years.length > 0 && (
+          <Dropdown icon="calendar" label={t('Year')} value={year} onChange={setYear} options={[{ value: '', label: t('Every year') }, ...years.map((y) => ({ value: String(y), label: String(y) }))]} />
+        )}
+        <span className="spacer" />
         <div className="diary-buttons">
-          <button className="btn-sm btn-with-icon" onClick={() => setImporting(true)}>
-            <Icon name="download" size={14} /> {t('Import')}
+          <button className="btn-sm btn-with-icon" onClick={() => setImporting(true)} aria-label={t('Import')} title={t('Import')}>
+            <Icon name="download" size={14} /> <span className="cbar-add-label">{t('Import')}</span>
           </button>
-          <button className="btn-sm primary btn-with-icon" onClick={() => setLogging(true)}>
-            <Icon name="plus" size={14} /> {t('Log something')}
+          <button className="btn-sm primary btn-with-icon" onClick={() => setLogging(true)} aria-label={t('Log something')} title={t('Log something')}>
+            <Icon name="plus" size={14} /> <span className="cbar-add-label">{t('Log something')}</span>
           </button>
         </div>
       </div>

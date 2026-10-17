@@ -115,7 +115,7 @@ func (s *Server) handleSearchGrab(w http.ResponseWriter, r *http.Request) {
 		writeUpstreamError(w, "look up that release", err)
 		return
 	}
-	match := bestTMDBMatch(candidates, release.Year)
+	match := bestTMDBMatch(candidates, release.Title, release.Year)
 	if match == nil {
 		writeError(w, http.StatusNotFound, fmt.Sprintf("Couldn't find a match for %q in the movie database.", release.Title))
 		return
@@ -183,9 +183,9 @@ func (s *Server) grabMovieReplacing(movie library.Movie, releaseTitle, downloadU
 		}
 	}
 	if kind.refusesDuplicates() {
-		if s.releaseBlocklisted(releaseTitle) {
+		if err := s.grabRefused(kind, releaseTitle, downloadURL); err != nil {
 			s.grabMu.Unlock()
-			return 0, errBlocklisted
+			return 0, err
 		}
 		if err := s.claimMovie(movie.ID); err != nil {
 			s.grabMu.Unlock()
@@ -224,22 +224,25 @@ func (s *Server) grabMovieReplacing(movie library.Movie, releaseTitle, downloadU
 	return queueID, nil
 }
 
-// bestTMDBMatch picks the first search result matching year (when the
-// release name had one), falling back to the plain first result — good
-// enough for matching a search result to a title automatically. A screen for
-// re-matching by hand could be added if this guesses wrong too often.
-func bestTMDBMatch(candidates []metadata.Movie, year int) *metadata.Movie {
-	if len(candidates) == 0 {
-		return nil
-	}
-	if year != 0 {
-		for i := range candidates {
-			if candidates[i].Year() == year {
-				return &candidates[i]
-			}
+// bestTMDBMatch picks the search result that has the release's title (its
+// English or its original one), preferring the one from the release's year.
+// When none is named like the release it returns nil rather than guess: a
+// different film would be added to the library and the file imported under
+// the wrong name.
+func bestTMDBMatch(candidates []metadata.Movie, title string, year int) *metadata.Movie {
+	var first *metadata.Movie
+	for i := range candidates {
+		if !sameTitle(title, candidates[i].Title) && !sameTitle(title, candidates[i].OriginalTitle) {
+			continue
+		}
+		if year != 0 && candidates[i].Year() == year {
+			return &candidates[i]
+		}
+		if first == nil {
+			first = &candidates[i]
 		}
 	}
-	return &candidates[0]
+	return first
 }
 
 // findOrAddMovie returns the library movie for match, adding it (as added by

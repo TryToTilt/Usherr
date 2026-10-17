@@ -88,6 +88,62 @@ func formatWord(f books.Format) string {
 	return "ebooks"
 }
 
+// audiobookFileNames is the name each audiobook file gets in the book's one
+// folder. A file keeps its own name, unless another file has the same name in
+// a different folder of the download (CD1/Track 01.mp3 and CD2/Track 01.mp3):
+// then its folder is put in front ("CD1 - Track 01.mp3"), so no part of the
+// book replaces another. Any name that is still taken gets a number.
+func audiobookFileNames(dir string, files []string) []string {
+	rels := make([][]string, len(files))
+	for i, f := range files {
+		rel, err := filepath.Rel(dir, filepath.Dir(f))
+		if err != nil || rel == "." {
+			continue
+		}
+		rels[i] = strings.Split(filepath.ToSlash(rel), "/")
+	}
+	// Folders every file shares (the release's own folder) say nothing.
+	for len(rels) > 0 {
+		if len(rels[0]) == 0 {
+			break
+		}
+		first, shared := rels[0][0], true
+		for _, r := range rels {
+			if len(r) == 0 || r[0] != first {
+				shared = false
+				break
+			}
+		}
+		if !shared {
+			break
+		}
+		for i := range rels {
+			rels[i] = rels[i][1:]
+		}
+	}
+	count := map[string]int{}
+	for _, f := range files {
+		count[strings.ToLower(filepath.Base(f))]++
+	}
+	names := make([]string, len(files))
+	used := map[string]bool{}
+	for i, f := range files {
+		base := filepath.Base(f)
+		name := base
+		if count[strings.ToLower(base)] > 1 && len(rels[i]) > 0 {
+			name = strings.Join(rels[i], " - ") + " - " + base
+		}
+		ext := filepath.Ext(name)
+		stem := strings.TrimSuffix(name, ext)
+		for n := 2; used[strings.ToLower(name)]; n++ {
+			name = fmt.Sprintf("%s (%d)%s", stem, n, ext)
+		}
+		used[strings.ToLower(name)] = true
+		names[i] = name
+	}
+	return names
+}
+
 func (s *Server) runBookPipeline(queueID int64, b books.Book, f books.Format, releaseTitle, downloadURL string, protocol indexers.Protocol) error {
 	ctx, run := s.pipelines.begin(queueID)
 	defer s.pipelines.end(queueID, run)
@@ -116,7 +172,9 @@ func (s *Server) runBookPipeline(queueID int64, b books.Book, f books.Format, re
 		noteDownloadFailure(queueID, label, bookLink(b.ID), stepErr)
 		_ = s.BookRepo.SetState(b.ID, f, restore, "", "")
 		_ = s.QueueRepo.LogActivity(0, "failed", fmt.Sprintf("%s (%s): %s", label, f, plain))
-		s.notifyItem("failed", notify.Item{Media: string(f), Title: b.Title, Year: b.Year, Reason: plain, Release: releaseTitle, LinkPath: bookLink(b.ID)})
+		if s.failureNotifyWanted(stepErr, downloadURL, releaseTitle) {
+			s.notifyItem("failed", notify.Item{Media: string(f), Title: b.Title, Year: b.Year, Reason: plain, Release: releaseTitle, LinkPath: bookLink(b.ID)})
+		}
 		if isBadRelease(stepErr) {
 			if err := s.Blocklist.Add(blocklist.Entry{ReleaseTitle: releaseTitle, Protocol: string(protocol), Reason: stepErr.Error()}); err == nil {
 				// The same daily budget as movies and shows: an indexer that
@@ -171,8 +229,9 @@ func (s *Server) runBookPipeline(queueID int64, b books.Book, f books.Format, re
 		if len(files) == 0 {
 			return fail(badRelease(errors.New("the download has no audiobook files (m4b, mp3 and the like)")))
 		}
-		for _, src := range files {
-			res, err := s.importDownloaded(src, filepath.Join(folder, filepath.Base(src)), organizer.ConflictOverwrite, nil)
+		names := audiobookFileNames(dir, files)
+		for i, src := range files {
+			res, err := s.importDownloaded(src, filepath.Join(folder, names[i]), organizer.ConflictOverwrite, nil)
 			if err != nil {
 				return fail(fmt.Errorf("couldn't move %s into your library: %w", filepath.Base(src), err))
 			}

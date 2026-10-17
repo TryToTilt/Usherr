@@ -236,7 +236,7 @@ export default function SitePicker({ protocol, onAdded }: { protocol: 'torrent' 
           <button className="primary btn-with-icon" onClick={() => void add()} disabled={busy}>
             <Icon name="plus" size={15} /> {t('Add {name}', { name: picked.name })}
           </button>
-          <FormProblem v={v} verb={t('add it')} />
+          <FormProblem v={v} action="add" />
         </div>
       </div>
     )

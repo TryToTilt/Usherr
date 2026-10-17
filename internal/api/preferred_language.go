@@ -15,6 +15,12 @@ func (s *Server) preferredLanguage() string {
 	return quality.DefaultLanguage
 }
 
+// languageOnly is the switch "Only take releases in these languages" (off
+// until it is turned on): a release has to say it is in a wanted language.
+func (s *Server) languageOnly() bool {
+	return s.settingOn(settings.KeyQualityLanguageOnly, false)
+}
+
 // infoLanguage is the language titles, plots, genres and posters are read in
 // (Settings > Info, lists and subtitles > Movie and show info). English until
 // it is changed.

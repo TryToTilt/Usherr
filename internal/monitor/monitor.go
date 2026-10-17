@@ -11,6 +11,7 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"regexp"
@@ -27,6 +28,11 @@ const (
 	KindUsenet  Kind = "usenet"
 	KindIndexer Kind = "indexer"
 )
+
+// ErrSkip is what a check's Run returns when it chose not to test this time (it
+// was tested not long ago, or testing would use a request the thing has none
+// to spare). The earlier result stays as it is and nothing is announced.
+var ErrSkip = errors.New("the check was skipped")
 
 // Check is one thing to test. Run returns nil when it is healthy.
 type Check struct {
@@ -177,6 +183,9 @@ func (m *Monitor) RunOnce(ctx context.Context) {
 		k := key(c.Kind, c.ID)
 		seen[k] = true
 		prev, known := m.statuses[k]
+		if errors.Is(results[i], ErrSkip) {
+			continue // keep the earlier result
+		}
 		st := &Status{Kind: c.Kind, ID: c.ID, Name: c.Name, OK: results[i] == nil, CheckedAt: checkedAt}
 		if results[i] != nil {
 			st.Error = Redact(results[i].Error())

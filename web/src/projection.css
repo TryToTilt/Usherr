@@ -789,12 +789,12 @@ a.hero-pill:hover { transform: none; border-color: var(--pc, var(--accent)); }
   .sidebar a, .sidebar a.parent-open, .sidebar a:not(.active):hover,
   .sidebar .subnav > a, .sidebar .subnav .sn-head, .sidebar .subnav .sn-pages a.sn-page { margin-right: 0; }
   .sidebar { padding-right: 10px; }
-  .sidebar > a.active:not(.parent-open), .sidebar .subnav > a.active, .sidebar .subnav .sn-pages a.sn-page.active {
+  .sidebar :where(.side-scroll) > a.active:not(.parent-open), .sidebar .subnav > a.active, .sidebar .subnav .sn-pages a.sn-page.active {
     border-radius: 12px; box-shadow: none; color: var(--text);
     background: radial-gradient(130% 160% at 100% 50%, color-mix(in srgb, var(--sc, var(--nc, var(--accent))) 26%, transparent), transparent 62%), color-mix(in srgb, var(--sc, var(--nc, var(--accent))) 9%, transparent);
   }
-  .sidebar > a.active:not(.parent-open)::before, .sidebar .subnav > a.active::before, .sidebar .subnav .sn-pages a.sn-page.active::before { display: none; }
-  .sidebar > a.active:not(.parent-open)::after, .sidebar .subnav > a.active::after, .sidebar .subnav .sn-pages a.sn-page.active::after {
+  .sidebar :where(.side-scroll) > a.active:not(.parent-open)::before, .sidebar .subnav > a.active::before, .sidebar .subnav .sn-pages a.sn-page.active::before { display: none; }
+  .sidebar :where(.side-scroll) > a.active:not(.parent-open)::after, .sidebar .subnav > a.active::after, .sidebar .subnav .sn-pages a.sn-page.active::after {
     top: 50%; bottom: auto; right: 9px; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%;
     background: var(--sc, var(--nc, var(--accent))); box-shadow: 0 0 10px var(--sc, var(--nc, var(--accent))), 0 0 2px var(--sc, var(--nc, var(--accent)));
   }
@@ -977,7 +977,7 @@ small, .hint { line-height: 1.5; }
   background: linear-gradient(160deg, color-mix(in srgb, currentColor 30%, transparent), color-mix(in srgb, currentColor 8%, transparent)) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -2px 4px rgba(0, 0, 0, 0.25), 0 4px 10px -4px color-mix(in srgb, currentColor 50%, transparent);
 }
-.sidebar a.active .nav-ico, .sidebar > a.active:not(.parent-open) .nav-ico {
+.sidebar a.active .nav-ico, .sidebar :where(.side-scroll) > a.active:not(.parent-open) .nav-ico {
   background: linear-gradient(160deg, color-mix(in srgb, var(--nc, var(--accent)) 70%, #fff), var(--nc, var(--accent)) 55%, color-mix(in srgb, var(--nc, var(--accent)) 70%, #000)) !important;
   color: var(--on-kind);
 }
@@ -1074,7 +1074,7 @@ a:hover .ico .ln, button:hover .ico .ln, .tile:hover .tile-ico .ico .ln, .mod-ca
 .nav-ico .ico .dp, .tile-ico .ico .dp, .stat-icon .ico .dp, .health-icon .ico .dp, .sn-ico .ico .dp, .section-pill .ico .dp, fieldset.group > legend .ico .dp {
   transform: translate(0.7px, 1px); stroke: color-mix(in srgb, currentColor 38%, transparent); opacity: 1;
 }
-.sidebar a.active .nav-ico, .sidebar > a.active:not(.parent-open) .nav-ico {
+.sidebar a.active .nav-ico, .sidebar :where(.side-scroll) > a.active:not(.parent-open) .nav-ico {
   background: linear-gradient(160deg, color-mix(in srgb, var(--nc, var(--accent)) 75%, #fff), var(--nc, var(--accent))) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 0 14px -3px var(--nc, var(--accent)) !important;
 }
@@ -1284,20 +1284,18 @@ fieldset.group { border-radius: 6px 26px 26px 26px; }
       gets a solid tile in its colour with the dark ink icon on it, never the
       dark ink on a dark tint.
    (The collapse-to-icons mode was removed: it hid the submenus.) */
-.sidebar { overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
-.sidebar::-webkit-scrollbar { display: none; }
-/* No scrollbar: a small glowing pill on the sidebar's right edge (components/SidebarScrollMark.tsx) shows that the menu scrolls and how far. */
-.side-scroll-mark {
-  position: fixed; z-index: 40; width: 4px; height: 30px; margin-left: -2px; border-radius: 999px; pointer-events: none;
-  background: var(--accent); opacity: 0.5; box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent);
-  transition: opacity 0.25s ease;
+/* The menu is its own scroll area between the logo and the version, so the version never sits on top of an entry. A soft fade at the bottom edge shows there is more below. */
+.sidebar { overflow: hidden; }
+.sidebar .side-scroll {
+  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px;
+  overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
 }
-.side-scroll-mark.busy { opacity: 0.95; }
-@media (max-width: 900px) { .side-scroll-mark { display: none; } }
-.sidebar > *, .sidebar .subnav, .sidebar .sn-group, .sidebar .sn-pages, .sidebar a { flex-shrink: 0; }
-.sidebar > .subnav { display: flex; flex-direction: column; }
+.sidebar .side-scroll.more-below { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent); }
+.sidebar .side-scroll .side-tools { position: static; background: none; }
+.sidebar :where(.side-scroll) > *, .sidebar .subnav, .sidebar .sn-group, .sidebar .sn-pages, .sidebar a { flex-shrink: 0; }
+.sidebar :where(.side-scroll) > .subnav { display: flex; flex-direction: column; }
 
-.sidebar > a.parent-open .nav-ico,
+.sidebar :where(.side-scroll) > a.parent-open .nav-ico,
 .sidebar .subnav .sn-head.current .nav-ico,
 .sidebar .subnav > a.active .nav-ico,
 .sidebar .subnav .sn-page.active .sn-ico {
@@ -1305,7 +1303,7 @@ fieldset.group { border-radius: 6px 26px 26px 26px; }
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 0 12px -3px var(--sc, var(--nc, var(--accent))) !important;
   color: var(--on-kind);
 }
-.sidebar > a.parent-open .nav-ico .ico .dp, .sidebar .subnav .sn-head.current .nav-ico .ico .dp, .sidebar .subnav .sn-page.active .sn-ico .ico .dp { stroke: color-mix(in srgb, var(--on-kind) 30%, transparent); }
+.sidebar :where(.side-scroll) > a.parent-open .nav-ico .ico .dp, .sidebar .subnav .sn-head.current .nav-ico .ico .dp, .sidebar .subnav .sn-page.active .sn-ico .ico .dp { stroke: color-mix(in srgb, var(--on-kind) 30%, transparent); }
 /* the footer tools sit on the panel colour so the list scrolls cleanly under them */
 .side-tools { background: linear-gradient(to bottom, transparent, var(--panel-bottom) 18px) !important; z-index: 2; }
 
@@ -1383,7 +1381,7 @@ fieldset.group { border-radius: 6px 26px 26px 26px; }
    No section labels, no status line under the logo, slightly tighter items,
    the footer buttons live in the header, and the version is plain small text
    at the bottom of the sidebar. */
-.sidebar > a { padding-top: 4px; padding-bottom: 4px; }
+.sidebar :where(.side-scroll) > a { padding-top: 4px; padding-bottom: 4px; }
 .sidebar a .nav-ico { width: 28px; height: 28px; border-radius: 9px; }
 .sidebar .subnav > a, .sidebar .subnav .sn-head { padding-top: 3px; padding-bottom: 3px; }
 .sidebar .subnav .nav-ico { width: 26px; height: 26px; }
@@ -1404,8 +1402,8 @@ fieldset.group { border-radius: 6px 26px 26px 26px; }
 .side-menu.below { transform: none; }
 
 /* the version, bottom of the sidebar */
-/* Pinned to the foot of the panel: below the menu when it is short, and stuck to the bottom edge when an open Settings group makes the menu scroll. */
-.sidebar .side-version { margin: auto 0 0; padding: 14px 0 6px; display: flex; justify-content: center; position: sticky; bottom: 0; z-index: 2; background: linear-gradient(to bottom, transparent, var(--panel-bottom, var(--surface)) 14px); }
+/* Pinned to the foot of the panel, under the scrolling menu. */
+.sidebar .side-version { flex: none; margin: 0; padding: 10px 0 4px; display: flex; justify-content: center; }
 .sidebar .side-version a, .sidebar .side-version span {
   display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px 4px 9px; border-radius: 4px 12px 12px 12px;
   font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.04em; line-height: 1.2; color: var(--text-faint); text-decoration: none;
@@ -1563,3 +1561,44 @@ fieldset.group { border-radius: 6px 26px 26px 26px; }
 .stats-preview { margin: 10px 0; }
 .stats-preview summary { cursor: pointer; font-weight: 600; }
 .stats-preview pre { margin: 8px 0; padding: 10px 12px; max-height: 220px; overflow: auto; border-radius: 10px; font: 0.8rem/1.45 var(--font-mono); background: color-mix(in srgb, var(--surface-2) 80%, transparent); border: 1px solid var(--border); }
+
+/* ==== Layout pass 2: scrollbars, header title, dashboard folders ============ */
+/* Scrollbars in the app's own look: thin, a dark track and a rounded thumb that brightens on hover. Firefox and current Chromium use the two standard properties; older Chromium and Safari get the ::-webkit-scrollbar version. */
+:root {
+  --sb-thumb: color-mix(in srgb, var(--text) 20%, var(--surface-2));
+  --sb-thumb-hover: color-mix(in srgb, var(--text) 38%, var(--surface-2));
+  --sb-track: color-mix(in srgb, var(--bg) 60%, transparent);
+}
+@supports (scrollbar-color: auto) {
+  html, * { scrollbar-width: thin; scrollbar-color: var(--sb-thumb) var(--sb-track); }
+  *:hover { scrollbar-color: var(--sb-thumb-hover) var(--sb-track); }
+  .sidebar .side-scroll { --sb-track: transparent; }
+}
+@supports not (scrollbar-color: auto) {
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--sb-track); }
+  ::-webkit-scrollbar-corner { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--sb-thumb); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--sb-thumb-hover); background-clip: padding-box; }
+  .sidebar .side-scroll::-webkit-scrollbar-track { background: transparent; }
+}
+
+/* Header: a long page name ends in an ellipsis (the full name is in its tooltip) and the search box gives way first, so the name never runs under the search field. */
+.topbar .top-title { min-width: 0; }
+.top-title .top-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (min-width: 901px) {
+  .topbar .top-search { flex-shrink: 8; }
+}
+
+/* Dashboard, Connected folders: only the folders that are on; the ones switched off get a line under the cards. */
+.folders-off { margin: 12px 4px 0; font-size: 0.84rem; color: var(--text-dim); }
+.folders-off a { color: var(--accent); }
+
+/* Dashboard server card, Folders column: a folder name and its free space never overlap. The name keeps its own column, and when the column is too narrow for both the free space drops under the name. */
+.info-disks { container-type: inline-size; }
+.info-disk > span { overflow-wrap: anywhere; }
+.info-disk small { white-space: nowrap; }
+@container (max-width: 19rem) {
+  .info-disk { grid-template-columns: minmax(0, 1fr); }
+  .info-disk small { text-align: left; }
+}

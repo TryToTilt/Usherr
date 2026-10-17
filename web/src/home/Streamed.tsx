@@ -272,6 +272,11 @@ export default function Streamed() {
   )
 }
 
+// Usherr: the episode list of a streamed show, opened from the show's own page.
+export function StreamedSheet({ id, tmdbId, title, onClose }: { id: number; tmdbId: number; title: string; onClose: () => void }) {
+  return <TitleSheet ti={{ id, kind: 'series', tmdbId, title, year: 0, genres: [], files: 0 }} onClose={onClose} />
+}
+
 function TitleSheet({ ti: card, onClose, onRemoved }: { ti: Title; onClose: () => void; onRemoved?: () => void }) {
   const admin = isAdmin(useAuth().user)
   const [removing, setRemoving] = useState(false)

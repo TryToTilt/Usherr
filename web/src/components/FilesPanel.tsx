@@ -36,7 +36,8 @@ export default function FilesPanel({ kind, id }: { kind: 'movie' | 'series' | 'a
   useEffect(load, [load])
   useLive(load, 30000)
 
-  if (error) return <p className="error-text">{error}</p>
+  // A failed refresh keeps the list (and a video that is playing) on screen.
+  if (error && files === null) return <p className="error-text">{error}</p>
   if (files === null) return <div className="skeleton" style={{ height: 120 }} />
   if (files.length === 0) return <p style={{ color: 'var(--text-dim)', margin: 0 }}>{kind === 'album' ? t('No files for this album on disk yet.') : t("No files in this title's folder yet.")}</p>
 
@@ -45,6 +46,7 @@ export default function FilesPanel({ kind, id }: { kind: 'movie' | 'series' | 'a
 
   return (
     <>
+      {error && <p className="error-text">{error}</p>}
       <ul className="file-list">
         {sorted.map((f) => (
           <li key={f.path} className={f.main ? 'main' : undefined}>

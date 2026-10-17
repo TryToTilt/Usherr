@@ -21,6 +21,10 @@ type securityState struct {
 	// together, so a password guessed from many addresses at once (which the
 	// per-address limit cannot see) is slowed down too.
 	byUser *auth.LoginLimiter
+	// confirmIP counts wrong password confirmations of signed-in people per
+	// address. It is apart from the sign-in limit so one signed-in person
+	// cannot use up the address for everyone else, the administrator included.
+	confirmIP *auth.LoginLimiter
 	// setup is the one-time code for creating the first administrator from
 	// outside the home network (setup.go).
 	setup setupState
@@ -54,6 +58,7 @@ func (s *Server) sec() *securityState {
 			}
 		}
 		st.byUser = auth.NewLoginLimiter(userLoginAttempts, userLoginWindow)
+		st.confirmIP = auth.NewLoginLimiter(5, 15*time.Minute)
 	})
 	return st
 }

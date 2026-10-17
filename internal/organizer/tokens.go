@@ -98,6 +98,10 @@ var tokenDefs = []tokenDef{
 	{"Codec", TokenBoth, "Media info", func(c NamingContext) string { return c.Codec }},
 
 	{"Release Group", TokenBoth, "Release", func(c NamingContext) string { return c.ReleaseGroup }},
+	// The release's own name ("Example.Movie.2024.1080p.BluRay-GROUP") and the
+	// name the file came with, without its extension, as in Radarr and Sonarr.
+	{"Original Title", TokenBoth, "Release", func(c NamingContext) string { return c.OriginalTitle }},
+	{"Original Filename", TokenBoth, "Release", func(c NamingContext) string { return c.OriginalFilename }},
 	// No custom formats are matched yet, so this stands in for the edition,
 	// unless the format has {Edition Tags} for that already.
 	{"Custom Formats", TokenBoth, "Release", func(c NamingContext) string {
@@ -113,6 +117,7 @@ var tokenDefs = []tokenDef{
 var aliases = map[string]string{
 	"tmdb id": "tmdbid", "imdb id": "imdbid", "tvdb id": "tvdbid",
 	"air date": "air-date", "releasegroup": "release group",
+	"originaltitle": "original title", "originalfilename": "original filename", "original file name": "original filename",
 }
 
 var tokensByKey = func() map[string]tokenDef {

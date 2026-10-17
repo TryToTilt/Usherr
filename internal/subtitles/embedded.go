@@ -114,7 +114,15 @@ func embeddedInfo(path string) (map[string]bool, HaveMap) {
 	}
 	embeddedMu.Lock()
 	if len(embeddedCache) >= maxEmbeddedCache {
-		clear(embeddedCache)
+		// Forget a quarter, not everything: clearing the lot would make a
+		// library bigger than the cache read every header again on each visit.
+		drop := len(embeddedCache) / 4
+		for k := range embeddedCache {
+			delete(embeddedCache, k)
+			if drop--; drop <= 0 {
+				break
+			}
+		}
 	}
 	embeddedCache[path] = embeddedEntry{size: info.Size(), mod: info.ModTime().UnixNano(), langs: langs, have: have}
 	embeddedMu.Unlock()

@@ -77,18 +77,18 @@ export default function TorrentSection({ status }: { status: DownloadsStatus['to
       </p>
       <label>
         <TipLabel text={t('The port other torrent users connect to. Keep 58264 unless it clashes; if you change it, publish the same number in your Docker ports.')} learnMore="downloads#torrent-port-58264">{t('Listen port (0 = the default, 58264)')}</TipLabel>
-        <input inputMode="numeric" value={listenPort} onChange={(e) => setListenPort(e.target.value)} {...v.bind('listenPort', listenPort, setListenPort)} />
+        <input aria-label={t('Listen port (0 = the default, 58264)')} inputMode="numeric" value={listenPort} onChange={(e) => setListenPort(e.target.value)} {...v.bind('listenPort', listenPort, setListenPort)} />
         <FieldError v={v} name="listenPort" />
       </label>
       <PortStatus status={status} />
       <label>
         <TipLabel text={t('A finished torrent keeps sharing until it has uploaded this many times its size, or reaches the time limit. Whichever comes first stops it.')} learnMore="downloads#seeding">{t('Seed ratio limit (0 = unlimited)')}</TipLabel>
-        <input inputMode="decimal" value={seedRatioLimit} onChange={(e) => setSeedRatioLimit(e.target.value)} {...v.bind('seedRatioLimit', seedRatioLimit, setSeedRatioLimit)} />
+        <input aria-label={t('Seed ratio limit (0 = unlimited)')} inputMode="decimal" value={seedRatioLimit} onChange={(e) => setSeedRatioLimit(e.target.value)} {...v.bind('seedRatioLimit', seedRatioLimit, setSeedRatioLimit)} />
         <FieldError v={v} name="seedRatioLimit" />
       </label>
       <label>
         <TipLabel text={t('A finished torrent stops sharing after this many hours, or when it reaches the ratio limit. Whichever comes first stops it.')} learnMore="downloads#seeding">{t('Seed time limit, hours (0 = unlimited)')}</TipLabel>
-        <input inputMode="decimal" value={seedTimeLimitH} onChange={(e) => setSeedTimeLimitH(e.target.value)} {...v.bind('seedTimeLimitH', seedTimeLimitH, setSeedTimeLimitH)} />
+        <input aria-label={t('Seed time limit, hours (0 = unlimited)')} inputMode="decimal" value={seedTimeLimitH} onChange={(e) => setSeedTimeLimitH(e.target.value)} {...v.bind('seedTimeLimitH', seedTimeLimitH, setSeedTimeLimitH)} />
         <FieldError v={v} name="seedTimeLimitH" />
       </label>
       {loadError && <p className="error-text">{t('Could not load the current values: {error}', { error: loadError })}</p>}

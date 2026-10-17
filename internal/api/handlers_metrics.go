@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -48,7 +49,7 @@ type metricsCache struct {
 // The first three metric names (mediarium_up, mediarium_library_movies_total,
 // mediarium_queue_items_total) are the original ones and stay as they were.
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
-	movieCounts, err := s.MovieRepo.MovieCounts()
+	movieCounts, err := s.MovieRepo.MovieCounts(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -87,7 +88,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	m.sample("mediarium_downloads_active", nil, float64(queueByStatus[queue.StatusDownloading]))
 
 	// Shows and episodes.
-	if sc, err := s.MovieRepo.SeriesCounts(); err == nil {
+	if sc, err := s.MovieRepo.SeriesCounts(r.Context()); err == nil {
 		m.gauge("mediarium_library_series", "Shows in the library.")
 		m.sample("mediarium_library_series", nil, float64(sc.Series))
 		m.gauge("mediarium_library_episodes", "Episodes in the library by status.")
@@ -213,8 +214,8 @@ func (s *Server) metricsSlowNumbers() metricsSlow {
 		return *c
 	}
 	c.wantedMovies, c.wantedEpisode, c.wantedOK = 0, 0, false
-	if mv, ep, err := s.wantedMissingCounts(); err == nil {
-		c.wantedMovies, c.wantedEpisode, c.wantedOK = mv, ep, true
+	if o, err := s.libraryOverview(context.Background()); err == nil {
+		c.wantedMovies, c.wantedEpisode, c.wantedOK = o.WantedMovies, o.WantedEpisodes, true
 	} else {
 		slog.Warn("metrics: count wanted", "err", err)
 	}

@@ -8,6 +8,13 @@ func SetHashCostForTest(cost int) (restore func()) {
 	return func() { hashCost = old }
 }
 
+// Size is how many keys the limiter is tracking.
+func (l *LoginLimiter) Size() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return len(l.attempts)
+}
+
 // StoredHashForTest is the password hash stored for an account.
 func (s *Service) StoredHashForTest(id int64) string {
 	var h string

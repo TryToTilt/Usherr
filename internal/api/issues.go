@@ -155,12 +155,12 @@ func (s *Server) handleCreateIssue(w http.ResponseWriter, r *http.Request) {
 	}
 	by, _ := requester(r)
 	var open, same int
-	_ = s.db.QueryRow(`SELECT COUNT(*) FROM issues WHERE reported_by = ? AND status = 'open'`, by).Scan(&open)
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM issues WHERE COALESCE(reported_by, 0) = ? AND status = 'open'`, by).Scan(&open)
 	if open >= maxOpenPerPerson {
 		writeError(w, http.StatusTooManyRequests, "You have a lot of open reports. Wait until some are answered.")
 		return
 	}
-	_ = s.db.QueryRow(`SELECT COUNT(*) FROM issues WHERE reported_by = ? AND status = 'open' AND kind = ? AND item_id = ? AND category = ? AND episode = ?`,
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM issues WHERE COALESCE(reported_by, 0) = ? AND status = 'open' AND kind = ? AND item_id = ? AND category = ? AND episode = ?`,
 		by, in.Kind, in.ItemID, in.Category, in.Episode).Scan(&same)
 	if same > 0 {
 		writeError(w, http.StatusConflict, "You already reported that. An administrator will look at it.")

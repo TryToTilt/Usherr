@@ -72,8 +72,14 @@ func cachedFileSize(path string, now time.Time) int64 {
 
 	size := readSize(path)
 	fileSizes.Lock()
-	if len(fileSizes.m) > 200000 { // a runaway library: start over rather than grow without end
-		fileSizes.m = map[string]sizeEntry{}
+	if len(fileSizes.m) > 200000 { // a runaway library: forget a tenth rather than grow without end (or lose everything)
+		drop := len(fileSizes.m) / 10
+		for k := range fileSizes.m {
+			delete(fileSizes.m, k)
+			if drop--; drop <= 0 {
+				break
+			}
+		}
 	}
 	fileSizes.m[path] = sizeEntry{size: size, at: now}
 	fileSizes.Unlock()

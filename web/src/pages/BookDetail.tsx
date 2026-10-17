@@ -4,6 +4,7 @@ import { BookAIButtons } from '../home/AIBooks' // home fork
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, can, isAdmin, type Book, type BookFormat, type QueueItem, type SearchResult } from '../api'
 import { useAuth } from '../AuthContext'
+import ChangeCoverDialog from '../components/ChangeCoverDialog'
 import { useConfirm } from '../components/ConfirmProvider'
 import Icon from '../components/Icon'
 import KindGlyph from '../components/KindGlyph'
@@ -36,9 +37,11 @@ function BookPage({ id }: { id?: string }) {
   const navigate = useNavigate()
   const confirm = useConfirm()
   const toast = useToast()
-  const admin = isAdmin(useAuth().user)
+  const me = useAuth().user
+  const admin = isAdmin(me)
   const { on } = useModules()
   const [book, setBook] = useState<Book | null>(null)
+  const [changingCover, setChangingCover] = useState(false)
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [error, setError] = useState('')
   const [links, setLinks] = useState<{ serverId: number; name: string; kind: string; url: string }[]>([])
@@ -135,15 +138,24 @@ function BookPage({ id }: { id?: string }) {
           <div className="title-actions">
             <BookAIButtons bookId={book.id} title={book.title} inSeries={!!book.seriesName} /> {/* home fork */}
           </div>
-          {admin && (
+          {(admin || can(me, 'manage')) && (
             <div className="title-actions">
-              <button className="btn-with-icon danger-ghost" onClick={() => void remove()}>
-                <Icon name="trash" size={16} /> {t('Remove')}
-              </button>
+              {can(me, 'manage') && (
+                <button className="btn-with-icon" onClick={() => setChangingCover(true)}>
+                  <Icon name="image" size={16} /> {t('Change cover')}
+                </button>
+              )}
+              {admin && (
+                <button className="btn-with-icon danger-ghost" onClick={() => void remove()}>
+                  <Icon name="trash" size={16} /> {t('Remove')}
+                </button>
+              )}
             </div>
           )}
         </div>
       </section>
+
+      {changingCover && <ChangeCoverDialog book={book} onClose={() => setChangingCover(false)} onChanged={load} />}
 
       <div className="book-formats">
         {formats.map((f) => (

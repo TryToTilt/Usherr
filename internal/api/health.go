@@ -38,7 +38,7 @@ var healthRank = map[string]int{"error": 0, "warn": 1, "info": 2}
 // it. The dashboard shows these, so a skipped setup step is never silent.
 func (s *Server) collectHealth() []healthItem {
 	var items []healthItem
-	add := func(id, level, title, impact, label, path string) {
+	addHealth := func(id, level, title, impact, label, path string) {
 		it := healthItem{ID: id, Level: level, Title: title, Impact: impact}
 		if label != "" {
 			it.Action = &healthAction{Label: label, Path: path}
@@ -47,27 +47,47 @@ func (s *Server) collectHealth() []healthItem {
 	}
 
 	if s.cfg.PauseAutomation {
-		add("safe-mode", "warn", "Safe mode is on",
+		addHealth("safe-mode", "warn", "Safe mode is on",
 			"Automatic searching, downloading and refreshing are paused because MEDIARIUM_PAUSE_AUTOMATION is set. Remove it and restart to resume.",
 			"", "")
 	}
 
 	if in := store.Mode(s.db); in.JournalMode != store.ModeWAL {
-		add("database-mode", "warn", "Keep the settings folder on a local disk",
+		addHealth("database-mode", "warn", "Keep the settings folder on a local disk",
 			"The database can't use its faster mode, usually because /config is on a network drive. Pages may be slow during downloads. Move /config to a local disk.",
 			"", "")
 	}
 
+	if in := store.Mode(s.db); len(in.NewerMigrations) > 0 {
+		addHealth("database-newer", "warn", "This version is older than your database",
+			store.NewerMessage(in.NewerMigrations),
+			"", "")
+	}
+
 	if !s.TMDB().HasAPIKey() {
-		add("tmdb-key", "error", "TMDB API key is missing",
+		addHealth("tmdb-key", "error", "TMDB API key is missing",
 			"Search, Discover, adding titles, the calendar and library import all need it.",
 			"Set the TMDB key", "/settings/metadata")
 	}
 
-	instances, _ := s.IndexerRepo.List()
+	keyMismatch := CheckSecretKey(s.db, s.box) != nil
+	if keyMismatch {
+		addHealth("secret-key-mismatch", "error", "The saved keys can't be read",
+			"The secret.key in your settings folder isn't the one this database was saved with, so indexer keys, passwords and tokens can't be read and automatic searching can't work. Put back the secret.key that belongs to this database, or re-enter your keys.",
+			"", "")
+	}
+
+	instances, listErr := s.IndexerRepo.List()
 	torrentsOn := s.torrentReleasesOn()
-	var usenetIndexers, torrentIndexers int
+	var usenetIndexers, torrentIndexers, unreadable int
 	for _, inst := range instances {
+		if inst.SecretError != "" {
+			unreadable++
+			addHealth(fmt.Sprintf("indexer-key-unreadable-%d", inst.ID), "error", inst.Name+" has a key that can't be read",
+				"Mediarium can't read the saved key of "+inst.Name+", so it is left out of searches. Open it and enter the key again.",
+				"Check indexers", "/settings/indexers")
+			continue
+		}
 		if !inst.Enabled {
 			continue
 		}
@@ -79,25 +99,29 @@ func (s *Server) collectHealth() []healthItem {
 			usenetIndexers++
 		}
 	}
-	if usenetIndexers+torrentIndexers == 0 {
-		add("no-indexers", "error", "No indexer is set up",
+	if listErr != nil {
+		addHealth("indexers-unreadable", "error", "The list of indexers can't be read",
+			"Mediarium couldn't read the indexers from the database, so searches and automatic downloads find nothing. The log says why.",
+			"", "")
+	} else if usenetIndexers+torrentIndexers == 0 && unreadable == 0 && !keyMismatch {
+		addHealth("no-indexers", "error", "No indexer is set up",
 			"Without one, searches and automatic downloads find nothing.",
 			"Add an indexer", "/settings/indexers")
 	}
 
 	for _, inst := range instances {
 		if inst.Enabled && inst.IsCardigann() && inst.LastTestError != "" {
-			add(fmt.Sprintf("indexer-test-failed-%d", inst.ID), "info", inst.Name+" failed its last test",
-				"The last test said: "+strings.TrimRight(inst.LastTestError, ". ")+". Searches may find nothing here until it's fixed.",
+			addHealth(fmt.Sprintf("indexer-test-failed-%d", inst.ID), "info", fmt.Sprintf("%s failed its last test", inst.Name),
+				fmt.Sprintf("The last test said: %s. Searches may find nothing here until it's fixed.", strings.TrimRight(inst.LastTestError, ". ")),
 				"Check indexers", "/settings/indexers")
 		}
 	}
 
-	s.pausedIndexerProblems(instances, add)
+	s.pausedIndexerProblems(instances, addHealth)
 
 	if s.cfg.BundledFlareSolverr && s.flareSolverrSetting() == "" {
 		if st := s.flareSolverrCheck(); !st.Running {
-			add("flaresolverr-down", "warn", "The built-in Cloudflare helper isn't answering",
+			addHealth("flaresolverr-down", "warn", "The built-in Cloudflare helper isn't answering",
 				"Sites with a Cloudflare check will fail until it's back. If it stays down, restart the container.",
 				"Open indexers", "/settings/indexers")
 		}
@@ -105,7 +129,7 @@ func (s *Server) collectHealth() []healthItem {
 
 	servers, _ := s.ClientRepo.List()
 	if usenetIndexers > 0 && len(servers) == 0 {
-		add("no-usenet-server", "warn", "No Usenet provider added",
+		addHealth("no-usenet-server", "warn", "No Usenet provider added",
 			"Your Usenet indexer finds releases but there's nowhere to download them from. Add your provider's news server.",
 			"Add your provider", "/settings/usenet")
 	}
@@ -114,7 +138,7 @@ func (s *Server) collectHealth() []healthItem {
 	// fewer than were set: say so, and where to find the number that works.
 	for _, st := range download.ServerStates() {
 		if st.Limit < st.Configured && !st.LastRefusal.IsZero() && time.Since(st.LastRefusal) < 12*time.Hour {
-			add("usenet-connections-"+st.Host, "warn", fmt.Sprintf("%s allows fewer connections than you set", st.Host),
+			addHealth("usenet-connections-"+st.Host, "warn", fmt.Sprintf("%s allows fewer connections than you set", st.Host),
 				fmt.Sprintf("Mediarium is using %d of the %d connections you set, because the provider keeps saying this login has too many open, so downloads are slower than they could be. Another program may be using the same login. Use Find the right number on your provider to get the number that works.", st.Limit, st.Configured),
 				"Find the right number", "/settings/usenet")
 		}
@@ -124,7 +148,7 @@ func (s *Server) collectHealth() []healthItem {
 	vpnConnected := vpnStatus.Connected
 	routeIndexers := s.vpnForIndexers()
 	if routeIndexers && vpnStatus.State == vpn.StateOff {
-		add("vpn-indexers-none", "error", "Indexer searches are blocked",
+		addHealth("vpn-indexers-none", "error", "Indexer searches are blocked",
 			"They're set to go through the VPN, but no VPN is switched on. Switch one on, or turn off Send indexer traffic through the VPN.",
 			"Open VPN settings", "/settings/vpn")
 	}
@@ -132,30 +156,30 @@ func (s *Server) collectHealth() []healthItem {
 	case !torrentsOn && !routeIndexers:
 		// Nothing uses the VPN: nothing to warn about VPNs or torrent indexers.
 	case vpnStatus.State == vpn.StateDown:
-		add("vpn-down", "error", "Your VPN isn't connected",
-			vpnStatus.Label+" isn't working. "+vpnStatus.Reason+" "+vpnDownImpact(torrentsOn, routeIndexers),
+		addHealth("vpn-down", "error", "Your VPN isn't connected",
+			fmt.Sprintf("%s isn't working. %s %s", vpnStatus.Label, vpnStatus.Reason, vpnDownImpact(torrentsOn, routeIndexers)),
 			"Open VPN settings", "/settings/vpn")
 	case vpnStatus.State == vpn.StateConnecting:
 		// Coming up (after a restart, for example): nothing to report yet.
 	case !torrentsOn:
 		// The rest is about torrents.
 	case s.vpnRequiredForTorrents() && !vpnConnected:
-		add("vpn-required", "error", "Torrents are blocked until a VPN is connected",
+		addHealth("vpn-required", "error", "Torrents are blocked until a VPN is connected",
 			"The VPN kill switch is on, so torrents wait for a VPN. Usenet isn't affected.",
 			"Open VPN settings", "/settings/vpn")
 	case torrentIndexers > 0 && !vpnConnected:
-		add("no-vpn", "warn", "Torrenting without a VPN",
+		addHealth("no-vpn", "warn", "Torrenting without a VPN",
 			"Other peers can see your home IP address and your internet provider can see you're torrenting. A VPN hides both. Nothing is blocked.",
 			"Set up a VPN", "/settings/vpn")
 	}
 
 	if !organizer.NewExtractor().Available() {
-		add("no-7z", "info", "The 7z tool isn't installed",
+		addHealth("no-7z", "info", "The 7z tool isn't installed",
 			"Only .7z downloads need it, and those will fail until it's installed. The Docker image includes it. On a native install, install 7-Zip.",
 			"How to install it", "/about")
 	}
 	if !organizer.NewRepairer().Available() {
-		add("no-par2", "warn", "The repair tool (par2) is missing",
+		addHealth("no-par2", "warn", "The repair tool (par2) is missing",
 			"Without it, Usenet downloads with missing pieces fail instead of being repaired. The Docker image includes it. On a native install, install par2.",
 			"How to install it", "/about")
 	}
@@ -165,11 +189,11 @@ func (s *Server) collectHealth() []healthItem {
 		src := s.subtitleSources()
 		switch {
 		case !src.AnySetUp():
-			add("subtitles-off", "info", "Subtitles need a source",
+			addHealth("subtitles-off", "info", "Subtitles need a source",
 				"Subtitles are on but no subtitle source is set up (an OpenSubtitles or SubDL key, or an add-on), so none are downloaded.",
 				"Add a key", "/settings/subtitles")
 		case !src.Any():
-			add("subtitles-no-source", "info", "No subtitle source is switched on",
+			addHealth("subtitles-no-source", "info", "No subtitle source is switched on",
 				"Every subtitle source is switched off, so no subtitles are downloaded.",
 				"Choose sources", "/settings/subtitles")
 		case s.autoSubtitlesEnabled():
@@ -178,7 +202,7 @@ func (s *Server) collectHealth() []healthItem {
 			// limit is OpenSubtitles', so it matters only while OpenSubtitles is
 			// the one source doing the work.
 			if src.OpenSubtitles.On() && !src.OthersThanOpenSubtitles() && !s.Subtitles().HasCredentials() {
-				add("subtitles-anonymous", "info", "No OpenSubtitles account",
+				addHealth("subtitles-anonymous", "info", "No OpenSubtitles account",
 					"Without a free OpenSubtitles.com account you get about 5 a day (about 20 with one), so a large library fills in slowly.",
 					"Add your account", "/settings/subtitles")
 			}
@@ -189,7 +213,7 @@ func (s *Server) collectHealth() []healthItem {
 				if titles == 1 {
 					title = "1 downloaded title has no subtitles yet"
 				}
-				add("subtitles-offer", "info", title, subtitleOfferImpact(src, s.subtitleQuota(), files), "Get subtitles", "/wanted?tab=subtitles")
+				addHealth("subtitles-offer", "info", title, subtitleOfferImpact(src, s.subtitleQuota(), files), "Get subtitles", "/wanted?tab=subtitles")
 			}
 		}
 	}
@@ -197,30 +221,30 @@ func (s *Server) collectHealth() []healthItem {
 	// The shared keys that ship with the app have limits. When one is hit, say
 	// so, and point at the free personal key that removes the limit.
 	if s.usingSharedKey(serviceTrakt) && s.Usage.Stats(serviceTrakt).LimitHits >= 1 {
-		add("trakt-limit", "warn", "The shared Trakt key is at its limit",
+		addHealth("trakt-limit", "warn", "The shared Trakt key is at its limit",
 			"Trakt refused requests because the built-in key is shared and busy. Importing Trakt lists fails until it clears. A free personal Trakt key avoids this.",
 			"Use my own key", "/settings/lists")
 	}
 	if s.subtitlesEnabled() && s.useOpenSubtitles() && s.usingSharedKey(serviceOpenSubtitles) {
 		if s.Usage.Stats(serviceOpenSubtitles).LimitHits >= 1 {
-			add("opensubtitles-limit", "warn", "The shared OpenSubtitles key is at its limit",
+			addHealth("opensubtitles-limit", "warn", "The shared OpenSubtitles key is at its limit",
 				"OpenSubtitles refused requests because the built-in key is shared and busy. Subtitle downloads fail until it clears. A free personal key avoids this.",
 				"Use my own key", "/settings/subtitles")
 		} else if st := s.subtitleQuota(); st.Source == subtitles.QuotaReported && st.Limit > 0 && st.Used*100 > 80*st.Limit {
-			add("opensubtitles-busy", "info", "The shared OpenSubtitles key is nearly used up for today",
+			addHealth("opensubtitles-busy", "info", "The shared OpenSubtitles key is nearly used up for today",
 				fmt.Sprintf("%d of %d subtitle downloads used today. After that they wait until tomorrow. A free personal OpenSubtitles key gives you your own allowance.", st.Used, st.Limit),
 				"Use my own key", "/settings/subtitles")
 		}
 	}
 
 	if !s.Trakt().HasClientID() {
-		add("trakt-off", "info", "Trakt isn't connected (optional)",
+		addHealth("trakt-off", "info", "Trakt isn't connected (optional)",
 			"Needed only for importing Trakt lists on Discover.",
 			"Set up Trakt", "/settings/lists")
 	}
 
 	if !s.automationEnabled() {
-		add("automation-off", "info", "Automatic searching is turned off",
+		addHealth("automation-off", "info", "Automatic searching is turned off",
 			"Missing episodes and better quality are only found when you search by hand.",
 			"Turn it on", "/settings/quality")
 	}
@@ -229,65 +253,86 @@ func (s *Server) collectHealth() []healthItem {
 	type folderCheck struct {
 		id, label, path string
 		level           string // severity when the folder is unusable
-		impact          string
+		// What stops working when the folder is not there, and when Mediarium
+		// cannot write to it: whole sentences, so they can be translated.
+		missing, readonly string
 	}
+	const (
+		moviesMissing     = "Movies can't be imported into the library until this folder exists. In Docker, map a host folder to this path."
+		moviesReadonly    = "Movies can't be imported into the library because Mediarium can't write there. Check the folder's permissions, or the PUID and PGID."
+		tvMissing         = "TV episodes can't be imported into the library until this folder exists. In Docker, map a host folder to this path."
+		tvReadonly        = "TV episodes can't be imported into the library because Mediarium can't write there. Check the folder's permissions, or the PUID and PGID."
+		downloadMissing   = "Nothing can be downloaded until this folder exists. In Docker, map a host folder to this path."
+		downloadReadonly  = "Nothing can be downloaded because Mediarium can't write there. Check the folder's permissions, or the PUID and PGID."
+		moreMovieMissing  = "Movies kept in that folder can't be imported until this folder exists. In Docker, map a host folder to this path."
+		moreMovieReadonly = "Movies kept in that folder can't be imported because Mediarium can't write there. Check the folder's permissions, or the PUID and PGID."
+		moreTVMissing     = "Shows kept in that folder can't be imported until this folder exists. In Docker, map a host folder to this path."
+		moreTVReadonly    = "Shows kept in that folder can't be imported because Mediarium can't write there. Check the folder's permissions, or the PUID and PGID."
+		movieCopyMissing  = "Second copies of movies can't be imported until this folder exists. In Docker, map a host folder to this path."
+		movieCopyReadonly = "Second copies of movies can't be imported because Mediarium can't write there. Check the folder's permissions, or the PUID and PGID."
+		tvCopyMissing     = "Second copies of shows can't be imported until this folder exists. In Docker, map a host folder to this path."
+		tvCopyReadonly    = "Second copies of shows can't be imported because Mediarium can't write there. Check the folder's permissions, or the PUID and PGID."
+	)
 	folders := []folderCheck{
-		{"movies", "Movies", movies, "error", "Movies can't be imported into the library"},
-		{"tv", "TV", tv, "warn", "TV episodes can't be imported into the library"},
-		{"downloads", "Downloads", dl, "error", "Nothing can be downloaded"},
+		{"movies", "Movies", movies, "error", moviesMissing, moviesReadonly},
+		{"tv", "TV", tv, "warn", tvMissing, tvReadonly},
+		{"downloads", "Downloads", dl, "error", downloadMissing, downloadReadonly},
 	}
 	for i, f := range s.movieFolders()[min(1, len(s.movieFolders())):] {
-		folders = append(folders, folderCheck{"movies-" + strconv.Itoa(i+2), "Movies folder " + strconv.Itoa(i+2), f, "warn", "Movies kept in that folder can't be imported"})
+		folders = append(folders, folderCheck{"movies-" + strconv.Itoa(i+2), "Movies folder " + strconv.Itoa(i+2), f, "warn", moreMovieMissing, moreMovieReadonly})
 	}
 	for i, f := range s.tvFolders()[min(1, len(s.tvFolders())):] {
-		folders = append(folders, folderCheck{"tv-" + strconv.Itoa(i+2), "TV folder " + strconv.Itoa(i+2), f, "warn", "Shows kept in that folder can't be imported"})
+		folders = append(folders, folderCheck{"tv-" + strconv.Itoa(i+2), "TV folder " + strconv.Itoa(i+2), f, "warn", moreTVMissing, moreTVReadonly})
 	}
 	if c := s.movieCopiesRoot(); c != "" {
-		folders = append(folders, folderCheck{"movie-copies", "Movie copies", c, "warn", "Second copies of movies can't be imported"})
+		folders = append(folders, folderCheck{"movie-copies", "Movie copies", c, "warn", movieCopyMissing, movieCopyReadonly})
 	}
 	if c := s.tvCopiesRoot(); c != "" {
-		folders = append(folders, folderCheck{"tv-copies", "TV copies", c, "warn", "Second copies of shows can't be imported"})
+		folders = append(folders, folderCheck{"tv-copies", "TV copies", c, "warn", tvCopyMissing, tvCopyReadonly})
 	}
 	for _, f := range folders {
 		info := inspectCached(f.path)
 		switch {
 		case !info.Exists || !info.IsDir:
-			add(f.id+"-folder-missing", f.level, f.label+" folder not found ("+f.path+")",
-				f.impact+" until this folder exists. In Docker, map a host folder to this path.",
+			addHealth(f.id+"-folder-missing", f.level, fmt.Sprintf("%s folder not found (%s)", f.label, f.path),
+				f.missing,
 				"Fix folders", "/settings/media")
 		case !info.Writable:
-			add(f.id+"-folder-readonly", f.level, f.label+" folder isn't writable ("+f.path+")",
-				f.impact+" because Mediarium can't write there. Check the folder's permissions, or the PUID and PGID.",
+			addHealth(f.id+"-folder-readonly", f.level, fmt.Sprintf("%s folder isn't writable (%s)", f.label, f.path),
+				f.readonly,
 				"Fix folders", "/settings/media")
 		case info.MountKnown && !info.Mounted:
-			add(f.id+"-folder-unmapped", "warn", f.label+" folder isn't a mapped folder ("+f.path+")",
+			addHealth(f.id+"-folder-unmapped", "warn", fmt.Sprintf("%s folder isn't a mapped folder (%s)", f.label, f.path),
 				"Anything saved there is lost when the container is updated. Map a host folder to this path.",
 				"See folders", "/settings/media")
 		default:
 			if len(info.Warnings) > 0 {
-				add(f.id+"-folder-space", "warn", f.label+" drive is almost full ("+f.path+")",
+				addHealth(f.id+"-folder-space", "warn", fmt.Sprintf("%s drive is almost full (%s)", f.label, f.path),
 					"Downloads and imports fail when it runs out of space.",
 					"See folders", "/settings/media")
 			}
 		}
 	}
-	for _, f := range []struct{ id, label, path string }{{"movies", "Movies", movies}, {"tv", "TV", tv}} {
-		if f.path == "" {
-			continue
+	// One whole heading per folder, so the screen can show it in the
+	// reader's language.
+	if movies != "" {
+		if bad, _ := unwritableInside(movies); len(bad) > 0 {
+			addHealth("movies-folders-inside", "warn", "Some folders inside the movies folder can't be written to", insideWarning(bad), "See folders", "/settings/media")
 		}
-		if bad, _ := unwritableInside(f.path); len(bad) > 0 {
-			add(f.id+"-folders-inside", "warn", "Some folders inside "+f.label+" can't be written to",
-				insideWarning(bad), "See folders", "/settings/media")
+	}
+	if tv != "" {
+		if bad, _ := unwritableInside(tv); len(bad) > 0 {
+			addHealth("tv-folders-inside", "warn", "Some folders inside the TV folder can't be written to", insideWarning(bad), "See folders", "/settings/media")
 		}
 	}
 	if same, supported, err := organizer.SameFilesystem(dl, movies); err == nil && supported && !same {
-		add("no-hardlinks", "info", "Downloads and Movies are on different drives",
+		addHealth("no-hardlinks", "info", "Downloads and Movies are on different drives",
 			"Imports copy files instead of hardlinking them, which briefly uses double the space. Put both on the same drive to avoid that.",
 			"", "")
 	}
 
 	if recent := s.recentFailures(24 * time.Hour); recent > 0 {
-		add("recent-failures", "warn", plural(recent, "download")+" failed in the last 24 hours",
+		addHealth("recent-failures", "warn", recentFailuresTitle(recent),
 			"Bad releases are retried automatically. For anything else, check the reason on Activity.",
 			"See what failed", "/queue")
 	}
@@ -296,6 +341,15 @@ func (s *Server) collectHealth() []healthItem {
 
 	sort.SliceStable(items, func(i, j int) bool { return healthRank[items[i].Level] < healthRank[items[j].Level] })
 	return items
+}
+
+// recentFailuresTitle is the title of the "downloads failed" line, one whole
+// sentence for one download and one for several.
+func recentFailuresTitle(n int) string {
+	if n == 1 {
+		return "1 download failed in the last 24 hours"
+	}
+	return fmt.Sprintf("%d downloads failed in the last 24 hours", n)
 }
 
 // vpnDownImpact says what waits while the VPN is down, and how to go on
@@ -318,7 +372,7 @@ func (s *Server) recentFailures(within time.Duration) int {
 	if err != nil {
 		return 0
 	}
-	return max(0, list-s.sceneFailuresSince(time.Now().Add(-within))) // scenes hook (home fork)
+	return max(0, list-s.videoFailuresSince(time.Now().Add(-within))) // videos hook (home fork)
 }
 
 // handleHealth lists setup problems for administrators. Members cannot fix

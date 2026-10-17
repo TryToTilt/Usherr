@@ -48,6 +48,7 @@ indexers:
     apiKey: ${NZB_KEY}
     protocol: usenet
     priority: 1          # 1 preferred, 2 normal, 3 last resort
+    requestsPerDay: 25   # most requests a day (0 = none set)
 
 qualityProfiles:
   - name: Any HD

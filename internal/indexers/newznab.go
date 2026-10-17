@@ -30,10 +30,13 @@ type Result struct {
 	SizeBytes   int64
 	PublishDate time.Time
 	Categories  []int
-	Seeders     int    // torrent-only (Torznab attr), 0 for usenet results
-	Peers       int    // torrent-only (Torznab attr), 0 for usenet results
-	InfoHash    string // torrent-only, when the indexer reports it
-	Priority    int    // the indexer's priority (1 preferred, 2 normal, 3 last resort); set by the engine
+	Seeders     int // torrent-only (Torznab attr), 0 for usenet results
+	// SeedersKnown is true when the indexer said how many seeders there are, so a
+	// 0 in Seeders is a dead torrent and not just a missing number.
+	SeedersKnown bool
+	Peers        int    // torrent-only (Torznab attr), 0 for usenet results
+	InfoHash     string // torrent-only, when the indexer reports it
+	Priority     int    // the indexer's priority (1 preferred, 2 normal, 3 last resort); set by the engine
 	// Cached is set by the search code (never by an indexer) when the debrid
 	// service in use already has this torrent. False means "not cached or not
 	// known".
@@ -70,7 +73,9 @@ const (
 	slowFeedWait   = 60 * time.Second
 )
 
-var slowFeedPath = regexp.MustCompile(`^/(\d+|api/v2\.0/indexers/[^/]+/results/(torznab|newznab))(/|$)`)
+// The path may start with a folder when they sit behind a reverse proxy
+// ("/prowlarr/5/api", "/jackett/api/v2.0/indexers/x/results/torznab").
+var slowFeedPath = regexp.MustCompile(`^/\d+(/|$)|(^|/)(\d+/api|api/v2\.0/indexers/[^/]+/results/(torznab|newznab))(/|$)`)
 
 // FeedWait is how long to wait for the feed at baseURL: longer for the feeds
 // that Prowlarr (its own address and an indexer number, usually port 9696) or
@@ -105,6 +110,45 @@ func (c *NewznabClient) Search(ctx context.Context, query string, categories []i
 		q.Set("cat", strings.Join(cats, ","))
 	}
 
+	body, err := c.get(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	return parseNewznabFeed(body, c.Name, c.APIKey)
+}
+
+// Caps asks for the indexer's capabilities (t=caps). It is the cheapest
+// question an indexer answers, and it needs a right API key, so it tells
+// whether the indexer is up and the key still works. Some indexers count it
+// against a daily limit too, but it is no search.
+func (c *NewznabClient) Caps(ctx context.Context) error {
+	q := url.Values{}
+	q.Set("t", "caps")
+	q.Set("apikey", c.APIKey)
+	q.Set("o", "xml")
+	body, err := c.get(ctx, q)
+	if err != nil {
+		return err
+	}
+	var root struct {
+		XMLName     xml.Name
+		Code        string `xml:"code,attr"`
+		Description string `xml:"description,attr"`
+	}
+	switch err := xml.Unmarshal(body, &root); {
+	case err == nil && root.XMLName.Local == "error":
+		return fmt.Errorf("newznab error from %s: %s (code %s)", c.Name, maskSecret(truncate(root.Description, 300), c.APIKey), truncate(root.Code, 20))
+	case err == nil && (root.XMLName.Local == "caps" || root.XMLName.Local == "rss"): // some feeds answer with a feed
+		return nil
+	case looksLikeWebPage(body):
+		return fmt.Errorf("%s answered with a web page, not an indexer feed. Check the address: it must be the indexer's API address, not the site's home page", c.Name)
+	}
+	return fmt.Errorf("%s did not answer the capabilities question the way an indexer does", c.Name)
+}
+
+// get sends one request to the indexer's API and returns the body of an answer
+// with status 200.
+func (c *NewznabClient) get(ctx context.Context, q url.Values) ([]byte, error) {
 	reqURL := c.BaseURL + "/api?" + q.Encode()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
@@ -134,7 +178,7 @@ func (c *NewznabClient) Search(ctx context.Context, query string, categories []i
 		return nil, NewStatusError(resp.StatusCode, resp.Header,
 			fmt.Sprintf("newznab request to %s: unexpected status %d: %s", c.Name, resp.StatusCode, c.mask(truncate(string(body), 200))), time.Now())
 	}
-	return parseNewznabFeed(body, c.Name, c.APIKey)
+	return body, nil
 }
 
 // UserAgent is what Mediarium calls itself when it asks an indexer for a
@@ -376,8 +420,9 @@ func (item newznabItem) toResult(indexerName string) Result {
 		}
 	}
 	if seeders := item.attr("seeders"); seeders != "" {
-		if n, err := strconv.Atoi(seeders); err == nil && n > 0 {
+		if n, err := strconv.Atoi(seeders); err == nil && n >= 0 {
 			r.Seeders = int(sane(int64(n)))
+			r.SeedersKnown = true
 		}
 	}
 	r.InfoHash = strings.ToLower(item.attr("infohash"))

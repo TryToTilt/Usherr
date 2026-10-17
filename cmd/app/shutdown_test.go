@@ -54,6 +54,24 @@ func TestStopServingCutsAStreamThatOutlastsTheGrace(t *testing.T) {
 	}
 }
 
+func TestStopWithinGivesUpOnASlowStop(t *testing.T) {
+	block := make(chan struct{})
+	defer close(block)
+	begin := time.Now()
+	stopWithin("a test job", func() { <-block }, 100*time.Millisecond)
+	if took := time.Since(begin); took > 2*time.Second {
+		t.Fatalf("stopWithin waited %s for a stop that never ends", took)
+	}
+}
+
+func TestStopWithinWaitsForAStopThatFinishes(t *testing.T) {
+	finished := false
+	stopWithin("a test job", func() { time.Sleep(50 * time.Millisecond); finished = true }, 2*time.Second)
+	if !finished {
+		t.Fatal("stopWithin returned before the stop was done")
+	}
+}
+
 func TestStopServingReturnsAtOnceWhenNothingIsRunning(t *testing.T) {
 	srv := &http.Server{Handler: http.NotFoundHandler()}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

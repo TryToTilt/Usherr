@@ -22,8 +22,8 @@ func (s *Server) userAllows(r *http.Request, perm string) bool {
 	return err == nil && p.Allows(perm)
 }
 
-// GET /api/scenes/enabled: whether the NSFW 18+ section is set up, for an
+// GET /api/nsfw/enabled: whether the NSFW 18+ section is set up, for an
 // account allowed to see it.
-func (s *Server) handleScenesEnabled(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]bool{"enabled": s.scenesEnabled()})
+func (s *Server) handleNsfwEnabled(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]bool{"enabled": s.nsfwEnabled()})
 }

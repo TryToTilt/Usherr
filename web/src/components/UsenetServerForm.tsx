@@ -191,7 +191,7 @@ export default function UsenetServerForm({
         <div className="fa-right">{right}</div>
       </div>
       {!tested && test.state !== 'fail' && <small className="test-hint">{t('Test the connection to unlock {action}.', { action: submitLabel })}</small>}
-      <FormProblem v={v} verb={t('test the connection')} />
+      <FormProblem v={v} action="test" />
       {test.forKey === detailsKey && test.state === 'ok' && (
         <div className="test-result ok">
           <Icon name="check" size={15} /> {test.message || t('Connected.')}

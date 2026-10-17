@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,18 +44,25 @@ type bookImportResult struct {
 }
 
 type bookImportJob struct {
-	mu       sync.Mutex
-	phase    string
-	done     int
-	total    int
-	results  []bookImportResult
+	mu      sync.Mutex
+	phase   string
+	kinds   []books.Format // what this run reads or looks up again
+	done    int
+	total   int
+	results []bookImportResult
+	// matching holds the files (kind and path) being matched by hand right now,
+	// so a second request for the same one is refused until the first is done.
+	matching map[string]bool
 	err      string
 	started  time.Time
 	finished time.Time
 }
 
 type bookImportPayload struct {
-	Phase   string             `json:"phase"` // "" (never run), running, done or failed
+	Phase string `json:"phase"` // "" (never run), running, done or failed
+	// Kinds is what the run in Phase is about (ebook, audiobook). Results of
+	// the other kind are those of its own last run, kept as they were.
+	Kinds   []books.Format     `json:"kinds"`
 	Done    int                `json:"done"`
 	Total   int                `json:"total"`
 	Summary map[string]int     `json:"summary"`
@@ -66,7 +74,7 @@ type bookImportPayload struct {
 func (j *bookImportJob) snapshot() bookImportPayload {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	p := bookImportPayload{Phase: j.phase, Done: j.done, Total: j.total, Error: j.err, Summary: map[string]int{}, Results: append([]bookImportResult{}, j.results...)}
+	p := bookImportPayload{Phase: j.phase, Kinds: append([]books.Format{}, j.kinds...), Done: j.done, Total: j.total, Error: j.err, Summary: map[string]int{}, Results: append([]bookImportResult{}, j.results...)}
 	if !j.started.IsZero() {
 		p.Started = j.started.UTC().Format(time.RFC3339)
 	}
@@ -87,7 +95,7 @@ func (s *Server) handleBookImportStatus(w http.ResponseWriter, r *http.Request) 
 	job := s.bookImport.job
 	s.bookImport.mu.Unlock()
 	if job == nil {
-		writeJSON(w, http.StatusOK, bookImportPayload{Summary: map[string]int{}, Results: []bookImportResult{}})
+		writeJSON(w, http.StatusOK, bookImportPayload{Kinds: []books.Format{}, Summary: map[string]int{}, Results: []bookImportResult{}})
 		return
 	}
 	writeJSON(w, http.StatusOK, job.snapshot())
@@ -112,19 +120,30 @@ func (s *Server) handleStartBookImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.bookImport.mu.Lock()
-	if s.bookImport.job != nil && s.bookImport.job.snapshot().Phase == bookImportRunning {
-		s.bookImport.mu.Unlock()
-		writeError(w, http.StatusConflict, "An import is already running.")
-		return
+	var kept []bookImportResult
+	if prev := s.bookImport.job; prev != nil {
+		snap := prev.snapshot()
+		if snap.Phase == bookImportRunning {
+			s.bookImport.mu.Unlock()
+			writeError(w, http.StatusConflict, "An import is already running.")
+			return
+		}
+		// Importing audiobooks keeps what the last ebook import found (and the
+		// other way round), so its "Find it myself" rows are still there.
+		for _, res := range snap.Results {
+			if !slices.Contains(formats, res.Kind) {
+				kept = append(kept, res)
+			}
+		}
 	}
-	job := &bookImportJob{phase: bookImportRunning, started: time.Now()}
+	job := &bookImportJob{phase: bookImportRunning, kinds: formats, started: time.Now()}
 	s.bookImport.job = job
 	s.bookImport.mu.Unlock()
-	s.background(func() { s.runBookImport(job, formats) })
+	s.background(func() { s.runBookImport(job, formats, kept) })
 	writeJSON(w, http.StatusAccepted, job.snapshot())
 }
 
-func (s *Server) runBookImport(job *bookImportJob, formats []books.Format) {
+func (s *Server) runBookImport(job *bookImportJob, formats []books.Format, kept []bookImportResult) {
 	var found []bookImportResult
 	for _, f := range formats {
 		root := s.bookRoot(f)
@@ -138,6 +157,7 @@ func (s *Server) runBookImport(job *bookImportJob, formats []books.Format) {
 		if err != nil {
 			job.mu.Lock()
 			job.phase, job.err, job.finished = bookImportFailed, fmt.Sprintf("Couldn't read %s: %v", root, err), time.Now()
+			job.results = append(job.results, kept...)
 			job.mu.Unlock()
 			return
 		}
@@ -145,7 +165,7 @@ func (s *Server) runBookImport(job *bookImportJob, formats []books.Format) {
 			found = append(found, bookImportResult{LocalBook: lb, Kind: f})
 		}
 	}
-	s.processBookImport(job, found, nil)
+	s.processBookImport(job, found, kept)
 }
 
 // handleRetryBookImport looks again only at the books the last import did not
@@ -168,10 +188,14 @@ func (s *Server) handleRetryBookImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var again, kept []bookImportResult
+	var kinds []books.Format
 	for _, res := range snap.Results {
 		if (res.Status == bookUnmatched || res.Status == bookFailed) && (req.Format == "" || req.Format == string(res.Kind)) {
 			res.Status, res.Message, res.Matched = "", "", ""
 			again = append(again, res)
+			if !slices.Contains(kinds, res.Kind) {
+				kinds = append(kinds, res.Kind)
+			}
 		} else {
 			kept = append(kept, res)
 		}
@@ -181,7 +205,7 @@ func (s *Server) handleRetryBookImport(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "Nothing to run again: every book was found.")
 		return
 	}
-	job := &bookImportJob{phase: bookImportRunning, started: time.Now()}
+	job := &bookImportJob{phase: bookImportRunning, kinds: kinds, started: time.Now()}
 	s.bookImport.job = job
 	s.bookImport.mu.Unlock()
 	s.background(func() { s.processBookImport(job, again, kept) })
@@ -192,8 +216,9 @@ func (s *Server) handleRetryBookImport(w http.ResponseWriter, r *http.Request) {
 // kept are results from an earlier run that stay as they are.
 func (s *Server) processBookImport(job *bookImportJob, found, kept []bookImportResult) {
 	job.mu.Lock()
-	job.total = len(found) + len(kept)
-	job.done = len(kept)
+	// The progress counts what this run looks up, not what it keeps.
+	job.total = len(found)
+	job.done = 0
 	job.results = append(job.results, kept...)
 	job.mu.Unlock()
 
@@ -306,6 +331,11 @@ func (s *Server) attachBook(ctx context.Context, res bookImportResult, match boo
 			res.Status, res.Message = bookFailed, err.Error()
 			return res
 		}
+		if b.Path(res.Kind) != "" {
+			// Added by a request that ran at the same moment, and it has its file already.
+			res.Status, res.BookID, res.Message = bookAlready, b.ID, "This book already has a file: "+b.Path(res.Kind)
+			return res
+		}
 	} else if b.Path(res.Kind) != "" {
 		res.Status, res.BookID, res.Message = bookAlready, b.ID, "This book already has a file: "+b.Path(res.Kind)
 		return res
@@ -377,7 +407,9 @@ func (s *Server) importOneBookViaAudnexus(ctx context.Context, res bookImportRes
 
 // matchLocalBook looks a book found on disk up on Open Library: the first
 // result with the same title (and author, when the folder names one), or
-// failing that the first whose title words are all in the name on disk.
+// failing that the first whose title words are all in the name on disk. A
+// name written the other way round ("1984 - George Orwell.epub") is tried
+// that way too.
 func (s *Server) matchLocalBook(ctx context.Context, lb books.LocalBook) (*books.Found, error) {
 	return s.OpenLibrary.MatchLocal(ctx, lb) // home fork: cleaned titles, field search, co-authors, retries (books/home_match.go)
 }

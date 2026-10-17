@@ -1,6 +1,11 @@
 // Home fork: Mediarium TV. Channels built from the library play on a
 // schedule, like broadcast TV: tap a channel to watch whatever is on, from
 // the right second. Admins make and edit channels here.
+import { MultiviewButton, OtherAppsButton } from './TVMulti' // Usherr
+import { AIBuildButton, PacksButton, type Draft } from './TVPacks' // Usherr
+import { GuideOptions, ListingsView, NowOnView, PrevueView } from './TVGuideStyles' // Usherr
+import { setTVPrefs, toggleIn, useTVPrefs } from './tvPrefs' // Usherr
+import TVScheduling, { type SchedulingRules } from './TVScheduling' // Usherr
 import HelpLink from '../components/HelpLink'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -11,7 +16,7 @@ import { ChannelPreview, playChannel, playTitle } from './Player'
 import './tv.css'
 import { locale, t } from '../i18n'
 
-interface Rules {
+interface BaseRules {
   series?: number[]
   movies?: number[]
   genres?: string[]
@@ -24,6 +29,8 @@ interface Rules {
   guideId?: string
   stream?: StreamShow[]
 }
+// Usherr: grid, dayparts, set times and filler (TVScheduling.tsx)
+type Rules = BaseRules & SchedulingRules
 // A show the channel streams through StreamNZB rather than plays from the library.
 interface StreamShow {
   tmdbId: number
@@ -43,7 +50,7 @@ interface Program {
   channelId: number
   start: string
   end: string
-  kind: 'episode' | 'movie' | 'live' | 'stream'
+  kind: 'episode' | 'movie' | 'live' | 'stream' | 'card' | 'filler'
   itemId: number
   title: string
   subtitle?: string
@@ -77,7 +84,7 @@ export default function TV() {
   const admin = isAdmin(me)
   const [guide, setGuide] = useState<Guide | null>(null)
   const [error, setError] = useState('')
-  const [editing, setEditing] = useState<Channel | 'new' | null>(null)
+  const [editing, setEditing] = useState<Channel | 'new' | Draft | null>(null) // Draft: Usherr, a pack or the AI builder's channel
   const [, setTick] = useState(0)
   const [view, setView] = useState<'list' | 'guide'>(() => {
     try {
@@ -88,6 +95,7 @@ export default function TV() {
   })
   const [picked, setPicked] = useState<{ program: Program; channel: Channel } | null>(null)
   const [jfNote, setJfNote] = useState('')
+  const prefs = useTVPrefs() // Usherr: guide style, favourites, hidden channels
   const switchView = (v: 'list' | 'guide') => {
     setView(v)
     try {
@@ -104,7 +112,7 @@ export default function TV() {
   }
 
   const load = useCallback(() => {
-    call<Guide>('GET', '/guide?hours=24')
+    call<Guide>('GET', '/guide?hours=27&back=3') // Usherr: 3 hours back, for catch-up
       .then((g) => {
         setGuide(g)
         setError('')
@@ -133,7 +141,9 @@ export default function TV() {
 
   const now = Date.now()
   // Channels switched off stay out of the guide; admins still see them, dimmed, in the list.
-  const onAir = guide ? { ...guide, channels: guide.channels.filter((c) => c.channel.enabled) } : null
+  // Usherr: hidden channels stay out, and Favourites shows only the starred ones.
+  const visible = (id: number) => !prefs.hidden.includes(id) && (!prefs.favsOnly || prefs.favs.includes(id))
+  const onAir = guide ? { ...guide, channels: guide.channels.filter((c) => c.channel.enabled && visible(c.channel.id)) } : null
   return (
     <div className="tv-page">
       <div className="tv-head page-header">
@@ -146,12 +156,16 @@ export default function TV() {
             {t('Guide')}
           </button>
           <HelpLink topic="home-watching#live-tv" />
+          {onAir && <MultiviewButton channels={onAir.channels.map((c) => c.channel)} />} {/* Usherr */}
         </div>
         {admin && (
           <div className="tv-actions">
             <button className="btn-with-icon" onClick={addToJellyfin} title={t("Show these channels, with their guide, in Jellyfin's Live TV")}>
               <Icon name="tv" size={16} /> {t('Add to Jellyfin')}
             </button>
+            <OtherAppsButton />
+            <PacksButton onPick={setEditing} />
+            <AIBuildButton onPick={setEditing} />
             <button className="primary btn-with-icon" onClick={() => setEditing('new')}>
               <Icon name="plus" size={16} /> {t('New channel')}
             </button>
@@ -166,16 +180,37 @@ export default function TV() {
           {admin && <p className="hint">{t('Make one from the shows and movies in your library: a channel of favourite sitcoms, Saturday-morning cartoons, a movie channel…')}</p>}
         </div>
       )}
-      {view === 'guide' && onAir && onAir.channels.length > 0 && <GuideView guide={onAir} onOpen={(program, channel) => setPicked({ program, channel })} />}
+      {view === 'guide' && <GuideOptions />}
+      {view === 'guide' && onAir && onAir.channels.length > 0 &&
+        (prefs.style === 'prevue' ? (
+          <PrevueView rows={onAir.channels} />
+        ) : prefs.style === 'listings' ? (
+          <ListingsView rows={onAir.channels} hours={prefs.hours} />
+        ) : prefs.style === 'nowon' ? (
+          <NowOnView rows={onAir.channels} />
+        ) : (
+          <GuideView guide={onAir} onOpen={(program, channel) => setPicked({ program, channel })} />
+        ))}
       {picked && createPortal(<ProgramSheet program={picked.program} channel={picked.channel} onClose={() => setPicked(null)} />, document.body)}
       <ul className="tv-list" hidden={view !== 'list'}>
-        {guide?.channels.filter(({ channel }) => admin || channel.enabled).map(({ channel, programs }) => {
+        {guide?.channels.filter(({ channel }) => (admin || channel.enabled) && (!prefs.favsOnly || prefs.favs.includes(channel.id))).map(({ channel, programs }) => {
           const onNow = programs.find((p) => new Date(p.start).getTime() <= now && new Date(p.end).getTime() > now)
           const later = programs.filter((p) => new Date(p.start).getTime() > now).slice(0, 3)
           const progress = onNow ? (now - new Date(onNow.start).getTime()) / (new Date(onNow.end).getTime() - new Date(onNow.start).getTime()) : 0
+          // Usherr: between shows (a card or filler) the channel is still on: "Up next" is the next show.
+          const between = !onNow && later.length > 0 && channel.enabled
           return (
-            <li key={channel.id} className={channel.enabled ? '' : 'off'}>
-              <button className="tv-tune" onClick={() => playChannel(channel.id, channel.name)} disabled={!onNow} title={onNow ? t('Watch {name}', { name: channel.name }) : t('Its schedule is still being made')}>
+            <li key={channel.id} className={`${channel.enabled ? '' : 'off'}${prefs.hidden.includes(channel.id) ? ' hidden-ch' : ''}`}>
+              {/* Usherr: a star for favourites, and hiding a channel from this browser's guide */}
+              <span className="tv-row-tools">
+                <button type="button" className={`icon-btn${prefs.favs.includes(channel.id) ? ' fav' : ''}`} aria-pressed={prefs.favs.includes(channel.id)} aria-label={t('Favourite')} title={t('Favourite')} onClick={() => setTVPrefs({ favs: toggleIn(prefs.favs, channel.id) })}>
+                  <Icon name="star" size={14} />
+                </button>
+                <button type="button" className="icon-btn" aria-pressed={prefs.hidden.includes(channel.id)} aria-label={prefs.hidden.includes(channel.id) ? t('Show in the guide') : t('Hide from the guide')} title={prefs.hidden.includes(channel.id) ? t('Show in the guide') : t('Hide from the guide')} onClick={() => setTVPrefs({ hidden: toggleIn(prefs.hidden, channel.id) })}>
+                  <Icon name={prefs.hidden.includes(channel.id) ? 'eye-off' : 'eye'} size={14} />
+                </button>
+              </span>
+              <button className="tv-tune" onClick={() => playChannel(channel.id, channel.name)} disabled={!onNow && !between} title={onNow || between ? t('Watch {name}', { name: channel.name }) : t('Its schedule is still being made')}>
                 <span className="tv-num">{channel.logoUrl ? <img className="tv-list-logo" src={channel.logoUrl} alt={String(channel.number)} /> : channel.number}</span>
                 <span className="tv-name">
                   {channel.logoUrl && <small className="hint">{channel.number} </small>}
@@ -190,6 +225,11 @@ export default function TV() {
                         <span style={{ width: `${Math.min(100, progress * 100)}%` }} />
                       </span>
                       <span className="hint">{t('{n} min left', { n: minutesLeft(onNow.end) })}</span>
+                    </>
+                  ) : between ? (
+                    <>
+                      <span className="hint">{t('Up next')} · </span>
+                      <strong>{later[0].title}</strong> <span className="hint">{clock(later[0].start)}</span>
                     </>
                   ) : (
                     <span className="hint">{channel.enabled ? t('Getting the schedule ready…') : t('Switched off')}</span>
@@ -219,7 +259,8 @@ export default function TV() {
       {editing &&
         createPortal(
           <ChannelEditor
-            channel={editing === 'new' ? null : editing}
+            channel={editing === 'new' || !('id' in editing) ? null : editing}
+            draft={editing !== 'new' && !('id' in editing) ? editing : undefined}
             onClose={() => setEditing(null)}
             onSaved={() => {
               setEditing(null)
@@ -235,10 +276,10 @@ export default function TV() {
 
 const DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020]
 
-function ChannelEditor({ channel, onClose, onSaved }: { channel: Channel | null; onClose: () => void; onSaved: () => void }) {
-  const [name, setName] = useState(channel?.name ?? '')
+function ChannelEditor({ channel, draft, onClose, onSaved }: { channel: Channel | null; draft?: Draft; onClose: () => void; onSaved: () => void }) {
+  const [name, setName] = useState(channel?.name ?? draft?.name ?? '')
   const [number, setNumber] = useState(channel?.number ?? 0)
-  const [rules, setRules] = useState<Rules>(channel?.rules ?? { order: 'rotate' })
+  const [rules, setRules] = useState<Rules>(channel?.rules ?? (draft?.rules as Rules | undefined) ?? { order: 'rotate' })
   const [kind, setKind] = useState<'library' | 'live'>(channel?.kind === 'live' ? 'live' : 'library')
   const [enabled, setEnabled] = useState(channel?.enabled ?? true)
   const [logo, setLogo] = useState(channel?.logoUrl ?? '')
@@ -347,6 +388,7 @@ function ChannelEditor({ channel, onClose, onSaved }: { channel: Channel | null;
             <Icon name="x" size={14} />
           </button>
         </header>
+        {draft?.note && <p className="notice">{draft.note}</p>} {/* Usherr: what the AI made */}
         <div className="tv-field-row">
           <label className="tv-field grow">
             <span>{t('Name')}</span>
@@ -502,6 +544,7 @@ function ChannelEditor({ channel, onClose, onSaved }: { channel: Channel | null;
             </label>
           )}
         </div>
+        <TVScheduling rules={rules} setRules={setRules} series={series} genres={genres} /> {/* Usherr */}
           </>
         )}
         {channel && (
@@ -695,11 +738,14 @@ const shortEpisode = (sub?: string) => {
 
 function GuideGrid({ guide, sel, onPick, onChannel }: { guide: Guide; sel: Selection | null; onPick: (p: Program, c: Channel) => void; onChannel: (c: Channel) => void }) {
   const now = Date.now()
-  const pxPerMin = typeof window !== 'undefined' && window.innerWidth < 700 ? 5 : 8
+  // Usherr: each column covers 15, 30 or 60 minutes, as far ahead as chosen.
+  const prefs = useTVPrefs()
+  const perMin = prefs.scale === 15 ? 14 : prefs.scale === 60 ? 4 : 8
+  const pxPerMin = typeof window !== 'undefined' && window.innerWidth < 700 ? Math.round(perMin * 0.65) : perMin
   const from = new Date(guide.from ?? now).getTime()
-  const hours = guide.hours ?? 24
+  const hours = Math.min(guide.hours ?? 24, prefs.hours + 4) // the guide starts 3 hours back (catch-up)
   const to = from + hours * 3600_000
-  const slots = Array.from({ length: hours * 2 }, (_, i) => from + i * 1800_000)
+  const slots = Array.from({ length: Math.ceil((hours * 60) / prefs.scale) }, (_, i) => from + i * prefs.scale * 60_000)
   const x = (tm: number) => ((Math.min(Math.max(tm, from), to) - from) / 60000) * pxPerMin
   const scroller = useRef<HTMLDivElement>(null)
   // Open on now, with a little of what just finished showing.
@@ -709,7 +755,7 @@ function GuideGrid({ guide, sel, onPick, onChannel }: { guide: Guide; sel: Selec
   }, [from])
   const page = (minutes: number) => scroller.current?.scrollBy({ left: minutes * pxPerMin, behavior: 'smooth' })
   return (
-    <div className="tvg">
+    <div className={`tvg${prefs.style === 'cable' ? ' tvg-cable' : ''}`}>
       <div className="tvg-names">
         <GuideClock />
         {guide.channels.map(({ channel }) => (
@@ -790,6 +836,28 @@ function ProgramSheet({ program, channel, onClose }: { program: Program; channel
     if (onAir) playChannel(channel.id, channel.name)
     else if (program.kind === 'episode' || program.kind === 'movie') playTitle(program.kind, program.itemId, program.subtitle ? `${program.title} · ${program.subtitle}` : program.title)
   }
+  // Usherr: start over (what's on, from its beginning) and reminders (what's coming).
+  const fromStart = () => {
+    onClose()
+    if (program.kind === 'episode' || program.kind === 'movie') playTitle(program.kind, program.itemId, program.subtitle ? `${program.title} · ${program.subtitle}` : program.title)
+  }
+  const future = s.getTime() > now
+  const [reminded, setReminded] = useState(false)
+  const [note, setNote] = useState('')
+  useEffect(() => {
+    if (!future) return
+    call<{ channelId: number; start: string }[]>('GET', '/reminders')
+      .then((list) => setReminded(list.some((x) => x.channelId === channel.id && new Date(x.start).getTime() === s.getTime())))
+      .catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channel.id, program.start])
+  const remind = () =>
+    call<{ on: boolean; message: string }>('POST', '/remind', { channelId: channel.id, start: program.start })
+      .then((r) => {
+        setReminded(r.on)
+        setNote(r.message)
+      })
+      .catch((e: Error) => setNote(e.message))
   return (
     <div className="tv-modal" role="dialog" aria-modal="true" aria-label={program.title} onClick={onClose}>
       <div className="card tv-modal-box tv-sheet" onClick={(ev) => ev.stopPropagation()}>
@@ -804,7 +872,18 @@ function ProgramSheet({ program, channel, onClose }: { program: Program; channel
           {channel.number} {channel.name} · {day} {clock(program.start)}–{clock(program.end)}
           {onAir ? ` · ${t('on now, {n} min left', { n: minutesLeft(program.end) })}` : ''}
         </p>
+        {note && <p className="hint">{note}</p>}
         <footer>
+          {future && (
+            <button className={`btn-with-icon${reminded ? ' primary' : ''}`} onClick={() => void remind()} aria-pressed={reminded} title={t('A message to your phone five minutes before it starts')}>
+              <Icon name="clock" size={16} /> {reminded ? t('Reminder on') : t('Remind me')}
+            </button>
+          )}
+          {onAir && (program.kind === 'episode' || program.kind === 'movie') && (
+            <button className="btn-with-icon" onClick={fromStart} title={t('Play it from the beginning')}>
+              <Icon name="refresh" size={16} /> {t('Start over')}
+            </button>
+          )}
           <span style={{ flex: 1 }} />
           {(onAir || program.kind === 'episode' || program.kind === 'movie') && (
             <button className="primary btn-with-icon" onClick={watch} title={onAir ? t('Tune in where it is now') : t('Play it from the start, right now')}>

@@ -19,7 +19,6 @@ import (
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/quality"
 	"github.com/rdborg/mediarium/internal/settings"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 func putJSONStatus(t *testing.T, client *http.Client, url string, body any, want int) map[string]any {
@@ -255,7 +254,7 @@ func startOnPreparedDB(t *testing.T, prepare func(db *sql.DB, set *settings.Stor
 			t.Fatal(err)
 		}
 	}
-	db, err := store.Open(filepath.Join(cfg.ConfigDir, "app.db"))
+	db, err := api.OpenTestDB(filepath.Join(cfg.ConfigDir, "app.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

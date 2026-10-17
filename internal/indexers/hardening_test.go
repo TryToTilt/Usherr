@@ -126,6 +126,7 @@ func TestParseSizeAndCountStayInRange(t *testing.T) {
 
 func TestResolvePathStaysOnTheSite(t *testing.T) {
 	s := hardeningSession(t, "https://www.example.org/")
+	s.def.Login = &LoginBlock{} // a site that signs in keeps to its own addresses
 	cases := []struct {
 		path string
 		ok   bool

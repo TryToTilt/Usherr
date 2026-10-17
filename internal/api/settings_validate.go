@@ -25,7 +25,7 @@ const (
 	maxMonitorMinutes   = 10080 // a week
 	maxSeedRatio        = 1000
 	maxSeedHours        = 87600 // ten years
-	maxSubtitleLangs    = 30
+	maxSubtitleLangs    = 50
 	maxServiceAccountLn = 100
 )
 
@@ -307,6 +307,76 @@ func (s *Server) validateSettings(req *settingsPayload) string {
 			}
 		}
 		*req.PublicURL = v
+	}
+	return s.checkSettingsLimits(req)
+}
+
+// checkSettingsLimits is the last part of validateSettings: the numbers, hours
+// and schedules. It has to run before any value is written, like the rest.
+func (s *Server) checkSettingsLimits(req *settingsPayload) string {
+	if req.SubDLAPIKey != nil {
+		if m := checkAPIKey(strings.TrimSpace(*req.SubDLAPIKey)); m != "" {
+			return m
+		}
+	}
+	if req.SpeedLimitMB != nil && (*req.SpeedLimitMB < 0 || *req.SpeedLimitMB > 10000) {
+		return "The speed limit is 0 (no limit) to 10000 MB/s."
+	}
+	if req.SpeedLimitHours != nil {
+		if h := strings.TrimSpace(*req.SpeedLimitHours); h != "" {
+			if _, _, ok := parseHours(h); !ok {
+				return `Give the hours as "from-to", for example "8-23", or leave it empty for all day.`
+			}
+		}
+	}
+	if req.SpeedSchedule != nil {
+		rules := *req.SpeedSchedule
+		if len(rules) > maxSpeedRules {
+			return fmt.Sprintf("The speed schedule can have up to %d lines.", maxSpeedRules)
+		}
+		for i, r := range rules {
+			if !r.valid() {
+				return fmt.Sprintf("Line %d of the speed schedule isn't right: days are 0 (Sunday) to 6, hours 0 to 23, the limit 0 to 10000 MB/s.", i+1)
+			}
+		}
+	}
+	if req.DownloadHours != nil {
+		if h := strings.TrimSpace(*req.DownloadHours); h != "" {
+			if _, _, ok := parseHours(h); !ok {
+				return `Give the download hours as "from-to", for example "1-7", or leave it empty for any time.`
+			}
+		}
+	}
+	if req.DigestDay != nil || req.DigestHour != nil {
+		day, hour := s.digestWhen()
+		if req.DigestDay != nil {
+			day = *req.DigestDay
+		}
+		if req.DigestHour != nil {
+			hour = *req.DigestHour
+		}
+		if day < -1 || day > 6 || hour < 0 || hour > 23 {
+			return "The weekly summary day is 0 (Sunday) to 6 (Saturday), or -1 for none, and the hour is 0 to 23."
+		}
+	}
+	if req.NotifyQuietHours != nil {
+		if h := strings.TrimSpace(*req.NotifyQuietHours); h != "" {
+			if _, _, ok := parseHours(h); !ok {
+				return `Give the quiet hours as "from-to", for example "23-7", or leave it empty for none.`
+			}
+		}
+	}
+	if req.TorrentStallHours != nil && (*req.TorrentStallHours < -1 || *req.TorrentStallHours > maxStallHours) {
+		return "Give up after 1 to 72 hours, or 0 for never."
+	}
+	if req.MinFreeGB != nil && (*req.MinFreeGB < 0 || *req.MinFreeGB > 10000) {
+		return "Keep 0 (off) to 10000 GB free."
+	}
+	if req.BackupKeep != nil && (*req.BackupKeep < 1 || *req.BackupKeep > 60) {
+		return "Keep between 1 and 60 backups."
+	}
+	if req.TrashDays != nil && (*req.TrashDays < 0 || *req.TrashDays > 365) {
+		return "Keep removed files for 0 to 365 days."
 	}
 	return ""
 }

@@ -188,8 +188,12 @@ func (s *Server) downloadViaClient(ctx context.Context, queueID int64, downloadU
 				return fmt.Errorf("%s doesn't have this torrent any more. It may have been removed there. Try the download again to send it once more", label)
 			}
 		case t.Failed():
-			s.clientForget(c, hash, keep, hashPath)
-			return badRelease(fmt.Errorf("%s couldn't download it (it says %q)", label, t.State))
+			// The client's own trouble (its disk is full or read-only, or its files
+			// were deleted), not something wrong with the release: the release is
+			// not blocklisted and the torrent stays in the client for the person to
+			// look at.
+			_ = os.Remove(hashPath)
+			return fmt.Errorf("%s reports a problem with this torrent (it says %q). Check its free space and folder permissions, then try the download again", label, t.State)
 		case t.Done():
 			report(100)
 			return s.clientDone(queueID, t, cfg, label, incompleteDir)

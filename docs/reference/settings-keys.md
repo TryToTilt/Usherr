@@ -45,6 +45,7 @@ The keys the app stores in its settings table. You normally change these from th
 | `downloads.hours` | when new downloads may start, "1-7" (from 1:00 to 7:00, server time); outside it they wait in line. Unset = any time |
 | `downloads.min_free_gb` | no new download starts while the downloads folder has less free space than this many GB; unset = 5, "0" = off |
 | `downloads.newest_first` | "1": among the downloads the automatic searches added, newer releases start first; unset = in the order they were added |
+| `downloads.nzb_link_holds` | kept by Mediarium itself: JSON of releases whose NZB link answered with a web page or another answer that is not an NZB, and until when automatic searches leave each one alone |
 | `downloads.pause_while_streaming` | "1" pauses downloads while someone watches on Plex, Jellyfin or Emby |
 | `downloads.paused_for_streaming` | the ids of the downloads paused for a stream, as JSON |
 | `downloads.precheck` | "1" asks the news servers whether a sample of an NZB's articles exist before downloading it, and gives up at once on a release the PAR2 files could not repair; unset or "0" leaves it off |
@@ -71,6 +72,7 @@ The keys the app stores in its settings table. You normally change these from th
 | `library.illegal_char_replacement` | used when mode=replace, e.g. "-" |
 | `library.import_added_backfill` | "1" once it has run (set by the app, not user-editable) |
 | `library.import_conflict_policy` | "skip" \| "overwrite" \| "overwrite_if_better" \| "ask" |
+| `library.keep_original_names` | "1" keeps the file name an imported video came with (folders are still named by the preset; a random, obfuscated name falls back to the preset); unset or "0" renames as the preset says |
 | `library.metadata_files` | JSON: movies and tv, each {nfo, artwork}, and replace (true replaces files Mediarium wrote earlier); unset = nothing is written |
 | `library.movie_copies_path` | where second copies of movies go (a 4K copy next to the 1080p one); unset = second copies of movies are off |
 | `library.movie_name_format` | token string, used when preset=custom |
@@ -109,6 +111,7 @@ The keys the app stores in its settings table. You normally change these from th
 | `numbering.lookup` | "0" stops Mediarium looking up scene and anime numbering (TheXEM, the anime lists, AniList) for anime on its own; on by default. The Refresh mapping button on a show's page still works |
 | `onboarding.done` | "1" once the first-run wizard completes |
 | `quality.language` | the audio language wanted, as a name like "English" (the default when unset); a release clearly in another language only is not picked automatically |
+| `quality.language_only` | "1" takes only releases that say they are in a wanted audio language (no untagged, English-only or bare multi releases unless English is wanted); unset or "0" keeps those as a lower-ranked fallback |
 | `quality.size_limits` | size limits per quality in MB per minute of runtime (JSON: enabled, limits); applied only while enabled is true |
 | `requests.options` | JSON: notifyRequester (tell people when their request or report is answered), quotaCount (requests per period, 0 = no limit), quotaPeriod (day or week), fourK (let people ask for a 4K copy), fourKProfileId (the quality profile of that copy), reports (let people report a problem with a title) |
 | `scripts.after_import` | JSON: script (a file name in /config/scripts; empty = off) and timeoutSec (default 300). Only a signed-in browser session can set it, not an API key |

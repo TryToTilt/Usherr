@@ -1,4 +1,5 @@
 import { USAGE_STATS } from '../../brand' // Usherr
+import { NewsStyleChoice } from '../../home/News' // Usherr
 import { useEffect, useState } from 'react'
 import { api, isAdmin } from '../../api'
 import { useAuth } from '../../AuthContext'
@@ -34,6 +35,19 @@ function LanguageCard() {
 }
 
 // Light or dark, kept per browser.
+// Usherr: how the Dashboard shows the news, for this browser.
+function NewsStyleCard() {
+  return (
+    <fieldset className="group">
+      <legend>
+        <Icon name="globe" size={14} /> {t('News on the Dashboard')}
+      </legend>
+      <p style={{ margin: '0 0 10px', color: 'var(--text-dim)' }}>{t('One line at the top of the Dashboard: a headline that changes every few seconds, or a ticker. "All news" there opens the full list. Kept in this browser.')}</p>
+      <NewsStyleChoice />
+    </fieldset>
+  )
+}
+
 function LookCard() {
   return (
     <fieldset className="group">
@@ -103,6 +117,7 @@ export default function GeneralSettings() {
     <div className="settings-stack">
       <LanguageCard />
       <LookCard />
+      <NewsStyleCard /> {/* Usherr */}
       <TimeZoneCard />
       {admin && <PublicAddress />}
       {admin && (

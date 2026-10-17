@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/netguard"
@@ -48,7 +49,7 @@ const maxAPIResponse = 16 << 20
 const DefaultLanguage = "en-US"
 
 type Client struct {
-	apiKey     string
+	apiKey     atomic.Pointer[string] // read while requests run, so changed atomically
 	baseURL    string
 	httpClient *http.Client
 
@@ -76,11 +77,12 @@ type Client struct {
 // New constructs a client. apiKey may be empty; calls will return
 // ErrNoAPIKey until SetAPIKey is used or a new Client is built with one.
 func New(apiKey string) *Client {
-	return &Client{
-		apiKey:     apiKey,
+	c := &Client{
 		baseURL:    baseURL,
 		httpClient: netguard.Client(10 * time.Second),
 	}
+	c.apiKey.Store(&apiKey)
+	return c
 }
 
 // NewWithBaseURL is used by tests to point the client at a local fixture
@@ -92,7 +94,7 @@ func NewWithBaseURL(apiKey, base string) *Client {
 	return c
 }
 
-func (c *Client) SetAPIKey(key string) { c.apiKey = key }
+func (c *Client) SetAPIKey(key string) { c.apiKey.Store(&key) }
 
 // key is the API key in use: a per-language view reads its parent's, so a key
 // saved later reaches every view.
@@ -100,7 +102,10 @@ func (c *Client) key() string {
 	if c.parent != nil {
 		return c.parent.key()
 	}
-	return c.apiKey
+	if k := c.apiKey.Load(); k != nil {
+		return *k
+	}
+	return ""
 }
 
 // lang is the language this client asks TMDB for.
@@ -177,6 +182,8 @@ type Movie struct {
 	// BelongsToCollection is the collection (a series of films) this film is
 	// part of, on the single-movie endpoint; nil for a film that is on its own.
 	BelongsToCollection *CollectionRef `json:"belongs_to_collection"`
+	// Adult is TMDB's adult flag.
+	Adult bool `json:"adult"`
 }
 
 // Year extracts the 4-digit release year from ReleaseDate ("2024-03-01"),

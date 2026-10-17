@@ -3,6 +3,7 @@
 package library
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -52,9 +53,14 @@ type Movie struct {
 	// RootPath is the library folder the movie's files go to (one of the
 	// movie folders in Settings); "" = the default folder.
 	RootPath string
+	// AltTitles are other titles of the film (its title where a release was
+	// made, such as a German one), picked for the audio languages wanted: at
+	// most four, empty when English is all that is wanted. Releases named by
+	// one are taken for this movie, and the indexers are asked for each.
+	AltTitles []string
 }
 
-const movieColumns = `id, tmdb_id, title, year, overview, poster_path, status, quality, file_path, monitored, COALESCE(release_date, ''), COALESCE(profile_id, 0), source_pref, COALESCE(added_by, 0), genres, no_upgrade, details_state, details_note, COALESCE(copy_of, 0), release_title, root_path`
+const movieColumns = `id, tmdb_id, title, year, overview, poster_path, status, quality, file_path, monitored, COALESCE(release_date, ''), COALESCE(profile_id, 0), source_pref, COALESCE(added_by, 0), genres, no_upgrade, details_state, details_note, COALESCE(copy_of, 0), release_title, root_path, COALESCE((SELECT names FROM title_names WHERE kind = 'movie' AND tmdb_id = movies.tmdb_id), '')`
 
 type Repo struct {
 	db *sql.DB
@@ -186,7 +192,11 @@ var (
 )
 
 func (r *Repo) listMovies(where string, args ...any) ([]Movie, error) {
-	rows, err := r.db.Query(`SELECT `+movieColumns+` FROM movies `+where, args...)
+	return r.listMoviesContext(context.Background(), where, args...)
+}
+
+func (r *Repo) listMoviesContext(ctx context.Context, where string, args ...any) ([]Movie, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT `+movieColumns+` FROM movies `+where, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list movies: %w", err)
 	}
@@ -361,8 +371,9 @@ func (r *Repo) scanRow(scanner rowScanner) (Movie, error) {
 		quality  sql.NullString
 		filePath sql.NullString
 		genres   sql.NullString
+		altNames string
 	)
-	err := scanner.Scan(&m.ID, &m.TMDBID, &m.Title, &m.Year, &m.Overview, &m.PosterPath, &status, &quality, &filePath, &m.Monitored, &m.ReleaseDate, &m.ProfileID, &m.SourcePref, &m.AddedBy, &genres, &m.NoUpgrade, &m.DetailsState, &m.DetailsNote, &m.CopyOf, &m.ReleaseTitle, &m.RootPath)
+	err := scanner.Scan(&m.ID, &m.TMDBID, &m.Title, &m.Year, &m.Overview, &m.PosterPath, &status, &quality, &filePath, &m.Monitored, &m.ReleaseDate, &m.ProfileID, &m.SourcePref, &m.AddedBy, &genres, &m.NoUpgrade, &m.DetailsState, &m.DetailsNote, &m.CopyOf, &m.ReleaseTitle, &m.RootPath, &altNames)
 	if err == sql.ErrNoRows {
 		return Movie{}, err
 	}
@@ -370,6 +381,7 @@ func (r *Repo) scanRow(scanner rowScanner) (Movie, error) {
 		return Movie{}, fmt.Errorf("scan movie: %w", err)
 	}
 	m.Genres = decodeGenres(genres)
+	m.AltTitles = decodeTitleNames(altNames)
 	m.Status = Status(status)
 	m.Quality = quality.String
 	m.FilePath = filePath.String

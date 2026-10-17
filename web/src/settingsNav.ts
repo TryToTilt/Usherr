@@ -141,7 +141,7 @@ export function pageTitle(pathname: string, admin = true): string {
   if (pathname.startsWith('/person/')) return t('Person') // home fork: from a cast photo
   if (pathname === '/you' || pathname.startsWith('/you/')) return t('You') // home fork
   if (pathname.startsWith('/comics')) return t('Comics') // home fork
-  if (pathname.startsWith('/scenes')) return t('NSFW 18+') // home fork
+  if (pathname.startsWith('/nsfw')) return t('NSFW 18+') // home fork
   if (pathname.startsWith('/streamed')) return t('Streamed') // home fork
   if (pathname.startsWith('/library')) return t('Library')
   if (pathname.startsWith('/music/import')) return t('Import music')

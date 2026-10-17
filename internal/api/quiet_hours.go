@@ -63,10 +63,23 @@ func (s *Server) quietHoursJob(context.Context) {
 	events := s.held.events
 	s.held.events = nil
 	s.held.mu.Unlock()
-	for _, ev := range events {
-		s.deliverNotification(ev)
+	if len(events) == 0 {
+		return
 	}
+	// One at a time with a short pause between, not all at once: Discord,
+	// Telegram and ntfy turn away a burst of messages.
+	s.background(func() {
+		for i, ev := range events {
+			if i > 0 {
+				time.Sleep(heldReplayPause)
+			}
+			s.deliverNotificationNow(ev)
+		}
+	})
 }
+
+// heldReplayPause is the gap between the messages sent when quiet hours end.
+var heldReplayPause = 700 * time.Millisecond
 
 func quietHoursText(from, to int) string {
 	return strconv.Itoa(from) + "-" + strconv.Itoa(to)

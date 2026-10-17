@@ -19,6 +19,11 @@ import (
 type streamedCounts struct {
 	movies, shows, episodes int
 	tiers                   map[string]int
+	// Usherr: anime (in the library and streamed) and comics.
+	animeShows, animeEpisodes, animeOnDisk, animeStreams int
+	animeLibShows, animeLibEpisodes, animeLibOnDisk      int // the library's part, taken off the TV counts
+	animeStreamShows                                     int // streamed anime shows not in the library
+	comicSeries, comicIssues, comicDownloaded, comicMiss int
 }
 
 var streamedCountsCache struct {
@@ -57,6 +62,21 @@ func (s *Server) addStreamedToDashboard(ctx context.Context, out *dashboardPaylo
 	out.Library.Series.Streams = c.shows
 	out.Library.Series.Episodes += c.episodes
 	out.Library.Series.EpisodesStreams = c.episodes
+	// Usherr: anime has a card of its own, so TV leaves it out.
+	out.Library.Series.Total -= c.animeLibShows + c.animeStreamShows
+	out.Library.Series.Streams -= c.animeStreamShows
+	out.Library.Series.Episodes -= c.animeLibEpisodes + c.animeStreams
+	out.Library.Series.EpisodesDownloaded -= c.animeLibOnDisk
+	out.Library.Series.EpisodesStreams -= c.animeStreams
+	out.Library.Series.EpisodesMissing -= c.animeLibEpisodes - c.animeLibOnDisk
+	out.Library.Anime.Total = c.animeShows
+	out.Library.Anime.Episodes = c.animeEpisodes
+	out.Library.Anime.EpisodesDownloaded = c.animeOnDisk
+	out.Library.Anime.EpisodesStreams = c.animeStreams
+	out.Library.Comics.Series = c.comicSeries
+	out.Library.Comics.Issues = c.comicIssues
+	out.Library.Comics.Downloaded = c.comicDownloaded
+	out.Library.Comics.Missing = c.comicMiss
 	if len(c.tiers) == 0 {
 		return
 	}
@@ -117,7 +137,36 @@ func (s *Server) countStreamed(ctx context.Context) (streamedCounts, error) {
 		}
 		rows.Close()
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT t.kind, t.tmdb_id, f.season, f.episode, f.release
+	// Usherr: the anime shows in the library, and comics.
+	animeLib := map[int]bool{} // tmdb ids
+	if ids, err := s.animeSeriesList(ctx); err == nil && len(ids) > 0 {
+		set := map[int64]bool{}
+		for _, id := range ids {
+			set[id] = true
+		}
+		// Counted as SeriesCounts counts them: no copies, specials only when wanted or downloaded.
+		if rows, err := s.db.QueryContext(ctx, `SELECT sr.id, sr.tmdb_id,
+			COALESCE(SUM(CASE WHEN e.season > 0 OR e.monitored = 1 OR e.status = 'downloaded' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN e.status = 'downloaded' THEN 1 ELSE 0 END), 0)
+			FROM series sr LEFT JOIN episodes e ON e.series_id = sr.id WHERE sr.copy_of IS NULL GROUP BY sr.id`); err == nil {
+			for rows.Next() {
+				var id int64
+				var tmdb, eps, onDisk int
+				if rows.Scan(&id, &tmdb, &eps, &onDisk) == nil && set[id] {
+					animeLib[tmdb] = true
+					c.animeLibShows++
+					c.animeLibEpisodes += eps
+					c.animeLibOnDisk += onDisk
+				}
+			}
+			rows.Close()
+		}
+	}
+	c.animeShows, c.animeEpisodes, c.animeOnDisk = c.animeLibShows, c.animeLibEpisodes, c.animeLibOnDisk
+	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM comic_series`).Scan(&c.comicSeries)
+	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(status = 'downloaded'), 0), COALESCE(SUM(wanted = 1 AND status != 'downloaded'), 0) FROM comic_issues`).Scan(&c.comicIssues, &c.comicDownloaded, &c.comicMiss)
+
+	rows, err := s.db.QueryContext(ctx, `SELECT t.kind, t.tmdb_id, t.anime, f.season, f.episode, f.release
 		FROM streamed_files f JOIN streamed_titles t ON t.id = f.title_id`)
 	if err != nil {
 		return c, err
@@ -126,8 +175,8 @@ func (s *Server) countStreamed(ctx context.Context) (streamedCounts, error) {
 	shows := map[int]bool{}
 	for rows.Next() {
 		var kind, release string
-		var tmdb, season, episode int
-		if rows.Scan(&kind, &tmdb, &season, &episode, &release) != nil {
+		var tmdb, anime, season, episode int
+		if rows.Scan(&kind, &tmdb, &anime, &season, &episode, &release) != nil {
 			continue
 		}
 		if kind == "movie" {
@@ -142,9 +191,18 @@ func (s *Server) countStreamed(ctx context.Context) (streamedCounts, error) {
 				continue
 			}
 			c.episodes++
+			isAnime := anime == 1 || animeLib[tmdb]
+			if isAnime {
+				c.animeStreams++
+				c.animeEpisodes++
+			}
 			if !showIn[tmdb] && !shows[tmdb] {
 				shows[tmdb] = true
 				c.shows++
+				if isAnime {
+					c.animeStreamShows++
+					c.animeShows++
+				}
 			}
 		}
 		if t := releaseTier(release); t != quality.TierUnknown {

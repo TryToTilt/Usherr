@@ -31,6 +31,7 @@ Anyone can connect their own Plex account under **Plex watchlist** on **Settings
 - **What you add to your Plex watchlist, in any Plex app, comes to Mediarium by itself.** Mediarium checks every 20 minutes. Movies and shows are added and searched for straight away, the same as pressing **Add**. For an account that has to ask (**Add titles themselves** off), they become requests for an administrator instead, under **Activity > Requests**.
 - **What was already on the list when you connected** isn't added in one go. It shows at the top of Discover as **Your Plex watchlist: movies** and **...: shows**, with the usual **Add** buttons.
 - A title already in the library is left alone, and each title is handled once: taking it off the watchlist and putting it back doesn't add it again.
+- An account that an administrator has turned off, or that is a read-only viewer, adds nothing from its watchlist. The card shows why.
 - **Check now** looks straight away; switching off **Add what I add to my watchlist** stops it without disconnecting, and **Disconnect** forgets the Plex account.
 
 Mediarium keeps your Plex sign-in encrypted and only uses it to read your watchlist. Watchlists live with your Plex account, not on a Plex server, so this works whether or not you connected a Plex server, and with Jellyfin or Emby too.

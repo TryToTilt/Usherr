@@ -22,7 +22,6 @@ import (
 	"github.com/rdborg/mediarium/internal/download"
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/queue"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 // --- a Usenet server that can be told to stop answering ---
@@ -208,7 +207,7 @@ func newControlServer(t *testing.T, safeMode bool) (*api.Server, string, *http.C
 			t.Fatal(err)
 		}
 	}
-	db, err := store.Open(filepath.Join(cfg.ConfigDir, "app.db"))
+	db, err := api.OpenTestDB(filepath.Join(cfg.ConfigDir, "app.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

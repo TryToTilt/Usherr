@@ -214,7 +214,9 @@ func (s *Server) findAddonSubtitles(ctx context.Context, q subtitles.Query) (res
 			continue
 		}
 		for _, f := range found {
-			sealed, err := s.box.Encrypt(f.URL)
+			// The add-on's own address goes with the file's, so the download
+			// knows which host is the add-on's.
+			sealed, err := s.box.Encrypt(a.URL + "\n" + f.URL)
 			if err != nil {
 				continue
 			}
@@ -228,16 +230,24 @@ func (s *Server) findAddonSubtitles(ctx context.Context, q subtitles.Query) (res
 	return results, asked, errs
 }
 
-// openAddonLink gives back the address sealed into a result's link.
-func (s *Server) openAddonLink(link string) (string, bool) {
+// openAddonLink gives back the add-on's address and the file's address sealed
+// into a result's link.
+func (s *Server) openAddonLink(link string) (addon, file string, ok bool) {
 	if link == "" {
-		return "", false
+		return "", "", false
 	}
 	u, err := s.box.Decrypt(link)
-	if err != nil || !strings.HasPrefix(u, "http") {
-		return "", false
+	if err != nil {
+		return "", "", false
 	}
-	return u, true
+	addon, file, found := strings.Cut(u, "\n")
+	if !found {
+		addon, file = "", u
+	}
+	if !strings.HasPrefix(file, "http") {
+		return "", "", false
+	}
+	return addon, file, true
 }
 
 // queryFileInfo adds what an add-on can use to pick a subtitle that fits this

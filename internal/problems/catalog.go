@@ -110,6 +110,7 @@ const (
 	CodeCloudBackupFailed    = "backup.cloud_failed"
 	CodeDiskLow              = "disk.low"
 	CodeDownloadUnsafe       = "download.unsafe_files"
+	CodeIndexerNotNZB        = "indexer.not_nzb"
 )
 
 // Help is the plain-language help for one code.
@@ -130,6 +131,7 @@ const (
 	pathIndexers      = "/settings/indexers"
 	pathMediaServers  = "/settings/media-servers"
 	pathMedia         = "/settings/media"
+	pathNaming        = "/settings/naming"
 	pathMetadata      = "/settings/metadata"
 	pathNotify        = "/settings/notifications"
 	pathSystem        = "/settings/system"
@@ -230,6 +232,11 @@ var catalog = []Help{
 		"The indexer didn't hand over the file. The site may be down or the link may have expired.",
 		"Press Test on the indexer. If it works, retry the download in Activity.",
 		"Open indexers", pathIndexers},
+	{CodeIndexerNotNZB, LevelError, AreaSearch,
+		"An indexer sent a web page instead of the file",
+		"The indexer answered the download link with a web page or an error, such as a sign-in page, a maintenance page or a daily limit, instead of the NZB file.",
+		"Sign in on the indexer's website to check your account and its download limit, then press Test on the indexer. Automatic searches leave the release alone for a few hours, then try it again.",
+		"Open indexers", pathIndexers},
 	{CodeMediaServerDown, LevelWarning, AreaMediaServers,
 		"Can't reach your media server",
 		"Mediarium couldn't ask your media server to scan for new files.",
@@ -258,8 +265,8 @@ var catalog = []Help{
 	{CodeImportFileExists, LevelError, AreaImport,
 		"A file is already there",
 		"A file is already in the place this one should go.",
-		"Remove the old file, or set what happens with existing files in Settings > Library > Folders.",
-		"Open folders", pathMedia},
+		"Remove the old file, or set what happens with existing files in Settings > Library > File names and importing.",
+		"Open File names and importing", pathNaming},
 	{CodeImportFailed, LevelError, AreaImport,
 		"An import failed",
 		"This couldn't be added to your library.",

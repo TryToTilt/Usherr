@@ -83,7 +83,15 @@ func (c *ceremonyStore) put(kind string, userID int64, sd webauthn.SessionData, 
 		}
 	}
 	if len(c.m) >= maxCeremony {
-		return "", errors.New("too many passkey sign-ins waiting")
+		// A flood of starts must not lock real people out: the oldest one waiting makes room.
+		var oldest string
+		var oldestAt time.Time
+		for k, v := range c.m {
+			if oldest == "" || v.expires.Before(oldestAt) {
+				oldest, oldestAt = k, v.expires
+			}
+		}
+		delete(c.m, oldest)
 	}
 	c.m[id] = &ceremony{kind: kind, userID: userID, session: sd, expires: now.Add(ceremonyTTL)}
 	return id, nil

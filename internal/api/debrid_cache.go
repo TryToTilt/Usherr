@@ -262,5 +262,12 @@ func preferOver(best, candidate *indexers.Result) bool {
 	if preferUsenet(candidate, best) {
 		return false
 	}
-	return best != nil && candidate.Cached && !best.Cached
+	if best == nil {
+		return false
+	}
+	if candidate.Cached != best.Cached {
+		return candidate.Cached
+	}
+	// Two torrents that are otherwise the same: the one with more seeders.
+	return candidate.SeedersKnown && best.SeedersKnown && candidate.Seeders > best.Seeders
 }

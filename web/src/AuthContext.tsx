@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { api, ApiError, startModulesEarly, type User } from './api'
+import { api, ApiError, isAdmin, startModulesEarly, type User } from './api'
 import { onSessionEnded } from './sessionEnd'
 
 interface AuthState {
@@ -51,6 +51,25 @@ function withTimeout<T>(p: Promise<T>): Promise<T> {
   })
 }
 
+const LAST_ROLE_KEY = 'mediarium-last-admin'
+
+// Whether the account last signed in on this browser was an administrator. Unknown counts as yes.
+function lastWasAdmin(): boolean {
+  try {
+    return localStorage.getItem(LAST_ROLE_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
+
+function rememberAdmin(admin: boolean) {
+  try {
+    localStorage.setItem(LAST_ROLE_KEY, admin ? '1' : '0')
+  } catch {
+    // private windows may refuse; settings are then asked for early again
+  }
+}
+
 // "Server is not there right now" as opposed to a real answer such as 401.
 function unreachable(e: unknown): boolean {
   if (e instanceof ApiError) return e.status >= 500 || e.status === 0
@@ -79,11 +98,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // is a round trip to the server (a long one behind a reverse proxy), and the
       // page cannot start before all of them. What is not needed (the account of a
       // server that is still to be set up) is simply ignored.
+      // Settings are for administrators only, so they are only asked for early when
+      // this browser's last account was one; otherwise only after the account says so.
       const statusCall = withTimeout(api.onboardingStatus())
       const meCall = withTimeout(api.me())
-      const settingsCall = withTimeout(api.getSettings())
+      let settingsCall = lastWasAdmin() ? withTimeout(api.getSettings()) : null
       meCall.catch(() => undefined)
-      settingsCall.catch(() => undefined)
+      settingsCall?.catch(() => undefined)
       startModulesEarly()
       const status = await statusCall
       setFirstRunNeeded(status.firstRunNeeded)
@@ -91,8 +112,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const me = await meCall
           setUser(me)
+          const admin = isAdmin(me)
+          rememberAdmin(admin)
+          if (admin && !settingsCall) settingsCall = withTimeout(api.getSettings())
           try {
-            setNeedsWizard(!(await settingsCall).onboardingDone)
+            setNeedsWizard(admin && settingsCall ? !(await settingsCall).onboardingDone : false)
           } catch {
             setNeedsWizard(false)
           }

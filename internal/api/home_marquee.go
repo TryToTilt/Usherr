@@ -55,6 +55,56 @@ type marqueePayload struct {
 	Coming     []calendarEntryPayload `json:"coming"`
 	Theatre    string                 `json:"theatre,omitempty"`
 	Settings   marqueeSettings        `json:"settings"`
+	TVNow      []marqueeTV            `json:"tvNow"` // Usherr: what the Live TV channels have on
+}
+
+// marqueeTV is a Live TV channel and what it has on now and next.
+type marqueeTV struct {
+	Number   int     `json:"number"`
+	Name     string  `json:"name"`
+	Logo     string  `json:"logo,omitempty"`
+	Title    string  `json:"title"`
+	Subtitle string  `json:"subtitle,omitempty"`
+	Progress float64 `json:"progress"`
+	Next     string  `json:"next,omitempty"`
+	NextAt   string  `json:"nextAt,omitempty"`
+}
+
+// marqueeTVNow lists the enabled Live TV channels with what's on.
+func (s *Server) marqueeTVNow() []marqueeTV {
+	out := []marqueeTV{}
+	repo := s.tvRepo()
+	chans, err := repo.Channels()
+	if err != nil {
+		return out
+	}
+	now := time.Now()
+	for _, ch := range s.appChannels(chans) {
+		if !ch.Enabled {
+			continue
+		}
+		list, err := repo.Programs(ch.ID, now, now.Add(6*time.Hour))
+		if err != nil {
+			continue
+		}
+		list = shows(list)
+		if len(list) == 0 {
+			continue
+		}
+		e := marqueeTV{Number: ch.Number, Name: ch.Name, Logo: ch.LogoURL}
+		cur := list[0]
+		if !cur.Start.After(now) {
+			e.Title, e.Subtitle = cur.Title, cur.Subtitle
+			e.Progress = float64(now.Sub(cur.Start)) / float64(cur.End.Sub(cur.Start))
+			if len(list) > 1 {
+				e.Next, e.NextAt = list[1].Title, list[1].Start.Format(time.RFC3339)
+			}
+		} else {
+			e.Next, e.NextAt = cur.Title, cur.Start.Format(time.RFC3339)
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 // A film's details for the marquee, kept for a while: the marquee asks every
@@ -101,7 +151,7 @@ func (s *Server) marqueeFeature(ctx context.Context, tmdbID int, reason string) 
 // GET /api/home/marquee
 func (s *Server) handleMarquee(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	out := marqueePayload{NowPlaying: []marqueePlaying{}, Features: []marqueeFeature{}, Arrivals: []dashRecent{}, Theaters: []marqueeFeature{}, Coming: []calendarEntryPayload{}}
+	out := marqueePayload{NowPlaying: []marqueePlaying{}, Features: []marqueeFeature{}, Arrivals: []dashRecent{}, Theaters: []marqueeFeature{}, Coming: []calendarEntryPayload{}, TVNow: []marqueeTV{}}
 	out.Theatre, _ = s.Settings.Get(keyCinemaTheatre)
 	tmdbOK := s.TMDB().HasAPIKey()
 
@@ -255,6 +305,7 @@ func (s *Server) handleMarquee(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	sort.SliceStable(out.Coming, func(i, j int) bool { return out.Coming[i].ReleaseDate < out.Coming[j].ReleaseDate })
+	out.TVNow = s.marqueeTVNow() // Usherr
 	writeJSON(w, http.StatusOK, out)
 }
 

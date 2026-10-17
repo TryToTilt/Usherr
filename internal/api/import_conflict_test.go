@@ -14,7 +14,6 @@ import (
 	"github.com/rdborg/mediarium/internal/config"
 	"github.com/rdborg/mediarium/internal/crypto"
 	"github.com/rdborg/mediarium/internal/library"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 // newImportConflictTestServer sets up a full server + fake indexer/NNTP
@@ -49,7 +48,7 @@ func newImportConflictEnv(t *testing.T, movieContent []byte) (server *api.Server
 			t.Fatalf("mkdir %s: %v", d, err)
 		}
 	}
-	db, err := store.Open(filepath.Join(cfg.ConfigDir, "app.db"))
+	db, err := api.OpenTestDB(filepath.Join(cfg.ConfigDir, "app.db"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
@@ -293,9 +292,44 @@ func TestResolveConflictOverwrite(t *testing.T) {
 	}
 }
 
+// With "If a file already exists" set to keep the existing file, a download
+// that lands on one is a decision, not a failure: the row says the file was
+// kept, it is not marked failed, and no "failed" notification goes out.
+func TestImportConflictSkipIsADecisionNotAFailure(t *testing.T) {
+	movieContent := []byte("a second copy nobody asked to import")
+	server, client, httpSrv, movie, existingPath := newImportConflictEnv(t, movieContent)
+	hook, rec := newHookRecorder(t, http.StatusOK)
+	postJSON[map[string]any](t, client, httpSrv.URL+"/api/notifications", map[string]any{
+		"name": "Hook", "type": "webhook", "events": []string{"failed"}, "config": map[string]string{"url": hook.URL},
+	}, http.StatusCreated)
+	postJSONMethod[map[string]any](t, client, http.MethodPut, httpSrv.URL+"/api/settings", map[string]any{
+		"importConflictPolicy": "skip",
+	}, http.StatusOK)
+	// The movie already has a better file, so the new one is not taken in its
+	// place even though the title may be upgraded.
+	if err := server.MovieRepo.SetStatus(movie.ID, library.StatusDownloaded, "Bluray-2160p", existingPath); err != nil {
+		t.Fatal(err)
+	}
+
+	item := grabFixtureAndWaitForEnd(t, client, httpSrv, movie, movieContent)
+	server.TestWaitBackground()
+	if item["status"] != "completed" || item["error"] != "Kept the file you already have." {
+		t.Fatalf("keeping the existing file is not a failure, got %+v", item)
+	}
+	if rec.count() != 0 {
+		t.Fatalf("no \"failed\" notification for a decision: %v", rec.bodies)
+	}
+	if got, _ := os.ReadFile(existingPath); string(got) != "pre-existing file content" {
+		t.Fatalf("the existing file must stay as it is, got %q", got)
+	}
+	if _, err := os.Stat(conflictWorkDir(t, existingPath, int64(item["id"].(float64)), false)); err == nil {
+		t.Fatal("the download that was not imported should not stay in the downloads folder")
+	}
+}
+
 // TestResolveConflictSkip proves choosing "skip" leaves the existing file
-// completely alone and fails the queue item rather than half-applying
-// something.
+// completely alone and settles the queue item as kept (not failed) rather
+// than half-applying something.
 func TestResolveConflictSkip(t *testing.T) {
 	movieContent := []byte("new fixture movie content, different from what's already there")
 	client, httpSrv, movie, existingPath := newImportConflictTestServer(t, movieContent)
@@ -312,19 +346,20 @@ func TestResolveConflictSkip(t *testing.T) {
 	}
 
 	deadline := time.Now().Add(5 * time.Second)
-	var status string
+	var status, message string
 	for time.Now().Before(deadline) {
 		queueList := getJSON[[]map[string]any](t, client, httpSrv.URL+"/api/queue")
 		if len(queueList) == 1 {
 			status, _ = queueList[0]["status"].(string)
+			message, _ = queueList[0]["error"].(string)
 			if status != "conflict" {
 				break
 			}
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	if status != "failed" {
-		t.Fatalf("expected the skipped queue item to end up failed, got status=%q", status)
+	if status != "completed" || message != "Kept the file you already have." {
+		t.Fatalf("expected the skipped queue item to say the file was kept, got status=%q %q", status, message)
 	}
 
 	got, err := os.ReadFile(existingPath)

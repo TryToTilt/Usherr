@@ -18,7 +18,6 @@ import (
 	"github.com/rdborg/mediarium/internal/books"
 	"github.com/rdborg/mediarium/internal/config"
 	"github.com/rdborg/mediarium/internal/crypto"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 // newBaseServer is a running server configured with URL_BASE=base.
@@ -45,7 +44,7 @@ func newBaseServerWith(t *testing.T, base string) (string, *http.Client, *api.Se
 			t.Fatal(err)
 		}
 	}
-	db, err := store.Open(filepath.Join(cfg.ConfigDir, "app.db"))
+	db, err := api.OpenTestDB(filepath.Join(cfg.ConfigDir, "app.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,10 +1,60 @@
 package music
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
+
+// A FLAC file that is only its header followed by zeros (an interrupted
+// copy) reads as endless empty metadata blocks. Its tags are given up on
+// once the read limit is reached, instead of walking the whole file.
+func TestFileTagReaderGivesUpOnAZeroFilledFLAC(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "02 Joga.flac")
+	f, err := os.Create(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write([]byte("fLaC")); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(TagReadLimit + 8<<20); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	start := time.Now()
+	_, ok, err := FileTagReader{}.ReadTags(p)
+	if ok || !errors.Is(err, ErrTagReadLimit) {
+		t.Fatalf("want ErrTagReadLimit, got ok=%v err=%v", ok, err)
+	}
+	if took := time.Since(start); took > 3*time.Second {
+		t.Errorf("giving up took %v", took)
+	}
+	// The file is still identified, by its name.
+	if info := IdentifyFile(p, FileTagReader{}); info.Track != 2 || info.Title != "Joga" {
+		t.Errorf("by name: %+v", info)
+	}
+}
+
+func TestFileTagReaderStopsAtTheDeadline(t *testing.T) {
+	dir := t.TempDir()
+	p := writeFixture(t, dir, "a.flac", buildFLAC(flacSpec{sampleRate: 44100, channels: 2, bps: 16, seconds: 1, audioBytes: 10,
+		comments: []string{"TITLE=Lucky"}}))
+	old := TagReadTimeout
+	defer func() { TagReadTimeout = old }()
+	TagReadTimeout = -time.Second
+	if _, _, err := (FileTagReader{}).ReadTags(p); !errors.Is(err, ErrTagReadLimit) {
+		t.Fatalf("want ErrTagReadLimit past the deadline, got %v", err)
+	}
+	TagReadTimeout = old
+	if info, ok, err := (FileTagReader{}).ReadTags(p); err != nil || !ok || info.Title != "Lucky" {
+		t.Fatalf("within the limits: %+v ok=%v err=%v", info, ok, err)
+	}
+}
 
 func TestFileTagReaderReadsFLACAndMP3(t *testing.T) {
 	dir := t.TempDir()

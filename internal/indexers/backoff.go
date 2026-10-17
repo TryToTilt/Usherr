@@ -145,6 +145,9 @@ type Tracker struct {
 	order     []sourceKey
 	orderHead int
 
+	// limits is what is known about daily request limits (see limits.go).
+	limits limitState
+
 	// paceMu guards lanes: each indexer's waiting searches (see Pace).
 	paceMu sync.Mutex
 	lanes  map[int64]*paceLane
@@ -357,7 +360,12 @@ func (t *Tracker) Succeeded(id int64) {
 
 // Resume lets searches ask the indexer again now ("Try again now"). The
 // failures are forgotten too, so a new failure starts the count again.
-func (t *Tracker) Resume(id int64) { t.Succeeded(id) }
+func (t *Tracker) Resume(id int64) {
+	t.Succeeded(id)
+	if t != nil {
+		t.clearQuotaWait(id)
+	}
+}
 
 // Failed records a failed search and returns the indexer's health after it.
 func (t *Tracker) Failed(id int64, err error) Health {

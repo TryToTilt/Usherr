@@ -3,6 +3,65 @@
 Usherr's own releases. Each one is built on a Mediarium release by rdborg,
 whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
+## [1.0.4] - 2026-10-17
+
+Built on **Mediarium 3.1.3**.
+
+**New** (from Mediarium 3.1.3)
+- **Signed-in devices**: *Settings → Account & Access → Security* lists them, with *Sign out all other devices*.
+- **Keep the original file names**: a switch under *Settings → Library → File names and importing*; custom naming gets `{Original Filename}` and `{Original Title}`.
+- Account changes and API keys made or removed are written to the log and Activity for administrators.
+- Change a show's folder, locate a renamed file, set your own book cover, and administrators can see the folder of a title's files.
+
+**Fixed** (from Mediarium 3.1.3)
+- Titles with accents or in other alphabets (Pokémon, Amélie, Japanese, Russian, Greek) are found, matched and imported.
+- Password-protected RAR releases open with their password; a release whose link gives a login page is no longer grabbed again and again.
+- Big libraries are much faster: the Dashboard, Wanted (now in pages) and the Library tabs.
+- Security: the setup code can't be skipped, sign-in limits hold however fast the guesses come, and a site entry can't be pointed at your home network.
+- A learned daily indexer limit is forgotten after a week and can't lock an indexer out for good.
+- Torrents already running when a VPN connects, or the kill switch is switched on, are stopped within about a minute instead of sending from your home address.
+- Everything else in Mediarium 3.1.3, listed in [CHANGELOG.md](CHANGELOG.md).
+
+## [1.0.3] - 2026-10-16
+
+Built on **Mediarium 3.1.2**.
+
+**New**
+- **Daily limits for indexers** (from Mediarium 3.1.2): Usherr learns each indexer's daily request limit, stops automatic searches just before it, shows "12 of 25 requests today" on the indexer's card and starts again after midnight (UTC). An indexer can also be given a known limit under *Requests per day*.
+- The menu lists every Library tab under *Library*, Anime, Comics and NSFW 18+ included; they fold up under Library, like a settings group.
+- **Calendar search**: the search and AI bar now sits at the top of the calendar too. Search narrows the calendar as you type and lists the matches by date (a date opens that month); Ask takes questions like "anime this weekend" or "superhero films next month".
+- The calendar's kinds are a drop-down next to its tabs, with *In theaters* as a kind of its own.
+- Streamed shows are on the calendar too: new episodes of shows you stream (but don't keep in the library) appear marked *Streams*, looked up on TMDB about twice a day.
+- **A shorter Dashboard**: the search and AI bar moved into the top bar, where it works from every page; Roulette is the dice next to it; *What should I watch tonight?* is a button of its own; and the folded calendar is gone (*Coming up* shows the same).
+- **News in one line**: the Dashboard's news is a single line at the top, one headline at a time or a ticker, and *All news* opens the full list. Each person picks the style, or turns it off, under *Settings → General* or in All news.
+- The Dashboard has **Anime** and **Comics** cards next to the others, each with its own notch; the TV card now counts TV without the anime.
+- **A slim toolbar on Discover and the Library**: one row with the kind (a drop-down), Filters (it says how many are on) and the sort, pinned under the top bar as you scroll. Filters that are on show as small chips with an x. The Library's status (Downloaded, Waiting…) is one of its filters. The pages' own search and AI bars are gone: the top bar's does the same and now knows which page and kind you're on. *Complete your library* comes after the first row instead of before the posters.
+- **Live TV programmed like a network**: a channel can start its shows on the hour and every 15, 30 or 60 minutes, give each part of the day (Morning, Mid-morning, Afternoon, Evening, Prime time, Late night, Overnight) a line-up of its own, and pin shows or movies to set times ("Seinfeld, weeknights at 7", a Sunday Night Movie). The time between shows plays bumpers and ads from a folder you choose, then an "Up next" card, drawn in the browser and in Jellyfin.
+- **Live TV guide looks and surfing**: the guide can be a modern grid, a '90s cable box, the Prevue Channel (a preview on top, the line-up rolling below), newspaper listings or "Now on" tiles; each column can cover 15, 30 or 60 minutes, 6 to 24 hours ahead. Star favourite channels, hide others. While watching: channel up and down (arrow keys, buttons or a swipe), type a number, *Last* channel, a burst of static between channels (with its hiss, if you like), an info banner with what's on, the time left and what's next, and an optional CRT look.
+- **More Live TV**:
+  - Special programming: holiday episodes in their season (Halloween to the Fourth of July), new episodes premiering in prime time marked NEW, family hours (nothing for older than about ten before 9 PM), and commercial breaks inside shows from the filler folder.
+  - Channel packs (Saturday Morning, Sitcom Gold, TGIF, Sci-Fi, Crime & Mystery, Movie Channel, Creature Feature, Holiday, Rewind, Discovery Hour) and *Build with AI*: describe a channel and it's drafted from your library, with famous shows you don't have streamed.
+  - Remind me (a phone message five minutes before a show starts; *TV reminders* in Notifications), Start over, catch-up on the last three hours, and Multiview (four channels at once).
+  - *Other apps*: the channel list and guide for IPTV apps such as TiviMate, and a tuner address for Plex's Live TV & DVR.
+  - The Marquee has an *On Live TV* scene.
+- **Tidier screens everywhere**:
+  - Settings pages fold each card to its title row (with its status); tap one to open it, or *Open all*. A card with an error opens by itself. Extras goes from about thirteen phone screens to two.
+  - Music, Ebooks, Audiobooks, Wanted and Discover's *Browse all* use the same slim toolbar; Comics and NSFW 18+ pick the kind from the same drop-down.
+  - Activity's counts are one line, and *Import a file* and *Add a download* by hand are in one *By hand* menu.
+  - A film's or show's trailers are one *Trailers* button, and Reviews, Website, IMDb and TMDB one *Links* menu.
+  - On the Calendar the top bar searches the calendar; *Only what isn't downloaded* and *Add to your calendar app* are in its ⋯ menu.
+  - The Diary's kind and year are drop-downs in one row.
+- Titles you stream but haven't downloaded say **Streams** in search, on Discover and on their page, and adding one says you already stream it before it downloads a copy.
+- A streamed title in the Library opens its own page, like any other title, instead of the separate Streamed list. A streamed show's page has *Watch (streams)*, which opens its episodes right there.
+
+**Changed**
+- The NSFW 18+ module is called **NSFW** everywhere: its page is at `/nsfw` (old `/scenes` links still work), its folder variable is `NSFW_DIR` (`SCENES_DIR` is still read), and an item in it is a **video**. Existing libraries move over on their own when you update; nothing is lost.
+
+**Fixed**
+- **Folders for comics, anime and NSFW 18+ on a new install.** They are set under *Settings → Library → Folders*, next to movies and TV. With nothing set, comics and NSFW 18+ go in `/data/comics` and `/data/nsfw` (made on the first download), and anime finds `/data/anime` when it exists. The example compose file and the install guide list `COMICS_DIR`, `ANIME_DIR` and `NSFW_DIR`.
+- Mediarium's own connection checks no longer use up free indexers' daily requests (from Mediarium 3.1.2).
+- Everything else in Mediarium 3.1.1 and 3.1.2, listed in [CHANGELOG.md](CHANGELOG.md).
+
 ## [1.0.2] - 2026-10-16
 
 Built on **Mediarium 3.1.0**.

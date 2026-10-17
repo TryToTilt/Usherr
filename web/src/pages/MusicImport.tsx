@@ -30,6 +30,7 @@ function ResultRow({ r }: { r: MusicImportResult }) {
           {r.status === 'already' ? ` · ${t('already in your library')}` : ''}
         </small>
         {!found && r.message && <small className="mi-why">{st(r.message)}</small>}
+        {r.note && <small className="mi-why">{st(r.note)}</small>}
         {!found && <code className="mi-folder">{r.folder}</code>}
       </div>
       {!found && <span className={`badge ${r.status === 'failed' ? 'failed' : 'missing'}`}>{REASON[r.status] ?? r.status}</span>}
@@ -46,12 +47,20 @@ export default function MusicImport() {
   const [job, setJob] = useState<MusicImportJob | null>(null)
   const [error, setError] = useState('')
   const [starting, setStarting] = useState(false)
+  const [stopping, setStopping] = useState(false)
   const v = useValidation({
     root: required(job?.root || root, t('Set your music folder under Settings > Library > Folders, then come back and scan.')),
   })
 
   useEffect(() => {
     api.getSettings().then((s) => setRoot(s.musicPath ?? '')).catch(() => undefined)
+    // A scan keeps running when the page is left: show it again.
+    api
+      .latestMusicScan()
+      .then((j) => {
+        if (j.id) setJob((cur) => cur ?? (j as MusicImportJob))
+      })
+      .catch(() => undefined)
   }, [])
 
   const jobId = job?.id
@@ -80,6 +89,18 @@ export default function MusicImport() {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setStarting(false)
+    }
+  }
+
+  async function stop() {
+    if (!jobId) return
+    setStopping(true)
+    try {
+      setJob(await api.stopMusicScan(jobId))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStopping(false)
     }
   }
 
@@ -141,13 +162,25 @@ export default function MusicImport() {
           <div className="bar active" role="progressbar" aria-valuenow={phase === 'matching' ? pct : undefined} aria-valuemin={0} aria-valuemax={100}>
             <span style={{ width: `${phase === 'scanning' ? 8 : Math.max(4, pct)}%` }} />
           </div>
-          <small className="mi-hint">{t('The music database allows one lookup a second, so a big collection takes a while. The page can stay open in the background.')}</small>
+          {job.current && (
+            <small className="mi-hint">{tx('Now: {folder}', { folder: <code>{job.current}</code> })}</small>
+          )}
+          <small className="mi-hint">{t('The music database allows one lookup a second, so a big collection takes a while. You can leave this page, the scan keeps going.')}</small>
+          <div className="row-actions">
+            <button className="btn-with-icon" onClick={() => void stop()} disabled={stopping}>
+              <Icon name="stop" size={15} /> {stopping ? t('Stopping…') : t('Stop the scan')}
+            </button>
+          </div>
         </section>
+      )}
+
+      {job && phase === 'stopped' && (
+        <p className="notice">{t('You stopped the scan. The albums it had already added stay in your library, and the list below shows them. Scan again to pick up the rest.')}</p>
       )}
 
       {job && phase === 'failed' && <p className="error-text">{t('The scan stopped: {error}. Check the music folder and try again.', { error: job.error || t('something went wrong') })}</p>}
 
-      {job && phase === 'done' && (
+      {job && (phase === 'done' || phase === 'stopped') && (
         <>
           <div className="mi-summary">
             <div className="mi-stat good">
@@ -168,7 +201,7 @@ export default function MusicImport() {
             </div>
           </div>
 
-          {results.length === 0 && (
+          {results.length === 0 && phase === 'done' && (
             <div className="empty-state">
               <Icon name="folder" size={44} />
               <p>{tx('No albums were found in that folder. Check that it holds folders like {example} with audio files inside.', { example: <code>Artist/Album</code> })}</p>

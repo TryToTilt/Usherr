@@ -2,6 +2,8 @@ package music
 
 import (
 	"fmt"
+	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -29,9 +31,24 @@ type ScannedArtist struct {
 	Loose []string
 }
 
+// isDir reports whether a directory entry is a folder, following a link to
+// one (os.ReadDir says false for a symlinked folder).
+func isDir(parent string, e fs.DirEntry) bool {
+	if e.IsDir() {
+		return true
+	}
+	if e.Type()&fs.ModeSymlink != 0 {
+		info, err := os.Stat(filepath.Join(parent, e.Name()))
+		return err == nil && info.IsDir()
+	}
+	return false
+}
+
 // ScanLibrary reads an existing music folder laid out the usual way,
 // root/Artist/Album/tracks, without changing anything. Hidden folders are
-// skipped, and album folders without audio files are left out.
+// skipped, and album folders without audio files are left out. Linked folders
+// are followed, and a folder that cannot be read is skipped (and logged)
+// rather than stopping the whole scan.
 func ScanLibrary(root string) ([]ScannedArtist, error) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -39,17 +56,18 @@ func ScanLibrary(root string) ([]ScannedArtist, error) {
 	}
 	var out []ScannedArtist
 	for _, e := range entries {
-		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+		if !isDir(root, e) || strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
 		artist := ScannedArtist{Name: e.Name(), Path: filepath.Join(root, e.Name())}
 		sub, err := os.ReadDir(artist.Path)
 		if err != nil {
-			return nil, fmt.Errorf("read artist folder %s: %w", artist.Path, err)
+			slog.Warn("music scan: skipped a folder that can't be read", "folder", artist.Path, "err", err)
+			continue
 		}
 		for _, a := range sub {
 			p := filepath.Join(artist.Path, a.Name())
-			if !a.IsDir() {
+			if !isDir(artist.Path, a) {
 				if IsAudioFile(a.Name()) {
 					artist.Loose = append(artist.Loose, p)
 				}
@@ -60,7 +78,8 @@ func ScanLibrary(root string) ([]ScannedArtist, error) {
 			}
 			files, err := FindAudioFiles(p)
 			if err != nil {
-				return nil, err
+				slog.Warn("music scan: skipped an album folder that can't be read", "folder", p, "err", err)
+				continue
 			}
 			if len(files) == 0 {
 				continue

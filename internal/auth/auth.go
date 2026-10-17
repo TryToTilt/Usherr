@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -221,7 +222,19 @@ func fakeCompare(password string) {
 	dummyHashOnce.Do(func() {
 		dummyHash, _ = bcrypt.GenerateFromPassword([]byte("mediarium-no-such-user"), hashCost)
 	})
-	_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
+	_ = compareHash(dummyHash, password)
+}
+
+// bcryptSlots limits how many password checks run at once. A burst of sign-in
+// attempts would otherwise queue enough bcrypt work to use every core for as
+// long as the burst lasts; the rest wait their turn here instead.
+var bcryptSlots = make(chan struct{}, max(2, runtime.NumCPU()))
+
+// compareHash is bcrypt.CompareHashAndPassword that waits for a free slot.
+func compareHash(hash []byte, password string) error {
+	bcryptSlots <- struct{}{}
+	defer func() { <-bcryptSlots }()
+	return bcrypt.CompareHashAndPassword(hash, []byte(password))
 }
 
 // Authenticate verifies a username/password pair.
@@ -243,7 +256,7 @@ func (s *Service) Authenticate(username, password string) (*User, error) {
 		fakeCompare(password)
 		return nil, ErrInvalidCredentials
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err != nil {
+	if err := compareHash([]byte(hash), password); err != nil {
 		return nil, ErrInvalidCredentials
 	}
 	if u.Disabled {
@@ -360,7 +373,7 @@ func (s *Service) ChangePassword(userID int64, currentPassword, newPassword stri
 	if source != SourceLocal || hash == "" {
 		return ErrNotLocal
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(currentPassword)); err != nil {
+	if err := compareHash([]byte(hash), currentPassword); err != nil {
 		return ErrInvalidCredentials
 	}
 	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), hashCost)
@@ -523,6 +536,50 @@ func (s *Service) SessionMethod(token string) string {
 		return ""
 	}
 	return m
+}
+
+// SessionInfo is one place an account is signed in, as the profile page lists it.
+type SessionInfo struct {
+	CreatedAt time.Time
+	ExpiresAt time.Time
+	Method    string // how it was started: see MethodPassword and friends
+	Current   bool   // the session making the request
+}
+
+// SessionsOf lists the unexpired sessions of userID, newest first. current is
+// the raw token of the session asking, so it can be marked.
+func (s *Service) SessionsOf(userID int64, current string) ([]SessionInfo, error) {
+	rows, err := s.db.Query(`SELECT token_hash, created_at, expires_at, method FROM sessions WHERE user_id = ? ORDER BY created_at DESC`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list sessions: %w", err)
+	}
+	defer rows.Close()
+	mine := hashToken(current)
+	var out []SessionInfo
+	for rows.Next() {
+		var hash, created, expires, method string
+		if err := rows.Scan(&hash, &created, &expires, &method); err != nil {
+			return nil, fmt.Errorf("scan session: %w", err)
+		}
+		exp, err := time.Parse(time.RFC3339Nano, expires)
+		if err != nil || time.Now().After(exp) {
+			continue
+		}
+		made, _ := time.Parse(time.RFC3339Nano, created)
+		out = append(out, SessionInfo{CreatedAt: made, ExpiresAt: exp, Method: method, Current: current != "" && hash == mine})
+	}
+	return out, rows.Err()
+}
+
+// DeleteOtherSessions signs userID out everywhere except the session with the
+// raw token keep, and returns how many it ended.
+func (s *Service) DeleteOtherSessions(userID int64, keep string) (int64, error) {
+	res, err := s.db.Exec(`DELETE FROM sessions WHERE user_id = ? AND token_hash != ?`, userID, hashToken(keep))
+	if err != nil {
+		return 0, fmt.Errorf("delete other sessions: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
 }
 
 // DeleteSession logs a single session out.

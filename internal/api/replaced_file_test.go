@@ -111,7 +111,7 @@ func TestUpgradeUnderTheSameNameLeavesOneFile(t *testing.T) {
 // The usual upgrade: the better release has the same file name as the file in
 // the library. With the default setting a title that may be upgraded takes it
 // in place of the old file instead of failing with "a file already exists";
-// a release that is not better is still turned away.
+// a release that is not better is still turned away (and the old file kept).
 func TestUpgradeUnderTheSameNameWithTheDefaultPolicy(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
@@ -144,8 +144,10 @@ func TestUpgradeUnderTheSameNameWithTheDefaultPolicy(t *testing.T) {
 				}
 				return
 			}
-			if e.status(t, id) != "failed" || string(got) != "the old version" {
-				t.Fatalf("the old file should stay and the import be turned away: %s, file %q", e.status(t, id), got)
+			// Turning it away is a decision, not a failure: the row says the file
+			// was kept.
+			if e.status(t, id) != "completed" || e.item(t, id)["error"] != "Kept the file you already have." || string(got) != "the old version" {
+				t.Fatalf("the old file should stay and the import be turned away: %s %v, file %q", e.status(t, id), e.item(t, id)["error"], got)
 			}
 		})
 	}

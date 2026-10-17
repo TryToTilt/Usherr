@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"log"
+	"sort"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/library"
+	"github.com/rdborg/mediarium/internal/metadata"
 	"github.com/rdborg/mediarium/internal/parser"
 	"github.com/rdborg/mediarium/internal/quality"
 )
@@ -18,6 +20,9 @@ const (
 	// backlog of missing episodes can't hammer indexers (and their API
 	// limits) in one go; the rest is picked up on the next run.
 	maxTVSearchesPerHunt = 25
+	// tvWantsNamesTimeout is how long working out what a show wants may wait for
+	// TMDB to give its other titles.
+	tvWantsNamesTimeout = 2 * time.Second
 )
 
 // tvWant is one season of one series that automation should try to fill:
@@ -47,6 +52,10 @@ type tvScope struct {
 	season   int
 	episode  int
 	force    bool
+	// asMarked keeps the monitored boxes of the episodes even when force is set:
+	// a search started by adding a show, changing its profile or blocklisting a
+	// release looks only for the episodes the person chose to monitor.
+	asMarked bool
 	// specials narrows it to season 0 (season 0 above means every season).
 	// Specials are only looked for when monitored, or asked for by name.
 	specials bool
@@ -68,6 +77,20 @@ func (s *Server) tvWants(profiles profileSet, scope tvScope) (wants []tvWant, up
 			continue
 		}
 		profile := s.profileForSeries(profiles, sr)
+		// The show's other titles are looked up once it turns out something is
+		// wanted from it, so releases named by one of them are taken for it.
+		namesRead := false
+		withNames := func() {
+			if !namesRead {
+				namesRead = true
+				// This also runs on the IRC announce path, where a slow TMDB must not
+				// hold a fresh release back: saved names come at once, a fetch gets
+				// a couple of seconds.
+				ctx, cancel := context.WithTimeout(context.Background(), tvWantsNamesTimeout)
+				defer cancel()
+				sr = s.seriesWithAltTitles(ctx, sr)
+			}
+		}
 		eps, err := s.MovieRepo.ListEpisodes(sr.ID)
 		if err != nil {
 			return nil, nil, err
@@ -89,7 +112,7 @@ func (s *Server) tvWants(profiles profileSet, scope tvScope) (wants []tvWant, up
 			// Specials are never fetched as a pack.
 			whole := len(all) > 1 && scope.episode == 0 && season > 0
 			for _, ep := range all {
-				monitored := ep.Monitored || scope.force
+				monitored := ep.Monitored || (scope.force && !scope.asMarked)
 				if season == 0 {
 					// Searching a whole show by hand leaves its specials alone
 					// unless they are monitored; asking for specials does not.
@@ -106,10 +129,12 @@ func (s *Server) tvWants(profiles profileSet, scope tvScope) (wants []tvWant, up
 					missing = append(missing, ep)
 				}
 				if monitored && !sr.NoUpgrade && ep.Status == library.StatusDownloaded && wantsUpgrade(profile, ep.Quality, ep.ReleaseTitle) {
+					withNames()
 					upgrades = append(upgrades, tvUpgrade{profile: profile, series: sr, episode: ep})
 				}
 			}
 			if len(missing) > 0 {
+				withNames()
 				wants = append(wants, tvWant{profile: profile, series: sr, season: season, episodes: missing, wholeSeason: whole})
 			}
 		}
@@ -194,8 +219,11 @@ func (s *Server) autoGrabTV(searcher tvSearcher, logPrefix string, profiles prof
 		return 0
 	}
 	grabs := 0
+	if !scope.force && scope.seriesID == 0 {
+		s.leastRecentlySearchedFirst(wants, upgrades)
+	}
 
-	blocked := s.blockedKeys()
+	blocked := s.searchSkipKeys()
 	rawSearcher := searcher
 	// limited is the search with the blocklist, the sources, the size table and
 	// the delay profile applied; current is set for an upgrade search.
@@ -271,16 +299,63 @@ func (s *Server) autoGrabTV(searcher tvSearcher, logPrefix string, profiles prof
 	return grabs
 }
 
+// leastRecentlySearchedFirst puts the shows that were searched for longest ago
+// (or never) first, so a run that can only afford so many searches does not
+// spend them all on the same few shows every time. Shows keep their order
+// among those searched at the same time.
+func (s *Server) leastRecentlySearchedFirst(wants []tvWant, upgrades []tvUpgrade) {
+	seen := map[int64]bool{}
+	var ids []int64
+	for _, id := range seriesIDsOf(wants, upgrades) {
+		if !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	last, err := s.QueueRepo.LastSeriesSearches(ids)
+	if err != nil {
+		log.Printf("automation: tv: last searches: %v", err)
+		return
+	}
+	sort.SliceStable(wants, func(i, j int) bool { return last[wants[i].series.ID].At < last[wants[j].series.ID].At })
+	sort.SliceStable(upgrades, func(i, j int) bool { return last[upgrades[i].series.ID].At < last[upgrades[j].series.ID].At })
+}
+
+func seriesIDsOf(wants []tvWant, upgrades []tvUpgrade) []int64 {
+	var ids []int64
+	for _, w := range wants {
+		ids = append(ids, w.series.ID)
+	}
+	for _, u := range upgrades {
+		ids = append(ids, u.series.ID)
+	}
+	return ids
+}
+
 // targetedTVSearcher queries the indexers for one season or episode at a
 // time, returning nothing once budget searches have been spent.
 func (s *Server) targetedTVSearcher(ctx context.Context, instances []indexers.Instance, budget int, force bool) tvSearcher {
 	return func(series library.Series, season, episode int) []indexers.Result {
-		if budget <= 0 {
-			return nil
+		if budget <= 0 || ctx.Err() != nil {
+			return nil // out of searches for this run, or the app is shutting down
 		}
 		budget--
+		series = s.seriesWithAltTitles(ctx, series)
 		outcomes := indexers.SearchAll(ctx, instances, tvSearchQuery(series.Title, season, episode), tvCategory)
-		for _, q := range s.extraTVQueries(series, season, episode) {
+		// The other numberings (an anime's absolute number, a daily show's date)
+		// and the other titles are only tried when nothing for this season or
+		// episode turned up yet (a person's own search tries them all).
+		mapper := s.releaseMapper(series)
+		for _, q := range s.extraNumberingQueries(series, season, episode) {
+			if ctx.Err() != nil || (!force && tvTargetFound(indexers.MergeResults(outcomes), series, season, episode, mapper)) {
+				break
+			}
+			outcomes = append(outcomes, indexers.SearchAll(ctx, instances, q, tvCategory)...)
+		}
+		for _, q := range altTVQueries(series, season, episode) {
+			if ctx.Err() != nil || (!force && tvTargetFound(indexers.MergeResults(outcomes), series, season, episode, mapper)) {
+				break
+			}
 			outcomes = append(outcomes, indexers.SearchAll(ctx, instances, q, tvCategory)...)
 		}
 		s.noteTVSearch(ctx, force, series, season, episode, outcomes)
@@ -288,8 +363,22 @@ func (s *Server) targetedTVSearcher(ctx context.Context, instances []indexers.In
 	}
 }
 
-// searchSeriesInBackground runs the automatic search for a just-added show,
-// ignoring monitoring (the person asked for it explicitly).
+// tvTargetFound reports whether any of the releases is for this show and covers
+// the season or episode looked for.
+func tvTargetFound(results []indexers.Result, series library.Series, season, episode int, mapper func(parser.Release) parser.Release) bool {
+	for _, res := range results {
+		if matchesShowFor(res.Title, series, season) && coversTarget(parseFor(mapper, res.Title), season, episode) {
+			return true
+		}
+	}
+	return false
+}
+
+// searchSeriesInBackground runs the automatic search for a just-added show (or
+// one whose profile changed, or whose release was just blocklisted). The person
+// asked for it, so it does not wait for the hourly limit, but it looks only for
+// the episodes that are monitored: "future episodes only" must not fetch the
+// back catalogue.
 func (s *Server) searchSeriesInBackground(seriesID int64) {
 	instances, err := s.searchableIndexers()
 	if err != nil || len(instances) == 0 {
@@ -299,7 +388,7 @@ func (s *Server) searchSeriesInBackground(seriesID int64) {
 	if err != nil {
 		return
 	}
-	s.autoGrabTV(s.targetedTVSearcher(context.Background(), instances, maxTVSearchesPerHunt, true), "add", profiles, tvScope{seriesID: seriesID, force: true})
+	s.autoGrabTV(s.targetedTVSearcher(context.Background(), instances, maxTVSearchesPerHunt, true), "add", profiles, tvScope{seriesID: seriesID, force: true, asMarked: true})
 }
 
 func (s *Server) huntTV(ctx context.Context, instances []indexers.Instance, profiles profileSet) {
@@ -327,12 +416,30 @@ func (s *Server) refreshAllSeries(ctx context.Context) {
 		log.Printf("automation: series-refresh: list series: %v", err)
 		return
 	}
+	failures := 0
 	for _, sr := range seriesList {
 		if !sr.Monitored {
 			continue
 		}
-		if err := s.refreshSeries(ctx, sr); err != nil {
-			log.Printf("automation: series-refresh: %q: %v", sr.Title, err)
+		if ctx.Err() != nil {
+			return
+		}
+		err := s.refreshSeries(ctx, sr)
+		if err == nil {
+			failures = 0
+			continue
+		}
+		log.Printf("automation: series-refresh: %q: %v", sr.Title, err)
+		var status *metadata.StatusError
+		if errors.As(err, &status) && status.Code == 404 {
+			continue // TMDB no longer has this one: says nothing about the rest
+		}
+		// A rejected key fails for every show, and a dead network for most:
+		// stop instead of one failed request and one log line per show.
+		failures++
+		if errors.Is(err, metadata.ErrInvalidKey) || failures >= 5 {
+			log.Printf("automation: series-refresh: stopped after %d failures, the rest will be tried on the next run", failures)
+			return
 		}
 	}
 }

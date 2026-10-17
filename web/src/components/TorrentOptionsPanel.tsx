@@ -30,9 +30,9 @@ function mapText(o: TorrentOptions, listenPort: number): string {
     case 'working':
       return t('Looking for the router…')
     case 'mapped':
-      return t('Open: the router forwards port {port} ({method}).', { port: m.port ?? listenPort, method: m.method ?? '' })
+      return t('Open: the router forwards port {port} ({method}).', { port: String(m.port ?? listenPort), method: m.method ?? '' })
     default:
-      return t('Not mapped: no router opened port {port}. If peers cannot reach you, forward it on the router yourself.', { port: listenPort })
+      return t('Not mapped: no router opened port {port}. If peers cannot reach you, forward it on the router yourself.', { port: String(listenPort) })
   }
 }
 

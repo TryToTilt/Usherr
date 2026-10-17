@@ -4,8 +4,10 @@
 package organizer
 
 import (
+	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -37,6 +39,11 @@ type NamingContext struct {
 	Languages  []string
 	IMDBID     string
 	TVDBID     int
+
+	// OriginalFilename is the name the file came with, without its folder
+	// or extension; OriginalTitle is the release's own name.
+	OriginalFilename string
+	OriginalTitle    string
 
 	editionTagged bool // set by Render when the format has {Edition Tags}
 }
@@ -170,6 +177,81 @@ func Sanitize(name string, mode SanitizeMode, replacement string) string {
 		return "_"
 	}
 	return out
+}
+
+// OriginalName is the name a file keeps under "Keep the original file names":
+// its own name without the folder, with the characters the file system
+// refuses handled like in every other name. ok is false when that name is no
+// use (it looks obfuscated, or nothing is left of it), and the caller then
+// names the file the normal way.
+func OriginalName(file string, mode SanitizeMode, replacement string) (name string, ok bool) {
+	base := filepath.Base(file)
+	ext := filepath.Ext(base)
+	stem := strings.TrimSuffix(base, ext)
+	if LooksObfuscated(stem) {
+		return "", false
+	}
+	clean := Sanitize(stem, mode, replacement)
+	if clean == "" || clean == "_" || LooksObfuscated(clean) {
+		return "", false
+	}
+	return clean + illegalChars.ReplaceAllString(ext, ""), true
+}
+
+// LooksObfuscated reports whether a file name (without its extension) is a
+// random string rather than a real name, the way obfuscated Usenet posts
+// come: "a8f7d6e5c4b3", "wFvDJHhDrbESDBLq", a hash, or too short to say
+// anything ("abc"). A name with words in it is never flagged, and neither is
+// a plain number like "1917".
+func LooksObfuscated(stem string) bool {
+	s := strings.TrimSpace(stem)
+	var letters, digits, upperRun, longestUpperRun int
+	hexOnly, lower := true, false
+	for _, r := range s {
+		switch {
+		case unicode.IsLetter(r):
+			letters++
+			if unicode.IsUpper(r) {
+				upperRun++
+				longestUpperRun = max(longestUpperRun, upperRun)
+			} else {
+				upperRun = 0
+				lower = true
+			}
+			if !strings.ContainsRune("abcdefABCDEF", r) {
+				hexOnly = false
+			}
+		case unicode.IsDigit(r):
+			digits++
+			upperRun = 0
+		default:
+			upperRun = 0
+			if r != '-' {
+				hexOnly = false
+			}
+		}
+	}
+	alnum := letters + digits
+	if alnum < 4 {
+		return true // "abc", "01", "-.-"
+	}
+	if hexOnly && letters > 0 && digits > 0 && alnum >= 16 {
+		return true // a hash or a UUID
+	}
+	if strings.ContainsAny(s, " ._-()[]") {
+		return false // words: a real name
+	}
+	switch {
+	case letters == 0:
+		return digits >= 8 // a long number; "1917" is a film
+	case digits > 0 && alnum >= 8:
+		return true // letters and digits mixed: "a8f7d6e5c4b3"
+	case alnum >= 12 && lower && longestUpperRun >= 3:
+		return true // random case: "wFvDJHhDrbESDBLq"
+	case alnum >= 24:
+		return true
+	}
+	return false
 }
 
 // truncateName cuts s to at most max bytes without splitting a character.

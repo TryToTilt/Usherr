@@ -58,16 +58,13 @@ jobs:
         run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 -checks "SA*,-SA1019" ./...
 
   # Every test again with the race detector, which catches two goroutines
-  # touching the same data. Slow, so it runs on its own.
-  # Usherr: the server's main package is split by test name, so each part
-  # stays well inside the time limit.
+  # touching the same data. It makes the tests about ten times slower, and the
+  # api package alone is most of the suite, so the work is split over several
+  # jobs that run side by side: one for every other package, and the api tests
+  # in four shards (each shard runs every fourth test of the package).
   race:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        part: [rest, '^Test[A-H]', '^Test[I-O]', '^Test[P-R]', '^Test[S-Z]']
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -75,15 +72,33 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
-      - name: Tests with the race detector
+      - name: Tests with the race detector (all packages but api)
+        run: go test -race -timeout 90m $(go list ./... | grep -v -e torrentclient -e '/internal/api$')
+
+  race-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - name: Tests of the api package with the race detector (one shard)
         env:
-          PART: ${{ matrix.part }}
+          SHARD: ${{ matrix.shard }}
         run: |
-          if [ "$PART" = rest ]; then
-            go test -race -timeout 50m $(go list ./... | grep -v torrentclient | grep -v '/internal/api$')
-          else
-            go test -race -timeout 50m -run "$PART" ./internal/api/
-          fi
+          # Test names are dealt out one by one, so the shards stay about the
+          # same size as tests are added. -list also prints Example names and
+          # a trailing "ok" line, which the pattern below keeps out.
+          tests="$(go test -list '^Test' ./internal/api | grep '^Test' | awk -v s="$SHARD" 'NR % 4 == s' | paste -sd '|' -)"
+          test -n "$tests"
+          go test -race -timeout 90m -run "^($tests)\$" ./internal/api
 
   web:
     runs-on: ubuntu-latest

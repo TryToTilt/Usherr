@@ -7,7 +7,6 @@ import (
 
 	"github.com/rdborg/mediarium/internal/queue"
 	"github.com/rdborg/mediarium/internal/settings"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 func TestWaitingPositions(t *testing.T) {
@@ -39,7 +38,7 @@ func TestDownloadsAtOnceStaysBetweenOneAndFive(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(fmt.Sprintf("saved %q", tc.saved), func(t *testing.T) {
-			db, err := store.Open(filepath.Join(t.TempDir(), "app.db"))
+			db, err := OpenTestDB(filepath.Join(t.TempDir(), "app.db"))
 			if err != nil {
 				t.Fatal(err)
 			}

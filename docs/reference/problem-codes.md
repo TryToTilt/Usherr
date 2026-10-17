@@ -36,6 +36,7 @@ Every problem on Settings > System > Logs and errors has one of these codes. The
 | `indexer.unreachable` | warning | **Can't reach an indexer.** The site didn't answer. It may be down or have moved. | Press Test on the indexer. If the site has a Cloudflare check, make sure the Cloudflare helper is running. | `/settings/indexers` |
 | `indexer.failed` | warning | **An indexer gave an error.** The site returned an error instead of results. | Try again in a few minutes, or press Test on the indexer. | `/settings/indexers` |
 | `indexer.fetch_failed` | error | **Could not get a file from an indexer.** The indexer didn't hand over the file. The site may be down or the link may have expired. | Press Test on the indexer. If it works, retry the download in Activity. | `/settings/indexers` |
+| `indexer.not_nzb` | error | **An indexer sent a web page instead of the file.** The indexer answered the download link with a web page or an error, such as a sign-in page, a maintenance page or a daily limit, instead of the NZB file. | Sign in on the indexer's website to check your account and its download limit, then press Test on the indexer. Automatic searches leave the release alone for a few hours, then try it again. | `/settings/indexers` |
 
 ## Media servers
 
@@ -51,7 +52,7 @@ Every problem on Settings > System > Logs and errors has one of these codes. The
 |---|---|---|---|---|
 | `import.move_failed` | error | **Could not move a file into your library.** The download finished but the file couldn't be moved to your library. | Check the library folder exists, has free space and is writable. Then retry in Activity. | `/settings/media` |
 | `import.no_video` | error | **No video in a download.** The download had no movie or episode file inside. | Nothing to fix. Mediarium tries another release. |  |
-| `import.file_exists` | error | **A file is already there.** A file is already in the place this one should go. | Remove the old file, or set what happens with existing files in Settings > Library > Folders. | `/settings/media` |
+| `import.file_exists` | error | **A file is already there.** A file is already in the place this one should go. | Remove the old file, or set what happens with existing files in Settings > Library > File names and importing. | `/settings/naming` |
 | `import.failed` | error | **An import failed.** This couldn't be added to your library. | Read the message on Activity and try again. | `/queue` |
 
 ## Disk and folders

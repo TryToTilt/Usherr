@@ -118,7 +118,7 @@ RUN apk add --no-cache ca-certificates tzdata su-exec par2cmdline p7zip tini
 # home fork: adb, to start playback on the living-room TV (Android TV / Shield)
 RUN apk add --no-cache android-tools
 # home fork: ffmpeg/ffprobe for Mediarium TV (program lengths; later the Live TV tuner)
-RUN apk add --no-cache ffmpeg
+RUN apk add --no-cache ffmpeg font-dejavu
 
 # Default UID/GID, overridable via PUID/PGID at runtime
 ENV PUID=1000 \

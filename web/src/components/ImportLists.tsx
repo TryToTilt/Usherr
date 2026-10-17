@@ -286,7 +286,7 @@ export default function ImportLists() {
             {[
               l.media === 'both' ? t('Movies and shows') : l.media === 'movie' ? t('Movies') : t('Shows'),
               l.minRating > 0 ? t('rated {n} or more', { n: l.minRating }) : '',
-              l.minYear > 0 ? t('from {year}', { year: l.minYear }) : '',
+              l.minYear > 0 ? t('from {year}', { year: String(l.minYear) }) : '',
               l.tags.length ? t('tagged {tags}', { tags: l.tags.join(', ') }) : '',
               l.totalAdded > 0 ? plural(l.totalAdded, '{n} title added so far', '{n} titles added so far') : '',
             ]

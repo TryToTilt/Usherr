@@ -54,6 +54,8 @@ func TestMessage(t *testing.T) {
 			"Couldn't save. Mediarium is not allowed to use that file or folder. Check its permissions."},
 		{"disk full", errors.New(`write /downloads/x.part: no space left on device`), "The disk is full. Free up some space and try again."},
 		{"disk full typed", fmt.Errorf("write /downloads/x: %w", syscall.ENOSPC), "The disk is full. Free up some space and try again."},
+		{"disk full while downloading", fmt.Errorf("the download failed: couldn't save the downloaded data: write /downloads/incomplete/queue-3/x.mkv: %w", syscall.ENOSPC),
+			"Couldn't save the downloaded data. The disk is full. Free up some space and try again."},
 		{"canceled", fmt.Errorf("the download failed: %w", context.Canceled), "The download failed. It was stopped before it finished."},
 		{"canceled raw", errors.New(`Get "https://x/y": context canceled`), "It was stopped before it finished."},
 		{"own sentence is untouched", errors.New("no Usenet server is set up. Add your provider's server in Settings first"),

@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
+import { useStreamed } from '../home/useHave' // Usherr
+import { describeState } from '../components/state' // Usherr
 import VoteButtons from '../home/VoteButtons' // home fork
 import { SkipGuide, WhatsItLike } from '../home/AIGuides' // home fork
 import { StreamingOn } from '../home/Recipes' // home fork
@@ -14,6 +16,9 @@ import { t } from '../i18n'
 import CatchUp from '../home/CatchUp' // Catch me up (home fork)
 import { showStatusLabel } from '../home/showStatus' // home fork
 
+// Usherr: the streamed episode list loads only when it's opened.
+const StreamedSheet = lazy(() => import('../home/Streamed').then((m) => ({ default: m.StreamedSheet })))
+
 // A TV show that is not in the library yet: full info plus one action.
 // Shows you already own go straight to their library page instead.
 export default function ShowDetail() {
@@ -24,6 +29,13 @@ export default function ShowDetail() {
   useDocumentTitle(show?.title)
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(false)
+  const streamedHere = useStreamed('tv')(id) // Usherr: a streamed show says so
+  const [sheet, setSheet] = useState(0) // Usherr: the streamed show's episode list, open
+  const watchStreamed = () =>
+    fetch(`/api/streamed/lookup?kind=series&tmdbId=${id}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { found: boolean; titleId?: number } | null) => d?.found && d.titleId && setSheet(d.titleId))
+      .catch(() => undefined)
 
   useEffect(() => {
     api
@@ -53,7 +65,17 @@ export default function ShowDetail() {
         info={{ ...show, kind: 'tv', certification: show.contentRating ?? show.certification, facts, links: titleLinks('tv', show.tmdbId, show.imdbId, show.homepage) }}
         actions={
           <>
-            <button className="primary btn-with-icon big" onClick={() => setAdding(true)}>
+            {streamedHere && (
+              <span className="state-tag st-streams" title={describeState('streams').hint}>
+                <Icon name="play" size={13} /> {describeState('streams').label}
+              </span>
+            )}
+            {streamedHere && (
+              <button className="primary btn-with-icon big" onClick={() => void watchStreamed()}>
+                <Icon name="play" size={18} /> {t('Watch (streams)')}
+              </button>
+            )}
+            <button className={`${streamedHere ? '' : 'primary '}btn-with-icon big`} onClick={() => setAdding(true)}>
               <Icon name="plus" size={18} /> {t('Add to library')}
             </button>
             <CatchUp tmdbId={show.tmdbId} /> {/* home fork */}
@@ -68,6 +90,11 @@ export default function ShowDetail() {
       </TitleHero>
       <SeasonsCard seasons={show.seasonList ?? []} />
       <CastCard cast={show.cast ?? []} />
+      {sheet > 0 && (
+        <Suspense fallback={null}>
+          <StreamedSheet id={sheet} tmdbId={show.tmdbId} title={show.title} onClose={() => setSheet(0)} />
+        </Suspense>
+      )}
       {adding && (
         <AddDialog
           target={{ kind: 'tv', tmdbId: show.tmdbId, title: show.title, year: show.year, posterUrl: show.posterUrl, overview: show.overview }}

@@ -3,6 +3,7 @@ import { t } from '../i18n'
 import { clock } from '../musicAudio'
 import Icon from './Icon'
 import { albumCoverUrl, MusicPlayerProvider, useMusicPlayer } from './MusicPlayer'
+import { usePlayerTime } from './musicPlayerContext'
 import '../player.css'
 
 // The music player in a window of its own, like the audiobook player: the
@@ -11,6 +12,7 @@ import '../player.css'
 // "Back to the app".
 function NowPlaying() {
   const p = useMusicPlayer()
+  const pos = usePlayerTime()
   const current = p?.current
   const [noCover, setNoCover] = useState<number | null>(null) // the album whose cover is missing
   useEffect(() => {
@@ -22,8 +24,8 @@ function NowPlaying() {
   }, [current])
   if (!p) return null
   const c = p.current
-  const total = p.duration || (c ? c.lengthMs / 1000 : 0)
-  const pct = total > 0 ? Math.min(100, (p.time / total) * 100) : 0
+  const total = pos.duration || (c ? c.lengthMs / 1000 : 0)
+  const pct = total > 0 ? Math.min(100, (pos.time / total) * 100) : 0
 
   if (!c) {
     return (
@@ -53,8 +55,8 @@ function NowPlaying() {
       </div>
       <div className="mini-player mp-pop-bar">
         <div className="mp-seek">
-          <span className="mp-time">{clock(p.time)}</span>
-          <input type="range" min={0} max={Math.max(total, 1)} step={1} value={Math.min(p.time, Math.max(total, 1))} onChange={(e) => p.seek(Number(e.target.value))} aria-label={t('Seek')} style={{ ['--p' as string]: `${pct}%` }} />
+          <span className="mp-time">{clock(pos.time)}</span>
+          <input type="range" min={0} max={Math.max(total, 1)} step={1} value={Math.min(pos.time, Math.max(total, 1))} onChange={(e) => p.seek(Number(e.target.value))} aria-label={t('Seek')} style={{ ['--p' as string]: `${pct}%` }} />
           <span className="mp-time">{clock(total)}</span>
         </div>
         <div className="mp-pop-controls">

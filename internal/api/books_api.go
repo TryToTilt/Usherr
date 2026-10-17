@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/auth"
@@ -60,6 +61,7 @@ type bookPayload struct {
 	AuthorKey   string            `json:"authorKey,omitempty"`
 	Year        int               `json:"year,omitempty"`
 	CoverURL    string            `json:"coverUrl,omitempty"`
+	CoverChosen bool              `json:"coverChosen,omitempty"` // a person gave this book its cover ("Remove my cover" is on offer)
 	Description string            `json:"description,omitempty"`
 	AddedAt     string            `json:"addedAt"`
 	Ebook       bookFormatPayload `json:"ebook"`
@@ -76,7 +78,7 @@ type bookPayload struct {
 }
 
 func toBookPayload(b books.Book, admin bool) bookPayload {
-	p := bookPayload{ID: b.ID, OLKey: b.OLKey, Title: b.Title, Author: b.Author, AuthorKey: b.AuthorKey, Year: b.Year, CoverURL: books.LocalCoverURL(b.CoverID, "M"),
+	p := bookPayload{ID: b.ID, OLKey: b.OLKey, Title: b.Title, Author: b.Author, AuthorKey: b.AuthorKey, Year: b.Year, CoverURL: b.CoverPath("M"), CoverChosen: b.OwnCover > 0 || b.PickedCoverID > 0,
 		Description: b.Description, AddedAt: b.AddedAt,
 		Ebook:      bookFormatPayload{Wanted: b.WantEbook, Status: b.EbookStatus, Format: b.EbookFormat},
 		Audiobook:  bookFormatPayload{Wanted: b.WantAudiobook, Status: b.AudioStatus, Format: b.AudioFormat},
@@ -113,7 +115,7 @@ func (s *Server) handleListBooks(w http.ResponseWriter, r *http.Request) {
 			p.Description = ""
 		}
 		out = append(out, p)
-		covers = append(covers, b.CoverID)
+		covers = append(covers, b.OLCoverID())
 	}
 	s.warmBookCovers("M", covers)
 	writeJSON(w, http.StatusOK, out)
@@ -157,12 +159,24 @@ func (s *Server) handleBookSearch(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, []bookSearchResult{})
 		return
 	}
-	found, err := s.OpenLibrary.Search(r.Context(), q, 24)
+	// With an author (Find it myself on the import list sends the title as q
+	// and the author apart), both go to Open Library, and the books by that
+	// author come first, in Open Library's own order.
+	author := strings.TrimSpace(r.URL.Query().Get("author"))
+	query := q
+	if author != "" {
+		query += " " + author
+	}
+	found, err := s.OpenLibrary.Search(r.Context(), query, 24)
 	if err != nil {
 		writeUpstreamError(w, "look up books", err)
 		return
 	}
-	newestFirst(found, q, func(f books.Found) string { return f.Title }, func(f books.Found) int { return f.Year })
+	if author != "" {
+		books.RankByTitleAndAuthor(found, q, author)
+	} else {
+		newestFirst(found, q, func(f books.Found) string { return f.Title }, func(f books.Found) int { return f.Year })
+	}
 	writeJSON(w, http.StatusOK, s.bookResults(found))
 }
 
@@ -386,7 +400,7 @@ func (s *Server) handleBookReleases(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	blocked := s.blockedKeys()
+	blocked := s.searchSkipKeys()
 	out := make([]searchResultPayload, 0, len(results))
 	for _, res := range results {
 		p := s.toSearchResultPayload(res)
@@ -476,9 +490,9 @@ func (s *Server) searchBook(bookID int64, f books.Format, retry bool) bool {
 		slog.Info("books: search", "book", bookID, "err", err)
 		return false
 	}
-	blocked := s.blockedKeys()
+	blocked := s.searchSkipKeys()
 	for _, res := range filterSources(s.freshOnly(results), s.bookSources()) { // home fork: books may use torrents
-		if blocked[blocklist.Key(res.Title)] {
+		if searchSkips(res, blocked) {
 			continue
 		}
 		if _, err := s.grabBook(b, f, res.Title, res.DownloadURL, res.SizeBytes, res.Protocol, queue.PriorityAutomatic); err == nil {
@@ -520,27 +534,62 @@ func (s *Server) huntBooks(ctx context.Context) {
 	if err != nil {
 		return
 	}
-	n := 0
+	type bookSearch struct {
+		id     int64
+		format books.Format
+	}
+	var todo []bookSearch
 	now := time.Now()
 	for _, b := range wanted {
 		if !b.Released(now) {
 			continue // not out yet: it doesn't take one of the searches
 		}
 		for _, f := range []books.Format{books.Ebook, books.Audiobook} {
-			if n >= 10 {
-				return
-			}
 			if b.Wants(f) && b.Status(f) == books.StatusMissing && s.formatEnabled(f) {
 				// home fork: a paused or waiting download already covers it
 				// (a restart pauses torrents and leaves the book "missing").
 				if busy, _ := s.QueueRepo.HasActiveForBook(b.ID, string(f)); busy {
 					continue
 				}
-				n++
-				s.searchBook(b.ID, f, false)
+				todo = append(todo, bookSearch{b.ID, f})
 			}
 		}
 	}
+	if len(todo) == 0 {
+		return
+	}
+	// A few per run, and each run goes on where the last one stopped, so a long
+	// list of books that cannot be found does not hold back the ones behind it.
+	s.huntAt.mu.Lock()
+	start, n := huntWindow(len(todo), s.huntAt.books, maxBookSearchesPerHunt)
+	s.huntAt.books = start + n
+	s.huntAt.mu.Unlock()
+	for i := 0; i < n; i++ {
+		if ctx.Err() != nil {
+			return
+		}
+		t := todo[(start+i)%len(todo)]
+		s.searchBook(t.id, t.format, false)
+	}
+}
+
+// huntWindow says where a scheduled run over total items starts (offset is
+// where the last one ended, which may be past the end) and how many items it
+// takes, at most max. The items wrap around.
+func huntWindow(total, offset, max int) (start, n int) {
+	if total <= 0 {
+		return 0, 0
+	}
+	return offset % total, min(total, max)
+}
+
+// maxBookSearchesPerHunt is how many books one scheduled run searches for.
+const maxBookSearchesPerHunt = 10
+
+// huntPosition is where the scheduled movie and book searches go on from.
+type huntPosition struct {
+	mu            sync.Mutex
+	movies, books int
 }
 
 // bookOwnFolder is the folder that belongs to a book alone, for removing it

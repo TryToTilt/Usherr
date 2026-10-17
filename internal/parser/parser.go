@@ -422,7 +422,11 @@ func Parse(name string) Release {
 	}
 	// Language tags are only read after the title, so "The Italian Job" is
 	// not an Italian release.
-	r.Languages, r.Multi, r.Subbed = detectLanguages(working[afterTitle:])
+	tail := working[afterTitle:]
+	if r.Season > 0 || r.Special || len(r.Episodes) > 0 || r.AirDate != "" {
+		tail = withoutEpisodeTitle(tail)
+	}
+	r.Languages, r.Multi, r.Subbed = detectLanguages(tail)
 	if len(r.Episodes) == 0 && r.Episode != 0 {
 		r.Episodes = []int{r.Episode}
 	}

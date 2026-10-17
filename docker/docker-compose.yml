@@ -22,6 +22,13 @@ services:
     # Nothing running in the container can gain more privileges than it starts with.
     security_opt:
       - no-new-privileges:true
+    # Keeps Docker's log file for this container from growing without end:
+    # three files of 10 MB, the oldest is dropped.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       # The web page. To use another port, change only the LEFT number,
       # for example "8300:8264", then open http://<your-server-ip>:8300.
@@ -53,6 +60,12 @@ services:
       # - MUSIC_DIR=/data/music
       # - EBOOKS_DIR=/data/ebooks
       # - AUDIOBOOKS_DIR=/data/audiobooks
+      # Usherr: comics and NSFW 18+ go in /data/comics and /data/nsfw on
+      # their own; anime goes in the TV folder unless it has one. To put them
+      # somewhere else, take off the # (or set them in Settings > Library > Folders):
+      # - COMICS_DIR=/data/comics
+      # - ANIME_DIR=/data/anime
+      # - NSFW_DIR=/data/nsfw
     volumes:
       # CHANGE the left side of each line (the right side must stay as it is).
       # Mediarium's own settings and database. Keep it on a local disk and back it up.
@@ -66,6 +79,9 @@ services:
       # - /path/to/music:/music
       # - /path/to/ebooks:/ebooks
       # - /path/to/audiobooks:/audiobooks
+      # - /path/to/comics:/comics
+      # - /path/to/anime:/anime
+      # - /path/to/nsfw:/nsfw
 
   # Optional: only needed for torrent sites that show a Cloudflare
   # "checking your browser" page. Start everything with:

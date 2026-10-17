@@ -583,16 +583,17 @@ func (s *cgSession) finish(rb *releaseBuilder) (*Result, error) {
 		return nil, fmt.Errorf("no download link")
 	}
 	res := &Result{
-		Title:       title,
-		IndexerName: s.name,
-		Protocol:    s.def.DefinitionProtocol(),
-		InfoURL:     rb.details,
-		SizeBytes:   rb.size,
-		PublishDate: rb.date,
-		Categories:  rb.cats,
-		Seeders:     int(rb.seeders),
-		Peers:       int(rb.seeders + rb.leechers),
-		InfoHash:    strings.ToLower(rb.infohash),
+		Title:        title,
+		IndexerName:  s.name,
+		Protocol:     s.def.DefinitionProtocol(),
+		InfoURL:      rb.details,
+		SizeBytes:    rb.size,
+		PublishDate:  rb.date,
+		Categories:   rb.cats,
+		Seeders:      int(rb.seeders),
+		SeedersKnown: rb.haveSeeders,
+		Peers:        int(rb.seeders + rb.leechers),
+		InfoHash:     strings.ToLower(rb.infohash),
 	}
 	if link != "" {
 		res.DownloadURL = EncodeLinkRef(s.id, link)

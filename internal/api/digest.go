@@ -63,11 +63,8 @@ func (s *Server) digestData(now time.Time) notify.Digest {
 	d.Failed, _ = s.QueueRepo.RecentFailed(since)
 	d.Subtitles, _ = s.QueueRepo.CountEventsSince("subtitle", since)
 	d.Waiting, _ = s.QueueRepo.CountWaiting()
-	if files, err := s.MovieRepo.MissingMovieFiles(); err == nil {
-		d.MissingMovies = len(files)
-	}
-	if files, err := s.MovieRepo.MissingEpisodeFiles(now.Format("2006-01-02")); err == nil {
-		d.MissingEpisodes = len(files)
+	if o, err := s.libraryOverview(context.Background()); err == nil {
+		d.MissingMovies, d.MissingEpisodes = o.WantedMovies, o.WantedEpisodes
 	}
 	return d
 }

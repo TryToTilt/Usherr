@@ -21,7 +21,7 @@ export function sectionFor(pathname: string): SectionKey {
   if (pathname === '/') return 'dashboard'
   if (pathname.startsWith('/discover') || pathname.startsWith('/search') || pathname.startsWith('/title') || pathname.startsWith('/books/work')) return 'discover'
   if (pathname.startsWith('/tv')) return 'live' // home fork: Live TV
-  if (pathname.startsWith('/comics') || pathname.startsWith('/scenes') || pathname.startsWith('/streamed')) return 'library' // home fork: inside the Library
+  if (pathname.startsWith('/comics') || pathname.startsWith('/nsfw') || pathname.startsWith('/streamed')) return 'library' // home fork: inside the Library
   if (pathname.startsWith('/library') || pathname.startsWith('/series') || pathname.startsWith('/music') || pathname.startsWith('/book/') || pathname.startsWith('/import')) return 'library'
   if (pathname.startsWith('/wanted')) return 'wanted'
   if (pathname.startsWith('/calendar')) return 'calendar'

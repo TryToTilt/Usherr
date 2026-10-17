@@ -1,10 +1,16 @@
 package api_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 )
 
 // A book the import could not find can be matched by hand: the picked book is
@@ -140,4 +146,80 @@ func TestMatchBookImportRenameBlocked(t *testing.T) {
 		}
 	}
 	t.Fatalf("expected the book added with a note and the file left in place: %v", st)
+}
+
+// Two requests for the same file at once (a double click) match it once: the
+// book ends up pointing at a file that is there.
+func TestMatchBookImportTwiceAtOnce(t *testing.T) {
+	server, base, client := loginNewServer(t)
+	server.TestSetOpenLibrary(newFakeOpenLibrary(t).URL)
+	root := filepath.Join(t.TempDir(), "books")
+	local := filepath.Join(root, "Zed Nobody", "Totally Different Name")
+	file := filepath.Join(local, "weird file name.epub")
+	if err := os.MkdirAll(local, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte("the book"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	postJSONMethod[map[string]any](t, client, http.MethodPut, base+"/api/modules", map[string]any{"ebooks": true}, http.StatusOK)
+	postJSONMethod[map[string]any](t, client, http.MethodPut, base+"/api/settings", map[string]any{"ebooksPath": root}, http.StatusOK)
+	postJSON[map[string]any](t, client, base+"/api/books/import", map[string]any{}, http.StatusAccepted)
+	waitBackground(t, server)
+
+	// Open Library answers slowly from here on, so the requests overlap.
+	fast := newFakeOpenLibrary(t)
+	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(300 * time.Millisecond)
+		resp, err := http.Get(fast.URL + r.URL.RequestURI())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+		_, _ = io.Copy(w, resp.Body)
+	}))
+	t.Cleanup(slow.Close)
+	server.TestSetOpenLibrary(slow.URL)
+
+	pick := map[string]any{"path": file, "kind": "ebook", "olKey": "OL1W", "title": "The Hobbit", "author": "J.R.R. Tolkien", "year": 1937, "rename": true}
+	body, _ := json.Marshal(pick)
+	const n = 6
+	codes := make([]int, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			resp, err := client.Post(base+"/api/books/import/match", "application/json", bytes.NewReader(body))
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			resp.Body.Close()
+			codes[i] = resp.StatusCode
+		}(i)
+	}
+	wg.Wait()
+	ok := 0
+	for _, c := range codes {
+		switch c {
+		case http.StatusOK:
+			ok++
+		case http.StatusConflict, http.StatusNotFound: // refused, or the file has left the list under its old path already
+		default:
+			t.Errorf("unexpected status %d in %v", c, codes)
+		}
+	}
+	if ok != 1 {
+		t.Errorf("%d requests matched the file, want 1 (%v)", ok, codes)
+	}
+	list := getJSON[[]map[string]any](t, client, base+"/api/books")
+	if len(list) != 1 {
+		t.Fatalf("library: %v", list)
+	}
+	path, _ := list[0]["ebook"].(map[string]any)["path"].(string)
+	if _, err := os.Stat(path); path == "" || err != nil {
+		t.Errorf("the book points at %q, which is not there: %v", path, err)
+	}
 }

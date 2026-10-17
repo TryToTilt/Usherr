@@ -97,7 +97,8 @@ func (s *Server) replaceWithSmaller(ctx context.Context, m library.Movie, instan
 	}
 	profile := s.profileForMovie(profiles, m)
 	sources := s.sourcesFor(m.SourcePref)
-	outcomes := indexers.SearchAll(ctx, instances, m.Title, movieCategory)
+	m = s.movieWithAltTitles(ctx, m)
+	outcomes := s.searchMovieTitles(ctx, instances, m, nil)
 	found := s.limitMovieResults(ctx, m, profile, false, filterSources(matchingResults(dropBlocked(s.freshOnly(indexers.MergeResults(outcomes)), blocked), m), sources))
 	best := pickSmallerResult(found, profile, quality.Tier(m.Quality), size, m.Year)
 	if best == nil {
@@ -141,7 +142,7 @@ func (s *Server) handleMovieReplaceSmaller(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	started, message, err := s.replaceWithSmaller(r.Context(), m, instances, profiles, s.blockedKeys())
+	started, message, err := s.replaceWithSmaller(r.Context(), m, instances, profiles, s.searchSkipKeys())
 	if err != nil {
 		if errors.Is(err, errShrinkRefused) {
 			writeError(w, http.StatusConflict, message)
@@ -234,7 +235,7 @@ func (s *Server) runBulkReplaceSmaller(movies []library.Movie) {
 		log.Printf("replace with smaller: load quality profiles: %v", err)
 		return
 	}
-	blocked := s.blockedKeys()
+	blocked := s.searchSkipKeys()
 	started := 0
 	for _, m := range movies {
 		if ctx.Err() != nil {

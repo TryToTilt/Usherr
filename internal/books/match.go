@@ -16,13 +16,19 @@ import (
 // Matching releases to books, and finding the book's files in a finished
 // download.
 
-var nonWord = regexp.MustCompile(`[^a-z0-9]+`)
+// Letters and digits of any script make words: a Russian or Japanese title is
+// not an empty one.
+var nonWord = regexp.MustCompile(`[^\p{L}\p{N}]+`)
 
 // words splits a title into lower-case words. Accented letters are folded to
 // their plain form first, so a release named "Le Pere Goriot" still matches
-// the book "Le Père Goriot" (and the other way round).
+// the book "Le Père Goriot" (and the other way round). Apostrophes join the
+// letters around them, the curly ones Open Library often has too, so
+// "L'Étranger" and "L’étranger" are the same word.
+var apostrophes = strings.NewReplacer("'", "", "’", "", "‘", "", "ʼ", "", "`", "", "´", "")
+
 func words(s string) []string {
-	s = foldAccents(strings.ToLower(strings.ReplaceAll(s, "'", "")))
+	s = foldAccents(strings.ToLower(apostrophes.Replace(s)))
 	return strings.Fields(nonWord.ReplaceAllString(s, " "))
 }
 

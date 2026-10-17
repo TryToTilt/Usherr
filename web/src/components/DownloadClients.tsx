@@ -1,5 +1,5 @@
 import { BRAND } from '../brand' // Usherr
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type ClientTorrent, type ClientTorrentsAnswer, type DebridTorrent, type DebridTorrentsAnswer } from '../api'
 import { formatBytes, timeAgo } from '../format'
@@ -23,11 +23,16 @@ export default function DownloadClients() {
   const [scope, setScope] = useState<'mine' | 'all'>('mine')
   const [failed, setFailed] = useState('')
 
+  // Only the answer to the latest request is used, so a slow answer for the
+  // other scope cannot land on top of the one just asked for.
+  const latest = useRef(0)
   const load = useCallback(() => {
+    const mine = ++latest.current
     api.clientTorrents(scope).then((a) => {
+      if (mine !== latest.current) return
       setClient(a)
       setFailed('')
-    }).catch((e) => setFailed(e instanceof Error ? e.message : String(e)))
+    }).catch((e) => mine === latest.current && setFailed(e instanceof Error ? e.message : String(e)))
     api.debridTorrents().then(setDebrid).catch(() => undefined)
   }, [scope])
   useEffect(load, [load])
@@ -59,10 +64,10 @@ function ClientSection({ data, scope, setScope, reload }: { data: ClientTorrents
         <h2>{label}</h2>
         <span>{data.torrents.length === 1 ? t('1 torrent') : t('{n} torrents', { n: data.torrents.length })}</span>
         <div className="seg" role="group" aria-label={t('Which torrents to show')}>
-          <button className={scope === 'mine' ? 'active' : ''} onClick={() => setScope('mine')} title={t('Only the torrents Mediarium added, the ones in the category "{name}"', { name: data.category ?? '' })}>
+          <button aria-pressed={scope === 'mine'} className={scope === 'mine' ? 'active' : ''} onClick={() => setScope('mine')} title={t('Only the torrents Mediarium added, the ones in the category "{name}"', { name: data.category ?? '' })}>
             {t('Added by Mediarium')}
           </button>
-          <button className={scope === 'all' ? 'active' : ''} onClick={() => setScope('all')}>
+          <button aria-pressed={scope === 'all'} className={scope === 'all' ? 'active' : ''} onClick={() => setScope('all')}>
             {t('Everything in {name}', { name: label })}
           </button>
         </div>

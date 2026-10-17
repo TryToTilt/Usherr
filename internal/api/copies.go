@@ -54,6 +54,15 @@ func (s *Server) handleListMovieCopies(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "That isn't a valid movie ID.")
 		return
 	}
+	main, err := s.MovieRepo.Get(id)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "That movie isn't in your library.")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	copies, err := s.MovieRepo.ListCopies(id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -65,9 +74,7 @@ func (s *Server) handleListMovieCopies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := copiesAnswer{Folder: s.movieCopiesRoot(), Items: []copyPayload{}}
-	if m, err := s.MovieRepo.Get(id); err == nil {
-		out.MainProfileID = profiles.resolve(m.ProfileID).ID
-	}
+	out.MainProfileID = profiles.resolve(main.ProfileID).ID
 	now := time.Now()
 	for _, c := range copies {
 		out.Items = append(out.Items, copyPayload{
@@ -85,6 +92,15 @@ func (s *Server) handleListSeriesCopies(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "That isn't a valid show ID.")
 		return
 	}
+	main, err := s.MovieRepo.GetSeries(id)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "That show isn't in your library.")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	copies, err := s.MovieRepo.ListSeriesCopies(id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -96,9 +112,7 @@ func (s *Server) handleListSeriesCopies(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	out := copiesAnswer{Folder: s.tvCopiesRoot(), Items: []copyPayload{}}
-	if sr, err := s.MovieRepo.GetSeries(id); err == nil {
-		out.MainProfileID = profiles.resolveTV(sr.ProfileID).ID
-	}
+	out.MainProfileID = profiles.resolveTV(main.ProfileID).ID
 	for _, c := range copies {
 		out.Items = append(out.Items, copyPayload{
 			ID: c.ID, ProfileID: c.ProfileID, ProfileName: profiles.resolve(c.ProfileID).Name, Monitored: c.Monitored,

@@ -89,3 +89,14 @@
   .mq-bulbs { animation: none; }
   .mq-scene { animation: none; }
 }
+
+/* Usherr: On Live TV */
+.mq-tvnow ul { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(1.2vw * var(--mq-t, 1)); }
+.mq-tvnow li { display: grid; grid-template-columns: calc(7vw * var(--mq-t, 1)) 1fr auto; align-items: center; gap: calc(1.6vw * var(--mq-t, 1)); }
+.mq-tv-ch img { max-width: 100%; max-height: calc(4vw * var(--mq-t, 1)); object-fit: contain; }
+.mq-tv-ch b { font-size: calc(3vw * var(--mq-t, 1)); color: var(--mq-gold, #e8b04b); }
+.mq-tv-what { display: grid; gap: 4px; min-width: 0; }
+.mq-tv-what strong { font-size: calc(2.4vw * var(--mq-t, 1)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mq-tv-what small { font-size: calc(1.4vw * var(--mq-t, 1)); opacity: 0.75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mq-tv-bar { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.mq-tv-bar span { display: block; height: 100%; background: var(--mq-gold, #e8b04b); }

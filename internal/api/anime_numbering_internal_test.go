@@ -154,9 +154,13 @@ func TestMatchesShowUsesTheOtherNames(t *testing.T) {
 			t.Errorf("matchesShow(%q) = %v, want %v", tt.release, got, tt.want)
 		}
 	}
-	// A name that reduces to nothing (all Japanese) is never a match for another all-Japanese release.
-	if matchesShow("進撃の巨人.S01E01.1080p.WEB-DL.x264-GRP", series) {
-		t.Error("a name with no Latin letters must not match")
+	// A name in Japanese is compared as text: the show's own Japanese alias matches, another
+	// Japanese name does not.
+	if !matchesShow("進撃の巨人.S01E01.1080p.WEB-DL.x264-GRP", series) {
+		t.Error("the show's own Japanese name should match")
+	}
+	if matchesShow("鬼滅の刃.S01E01.1080p.WEB-DL.x264-GRP", series) {
+		t.Error("another Japanese name must not match")
 	}
 	// Without aliases nothing changed.
 	if matchesShow("[Group] Shingeki no Kyojin - 05 (1080p)", library.Series{Title: "Attack on Titan"}) {

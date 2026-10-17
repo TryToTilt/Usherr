@@ -9,6 +9,7 @@ import { useDocumentTitle } from '../documentTitle'
 import { t, tc, tx } from '../i18n'
 import { listenPath, readPath } from './open'
 import { withBase } from '../base'
+import { useModules } from '../ModulesContext'
 
 type Tab = 'all' | BookFormat
 
@@ -24,10 +25,14 @@ export default function Shelf() {
   const [tab, setTab] = useState<Tab>(() => (params.get('tab') === 'ebook' ? 'ebook' : params.get('tab') === 'audiobook' ? 'audiobook' : 'all'))
   const [q, setQ] = useState('')
 
+  // Books are only asked for while ebooks or audiobooks are switched on.
+  const { on, loaded } = useModules()
+  const booksOff = loaded && !on('ebooks') && !on('audiobooks')
   useEffect(() => {
+    if (booksOff) return
     api.listBooks().then(setBooks).catch((e) => setError(e instanceof Error ? e.message : String(e)))
     api.listBookProgress().then(setProgress).catch(() => undefined)
-  }, [])
+  }, [booksOff])
 
   const byId = useMemo(() => new Map((books ?? []).map((b) => [b.id, b])), [books])
   const progressOf = (id: number, f: BookFormat) => progress.find((p) => p.bookId === id && p.format === f)
@@ -48,7 +53,7 @@ export default function Shelf() {
         </span>
         <div className="seg">
           {(['all', 'ebook', 'audiobook'] as Tab[]).map((x) => (
-            <button key={x} className={tab === x ? 'active' : ''} onClick={() => setTab(x)}>
+            <button key={x} aria-pressed={tab === x} className={tab === x ? 'active' : ''} onClick={() => setTab(x)}>
               {x === 'all' ? t('All') : x === 'ebook' ? t('Reading') : t('Listening')}
             </button>
           ))}

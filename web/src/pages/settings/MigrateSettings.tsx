@@ -168,13 +168,17 @@ export default function MigrateSettings() {
 
   function poll() {
     clearInterval(timer.current)
+    // One slow or busy answer must not end the updates while the migration
+    // carries on: give up only after a few misses in a row.
+    let misses = 0
     timer.current = setInterval(async () => {
       try {
         const st = await api.migrateStatus()
+        misses = 0
         setStatus(st)
         if (!st.running) clearInterval(timer.current)
       } catch {
-        clearInterval(timer.current)
+        if (++misses >= 5) clearInterval(timer.current)
       }
     }, 1500)
   }
@@ -290,7 +294,7 @@ export default function MigrateSettings() {
           <small style={{ color: 'var(--text-dim)', alignSelf: 'center' }}>{t('Fill in the ones you use and leave the rest empty. Nothing is imported yet.')}</small>
         </div>
         <FieldError v={v} name="apps" />
-        {inUse.length > 0 && <FormProblem v={v} verb={t('check them')} />}
+        {inUse.length > 0 && <FormProblem v={v} action="checkThem" />}
         {error && <p className="error-text">{error}</p>}
       </fieldset>
 
@@ -361,7 +365,7 @@ export default function MigrateSettings() {
               >
                 {t('Check again with these folders')}
               </button>
-              <FormProblem v={vf} verb={t('check again')} />
+              <FormProblem v={vf} action="checkAgain" />
             </fieldset>
           )}
 

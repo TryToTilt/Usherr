@@ -46,7 +46,7 @@ interface Arrival {
   posterUrl?: string
   at: string
 }
-export type SceneKind = 'playing' | 'new' | 'trailer' | 'theaters-film' | 'arrivals' | 'coming-film' | 'theaters' | 'coming'
+export type SceneKind = 'playing' | 'new' | 'trailer' | 'theaters-film' | 'arrivals' | 'coming-film' | 'theaters' | 'coming' | 'tvnow'
 export interface MarqueeSettings {
   scenes: { kind: SceneKind; on: boolean; seconds: number }[]
   showIcon: boolean
@@ -76,9 +76,10 @@ interface Data {
   coming: CalendarEntry[]
   theatre?: string
   settings: MarqueeSettings
+  tvNow?: { number: number; name: string; logo?: string; title: string; subtitle?: string; progress: number; next?: string; nextAt?: string }[] // Usherr: Live TV
 }
 
-type Scene = { kind: 'playing'; p: Playing } | { kind: 'feature'; f: Feature } | { kind: 'trailer'; f: Feature } | { kind: 'arrivals' } | { kind: 'theaters' } | { kind: 'coming' }
+type Scene = { kind: 'playing'; p: Playing } | { kind: 'feature'; f: Feature } | { kind: 'trailer'; f: Feature } | { kind: 'arrivals' } | { kind: 'theaters' } | { kind: 'coming' } | { kind: 'tvnow' }
 
 const REFRESH_MS = 2 * 60 * 1000
 const SPEED = { slow: 18, normal: 28, fast: 44 } // pixels a second when a tall scene scrolls
@@ -100,6 +101,8 @@ function heading(s: Scene): string {
       return t('In theaters now')
     case 'coming':
       return t('Coming up')
+    case 'tvnow':
+      return t('On Live TV')
   }
 }
 
@@ -289,6 +292,7 @@ export default function Marquee() {
       } else if (slot.kind === 'arrivals' && d.arrivals.length >= 2) s = { kind: 'arrivals' }
       else if (slot.kind === 'theaters' && d.theaters.length >= 2) s = { kind: 'theaters' }
       else if (slot.kind === 'coming' && d.coming.length) s = { kind: 'coming' }
+      else if (slot.kind === 'tvnow' && (d.tvNow?.length ?? 0) > 0) s = { kind: 'tvnow' }
       if (s) {
         c.n++
         setScene({ s, seconds: slot.seconds, n: c.n })
@@ -480,6 +484,29 @@ function SceneView({ scene, data, sound }: { scene: Scene; data: Data; sound: bo
               <li key={f.tmdbId}>
                 <img src={f.posterUrl} alt="" />
                 <strong>{f.title}</strong>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )
+    case 'tvnow':
+      // Usherr: what the Live TV channels have on.
+      return (
+        <div className="mq-scene mq-tvnow">
+          <ul>
+            {(data.tvNow ?? []).slice(0, 8).map((c) => (
+              <li key={c.number}>
+                <span className="mq-tv-ch">{c.logo ? <img src={c.logo} alt="" /> : <b>{c.number}</b>}</span>
+                <span className="mq-tv-what">
+                  <strong>{c.title || c.next}</strong>
+                  {c.subtitle && <small>{c.subtitle}</small>}
+                  {c.title && (
+                    <span className="mq-tv-bar">
+                      <span style={{ width: `${Math.min(100, c.progress * 100)}%` }} />
+                    </span>
+                  )}
+                </span>
+                <span className="mq-type">{c.name}</span>
               </li>
             ))}
           </ul>

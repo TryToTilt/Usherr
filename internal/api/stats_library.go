@@ -2,8 +2,9 @@ package api
 
 import (
 	"net/http"
-	"os"
 	"sort"
+	"sync"
+	"time"
 )
 
 // The Statistics page: what is in the library, at which quality, how much
@@ -41,17 +42,38 @@ type libraryStatsPayload struct {
 	Watched *watchStatsPayload `json:"watched,omitempty"`
 }
 
-func fileBytes(path string) int64 {
-	if path == "" {
-		return 0
-	}
-	if info, err := os.Stat(path); err == nil {
-		return info.Size()
-	}
-	return 0
+// fileBytes is a file's size from the shared size cache, so counting a big
+// library does not ask the disk for every file each time.
+func fileBytes(path string) int64 { return cachedFileSize(path, time.Now()) }
+
+// libraryStatsFor is how long the Statistics page's answer is reused.
+const libraryStatsFor = 2 * time.Minute
+
+// libraryStatsCache keeps the last answer. The lock is held while one request
+// builds the next, so several people opening the page at once share one pass
+// over the library.
+type libraryStatsCache struct {
+	mu  sync.Mutex
+	at  time.Time
+	out libraryStatsPayload
 }
 
 func (s *Server) handleLibraryStats(w http.ResponseWriter, r *http.Request) {
+	c := &s.libStats
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if time.Since(c.at) >= libraryStatsFor {
+		out, err := s.computeLibraryStats()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		c.out, c.at = out, time.Now()
+	}
+	writeJSON(w, http.StatusOK, c.out)
+}
+
+func (s *Server) computeLibraryStats() (libraryStatsPayload, error) {
 	out := libraryStatsPayload{HistoryKeptDays: s.historyRetentionDays(), Quality: []statCount{}, Months: []statMonth{}}
 	byQuality := map[string]*statCount{}
 	addQuality := func(q string, size int64) {
@@ -69,8 +91,7 @@ func (s *Server) handleLibraryStats(w http.ResponseWriter, r *http.Request) {
 
 	movies, err := s.MovieRepo.List()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+		return out, err
 	}
 	out.Movies = len(movies)
 	names := map[watchKey]statName{}
@@ -89,8 +110,7 @@ func (s *Server) handleLibraryStats(w http.ResponseWriter, r *http.Request) {
 
 	shows, err := s.MovieRepo.ListSeries()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+		return out, err
 	}
 	out.Shows = len(shows)
 	seen := map[string]bool{} // a multi-episode file counts once for space
@@ -98,8 +118,7 @@ func (s *Server) handleLibraryStats(w http.ResponseWriter, r *http.Request) {
 		names[watchKey{kind: "series", id: sr.ID}] = statName{Title: sr.Title}
 		eps, err := s.MovieRepo.ListEpisodes(sr.ID)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
-			return
+			return out, err
 		}
 		for _, ep := range eps {
 			if ep.Season == 0 {
@@ -134,7 +153,7 @@ func (s *Server) handleLibraryStats(w http.ResponseWriter, r *http.Request) {
 			SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END),
 			SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END),
 			COALESCE(SUM(CASE WHEN status = 'completed' THEN size_bytes ELSE 0 END), 0)
-		FROM download_queue WHERE id NOT IN (SELECT queue_id FROM scene_downloads) GROUP BY month ORDER BY month DESC LIMIT 12`) // scenes hook (home fork)
+		FROM download_queue WHERE id NOT IN (SELECT queue_id FROM nsfw_downloads) GROUP BY month ORDER BY month DESC LIMIT 12`) // videos hook (home fork)
 	if err == nil {
 		for rows.Next() {
 			var m statMonth
@@ -145,19 +164,18 @@ func (s *Server) handleLibraryStats(w http.ResponseWriter, r *http.Request) {
 		rows.Close()
 	}
 	var usenet, total int
-	_ = s.db.QueryRow(`SELECT COALESCE(SUM(CASE WHEN protocol = 'usenet' THEN 1 ELSE 0 END), 0), COUNT(*) FROM download_queue WHERE status = 'completed' AND id NOT IN (SELECT queue_id FROM scene_downloads)`).Scan(&usenet, &total) // scenes hook (home fork)
+	_ = s.db.QueryRow(`SELECT COALESCE(SUM(CASE WHEN protocol = 'usenet' THEN 1 ELSE 0 END), 0), COUNT(*) FROM download_queue WHERE status = 'completed' AND id NOT IN (SELECT queue_id FROM nsfw_downloads)`).Scan(&usenet, &total) // videos hook (home fork)
 	if total > 0 {
 		out.UsenetShare = usenet * 100 / total
 	}
 	if s.watchedSyncOn() {
 		played, err := s.MovieRepo.ListWatched()
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
-			return
+			return out, err
 		}
 		ws := watchStats(movieFiles, episodeFiles, names, played)
 		ws.LastSync = s.watchedStatus().LastSync
 		out.Watched = &ws
 	}
-	writeJSON(w, http.StatusOK, out)
+	return out, nil
 }

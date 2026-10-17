@@ -10,6 +10,7 @@ import {
   afterMarkedRead,
   agoText,
   appendPage,
+  areaName,
   countText,
   emptyText,
   exactTime,
@@ -239,7 +240,7 @@ export default function LogsSettings() {
             <option value="">{t('All areas')}</option>
             {(data?.areas ?? []).map((a) => (
               <option key={a.id} value={a.id}>
-                {a.label}
+                {areaName(a.id, a.label)}
               </option>
             ))}
           </select>
@@ -388,7 +389,7 @@ function ProblemItem({ p, open, onToggle, onRead }: { p: ProblemRow; open: boole
           {!p.read && <span className="pl-new">{t('New')}</span>}
           <Icon name="chevron-down" size={16} className="pl-chev" />
         </span>
-        <span className="pl-title">{p.title}</span>
+        <span className="pl-title">{st(p.title)}</span>
       </button>
 
       {(other || p.forTitle || p.downloadId) && (
@@ -410,7 +411,7 @@ function ProblemItem({ p, open, onToggle, onRead }: { p: ProblemRow; open: boole
 
       <div className="pl-foot">
         <span className="pl-meta">
-          <span className="pl-area">{p.areaLabel}</span>
+          <span className="pl-area">{areaName(p.area, p.areaLabel)}</span>
           {p.count > 1 && <span className="pl-times">{t('{n} times', { n: p.count })}</span>}
           <span className="pl-when" title={exactTime(p.lastAt)}>
             {agoText(p.lastAt)}
@@ -427,7 +428,7 @@ function ProblemItem({ p, open, onToggle, onRead }: { p: ProblemRow; open: boole
         <div className="pl-body" id={bodyId}>
           <section>
             <h4>{t('What happened')}</h4>
-            <p>{p.explain || p.message}</p>
+            <p>{st(p.explain || p.message)}</p>
             <p className="pl-dim">{happenedText(p)}</p>
             <p className="pl-dim">
               {t('First seen {when}.', { when: exactTime(p.firstAt) })} <code>{p.code}</code>
@@ -435,10 +436,10 @@ function ProblemItem({ p, open, onToggle, onRead }: { p: ProblemRow; open: boole
           </section>
           <section>
             <h4>{t('What to try')}</h4>
-            <p>{p.try || t('Nothing specific to try. If it keeps happening, send the technical detail to support.')}</p>
+            <p>{p.try ? st(p.try) : t('Nothing specific to try. If it keeps happening, send the technical detail to support.')}</p>
             {p.linkPath && (
               <Link className="btn-link primary-look" to={p.linkPath}>
-                {p.linkLabel || t('Open settings')} <Icon name="open" size={14} />
+                {p.linkLabel ? st(p.linkLabel) : t('Open settings')} <Icon name="open" size={14} />
               </Link>
             )}
           </section>

@@ -519,9 +519,17 @@ func TestApplyPendingCleansUpCrashedUploads(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, ".restore-upload-789.zip"), []byte("partial"), 0o600)
 	os.WriteFile(filepath.Join(dir, ".backup-snapshot-1.db"), []byte("partial"), 0o600)
 	os.WriteFile(filepath.Join(dir, ".restore-unlocked-42.zip"), []byte("database and key"), 0o600)
+	os.WriteFile(filepath.Join(dir, ".cloud-upload-5.enc"), []byte("locked copy"), 0o600)
+	os.MkdirAll(filepath.Join(dir, ".backup-snapshot-77"), 0o700)
+	os.WriteFile(filepath.Join(dir, ".backup-snapshot-77", "snapshot.db"), []byte("partial"), 0o600)
+	os.MkdirAll(filepath.Join(dir, backup.SavedDir), 0o700)
+	os.WriteFile(filepath.Join(dir, backup.SavedDir, ".saving-3.zip"), []byte("half a backup"), 0o600)
 
 	if res, err := backup.ApplyPending(dir, fixedNow); err != nil || res != (backup.Result{}) {
 		t.Fatalf("result %+v, err %v", res, err)
+	}
+	if left, _ := os.ReadDir(filepath.Join(dir, backup.SavedDir)); len(left) != 0 {
+		t.Errorf("the half-written backup was not cleaned: %v", left)
 	}
 	for _, n := range dirNames(t, dir) {
 		if strings.HasPrefix(n, ".") || strings.Contains(n, ".tmp-") {

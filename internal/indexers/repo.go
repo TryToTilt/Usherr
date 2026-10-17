@@ -109,8 +109,8 @@ func (r *Repo) Create(inst Instance, secret Secrets) (Instance, error) {
 		return Instance{}, err
 	}
 	res, err := r.db.Exec(
-		`INSERT INTO indexers (name, definition_id, base_url, api_key_encrypted, protocol, enabled, kind, settings_json, secrets_encrypted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		inst.Name, inst.DefinitionID, inst.BaseURL, encAPIKey, string(inst.Protocol), inst.Enabled, string(inst.Kind), settingsJSON, encSecrets,
+		`INSERT INTO indexers (name, definition_id, base_url, api_key_encrypted, protocol, enabled, kind, settings_json, secrets_encrypted, requests_per_day) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		inst.Name, inst.DefinitionID, inst.BaseURL, encAPIKey, string(inst.Protocol), inst.Enabled, string(inst.Kind), settingsJSON, encSecrets, max(0, inst.RequestsPerDay),
 	)
 	if err != nil {
 		return Instance{}, fmt.Errorf("insert indexer: %w", err)
@@ -120,6 +120,7 @@ func (r *Repo) Create(inst Instance, secret Secrets) (Instance, error) {
 		return Instance{}, fmt.Errorf("get inserted indexer id: %w", err)
 	}
 	inst.ID = id
+	inst.Tracker = r.tracker
 	if inst.IsCardigann() {
 		inst.Cardigann = r.cardigann
 	}
@@ -145,8 +146,8 @@ func (r *Repo) Update(inst Instance, secret Secrets) error {
 		return err
 	}
 	res, err := r.db.Exec(
-		`UPDATE indexers SET name = ?, base_url = ?, api_key_encrypted = ?, settings_json = ?, secrets_encrypted = ?, enabled = ?, protocol = ?, kind = ? WHERE id = ?`,
-		inst.Name, inst.BaseURL, encAPIKey, settingsJSON, encSecrets, inst.Enabled, string(inst.Protocol), string(defaultKind(inst)), inst.ID,
+		`UPDATE indexers SET name = ?, base_url = ?, api_key_encrypted = ?, settings_json = ?, secrets_encrypted = ?, enabled = ?, protocol = ?, kind = ?, requests_per_day = ? WHERE id = ?`,
+		inst.Name, inst.BaseURL, encAPIKey, settingsJSON, encSecrets, inst.Enabled, string(inst.Protocol), string(defaultKind(inst)), max(0, inst.RequestsPerDay), inst.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update indexer %d: %w", inst.ID, err)
@@ -159,7 +160,7 @@ func (r *Repo) Update(inst Instance, secret Secrets) error {
 	return nil
 }
 
-const indexerColumns = `id, name, definition_id, base_url, api_key_encrypted, protocol, enabled, kind, settings_json, secrets_encrypted, last_test_error, last_test_at, priority`
+const indexerColumns = `id, name, definition_id, base_url, api_key_encrypted, protocol, enabled, kind, settings_json, secrets_encrypted, last_test_error, last_test_at, priority, requests_per_day`
 
 // List returns every configured indexer instance, secrets decrypted.
 func (r *Repo) List() ([]Instance, error) {
@@ -200,7 +201,7 @@ func (r *Repo) scan(sc scanner) (Instance, error) {
 		settingsJSON, testAt  string
 	)
 	if err := sc.Scan(&inst.ID, &inst.Name, &inst.DefinitionID, &inst.BaseURL, &encAPIKey, &protocol, &inst.Enabled,
-		&kind, &settingsJSON, &encSecrets, &inst.LastTestError, &testAt, &inst.Priority); err != nil {
+		&kind, &settingsJSON, &encSecrets, &inst.LastTestError, &testAt, &inst.Priority, &inst.RequestsPerDay); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Instance{}, err
 		}
@@ -216,7 +217,9 @@ func (r *Repo) scan(sc scanner) (Instance, error) {
 	if encAPIKey.Valid && encAPIKey.String != "" {
 		plain, err := r.box.Decrypt(encAPIKey.String)
 		if err != nil {
-			return Instance{}, fmt.Errorf("decrypt api key for indexer %d: %w", inst.ID, err)
+			// One unreadable key must not take the other indexers down with
+			// it: this one is marked and left out of searches.
+			inst.markUnreadable()
 		}
 		inst.APIKey = plain
 	}
@@ -229,12 +232,11 @@ func (r *Repo) scan(sc scanner) (Instance, error) {
 		}
 		if encSecrets.Valid && encSecrets.String != "" {
 			plain, err := r.box.Decrypt(encSecrets.String)
-			if err != nil {
-				return Instance{}, fmt.Errorf("decrypt settings for indexer %d: %w", inst.ID, err)
-			}
 			var secrets map[string]string
-			if err := json.Unmarshal([]byte(plain), &secrets); err != nil {
-				return Instance{}, fmt.Errorf("read secret settings for indexer %d: %w", inst.ID, err)
+			if err != nil {
+				inst.markUnreadable()
+			} else if err := json.Unmarshal([]byte(plain), &secrets); err != nil {
+				inst.markUnreadable()
 			}
 			for k, v := range secrets {
 				inst.Settings[k] = v

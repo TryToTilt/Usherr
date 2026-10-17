@@ -29,10 +29,18 @@ type EpisodeKey struct {
 type WatchState struct {
 	Movies   map[int]Play // by TMDB id
 	Episodes map[EpisodeKey]Play
+	// Held lists the TMDB ids of every movie the server has, watched or not.
+	// "Never watched" is only believable for a movie some server holds.
+	Held map[int]bool
+	// Titles counts the movies and shows the server listed (for Jellyfin and
+	// Emby, the movies and the played episodes). Zero means the server
+	// answered but showed nothing: its drive may be unmounted, which says
+	// nothing about what was watched.
+	Titles int
 }
 
 func newWatchState() WatchState {
-	return WatchState{Movies: map[int]Play{}, Episodes: map[EpisodeKey]Play{}}
+	return WatchState{Movies: map[int]Play{}, Episodes: map[EpisodeKey]Play{}, Held: map[int]bool{}}
 }
 
 // add merges one play into a map: plays add up, the latest date wins.
@@ -84,10 +92,15 @@ func (c *Client) plexWatched(ctx context.Context, s Server) (WatchState, error) 
 				return out, explain(s, err)
 			}
 			for _, it := range all.items() {
+				out.Titles++
+				id, ok := tmdbOf(it)
+				if ok {
+					out.Held[id] = true
+				}
 				if it.ViewCount <= 0 {
 					continue
 				}
-				if id, ok := tmdbOf(it); ok {
+				if ok {
 					out.Movies[id] = merge(out.Movies[id], Play{Plays: it.ViewCount, LastPlayed: plexTime(it.LastViewedAt)})
 				}
 			}
@@ -98,6 +111,7 @@ func (c *Client) plexWatched(ctx context.Context, s Server) (WatchState, error) 
 			}
 			showTMDB := map[string]int{}
 			for _, sh := range shows.items() {
+				out.Titles++
 				if id, ok := tmdbOf(sh); ok {
 					showTMDB[sh.RatingKey] = id
 				}
@@ -162,17 +176,28 @@ func (c *Client) embyWatched(ctx context.Context, s Server) (WatchState, error) 
 			q := url.Values{
 				"Recursive":        {"true"},
 				"IncludeItemTypes": {kind},
-				"Filters":          {"IsPlayed"},
 				"Fields":           {"ProviderIds"},
 				"EnableImages":     {"false"},
 				"EnableUserData":   {"true"},
+			}
+			if kind == "Episode" {
+				q.Set("Filters", "IsPlayed") // every episode of a big library would be too much
 			}
 			if err := c.do(ctx, s, http.MethodGet, base, q, nil, &res); err != nil {
 				return out, explain(s, err)
 			}
 			for _, it := range res.Items {
+				if kind == "Movie" {
+					out.Titles++
+					if id, err := strconv.Atoi(providerID(it.ProviderIDs, "Tmdb")); err == nil && id > 0 {
+						out.Held[id] = true
+					}
+				}
 				if !it.UserData.Played && it.UserData.PlayCount == 0 {
 					continue
+				}
+				if kind == "Episode" {
+					out.Titles++
 				}
 				p := Play{Plays: max(it.UserData.PlayCount, 1)}
 				if t, err := time.Parse(time.RFC3339Nano, it.UserData.LastPlayedDate); err == nil {

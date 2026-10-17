@@ -246,16 +246,25 @@ func TestLeavingEveryFileOutIsRefused(t *testing.T) {
 
 func TestAFileCanBeLeftOutWhileItDownloads(t *testing.T) {
 	// A slow seeder, so there is time to change our mind.
-	sw := newSwarm(t, swarmFiles(), 300_000)
+	sw := newSwarm(t, swarmFiles(), 200_000)
 	_, tr, _ := sw.leech(t, true)
 	ctl := mediarium.NewControl(tr)
-	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	go ctl.Run(ctx)
 
 	finished := make(chan error, 1)
 	go func() { finished <- ctl.Download(ctx, 0, nil) }()
-	time.Sleep(700 * time.Millisecond)
+	// Change our mind as soon as data is flowing, not after a fixed pause: on
+	// a busy machine a pause can run on long enough for most of the file to
+	// arrive first.
+	waitUntil(t, "the first data to arrive", func() bool {
+		var got int64
+		for _, f := range ctl.Files() {
+			got += f.Done
+		}
+		return got > 0
+	})
 	if err := ctl.SetSkipped([]string{"Release/movie.nfo", "Release/Sample/sample.mkv"}); err != nil {
 		t.Fatal(err)
 	}

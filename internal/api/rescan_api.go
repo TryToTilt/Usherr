@@ -1,6 +1,8 @@
 package api
 
 import (
+	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 )
@@ -12,8 +14,23 @@ func (s *Server) handleRescanMovie(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "That isn't a valid movie ID.")
 		return
 	}
-	if _, err := s.MovieRepo.Get(id); err != nil {
+	m, err := s.MovieRepo.Get(id)
+	if err != nil {
 		writeError(w, http.StatusNotFound, "That movie isn't in your library.")
+		return
+	}
+	if movieWantsAFile(m) {
+		rep, err := s.attachMovieFile(m)
+		if errors.Is(err, errNoCopiesFolder) {
+			writeError(w, http.StatusConflict, "This is a second copy and no folder for second copies is set, so there is nowhere to look. Choose one in Settings first.")
+			return
+		}
+		if err != nil {
+			slog.Warn("rescan: couldn't add a movie's file", "movie", m.Title, "err", err)
+			writeError(w, http.StatusInternalServerError, "Found a video file but couldn't save it to the library. Check the Mediarium log for details.")
+			return
+		}
+		writeJSON(w, http.StatusOK, rep)
 		return
 	}
 	writeJSON(w, http.StatusOK, s.rescanMovieFiles(id, true))

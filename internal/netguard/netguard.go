@@ -200,6 +200,15 @@ func NotPublic(addr netip.Addr) bool {
 	return false
 }
 
+// PublicTransport is Transport for public-internet-only destinations: a
+// connection to a private, loopback or shared address is refused when it is
+// made, whatever name was asked for.
+func PublicTransport() *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.DialContext = (&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second, Control: ControlPublic}).DialContext
+	return t
+}
+
 // PublicClient is Client for public-internet-only destinations.
 func PublicClient(timeout time.Duration) *http.Client {
 	t := http.DefaultTransport.(*http.Transport).Clone()

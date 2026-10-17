@@ -172,6 +172,12 @@ func (s *Server) handlePutAppLinks(w http.ResponseWriter, r *http.Request) {
 		if a.Mode != appLinkFrame {
 			a.Mode = appLinkTab
 		}
+		if a.Mode == appLinkFrame && strings.EqualFold(u.Host, r.Host) {
+			// A page on Mediarium's own address would not be walled off from it
+			// inside a frame, and could act as whoever is signed in.
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("%s is on the same address as Mediarium, so it can't be shown inside it. Set it to open in a new tab instead.", a.Name))
+			return
+		}
 		if !appLinkIconName.MatchString(a.Icon) {
 			a.Icon = ""
 		}

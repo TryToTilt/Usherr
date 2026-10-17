@@ -217,7 +217,7 @@ func (s *Server) handleGetExtras(w http.ResponseWriter, r *http.Request) {
 
 	c := s.currentComicSettings()
 	out.Comics.Enabled, out.Comics.KeySet = c.Enabled, c.KeySet
-	out.NSFW.Enabled, out.NSFW.Allowed, out.NSFW.KeySet = s.scenesEnabled(), adultAllowed(), s.stashKeySet()
+	out.NSFW.Enabled, out.NSFW.Allowed, out.NSFW.KeySet = s.nsfwEnabled(), adultAllowed(), s.stashKeySet()
 	out.Direct.Enabled = s.getComicsOn()
 	out.Direct.FlareURL, _ = s.Settings.Get(keyFlareURL)
 	writeJSON(w, http.StatusOK, out)

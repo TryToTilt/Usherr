@@ -125,6 +125,7 @@ func (s *Server) handleRestore(w http.ResponseWriter, r *http.Request) {
 
 	// The cap covers the whole request; the file part gets its own exact cap
 	// below. A little slack accounts for the multipart framing.
+	allowLongUpload(w)
 	r.Body = http.MaxBytesReader(w, r.Body, backup.MaxRestoreBytes+(1<<20))
 	mr, err := r.MultipartReader()
 	if err != nil {

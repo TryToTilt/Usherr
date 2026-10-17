@@ -17,9 +17,9 @@ const keyMarquee = "home.marquee" // JSON marqueeSettings
 
 // The scenes, in their default order. "new", "theaters-film" and "coming-film"
 // are one film at a time; "arrivals", "theaters" and "coming" are lists.
-var marqueeSceneKinds = []string{"playing", "new", "trailer", "theaters-film", "arrivals", "coming-film", "theaters", "coming"}
+var marqueeSceneKinds = []string{"playing", "new", "trailer", "theaters-film", "arrivals", "coming-film", "theaters", "coming", "tvnow"}
 
-var marqueeSceneSeconds = map[string]int{"playing": 20, "new": 16, "trailer": 75, "theaters-film": 16, "arrivals": 18, "coming-film": 16, "theaters": 18, "coming": 22}
+var marqueeSceneSeconds = map[string]int{"playing": 20, "new": 16, "trailer": 75, "theaters-film": 16, "arrivals": 18, "coming-film": 16, "theaters": 18, "coming": 22, "tvnow": 18}
 
 type marqueeScene struct {
 	Kind    string `json:"kind"`

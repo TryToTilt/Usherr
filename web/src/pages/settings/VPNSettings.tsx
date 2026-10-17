@@ -448,7 +448,7 @@ function VPNSection() {
           <button className="primary" onClick={add} disabled={adding}>
             {adding ? t('Adding…') : t('Add connection')}
           </button>
-          <FormProblem v={v} verb={t('add this connection')} />
+          <FormProblem v={v} action="connection" />
           {added && <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', margin: '8px 0 0' }}>{added}</p>}
         </div>
       </section>

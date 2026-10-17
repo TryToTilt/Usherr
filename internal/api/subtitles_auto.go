@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/fileperms"
@@ -44,6 +45,7 @@ type subtitleItem struct {
 	subtitle   string // "S01E02 · Name" for episodes
 	tmdbID     int    // movie
 	parentTMDB int    // series (episodes)
+	seriesID   int64  // series (episodes)
 	season     int
 	episode    int
 	filePath   string
@@ -62,7 +64,7 @@ func episodeSubtitleItem(sr library.Series, ep library.Episode) subtitleItem {
 	}
 	return subtitleItem{
 		kind: "episode", id: ep.ID, title: sr.Title, subtitle: label,
-		parentTMDB: sr.TMDBID, season: ep.Season, episode: ep.Episode, filePath: ep.FilePath,
+		parentTMDB: sr.TMDBID, seriesID: sr.ID, season: ep.Season, episode: ep.Episode, filePath: ep.FilePath,
 	}
 }
 
@@ -178,16 +180,84 @@ func (s *Server) haveSubtitles(videoPath string) subtitles.HaveMap {
 // as slot keys: "en" for a language's full subtitle (as before profiles
 // existed) and "en.forced" for its forced track.
 func (s *Server) missingSubtitleLanguages(it subtitleItem) []string {
+	langs, profiles, embedded := s.subtitleLanguages(), s.subtitleProfiles(), s.countEmbeddedSubtitles()
+	// The answer only changes when the video, its folder (a subtitle file
+	// added or removed) or the settings change, so it is kept until then:
+	// the Wanted page asks for every downloaded title.
+	var key missingKey
+	remember := false
+	if vi, err := os.Stat(it.filePath); err == nil {
+		if di, err := os.Stat(filepath.Dir(it.filePath)); err == nil {
+			key = missingKey{
+				sig:     fmt.Sprintf("%v|%v|%v", langs, profiles, embedded),
+				videoSz: vi.Size(), videoMod: vi.ModTime().UnixNano(), dirMod: di.ModTime().UnixNano(),
+			}
+			if cached, ok := missingMemo.get(it.filePath, key); ok {
+				return cached
+			}
+			// A folder changed a moment ago may change again within the same
+			// tick of a coarse file system clock, so only a settled one is kept.
+			remember = time.Since(di.ModTime()) > 3*time.Second
+		}
+	}
 	have := s.haveSubtitles(it.filePath)
-	profiles := s.subtitleProfiles()
 	var missing []string
-	for _, l := range s.subtitleLanguages() {
+	for _, l := range langs {
 		p := profiles.For(l)
 		for _, slot := range p.Missing(have.For(l)) {
 			missing = append(missing, slot.Key(l))
 		}
 	}
+	if remember {
+		missingMemo.put(it.filePath, key, missing)
+	}
 	return missing
+}
+
+// missingKey says what a remembered "still missing" answer was worked out from.
+type missingKey struct {
+	sig                       string // languages, profiles and whether embedded tracks count
+	videoSz, videoMod, dirMod int64
+}
+
+type missingEntry struct {
+	key     missingKey
+	missing []string
+}
+
+// missingMemoMax bounds the memory of remembered answers.
+const missingMemoMax = 200_000
+
+var missingMemo = &missingCache{m: map[string]missingEntry{}}
+
+type missingCache struct {
+	mu sync.Mutex
+	m  map[string]missingEntry
+}
+
+func (c *missingCache) get(path string, key missingKey) ([]string, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e, ok := c.m[path]
+	if !ok || e.key != key {
+		return nil, false
+	}
+	return append([]string(nil), e.missing...), true
+}
+
+func (c *missingCache) put(path string, key missingKey, missing []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.m) >= missingMemoMax {
+		drop := len(c.m) / 4 // make room by forgetting a quarter, not everything
+		for k := range c.m {
+			delete(c.m, k)
+			if drop--; drop <= 0 {
+				break
+			}
+		}
+	}
+	c.m[path] = missingEntry{key: key, missing: append([]string(nil), missing...)}
 }
 
 // dismissedSubtitles returns the titles marked "no subtitles wanted". A read
@@ -265,7 +335,7 @@ func (s *Server) subtitleData(ctx context.Context, it subtitleItem, pick subtitl
 		return s.wizdomClient().Download(ctx, pick.link, season, episode)
 	}
 	if pick.source == subtitles.SourceAddon {
-		link, ok := s.openAddonLink(pick.link)
+		addon, link, ok := s.openAddonLink(pick.link)
 		if !ok {
 			return nil, errors.New("that subtitle's link isn't valid any more. Search again and pick it from the list")
 		}
@@ -273,7 +343,7 @@ func (s *Server) subtitleData(ctx context.Context, it subtitleItem, pick subtitl
 		if it.kind == "episode" {
 			season, episode = it.season, it.episode
 		}
-		return s.addons.Download(ctx, link, pick.lang, season, episode)
+		return s.addons.DownloadFrom(ctx, addon, link, pick.lang, season, episode)
 	}
 	info, err := s.Subtitles().RequestDownloadInfo(ctx, pick.fileID)
 	if err != nil {

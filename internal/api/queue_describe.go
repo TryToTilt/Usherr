@@ -133,7 +133,7 @@ func (n *queueNamer) book(id int64) (books.Book, bool) {
 // remembered lookups.
 func (n *queueNamer) describe(it queue.Item) (title, subtitle, poster string) {
 	if it.MovieID == 0 && it.SeriesID == 0 && it.AlbumID == 0 && it.BookID == 0 && n.s != nil {
-		if t, sub, img, ok := n.s.describeSceneItem(it.ID); ok { // scenes hook (home fork)
+		if t, sub, img, ok := n.s.describeVideoItem(it.ID); ok { // videos hook (home fork)
 			return t, sub, img
 		}
 	}
@@ -145,7 +145,7 @@ func (n *queueNamer) describe(it queue.Item) (title, subtitle, poster string) {
 		}
 	case it.BookID > 0:
 		if b, ok := n.book(it.BookID); ok {
-			title, poster = b.Title, books.LocalCoverURL(b.CoverID, "M")
+			title, poster = b.Title, b.CoverPath("M")
 			subtitle = "Ebook · " + b.Author
 			if it.BookFormat == string(books.Audiobook) {
 				subtitle = "Audiobook · " + b.Author

@@ -18,6 +18,25 @@ export default function AppFrame() {
   useDocumentTitle(app ? app.name : t('Add-ons'))
   if (app === undefined) return null
   if (!app) return <p>{t('That add-on is not here any more.')}</p>
+  // A page on Mediarium's own origin would not be walled off inside a frame.
+  let sameOrigin = false
+  try {
+    sameOrigin = new URL(app.url, window.location.href).origin === window.location.origin
+  } catch {
+    sameOrigin = false
+  }
+  if (sameOrigin)
+    return (
+      <div className="app-frame">
+        <div className="page-header">
+          <h1>{app.name}</h1>
+          <a className="btn-with-icon" href={app.url} target="_blank" rel="noopener noreferrer">
+            <Icon name="external" size={15} /> {t('Open in a new tab')}
+          </a>
+        </div>
+        <p className="field-hint">{t("This add-on is on the same address as Mediarium, so it can't be shown inside it. Open it in a new tab instead.")}</p>
+      </div>
+    )
   return (
     <div className="app-frame">
       <div className="page-header">

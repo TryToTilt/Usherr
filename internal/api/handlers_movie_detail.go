@@ -39,6 +39,9 @@ type movieDetailPayload struct {
 	Status      string `json:"status,omitempty"`    // library state: missing/downloading/downloaded
 	Quality     string `json:"quality,omitempty"`
 	FilePath    string `json:"filePath,omitempty"`
+	// FolderPath is the full folder of the movie's files in the library (as
+	// Mediarium sees it), or where they go when it has none.
+	FolderPath string `json:"folderPath,omitempty"`
 
 	// From TMDB. ReleaseStatus is TMDB's own status ("Released", "In
 	// Production"...), kept apart from Status above, the library state.
@@ -99,7 +102,10 @@ func (s *Server) handleTMDBMovieDetail(w http.ResponseWriter, r *http.Request) {
 		payload.LibraryID = libMovie.ID
 		payload.Status = string(libMovie.Status)
 		payload.Quality = libMovie.Quality
-		payload.FilePath = libMovie.FilePath
+		payload.FilePath = fileLabel(r, libMovie.FilePath)
+		if isAdminRequest(r) { // only administrators see where the files lie
+			payload.FolderPath = s.movieFolderFor(libMovie)
+		}
 	}
 
 	writeJSON(w, http.StatusOK, payload)
@@ -227,7 +233,7 @@ func (s *Server) handleTMDBTVDetail(w http.ResponseWriter, r *http.Request) {
 // downloaded vocabulary movies use: downloading while anything for it is in
 // flight, downloaded once every episode has a file.
 func (s *Server) seriesLibraryState(series library.Series) string {
-	if items, err := s.QueueRepo.List(); err == nil {
+	if items, err := s.QueueRepo.ListActive(); err == nil {
 		for _, it := range items {
 			if it.SeriesID == series.ID && (it.Status == queue.StatusQueued || it.Status == queue.StatusDownloading || it.Status == queue.StatusImporting) {
 				return string(library.StatusDownloading)

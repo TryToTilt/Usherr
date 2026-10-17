@@ -142,6 +142,7 @@ func (s *Server) handleRunImport(w http.ResponseWriter, r *http.Request) {
 		byKey[g.Key] = i
 	}
 	var entries []library.ImportEntry
+	var sizes []int64 // movies: the size of each entry's main file
 	seen := map[string]bool{}
 	for _, sel := range req.Selections {
 		idx, found := byKey[sel.Key]
@@ -155,6 +156,14 @@ func (s *Server) handleRunImport(w http.ResponseWriter, r *http.Request) {
 		}
 		seen[sel.Key] = true
 		entries = append(entries, buildImportEntry(job.kind, job.groups[idx], job.items[idx], sel))
+		var biggest int64
+		for _, f := range job.groups[idx].Files {
+			biggest = max(biggest, f.SizeBytes)
+		}
+		sizes = append(sizes, biggest)
+	}
+	if job.kind == libimport.KindMovie {
+		markDuplicateMovies(entries, sizes)
 	}
 	job.phase, job.done, job.total = importImporting, 0, len(entries)
 	kind, root := job.kind, job.root
@@ -200,16 +209,39 @@ func buildImportEntry(kind libimport.Kind, g libimport.Group, item importItemPay
 			}
 		}
 		e.FilePath, e.Quality, e.AddedAt = main.Path, main.Quality, main.ModTime
+		for _, f := range g.Files {
+			if f.Path != main.Path {
+				e.OtherFiles = append(e.OtherFiles, f.Path)
+			}
+		}
 		return e
 	}
 	e.Kind = "series"
 	for _, f := range g.Files {
-		e.Files = append(e.Files, library.ImportFile{Path: f.Path, Quality: f.Quality, Season: f.Season, Episodes: f.Episodes})
+		e.Files = append(e.Files, library.ImportFile{Path: f.Path, Quality: f.Quality, Season: f.Season, Episodes: f.Episodes, Absolute: f.Absolute, AirDate: f.AirDate, DailyPart: f.DailyPart})
 		if f.ModTime.After(e.AddedAt) {
 			e.AddedAt = f.ModTime
 		}
 	}
 	return e
+}
+
+// markDuplicateMovies finds the movies chosen more than once in one import
+// (Amélie (2001)/ and Amelie.2001.FRENCH.mkv matched to the same film): the
+// entry with the biggest file is the copy used, and the others are marked
+// as duplicates of it, to be reported with the folder that is in use.
+func markDuplicateMovies(entries []library.ImportEntry, sizes []int64) {
+	best := map[int]int{} // TMDB id -> index of the copy used
+	for i, e := range entries {
+		if j, ok := best[e.TMDBID]; !ok || sizes[i] > sizes[j] {
+			best[e.TMDBID] = i
+		}
+	}
+	for i := range entries {
+		if j := best[entries[i].TMDBID]; j != i {
+			entries[i].DuplicateOf = entries[j].FilePath
+		}
+	}
 }
 
 // ---- progress: the banner, the import page and the report ----
@@ -246,14 +278,16 @@ func toImportBatchPayload(b library.ImportBatch) importBatchPayload {
 	return importBatchPayload{
 		ID: b.ID, Kind: b.Kind, Root: b.Root, CreatedAt: b.CreatedAt, FinishedAt: b.FinishedAt, ElapsedMs: b.Elapsed.Milliseconds(), Running: b.Running(),
 		Dismissed: b.Dismissed, Monitor: b.Monitor, NoUpgrade: b.NoUpgrade, MonitorMissing: b.MonitorMissing,
-		Total: b.Added, Done: b.Added - b.Pending, Added: b.Added, Already: b.Already, Problems: b.Problems,
+		// A show that was in the library before still has its details read
+		// again (Total and Done), but counts as already there, not added.
+		Total: b.Added, Done: b.Added - b.Pending, Added: b.Added - b.Existing, Already: b.Already + b.Existing, Problems: b.Problems,
 	}
 }
 
 type importBatchItemPayload struct {
 	Title    string `json:"title"`
 	Kind     string `json:"kind"`    // movie|series
-	Outcome  string `json:"outcome"` // added|already|failed
+	Outcome  string `json:"outcome"` // added|already|duplicate|failed
 	State    string `json:"state"`   // pending|done|problem
 	Note     string `json:"note,omitempty"`
 	Imported int    `json:"imported"` // shows: episodes marked downloaded
@@ -387,6 +421,11 @@ func (s *Server) handleWatchImportBatch(w http.ResponseWriter, r *http.Request) 
 	res, err := s.MovieRepo.StartWatchingImport(id, req.Watch, req.Missing)
 	if err != nil {
 		log.Printf("import: start watching batch %d: %v", id, err)
+		if res.Movies+res.Shows > 0 {
+			// The titles are saved a group at a time, so some may be done.
+			writeError(w, http.StatusInternalServerError, "Only part of it was saved because the database was busy. Press the button again to finish.")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "Nothing was changed because the database could not save it. Try again in a moment.")
 		return
 	}

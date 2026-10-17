@@ -13,6 +13,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { useConfirm } from '../components/ConfirmProvider'
 import PasswordStrength from '../components/PasswordStrength'
 import TwoStepCard from '../components/TwoStepCard'
+import SessionsCard from '../components/SessionsCard'
 import PlexWatchlistCard from '../components/PlexWatchlistCard'
 import ListenBrainzCard from '../components/ListenBrainzCard'
 import RequestNoticesCard from '../components/RequestNoticesCard'
@@ -86,7 +87,7 @@ function ProfileForm() {
         <button className="primary" onClick={save} disabled={busy}>
           {t('Save details')}
         </button>
-        <FormProblem v={v} verb={t('save')} />
+        <FormProblem v={v} action="save" />
       </div>
     </fieldset>
   )
@@ -149,7 +150,7 @@ function PasswordForm() {
           <button className="primary" onClick={submit} disabled={busy}>
             {t('Change password')}
           </button>
-          <FormProblem v={v} verb={t('change your password')} />
+          <FormProblem v={v} action="password" />
         </div>
       </div>
     </fieldset>
@@ -276,7 +277,7 @@ function APIKeys() {
           <button className="primary" onClick={create} disabled={busy}>
             {t('Create key')}
           </button>
-          <FormProblem v={v} verb={t('create the key')} />
+          <FormProblem v={v} action="key" />
         </div>
       </div>
     </fieldset>
@@ -502,7 +503,7 @@ function EditAccountDialog({ a, self, onClose, onSaved }: { a: Account; self: bo
             </label>
           )}
           {error && <p className="error-text">{error}</p>}
-          <FormProblem v={v} verb={t('save')} />
+          <FormProblem v={v} action="save" />
         </div>
         <div className="modal-foot">
           <button onClick={onClose}>{t('Cancel')}</button>
@@ -604,7 +605,7 @@ function AddAccountForm({ onAdded }: { onAdded: (a: Account) => void }) {
           <button className="primary btn-with-icon" onClick={() => void add()} disabled={busy}>
             <Icon name="plus" size={16} /> {busy ? t('Adding…') : t('Add account')}
           </button>
-          <FormProblem v={v} verb={t('add the account')} />
+          <FormProblem v={v} action="account" />
         </div>
       </div>
     </fieldset>
@@ -742,6 +743,7 @@ export function SecuritySettings() {
       <PasskeysCard />
       <SsoLinkCard />
       {local && <TwoStepCard />}
+      <SessionsCard />
       {!viewer && <APIKeys />}
     </div>
   )

@@ -8,7 +8,7 @@ import { clock } from '../musicAudio'
 import { MAX_CROSSFADE, type QueuedTrack } from '../musicQueue'
 import Icon from './Icon'
 import { PlaylistPicker, Popover } from './MusicMenu'
-import { useMusicPlayer, type PanelTab } from './musicPlayerContext'
+import { useMusicPlayer, usePlayerTime, type PanelTab } from './musicPlayerContext'
 import Switch from './Switch'
 import { useToast } from './Toast'
 import '../musicpanel.css'
@@ -191,7 +191,7 @@ function LyricsTab() {
     return plain ? { lines: plain.split(/\r?\n/).map((text) => ({ time: 0, text })), synced: false } : null
   }, [data])
 
-  const time = p?.time ?? 0
+  const time = usePlayerTime().time
   const active = parsed?.synced ? activeLine(parsed.lines, time) : -1
 
   // Keep the line being sung in the middle, unless the reader is scrolling.

@@ -6,6 +6,9 @@
 // The server (with Jellyfin) answers "direct": play the file as it is, or
 // "hls": a stream Jellyfin converts on the fly (for Dolby Vision, Atmos and
 // other formats browsers can't decode), relayed by Mediarium.
+import { InfoBanner, StaticBurst, SurfButtons, useChannels, useSurfKeys } from './TVSurf' // Usherr
+import { useTVPrefs } from './tvPrefs' // Usherr
+import { playCard, type CardInfo } from './tvCard' // Usherr
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from '../components/Icon'
@@ -14,7 +17,7 @@ import { browserTrouble, streamApi, type StreamStart } from './streamApi'
 import './player.css'
 import { t } from '../i18n'
 
-export type PlayKind = 'movie' | 'episode' | 'scene'
+export type PlayKind = 'movie' | 'episode' | 'video'
 // stream: a "Stream now" session (home_streaming.go); onKeep downloads it for later.
 // channel: a Mediarium TV channel (home_tvchannels.go); startAt and onEnded
 // let a program start part-way through and hand over to the next one; live
@@ -29,6 +32,9 @@ type Request = {
   onEnded?: () => void
   subtitle?: string
   live?: string
+  // Usherr: between a channel's shows, an "Up next" card (drawn) or a filler video
+  card?: CardInfo
+  direct?: string
   // home fork, streamed titles: the next release in line, the title for
   // Stremio on the TV, and the media server's own page for it
   onNext?: () => Promise<void>
@@ -40,7 +46,7 @@ export type StreamExtras = Pick<Request, 'onNext' | 'tvTitle' | 'watchIn'>
 
 let show: ((r: Request | null) => void) | null = null
 
-// playTitle opens the player on a movie, an episode or a scene.
+// playTitle opens the player on a movie, an episode or a video.
 export function playTitle(kind: PlayKind, id: number, title: string) {
   show?.({ kind, id, title })
 }
@@ -74,7 +80,66 @@ export function PlayerHost() {
 // the right second, and when it ends asks again. A streamed episode plays
 // through Stream now; when it can't be found (or ends before its slot does)
 // the channel is "off air" until the next program.
-function ChannelView({ channelId, name, onClose, inline = false, muted = false }: { channelId: number; name: string; onClose: () => void; inline?: boolean; muted?: boolean }) {
+function ChannelView({ channelId: firstId, name: firstName, onClose, inline = false, muted = false }: { channelId: number; name: string; onClose: () => void; inline?: boolean; muted?: boolean }) {
+  // Usherr: surfing. The channel on can change (up, down, a number, Last).
+  const [chan, setChan] = useState({ id: firstId, name: firstName })
+  const channelId = chan.id
+  const name = chan.name
+  const before = useRef<{ id: number; name: string } | null>(null)
+  const [tick, setTick] = useState(0)
+  const channels = useChannels(tick)
+  const [staticRun, setStaticRun] = useState(0)
+  const [banner, setBanner] = useState(true)
+  const bannerTimer = useRef(0)
+  const flash = useCallback(() => {
+    setBanner(true)
+    window.clearTimeout(bannerTimer.current)
+    bannerTimer.current = window.setTimeout(() => setBanner(false), 5000)
+  }, [])
+  useEffect(() => {
+    flash()
+    return () => window.clearTimeout(bannerTimer.current)
+  }, [flash])
+  const go = (c?: { id: number; name: string }) => {
+    if (!c || c.id === chan.id) return
+    before.current = chan
+    setChan({ id: c.id, name: c.name })
+    setStaticRun((n) => n + 1)
+    setTick((n) => n + 1)
+    flash()
+  }
+  const at = channels.findIndex((c) => c.id === chan.id)
+  const step = (by: number) => channels.length > 0 && go(channels[(Math.max(at, 0) + by + channels.length) % channels.length])
+  const surf = {
+    up: () => step(1),
+    down: () => step(-1),
+    number: (n: number) => go(channels.find((c) => c.number === n)),
+    last: () => go(before.current ?? undefined),
+    info: () => {
+      setTick((n) => n + 1)
+      flash()
+    },
+  }
+  useSurfKeys(inline ? { up: () => undefined, down: () => undefined, number: () => undefined, last: () => undefined, info: () => undefined } : surf)
+  const prefs = useTVPrefs()
+  const extras = inline ? null : (
+    <>
+      <StaticBurst run={staticRun} />
+      <InfoBanner ch={channels.find((c) => c.id === chan.id)} show={banner} typed="" />
+      <SurfButtons
+        {...surf}
+        startOver={(() => {
+          const cur = channels.find((c) => c.id === chan.id)?.now
+          if (!cur || (cur.kind !== 'episode' && cur.kind !== 'movie') || !cur.itemId) return undefined
+          return () => {
+            onClose()
+            window.setTimeout(() => playTitle(cur.kind as PlayKind, cur.itemId!, cur.subtitle ? `${cur.title} · ${cur.subtitle}` : cur.title), 50)
+          }
+        })()}
+      />
+      {prefs.crt && <div className="tv-crt" aria-hidden="true" />}
+    </>
+  )
   const [now, setNow] = useState<{ key: string; req: Request } | null>(null)
   const [error, setError] = useState('')
   const [offAir, setOffAir] = useState('')
@@ -88,7 +153,10 @@ function ChannelView({ channelId, name, onClose, inline = false, muted = false }
         const data = await r.json().catch(() => null)
         if (!r.ok) throw new Error(data?.error ?? t("Couldn't tune in (error {status}).", { status: r.status }))
         return data as {
-          program?: { kind: 'episode' | 'movie' | 'live' | 'stream'; itemId: number; title: string; subtitle?: string; start: string }
+          program?: { kind: 'episode' | 'movie' | 'live' | 'stream' | 'card' | 'filler'; itemId: number; title: string; subtitle?: string; start: string }
+          upNext?: { title: string; subtitle?: string; start: string }
+          filler?: string
+          cut?: boolean
           offset?: number
           remaining?: number
           live?: string
@@ -123,6 +191,17 @@ function ChannelView({ channelId, name, onClose, inline = false, muted = false }
           ended.current = key
           window.setTimeout(tune, 500)
         }
+        // Usherr: between shows, the "Up next" card or a filler video.
+        if (p.kind === 'card') {
+          setNow({ key, req: { kind: 'channel', id: channelId, title: `${name} · ${t('Up next')}`, subtitle: d.upNext?.title, card: { channel: name, next: d.upNext, seconds: d.remaining ?? 10 }, onEnded } })
+          return
+        }
+        if (p.kind === 'filler' && d.filler) {
+          setNow({ key, req: { kind: 'channel', id: channelId, title: `${name} · ${t('Break')}`, direct: d.filler, startAt: (d.offset ?? 0) + (Date.now() - asked) / 1000, onEnded } })
+          return
+        }
+        // Usherr: a part of a show split by breaks ends before its file does.
+        if (d.cut && d.remaining) timer.current = window.setTimeout(onEnded, d.remaining * 1000 + 300)
         // A converted stream already starts at the right moment.
         const startAt = d.stream && (d.stream as StreamStart & { converted?: boolean }).converted ? undefined : (d.offset ?? 0) + (Date.now() - asked) / 1000
         setNow({
@@ -138,6 +217,12 @@ function ChannelView({ channelId, name, onClose, inline = false, muted = false }
     tune()
     return () => window.clearTimeout(timer.current)
   }, [tune])
+  useEffect(() => {
+    // A new channel starts clean.
+    setError('')
+    setOffAir('')
+    ended.current = ''
+  }, [channelId])
   if (inline && (error || offAir))
     return (
       <div className="hp-inline">
@@ -146,6 +231,8 @@ function ChannelView({ channelId, name, onClose, inline = false, muted = false }
     )
   if (error || offAir)
     return (
+      <>
+      {extras}
       <div className="hp-player" role="dialog" aria-modal="true" aria-label={name} onClick={onClose}>
         <div className="hp-box" onClick={(e) => e.stopPropagation()}>
           <div className="hp-head">
@@ -163,11 +250,17 @@ function ChannelView({ channelId, name, onClose, inline = false, muted = false }
           )}
         </div>
       </div>
+      </>
     )
-  if (!now) return inline ? <div className="hp-inline"><p className="hp-inline-msg">{t('Tuning in…')}</p></div> : null
+  if (!now) return inline ? <div className="hp-inline"><p className="hp-inline-msg">{t('Tuning in…')}</p></div> : extras
   // One player for the whole channel: each program loads into the same
   // video, so full screen (and a phone's permission to play) carry on.
-  return <PlayerView key={`channel-${channelId}`} req={now.req} onClose={onClose} inline={inline} muted={muted} />
+  return (
+    <>
+      <PlayerView key={`channel-${channelId}`} req={now.req} onClose={onClose} inline={inline} muted={muted} />
+      {extras}
+    </>
+  )
 }
 
 // ChannelPreview is a channel playing small and (unless unmuted) silent,
@@ -255,6 +348,33 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
     setPlan(null)
     setError('')
     setFailed(false)
+    if (req.card) {
+      // Usherr: a channel's "Up next" card, drawn into the video.
+      setPlan({ mode: 'direct', url: '' })
+      const video = videoRef.current
+      const stop = video ? playCard(video, req.card, () => req.onEnded?.()) : () => undefined
+      return () => {
+        cancelled = true
+        stop()
+      }
+    }
+    if (req.direct) {
+      // Usherr: a filler video from the channel's folder, played as it is.
+      const url = req.direct
+      setPlan({ mode: 'direct', url })
+      const video = videoRef.current
+      if (video) {
+        if (req.startAt) {
+          const at = req.startAt
+          video.addEventListener('loadedmetadata', () => (video.currentTime = at), { once: true })
+        }
+        video.src = url
+        void video.play().catch(() => undefined)
+      }
+      return () => {
+        cancelled = true
+      }
+    }
     if (req.live) {
       // A live channel: its stream as it is, relayed by Mediarium.
       const src = req.live

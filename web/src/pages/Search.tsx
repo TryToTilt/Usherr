@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useStreamed } from '../home/useHave' // Usherr
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, type TitleResult } from '../api'
 import AddDialog, { type AddTarget } from '../components/AddDialog'
@@ -15,6 +16,10 @@ import '../search.css'
 // the indexers for releases of that title. Titles you already own are listed
 // first and say where they stand.
 export default function Search() {
+  // Usherr: titles streamed but not in the library say "Streams".
+  const streamedMovie = useStreamed('movie')
+  const streamedShow = useStreamed('tv')
+  const streamed = (r: TitleResult) => (r.kind === 'movie' ? streamedMovie : streamedShow)(r.tmdbId)
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const urlQ = params.get('q') ?? ''
@@ -70,7 +75,7 @@ export default function Search() {
           poster={r.posterUrl}
           title={r.title}
           meta={[r.year || null, r.kind === 'tv' ? t('TV show') : t('Movie')].filter(Boolean).join(' · ')}
-          state={resultState(r)}
+          state={resultState(r, streamed(r))}
           kind={r.kind}
           genres={r.genres}
           rating={r.rating}

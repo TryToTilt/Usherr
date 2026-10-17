@@ -22,8 +22,9 @@ const VIEW_KEY = 'mediarium.calendar.view'
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-function entryLink(e: CalendarEntry): string | undefined {
+export function entryLink(e: CalendarEntry): string | undefined {
   if (e.kind === 'episode' && e.seriesId) return `/series/${e.seriesId}`
+  if (e.kind === 'episode' && e.tmdbId) return `/show/${e.tmdbId}` // Usherr: a streamed show's page
   if (e.kind === 'movie' && e.tmdbId) return `/title/${e.tmdbId}`
   if (e.kind === 'album' && e.albumId) return `/music/album/${e.albumId}`
   if (e.kind === 'book' && e.bookId) return `/book/${e.bookId}`
@@ -55,7 +56,7 @@ const drawn = (g: TypeKey): GlyphKind => (g === 'anime' ? 'tv' : g)
 
 const KIND_LABEL: Record<TypeKey, string> = { movie: t('Movie'), tv: t('TV episode'), anime: t('Anime episode'), music: t('Album'), book: t('Book'), audiobook: t('Audiobook'), comic: t('Comic issue') }
 const LEGEND_LABEL: Record<TypeKey, string> = { movie: t('Movies'), tv: t('TV'), anime: t('Anime'), music: t('Music'), book: t('Books'), audiobook: t('Audiobooks'), comic: t('Comics') }
-const STATUS_LABEL: Record<CalendarEntry['status'], string> = { downloaded: t('Have it'), downloading: t('Downloading'), missing: t('Waiting'), theaters: t('In theaters') }
+const STATUS_LABEL: Record<CalendarEntry['status'], string> = { downloaded: t('Have it'), downloading: t('Downloading'), missing: t('Waiting'), theaters: t('In theaters'), streams: t('Streams') }
 
 // "S03E09 · Second Service" splits into the code and the episode's name.
 function splitSubtitle(e: CalendarEntry): { code?: string; rest?: string } {

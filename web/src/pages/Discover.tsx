@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import OmniBar, { type OmniPage } from '../home/OmniBar' // home fork
+import { ActiveChips, CompactBar, FiltersButton, KindPicker, type ActiveFilter } from '../components/CompactBar' // Usherr
+import { useHideOwned } from '../useHideOwned' // Usherr
+import { useFamilyLevel } from '../home/useFamily' // Usherr
 import { useAuth } from '../AuthContext'
-import { AnimeRails, ComicsDiscover, DTAB_INFO, ScenesDiscover, asTab, useDiscoverTabs, type DTab } from '../home/DiscoverTabs' // home fork
+import { AnimeRails, ComicsDiscover, DTAB_INFO, NsfwDiscover, asTab, useDiscoverTabs, type DTab } from '../home/DiscoverTabs' // home fork
 import { LeaningsBar } from '../home/leanings' // home fork
 import { Link } from 'react-router-dom'
 import { api, isAdmin, isRequested, ApiError, type BookFound, type DiscoverMovie, type MusicType } from '../api'
@@ -17,7 +19,6 @@ import { useKinds, useModules, type MediaKind } from '../ModulesContext'
 import Dropdown from '../components/Dropdown'
 import PagedGrid from '../components/PagedGrid'
 import Icon from '../components/Icon'
-import KindGlyph from '../components/KindGlyph'
 import Switch from '../components/Switch'
 import { useToast } from '../components/Toast'
 import { DISCOVER_KINDS, SHARED_ORDERS } from '../discoverKinds'
@@ -26,7 +27,6 @@ import { useOwned, type Owned } from '../useOwned'
 import { useIncludeOlder } from '../useIncludeOlder'
 import { firstError, minMax, required, url } from '../validate'
 import { FieldError, FormProblem, useValidation } from '../useValidation'
-import FilterToggle from '../components/FilterToggle'
 import { useUrlState } from '../useUrlState'
 import { plural, t, tx } from '../i18n'
 import DiscoverExtras, { ForYouRail } from '../home/DiscoverExtras' // home fork
@@ -82,8 +82,8 @@ function TitleRails({ kind, filters, filtering, includeOlder, setIncludeOlder, o
   const similar: Source = { kind, list: 'similar', older: includeOlder || undefined }
   return (
     <>
-      {kind === 'movie' && <CompleteTeaser />} {/* home fork: complete your library */}
       <ForYouRail kind={kind} owned={owned} onAdd={onAdd} /> {/* home fork: the taste engine */}
+      {kind === 'movie' && <CompleteTeaser />} {/* home fork: complete your library (Usherr: after For you, not before the posters) */}
       <RecipeRails tab={kind} owned={owned} onAdd={onAdd} /> {/* home fork: your recipes and your services */}
       <DiscoverExtras kind={kind} owned={owned} onAdd={onAdd} /> {/* home fork: because you watched, complete the collection, the season */}
       <DiscoverRail
@@ -340,16 +340,24 @@ function DiscoverPage() {
     patchUi({ genre: '', from: '', to: '', sort: 'popular', type: 'all' })
   }
 
-  const switcher = (
-    <div className="seg kind-tabs">
-      {dtabs.map((k) => (
-        <button key={k} className={`k-${k}${dtab === k ? ' active' : ''}`} style={{ ['--kc' as string]: DTAB_INFO[k].color }} onClick={() => setTab(k)}>
-          <KindGlyph kind={DTAB_INFO[k].glyph} size={17} />
-          {DTAB_INFO[k].label()}
-        </button>
-      ))}
-    </div>
-  )
+  // Usherr: the filters that are on, each a chip with an x (the sort isn't one).
+  const [hideOwned, setHideOwned] = useHideOwned()
+  const [familyLevel, setFamilyLevel] = useFamilyLevel()
+  const activeFilters: ActiveFilter[] = [
+    ...(genre ? [{ key: 'genre', label: genreOptions.find((g) => g.value === genre)?.label ?? genre, clear: () => setGenre('') }] : []),
+    ...(from && to ? [{ key: 'years', label: `${from}–${to}`, clear: () => patchUi({ from: '', to: '' }) }] : from ? [{ key: 'from', label: t('From {year}', { year: from }), clear: () => setFrom('') }] : to ? [{ key: 'to', label: t('To {year}', { year: to }), clear: () => setTo('') }] : []),
+    ...(show === 'music' && musicType !== 'all' ? [{ key: 'type', label: MUSIC_TYPE_OPTIONS.find((o) => o.value === musicType)?.label ?? musicType, clear: () => setMusicType('all') }] : []),
+    ...(hideOwned ? [{ key: 'hide', label: t('Hiding what I have'), clear: () => setHideOwned(false) }] : []),
+    ...(titleKind && familyLevel !== 'off' ? [{ key: 'family', label: t('Family: up to {age}', { age: familyLevel }), clear: () => setFamilyLevel('off') }] : []),
+  ]
+  const clearAll = () => {
+    patchUi({ genre: '', from: '', to: '', type: 'all' })
+    setHideOwned(false)
+    setFamilyLevel('off')
+  }
+
+  // Usherr: the kinds as one drop-down (CompactBar.tsx).
+  const switcher = <KindPicker options={dtabs.map((k) => ({ key: k, label: DTAB_INFO[k].label(), glyph: DTAB_INFO[k].glyph, color: DTAB_INFO[k].color }))} value={dtab} onChange={(k) => setTab(k as DTab)} />
 
   // The rails of one kind, for its own tab or for its section on the All tab.
   function body(kind: Section, short: boolean) {
@@ -367,41 +375,48 @@ function DiscoverPage() {
 
   return (
     <div>
-      {dtab !== 'nsfw' && <OmniBar key={dtab} page={dtab as OmniPage} />} {/* home fork: search and AI */}
-      <div className={`toolbar filter-bar collapsible${filtersOpen ? ' filters-open' : ''}`}>
-        {switcher}
-        {!special && <FilterToggle open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} active={filtering} />}
-        <div className="fold" hidden={special}>
-        <Dropdown
-          icon="sparkles"
-          label={t('Genre')}
-          value={genre}
-          onChange={setGenre}
-          disabled={(titleKind && browseMissing) || show === 'all'}
-          title={show === 'all' ? t('Pick a kind of media to filter by genre') : undefined}
-          options={[{ value: '', label: show === 'all' ? t('Genre: pick a kind') : t('All genres') }, ...genreOptions]}
-        />
-        <Dropdown icon="calendar" label={t('From year')} value={from} onChange={setFrom} disabled={titleKind && browseMissing} options={[{ value: '', label: t('From year') }, ...years.map((y) => ({ value: y, label: t('From {year}', { year: y }) }))]} />
-        <Dropdown icon="calendar" label={t('To year')} value={to} onChange={setTo} disabled={titleKind && browseMissing} options={[{ value: '', label: t('To year') }, ...years.map((y) => ({ value: y, label: t('To {year}', { year: y }) }))]} />
-        <Dropdown icon="sort" label={t('Order')} value={sort} onChange={setSort} disabled={titleKind && browseMissing} options={orders} />
-        {show === 'music' && <Dropdown icon="disc" label={t('Type')} value={musicType} onChange={(m) => setMusicType(m as MusicType)} options={MUSIC_TYPE_OPTIONS} />}
-        {filtering && (
-          <button className="btn-sm" onClick={clear}>
-            {t('Clear filters')}
-          </button>
-        )}
-        <HideOwned label={t('Hide what I have')} /> {/* home fork: choose on disk, streamed, wanted */}
-        {titleKind && <FamilyFilter />} {/* home fork */}
-        <span className="spacer" />
-        <NotInterestedList />
-        {titleKind && <SelectToggle />}
-        {trakt && (
-          <button className={`icon-btn trakt-btn${showImport ? ' active' : ''}`} onClick={() => setShowImport((v) => !v)} title={showImport ? t('Close the Trakt list import') : t('Import a Trakt list')} aria-label={showImport ? t('Close the Trakt list import') : t('Import a Trakt list')} aria-pressed={showImport}>
-            <Icon name="trakt" size={17} />
-          </button>
-        )}
-        </div>
-      </div>
+      {/* Usherr: one slim row, pinned under the top bar (search and AI are in the top bar) */}
+      <CompactBar
+        open={filtersOpen && !special}
+        row={
+          <>
+            {switcher}
+            {!special && <FiltersButton open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} count={activeFilters.length} />}
+            {!special && (
+              <span className="cbar-sort">
+                <Dropdown icon="sort" label={t('Order')} value={sort} onChange={setSort} disabled={titleKind && browseMissing} options={orders} />
+              </span>
+            )}
+          </>
+        }
+        panel={
+          <>
+            <Dropdown
+              icon="sparkles"
+              label={t('Genre')}
+              value={genre}
+              onChange={setGenre}
+              disabled={(titleKind && browseMissing) || show === 'all'}
+              title={show === 'all' ? t('Pick a kind of media to filter by genre') : undefined}
+              options={[{ value: '', label: show === 'all' ? t('Genre: pick a kind') : t('All genres') }, ...genreOptions]}
+            />
+            <Dropdown icon="calendar" label={t('From year')} value={from} onChange={setFrom} disabled={titleKind && browseMissing} options={[{ value: '', label: t('From year') }, ...years.map((y) => ({ value: y, label: t('From {year}', { year: y }) }))]} />
+            <Dropdown icon="calendar" label={t('To year')} value={to} onChange={setTo} disabled={titleKind && browseMissing} options={[{ value: '', label: t('To year') }, ...years.map((y) => ({ value: y, label: t('To {year}', { year: y }) }))]} />
+            {show === 'music' && <Dropdown icon="disc" label={t('Type')} value={musicType} onChange={(m) => setMusicType(m as MusicType)} options={MUSIC_TYPE_OPTIONS} />}
+            <HideOwned label={t('Hide what I have')} /> {/* home fork: choose on disk, streamed, wanted */}
+            {titleKind && <FamilyFilter />} {/* home fork */}
+            <span className="spacer" />
+            <NotInterestedList />
+            {titleKind && <SelectToggle />}
+            {trakt && (
+              <button className={`icon-btn trakt-btn${showImport ? ' active' : ''}`} onClick={() => setShowImport((v) => !v)} title={showImport ? t('Close the Trakt list import') : t('Import a Trakt list')} aria-label={showImport ? t('Close the Trakt list import') : t('Import a Trakt list')} aria-pressed={showImport}>
+                <Icon name="trakt" size={17} />
+              </button>
+            )}
+          </>
+        }
+        chips={!special && <ActiveChips filters={activeFilters} onClearAll={clearAll} />}
+      />
       {yearProblem && (
         <p className="field-error" role="alert" style={{ margin: '0 0 14px' }}>
           {yearProblem}
@@ -423,7 +438,7 @@ function DiscoverPage() {
               {importing ? t('Importing…') : t('Import')}
             </button>
           </div>
-          <FormProblem v={v} verb="import" />
+          <FormProblem v={v} action="import" />
           {importError && <p className="error-text" style={{ margin: 0 }}>{importError}</p>}
         </section>
       )}
@@ -446,7 +461,7 @@ function DiscoverPage() {
       ) : dtab === 'comics' ? (
         <ComicsDiscover admin={adminUser} />
       ) : dtab === 'nsfw' ? (
-        <ScenesDiscover />
+        <NsfwDiscover />
       ) : (
         body(show as Section, true)
       )}

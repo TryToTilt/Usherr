@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -143,12 +145,29 @@ type loginRequest struct {
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Failures are counted per caller address (the real one: see
 	// httpsec.Proxies.ClientIP) and per account name from all addresses.
+	//
+	// A try is counted before the password is checked (the check takes a
+	// quarter of a second, and a burst of parallel requests would all be let
+	// through before the first failure was written down). It is given back
+	// unless the credentials turn out to be wrong.
+	started := time.Now()
 	ip := s.clientIP(r)
 	ipKey := httpsec.LimitKey(ip)
-	if !s.LoginLimiter.Allow(ipKey) {
+	if !s.LoginLimiter.Reserve(ipKey) {
 		writeError(w, http.StatusTooManyRequests, "Too many sign-in attempts. Wait a few minutes and try again.")
 		return
 	}
+	byUser := s.sec().byUser
+	var userKey string
+	ipHeld, userHeld := true, false
+	defer func() {
+		if ipHeld {
+			s.LoginLimiter.Refund(ipKey)
+		}
+		if userHeld {
+			byUser.Refund(userKey)
+		}
+	}()
 
 	var req loginRequest
 	r.Body = http.MaxBytesReader(w, r.Body, maxPublicBody)
@@ -156,15 +175,18 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Couldn't read that request. Reload the page and try again.")
 		return
 	}
-	userKey := strings.ToLower(strings.TrimSpace(req.Username))
-	if len(userKey) > 128 {
-		userKey = userKey[:128]
+	typedName := strings.ToLower(strings.TrimSpace(req.Username))
+	if len(typedName) > 128 {
+		typedName = typedName[:128]
 	}
-	byUser := s.sec().byUser
-	if !byUser.Allow(userKey) {
+	// Typed names have their own prefix, so a name like "code:1" cannot land on
+	// the key that guards another account's code step.
+	userKey = nameGuessKey(typedName)
+	if !byUser.Reserve(userKey) {
 		writeError(w, http.StatusTooManyRequests, "Too many sign-in attempts. Wait a few minutes and try again.")
 		return
 	}
+	userHeld = true
 	// A name that belongs to an account with a password here, or to no account
 	// at all while the directory is off, is a password sign-in. A directory
 	// account, or a name nobody here has while the directory is on, goes to the
@@ -189,9 +211,9 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 				// The directory is on, so names unknown here are answered "wrong username or
 				// password". A name with a password here gets the same answer, and the try
 				// counts, so the sign-in form can't be used to find out which names exist.
-				s.LoginLimiter.RecordFailure(ipKey)
-				byUser.RecordFailure(userKey)
-				slog.Warn("auth: failed sign-in, password sign-in is off", "user", userKey, "ip", ip)
+				ipHeld, userHeld = false, false // the tries stay counted
+				slog.Warn("auth: failed sign-in, password sign-in is off", "user", typedName, "ip", ip)
+				waitOutFailure(r.Context(), started)
 				writeError(w, http.StatusUnauthorized, "Wrong username or password.")
 				return
 			}
@@ -202,21 +224,23 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case errors.Is(err, auth.ErrInvalidCredentials), errors.Is(err, ldapauth.ErrInvalidCredentials), errors.Is(err, ldapauth.ErrAmbiguous):
-		s.LoginLimiter.RecordFailure(ipKey)
-		byUser.RecordFailure(userKey)
-		slog.Warn("auth: failed sign-in", "user", userKey, "ip", ip, "method", method)
+		ipHeld, userHeld = false, false // the tries stay counted
+		slog.Warn("auth: failed sign-in", "user", typedName, "ip", ip, "method", method)
+		if dirOn {
+			waitOutFailure(r.Context(), started)
+		}
 		writeError(w, http.StatusUnauthorized, "Wrong username or password.")
 		return
 	case errors.Is(err, auth.ErrAccountDisabled):
-		slog.Warn("auth: sign-in refused, the account is turned off", "user", userKey, "ip", ip)
+		slog.Warn("auth: sign-in refused, the account is turned off", "user", typedName, "ip", ip)
 		writeError(w, http.StatusForbidden, disabledMessage)
 		return
 	case errors.Is(err, errNoAccountHere):
-		slog.Warn("auth: directory sign-in refused, no account here and none is made automatically", "user", userKey, "ip", ip)
+		slog.Warn("auth: directory sign-in refused, no account here and none is made automatically", "user", typedName, "ip", ip)
 		writeError(w, http.StatusForbidden, "That worked, but there is no account for you here yet. Ask an administrator to add one.")
 		return
 	case errors.Is(err, auth.ErrUsernameTaken):
-		slog.Warn("auth: directory sign-in refused, the user name is taken by another account", "user", userKey, "ip", ip)
+		slog.Warn("auth: directory sign-in refused, the user name is taken by another account", "user", typedName, "ip", ip)
 		writeError(w, http.StatusConflict, "An account with your user name already exists here and isn't linked to the directory. Ask an administrator.")
 		return
 	case errors.Is(err, ldapauth.ErrUnavailable):
@@ -232,12 +256,38 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// code comes next (two_step.go). The failures counted against this
 	// address are kept until that code is right, so a right password can't be
 	// used to wipe the count of wrong codes.
-	if st, err := s.Auth.TwoStepOf(user.ID); err == nil && st.Enabled {
+	st, err := s.Auth.TwoStepOf(user.ID)
+	if err != nil {
+		// Not knowing whether a second step is due is no reason to skip it.
+		slog.Error("auth: sign-in refused, could not read the two-step state", "user", typedName, "err", err)
+		writeError(w, http.StatusInternalServerError, "Couldn't sign you in. Try again.")
+		return
+	}
+	if st.Enabled {
 		s.askForCode(w, user)
 		return
 	}
 	s.LoginLimiter.RecordSuccess(ipKey)
 	s.finishSignInVia(w, r, user, method, nil)
+}
+
+// failedSignInFloor is the least time a wrong sign-in takes when the directory
+// is on. A name with a password here costs a password check and a name that
+// goes to the directory costs a network lookup; waiting out the difference
+// keeps the response time from telling which names exist here.
+var failedSignInFloor = 750 * time.Millisecond
+
+func waitOutFailure(ctx context.Context, started time.Time) {
+	wait := failedSignInFloor - time.Since(started)
+	if wait <= 0 {
+		return
+	}
+	t := time.NewTimer(wait)
+	defer t.Stop()
+	select {
+	case <-t.C:
+	case <-ctx.Done():
+	}
 }
 
 func (s *Server) startSession(w http.ResponseWriter, r *http.Request, userID int64) {
@@ -266,6 +316,54 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, nil)
 }
 
+type sessionPayload struct {
+	CreatedAt time.Time `json:"createdAt"`
+	ExpiresAt time.Time `json:"expiresAt"`
+	Method    string    `json:"method"`
+	Current   bool      `json:"current"`
+}
+
+// handleListSessions lists the places the caller is signed in (GET
+// /api/auth/sessions). It needs a browser session, not an API key.
+func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
+	cookie, err := r.Cookie(auth.CookieName)
+	if user == nil || err != nil {
+		writeError(w, http.StatusForbidden, "Signed-in devices can only be seen from your profile while signed in, not with an API key.")
+		return
+	}
+	list, err := s.Auth.SessionsOf(user.ID, cookie.Value)
+	if err != nil {
+		log.Printf("api: list sessions: %v", err)
+		writeError(w, http.StatusInternalServerError, "Couldn't read the signed-in devices. Check the Mediarium log for details.")
+		return
+	}
+	out := make([]sessionPayload, len(list))
+	for i, x := range list {
+		out[i] = sessionPayload{CreatedAt: x.CreatedAt, ExpiresAt: x.ExpiresAt, Method: x.Method, Current: x.Current}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// handleEndOtherSessions signs the caller out everywhere except this browser
+// (DELETE /api/auth/sessions).
+func (s *Server) handleEndOtherSessions(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
+	cookie, err := r.Cookie(auth.CookieName)
+	if user == nil || err != nil {
+		writeError(w, http.StatusForbidden, "Signed-in devices can only be changed from your profile while signed in, not with an API key.")
+		return
+	}
+	n, err := s.Auth.DeleteOtherSessions(user.ID, cookie.Value)
+	if err != nil {
+		log.Printf("api: end other sessions: %v", err)
+		writeError(w, http.StatusInternalServerError, "Couldn't sign out the other devices. Check the Mediarium log for details.")
+		return
+	}
+	slog.Warn("auth: signed out all other devices", "user", user.Username, "ended", n, "ip", s.clientIP(r))
+	writeJSON(w, http.StatusOK, map[string]int64{"ended": n})
+}
+
 type changePasswordRequest struct {
 	CurrentPassword string `json:"currentPassword"`
 	NewPassword     string `json:"newPassword"`
@@ -288,18 +386,18 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	// Guessing the current password from a stolen session is slowed down like guessing it at sign-in.
 	byUser := s.sec().byUser
 	guessKey := passwordGuessKey(user.ID)
-	if !byUser.Allow(guessKey) {
+	if !byUser.Reserve(guessKey) { // counted before the slow check, given back unless the password is wrong
 		writeError(w, http.StatusTooManyRequests, "Too many wrong passwords. Wait a few minutes and try again.")
 		return
 	}
 	err := s.Auth.ChangePassword(user.ID, req.CurrentPassword, req.NewPassword)
-	if errors.Is(err, auth.ErrNotLocal) {
-		writeError(w, http.StatusBadRequest, "Your account signs in through single sign-on or the directory, so its password is changed there, not here.")
+	if errors.Is(err, auth.ErrInvalidCredentials) {
+		writeError(w, http.StatusUnauthorized, "Your current password isn't right.")
 		return
 	}
-	if errors.Is(err, auth.ErrInvalidCredentials) {
-		byUser.RecordFailure(guessKey)
-		writeError(w, http.StatusUnauthorized, "Your current password isn't right.")
+	byUser.Refund(guessKey)
+	if errors.Is(err, auth.ErrNotLocal) {
+		writeError(w, http.StatusBadRequest, "Your account signs in through single sign-on or the directory, so its password is changed there, not here.")
 		return
 	}
 	if err != nil {
@@ -307,6 +405,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Couldn't change the password. Check the Mediarium log for details.")
 		return
 	}
+	slog.Warn("auth: password changed by its owner", "user", user.Username, "ip", s.clientIP(r))
 	// Changing the password signed every session out; this browser gets a new one.
 	if _, err := r.Cookie(auth.CookieName); err == nil {
 		s.startSession(w, r, user.ID)
@@ -438,6 +537,7 @@ func (s *Server) handleCreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.auditAccount(r, fmt.Sprintf("An API key named %q was made for account %q", req.Name, user.Username))
 	writeJSON(w, http.StatusCreated, apiKeyPayload{Name: req.Name, ReadOnly: req.ReadOnly, Key: rawKey})
 }
 
@@ -460,6 +560,7 @@ func (s *Server) handleRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 		case !removed:
 			writeError(w, http.StatusConflict, "Only a key that has been revoked can be deleted. Revoke it first.")
 		default:
+			s.auditAccount(r, fmt.Sprintf("A revoked API key (number %d) of account %q was deleted", id, user.Username))
 			writeJSON(w, http.StatusOK, nil)
 		}
 		return
@@ -468,5 +569,6 @@ func (s *Server) handleRevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.auditAccount(r, fmt.Sprintf("An API key (number %d) of account %q was revoked", id, user.Username))
 	writeJSON(w, http.StatusOK, nil)
 }

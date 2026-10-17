@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,6 +14,60 @@ import (
 type pipelineRegistry struct {
 	mu      sync.Mutex
 	running map[int64]*pipelineRun
+	down    bool // set by shutdown: pipelines that start after it end at once
+}
+
+// Shutdown is called once when Mediarium is stopping, after the web server has
+// stopped taking requests and before the database is closed. It ends the running
+// download pipelines and the torrent engine without marking anything failed:
+// what was downloading stays as it is, and the next start finds it interrupted.
+//
+// wait is all the time it may take, torrents and pipelines together: the stop
+// has to fit in the 10 seconds Docker gives before it kills the container.
+// Closing a torrent engine can hang on a bad connection, so it gets half of
+// it at most and is left behind after that; the program is exiting anyway.
+func (s *Server) Shutdown(wait time.Duration) {
+	deadline := time.Now().Add(wait)
+	// Nothing new starts, and a download that ends while the rest wind down
+	// does not look for the next one in a database that is about to close.
+	if s.dispatch != nil {
+		s.dispatch.Stop()
+	}
+	s.pipelines.shutdown(0) // flag and cancel them first, so stopping the torrents is not read as a failure
+	stopped := make(chan struct{})
+	go func() {
+		s.torrents.stopAll()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-time.After(wait / 2):
+		slog.Warn("shutdown: the torrent engine was slow to stop; closing anyway")
+	}
+	s.pipelines.shutdown(max(time.Until(deadline), 0))
+}
+
+// shutdown tells every running pipeline that Mediarium is stopping, cancels
+// them, and waits up to wait for them to wind down. Items they were working on
+// keep their status, so the next start sees them as interrupted.
+func (r *pipelineRegistry) shutdown(wait time.Duration) {
+	r.mu.Lock()
+	r.down = true
+	runs := make([]*pipelineRun, 0, len(r.running))
+	for _, run := range r.running {
+		run.shutdown.Store(true)
+		run.cancel()
+		runs = append(runs, run)
+	}
+	r.mu.Unlock()
+	deadline := time.After(wait)
+	for _, run := range runs {
+		select {
+		case <-run.done:
+		case <-deadline:
+			return
+		}
+	}
 }
 
 type pipelineRun struct {
@@ -25,6 +80,10 @@ type pipelineRun struct {
 	paused      atomic.Bool
 	stopped     atomic.Bool
 	deleteFiles atomic.Bool
+	// shutdown says Mediarium itself is stopping: the pipeline ends and leaves
+	// the item as it is, so the next start finds it interrupted (see
+	// Repo.RecoverInterrupted) instead of failed.
+	shutdown atomic.Bool
 }
 
 // begin registers the pipeline of queueID and returns the context it runs
@@ -37,6 +96,10 @@ func (r *pipelineRegistry) begin(queueID int64) (context.Context, *pipelineRun) 
 		r.running = map[int64]*pipelineRun{}
 	}
 	r.running[queueID] = run
+	if r.down {
+		run.shutdown.Store(true)
+		cancel()
+	}
 	r.mu.Unlock()
 	setQueueStage(queueID, "Starting") // home fork: step and timer
 	return ctx, run

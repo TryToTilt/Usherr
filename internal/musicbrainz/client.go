@@ -227,7 +227,19 @@ type tokenBucket struct {
 
 func newTokenBucket(interval time.Duration) *tokenBucket { return &tokenBucket{interval: interval} }
 
-// wait blocks until a token is available (or ctx ends) and takes it.
+// maxQueuedSlots is how many requests may be waiting for a token at once.
+// Beyond that a caller is turned away, so a burst of searches cannot book
+// minutes of the shared limit ahead of everyone else.
+const maxQueuedSlots = 30
+
+// ErrBusy is returned when too many requests are already waiting for the
+// music database's rate limit.
+var ErrBusy = errors.New("the music database is busy right now. Try again in a moment.")
+
+// wait blocks until a token is available (or ctx ends) and takes it. A caller
+// whose deadline falls before its turn, or who arrives behind too long a
+// queue, is turned away without booking a slot; one that gives up while
+// waiting hands its slot back when it was the last in line.
 func (b *tokenBucket) wait(ctx context.Context) error {
 	if b == nil || b.interval <= 0 {
 		return ctx.Err()
@@ -238,9 +250,25 @@ func (b *tokenBucket) wait(ctx context.Context) error {
 	if at.Before(now) {
 		at = now
 	}
+	if at.Sub(now) > time.Duration(maxQueuedSlots)*b.interval {
+		b.mu.Unlock()
+		return ErrBusy
+	}
+	if dl, ok := ctx.Deadline(); ok && at.After(dl) {
+		b.mu.Unlock()
+		return context.DeadlineExceeded
+	}
 	b.next = at.Add(b.interval)
 	b.mu.Unlock()
-	return sleep(ctx, time.Until(at))
+	err := sleep(ctx, time.Until(at))
+	if err != nil {
+		b.mu.Lock()
+		if b.next.Equal(at.Add(b.interval)) {
+			b.next = at // nobody queued behind us: give the slot back
+		}
+		b.mu.Unlock()
+	}
+	return err
 }
 
 // cache keeps raw answers by URL for ttl, at most max of them and maxBytes

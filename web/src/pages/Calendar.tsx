@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { api, isAdmin, isViewer, type CalendarEntry } from '../api'
 import { useComicsOn } from '../home/libraryKinds' // home fork
 import { useAuth } from '../AuthContext'
@@ -12,27 +13,34 @@ import { useKinds, useModules } from '../ModulesContext'
 import { t, tx } from '../i18n'
 import { useUrlState } from '../useUrlState'
 import { useLive } from '../useLive'
+import { CalendarMatches, entryKey, textMatch } from '../home/CalendarSearch' // Usherr
+import { setCalendarSearch, useCalendarSearch } from '../home/calendarSearchStore' // Usherr: typed in the top bar
+import ActionMenu from '../components/ActionMenu' // Usherr
 
 // home fork: the Library's kinds, in its order (anime apart from TV, ebooks
 // apart from audiobooks, and comics).
-type Show = 'all' | 'movie' | 'episode' | 'anime' | 'ebook' | 'audiobook' | 'album' | 'comic'
-const SHOW_LABEL: Record<Show, string> = { all: t('All'), movie: t('Movies'), episode: t('TV'), anime: t('Anime'), ebook: t('Ebooks'), audiobook: t('Audiobooks'), album: t('Music'), comic: t('Comics') }
+type Show = 'all' | 'movie' | 'theaters' | 'episode' | 'anime' | 'ebook' | 'audiobook' | 'album' | 'comic'
+const SHOW_LABEL: Record<Show, string> = { all: t('All'), movie: t('Movies'), theaters: t('In theaters'), episode: t('TV'), anime: t('Anime'), ebook: t('Ebooks'), audiobook: t('Audiobooks'), album: t('Music'), comic: t('Comics') }
 
 // Monitored movie releases, episode airs and album releases on one month
 // view, with simple filters and a link to add it to a calendar app.
 // Each filter wears its kind's glyph and colour, as on Discover and Library.
-const SHOW_GLYPH: Record<Exclude<Show, 'all'>, GlyphKind> = { movie: 'movie', episode: 'tv', anime: 'tv', ebook: 'book', audiobook: 'audiobook', album: 'music', comic: 'comic' }
-const SHOW_COLOR: Record<Exclude<Show, 'all'>, string> = { movie: 'var(--c-movie)', episode: 'var(--c-tv)', anime: 'var(--c-tv)', ebook: 'var(--c-book)', audiobook: 'var(--c-audiobook)', album: 'var(--c-music)', comic: 'var(--c-comics)' }
+const SHOW_GLYPH: Record<Exclude<Show, 'all'>, GlyphKind> = { movie: 'movie', theaters: 'movie', episode: 'tv', anime: 'tv', ebook: 'book', audiobook: 'audiobook', album: 'music', comic: 'comic' }
+const SHOW_COLOR: Record<Exclude<Show, 'all'>, string> = { movie: 'var(--c-movie)', theaters: 'var(--c-movie)', episode: 'var(--c-tv)', anime: 'var(--c-tv)', ebook: 'var(--c-book)', audiobook: 'var(--c-audiobook)', album: 'var(--c-music)', comic: 'var(--c-comics)' }
 
 // matches says whether an entry belongs under a kind.
 function matches(e: CalendarEntry, show: Show, anime: ReadonlySet<number>): boolean {
   switch (show) {
     case 'all':
       return true
+    case 'movie': // Usherr: your movies; films showing in cinemas have their own filter
+      return e.kind === 'movie' && e.status !== 'theaters'
+    case 'theaters':
+      return e.status === 'theaters'
     case 'episode':
-      return e.kind === 'episode' && !anime.has(e.seriesId ?? 0)
+      return e.kind === 'episode' && !e.anime && !anime.has(e.seriesId ?? 0)
     case 'anime':
-      return e.kind === 'episode' && anime.has(e.seriesId ?? 0)
+      return e.kind === 'episode' && (!!e.anime || anime.has(e.seriesId ?? 0))
     case 'ebook':
       return e.kind === 'book' && (e.formats ?? ['ebook']).includes('ebook')
     case 'audiobook':
@@ -46,12 +54,17 @@ export default function Calendar() {
   const [entries, setEntries] = useState<CalendarEntry[] | null>(null)
   const [error, setError] = useState('')
   // The kind and the "not downloaded" tick live in the address, so Back returns to them.
-  const [ui, patchUi] = useUrlState({ show: 'all', missing: '' })
-  const show: Show = (['movie', 'episode', 'anime', 'ebook', 'audiobook', 'album', 'comic'] as const).find((k) => k === ui.show) ?? (ui.show === 'book' ? 'ebook' : 'all')
+  const [ui, patchUi] = useUrlState({ show: 'all', missing: '', month: '' })
+  const show: Show = (['movie', 'theaters', 'episode', 'anime', 'ebook', 'audiobook', 'album', 'comic'] as const).find((k) => k === ui.show) ?? (ui.show === 'book' ? 'ebook' : 'all')
   const setShow = (k: Show) => patchUi({ show: k })
   const missingOnly = ui.missing === '1'
   const setMissingOnly = (v: boolean) => patchUi({ missing: v ? '1' : '' })
   const [feedOpen, setFeedOpen] = useState(false)
+  const { q: searchQ, pick } = useCalendarSearch() // Usherr: what the top bar's search found
+  useEffect(() => () => setCalendarSearch({ q: '', pick: null }), []) // a new visit starts with the whole calendar
+  // Usherr: the search bar sits at the top of Upcoming and the kind picker at the end of its tabs.
+  const [slots, setSlots] = useState<{ top: HTMLElement | null; tabs: HTMLElement | null }>({ top: null, tabs: null })
+  useEffect(() => setSlots({ top: document.getElementById('upcoming-top'), tabs: document.getElementById('upcoming-tabs-end') }), [])
   // The private calendar address belongs to an account that can change things.
   const viewer = isViewer(useAuth().user)
   const kinds = useKinds()
@@ -76,6 +89,7 @@ export default function Calendar() {
   const options: Show[] = [
     'all',
     ...(kinds.includes('movie') ? (['movie'] as const) : []),
+    ...((entries ?? []).some((e) => e.status === 'theaters') ? (['theaters'] as const) : []), // Usherr
     ...(kinds.includes('tv') ? (['episode', 'anime'] as const) : []),
     ...(on('ebooks') ? (['ebook'] as const) : []),
     ...(on('audiobooks') ? (['audiobook'] as const) : []),
@@ -83,40 +97,60 @@ export default function Calendar() {
     ...(hasComics ? (['comic'] as const) : []),
   ]
   const shown = (entries ?? []).filter((e) => matches(e, show, anime) && (!missingOnly || e.status !== 'downloaded')).map((e) => (e.kind === 'episode' && anime.has(e.seriesId ?? 0) ? { ...e, anime: true } : e)) // Usherr: anime labelled as anime
+  // Usherr: the search narrows the calendar to what the AI picked, or to the titles typed.
+  const searching = pick !== null || searchQ.trim() !== ''
+  const found = pick ? shown.filter((e) => pick.keys.has(entryKey(e))) : searchQ.trim() ? shown.filter((e) => textMatch(e, searchQ)) : shown
 
   return (
     <div>
-      <div className="page-header">
-        <h1>{t('Calendar')}</h1>
-        {!viewer && (
-          <button className="btn-with-icon" onClick={() => setFeedOpen((v) => !v)} aria-expanded={feedOpen}>
-            <Icon name="calendar" size={15} /> {t('Add to your calendar app')}
-          </button>
-        )}
-      </div>
       {feedOpen && !viewer && <FeedPanel />}
       {error && <p className="error-text">{error}</p>}
       {entries === null && !error && <Loading height={420} />}
       {entries !== null && (
         <>
-          <div className="toolbar filter-bar cal-filters" style={{ marginBottom: 18 }}>
-            {options.length > 2 && (
-              <div className="seg kind-tabs">
-                {options.map((k) => (
-                  <button key={k} className={`k-${k}${show === k ? ' active' : ''}`} style={k === 'all' ? undefined : { ['--kc' as string]: SHOW_COLOR[k] }} onClick={() => setShow(k)}>
-                    {k === 'all' ? <Icon name="grid" size={15} /> : <KindGlyph kind={SHOW_GLYPH[k]} size={17} />}
-                    {SHOW_LABEL[k]}
-                  </button>
-                ))}
-              </div>
+          {slots.tabs &&
+            createPortal(
+              <>
+              {options.length > 2 && (
+              <label className="cal-kind-pick" style={show === 'all' ? undefined : { ['--kc' as string]: SHOW_COLOR[show] }}>
+                {show === 'all' ? <Icon name="grid" size={15} /> : <KindGlyph kind={SHOW_GLYPH[show]} size={16} />}
+                <select value={show} onChange={(e) => setShow(e.target.value as Show)} aria-label={t('Show')}>
+                  {options.map((k) => (
+                    <option key={k} value={k}>
+                      {SHOW_LABEL[k]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              )}
+              {/* Usherr: the calendar's extras in one menu */}
+              <ActionMenu
+                label={t('More')}
+                icon="more"
+                choices={[
+                  { id: 'missing', label: missingOnly ? t('Show downloaded too') : t('Only what isn\u2019t downloaded yet') },
+                  ...(!viewer ? [{ id: 'feed', label: t('Add to your calendar app') }] : []),
+                ]}
+                onPick={(id) => (id === 'missing' ? setMissingOnly(!missingOnly) : setFeedOpen((v) => !v))}
+              />
+              </>,
+              slots.tabs,
             )}
-            <label className="inline-field" style={{ marginLeft: options.length > 2 ? 8 : 0 }}>
-              <input type="checkbox" checked={missingOnly} onChange={(e) => setMissingOnly(e.target.checked)} />
-              {t('Not downloaded yet only')}
-            </label>
-          </div>
+          {missingOnly && (
+            <div className="cbar-chips">
+              <button type="button" className="cbar-chip" onClick={() => setMissingOnly(false)}>
+                {t('Not downloaded yet')} <Icon name="x" size={12} />
+              </button>
+            </div>
+          )}
+          {pick?.answer && (
+            <p className="cal-search-answer">
+              <Icon name="sparkles" size={14} /> {pick.answer}
+            </p>
+          )}
+          {searching && <CalendarMatches entries={found} onMonth={(month) => patchUi({ month })} />}
           {entries.length === 0 && <p style={{ color: 'var(--text-dim)' }}>{t('Nothing is scheduled yet. Monitored movies and shows appear here once their release or air dates are known.')}</p>}
-          <CalendarGrid entries={shown} />
+          <CalendarGrid entries={found} />
         </>
       )}
     </div>

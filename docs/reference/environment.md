@@ -7,7 +7,6 @@ Container-level settings only. Everything else (indexers, Usenet servers, naming
 | Variable | Default |
 |---|---|
 | `ALLOWED_ORIGINS` | `` |
-| `APP_PORT` | `8264` |
 | `AUDIOBOOKS_DIR` | `/audiobooks` |
 | `BUNDLED_FLARESOLVERR` | `` |
 | `CONFIG_DIR` | `/config` |

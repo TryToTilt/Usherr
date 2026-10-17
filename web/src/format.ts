@@ -22,7 +22,13 @@ export function formatBytes(bytes: number): string {
     n /= 1024
     i++
   }
-  return `${n.toFixed(1)} ${units[i]}`
+  // The decimal mark of the language in use: "1,5 GB" in German.
+  return `${n.toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false })} ${units[i]}`
+}
+
+// A release name cut into pieces where it may wrap (after dots, dashes, underscores and brackets), so a long name breaks at a separator and not in the middle of a word.
+export function nameParts(name: string): string[] {
+  return name.match(/[^.\-_()[\]]*[.\-_()[\]]?/g)?.filter((p) => p !== '') ?? [name]
 }
 
 // A stored quality for display. A file whose name doesn't say is "Not stated"

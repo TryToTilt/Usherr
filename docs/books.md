@@ -23,11 +23,13 @@ Open **Library**, then the **Ebooks** or **Audiobooks** tab, and press **Add**. 
 Administrators see an **Import** button on the Ebooks and Audiobooks tabs. Press **Start import** and Mediarium reads that folder, looks each book up on Open Library, and adds what it recognises to your library as downloaded, **where it is**. Nothing is moved, renamed or changed. For an audiobook that Open Library does not have, Mediarium asks Audible (through Audnexus) before giving up, and adds the book with the narrator, length, series and release date Audible has. Such a book has no "More about this book" link, because there is no Open Library page for it.
 
 - It understands the usual layouts: `Author/Title/book.epub` (Mediarium, Calibre), `Author/Title.epub`, `Author - Title.epub`, and for audiobooks `Author/Title/` or `Author/Series/Title/` with the audio files inside. `CD 1` or `Disc 2` folders count as part of the book above them. A year like `(2021)`, Calibre's `(123)` and notes like `[Unabridged]` are ignored, and so are series numbers like `1 - `.
+- Titles are compared the forgiving way: accents and apostrophes don't matter (`L'Etranger` finds *L’étranger*), a number counts the same as the number written out (`George Orwell - 1984.epub` finds *Nineteen Eighty-Four*), and a name with the title first (`1984 - George Orwell.epub`) is tried that way round too. The author always has to match.
 - An ebook folder with the same book in several formats counts once, with the best format.
 - When it's done you see how many were added, already there and not found. The list shows the ones not found, with the path on disk and how the name was read, so you can rename the folder and run it again. **Show all** lists everything.
 - Running it again is safe: books already in the library are skipped.
+- The ebook and audiobook imports keep their own results. Importing audiobooks doesn't clear the list of ebooks that weren't found, so **Find it myself** is still there for them. Only one import runs at a time.
 - **Run the ... not found again** looks only at the books the last import did not find (or could not save), without reading the folders again. It is for when Open Library or Audible did not answer the first time (the message says so). If you renamed a folder to fix a name, use **Import again** instead, so the folders are read again. Scripts: `POST /api/books/import/retry`.
-- **Find it myself** (next to each book that was not found) opens a small search box. It starts with the title and author read from the folder; change them, pick the right book from the results (cover, title, author, year) and it is attached to that file, the same as an automatic match. Tick **Rename the file to match** to also move the file (or the audiobook's folder) to where Mediarium puts a book it downloads, `Author/Title (Year)`. It is off by default, nothing is overwritten, and if the new place is taken the book is added and the file stays where it is. Only administrators can do this. Scripts: `POST /api/books/import/match`.
+- **Find it myself** (next to each book that was not found) opens a small search with a **Title** box and an **Author** box, filled in with what was read from the name on disk. Books by that author are listed first. Change either box, pick the right book from the results (cover, title, author, year) and it is attached to that file, the same as an automatic match. Tick **Rename the file to match** to also move the file (or the audiobook's folder) to where Mediarium puts a book it downloads, `Author/Title (Year)`. It is off by default, nothing is overwritten, and if the new place is taken the book is added and the file stays where it is. Only administrators can do this. Scripts: `POST /api/books/import/match`.
 - It pauses briefly between lookups to go easy on Open Library, so a big folder takes a few minutes. You can leave the page; it carries on.
 
 ## Finding books on Discover
@@ -53,7 +55,20 @@ Each book has a page with its cover, author, year and description, and a panel f
 - **Want the ebook / Want the audiobook**: switch a format off to stop looking for it, or on to start.
 - **Search now** looks for that format straight away and downloads the best release it finds.
 - **Choose a release** lists what your indexers have for the book, best first, so you can pick one yourself.
+- **Change cover** gives the book a cover of your own. See below.
 - **Remove** (administrators) takes the book out of your library. Tick **Also delete its files** to remove the ebook file and the audiobook folder as well. They go to the recycle bin first when it is on.
+
+### Changing a cover
+
+Open Library has no cover for some books, and for others it only has one for a different edition, so the book is added with a blank cover. **Change cover** (on the book's page, for administrators and for accounts that may manage books) fixes that. It opens a small window with three ways:
+
+- **Upload a picture**: choose a JPEG, PNG or WebP file of up to 8 MB. Anything else is refused. A WebP picture is converted to JPEG in your browser before it is sent.
+- **Paste a link**: paste the address of a picture, starting with `http://` or `https://`. Mediarium downloads it once, with the same size limit. It only fetches from the public internet: a link to this machine or to your home network (a `192.168.x.x` address, for example) is refused, so download the picture and upload it instead.
+- **Other editions**: when Open Library lists more than one cover for the book, they are shown here as small pictures. Click the one you want. This is skipped for a book Open Library has only one cover for.
+
+Mediarium opens every picture to make sure it really is one (the file name and the type the site claims don't count), shrinks it to at most 800 by 1200 pixels, and keeps its own copy as a JPEG inside the database, so it is part of your backups. The cover shows everywhere the book does: the Library, Discover, the calendar, Activity, and on an e-reader through OPDS and Kobo sync.
+
+A cover you chose is kept apart from the automatic one, so nothing that looks the book up again can replace it. **Remove my cover** (in the same window, shown once you have chosen one) takes your choice away and brings the automatic cover back.
 
 ![A book page: the cover, the ebook and audiobook rows with their status and file, and the buttons to search, read or listen](images/book-page.png)
 
@@ -107,7 +122,7 @@ Books are filed by author:
 <Audiobooks folder>/<Author>/<Title (Year)>/<the audiobook's own files>
 ```
 
-An ebook download keeps only the best ebook file in it. An audiobook keeps all of its audio files with their own names, so the chapters stay in order. A download with no ebook (or no audio) in it is marked as a bad release, blocklisted, and the next best one is tried.
+An ebook download keeps only the best ebook file in it. An audiobook keeps all of its audio files with their own names, so the chapters stay in order. When a book comes in several folders with the same file names (`CD1/Track 01.mp3` and `CD2/Track 01.mp3`), the folder name goes in front of the file name (`CD1 - Track 01.mp3`), so no part replaces another. A download with no ebook (or no audio) in it is marked as a bad release, blocklisted, and the next best one is tried.
 
 Downloading a better ebook later (an EPUB after a PDF) replaces the file. A worse one doesn't.
 
@@ -261,7 +276,7 @@ The dashboard has an **Ebooks** and an **Audiobooks** card with how many books y
 |---|---|---|
 | GET | `/api/books` | Every book in the library |
 | POST | `/api/books` | Add a book: `{"olKey", "title", "author", "authorKey", "year", "coverId", "ebook": bool, "audiobook": bool, "searchNow": bool}` |
-| GET | `/api/books/search?q=` | Search Open Library |
+| GET | `/api/books/search?q=` | Search Open Library. Add `&author=` to search for a title by that author: the books by that author come first |
 | GET | `/api/books/discover?list=trending&period=weekly&page=` | Open Library's trending list (`daily`, `weekly`, `monthly`, `yearly`, `forever`), 40 a page |
 | GET | `/api/books/discover?list=browse&subject=&from=&to=&sort=&page=` | Books by subject and first publication year; `sort` is `popular`, `rating`, `newest` or `oldest` |
 | GET | `/api/books/subjects` | The genres the Discover filter offers |
@@ -286,8 +301,14 @@ The dashboard has an **Ebooks** and an **Audiobooks** card with how many books y
 | GET | `/api/books/{id}/releases?format=` | The matching releases, best first |
 | POST | `/api/books/{id}/grab` | `{"format", "releaseTitle", "downloadUrl", "sizeBytes", "protocol"}` |
 | DELETE | `/api/books/{id}?deleteFiles=` | Remove a book (administrators) |
+| POST | `/api/books/{id}/cover` | Give the book a cover by uploading a picture: a multipart form with the picture in `file` (JPEG or PNG, up to 8 MB). Answers the book. Needs permission to manage |
+| POST | `/api/books/{id}/cover/link` | The same from a link: `{"url": "https://..."}`. Only the public internet is fetched; a link to this machine or the home network is refused with 400. Needs permission to manage |
+| GET | `/api/books/{id}/cover/editions` | The covers Open Library has for the book: `editions` (`coverId`, `url`) and `current`, the one shown now (0 when the book shows a picture of its own). Needs permission to manage |
+| PUT | `/api/books/{id}/cover/edition` | Show one of those covers: `{"coverId": 123}`. 400 for a cover that isn't in the list |
+| DELETE | `/api/books/{id}/cover` | Remove the chosen cover, so the automatic one shows again. Needs permission to manage |
+| GET | `/api/books/{id}/own-cover` | The picture of a cover you uploaded or linked, as a JPEG (the `coverUrl` of the book points at it, with `?v=` so a new picture is fetched) |
 | POST | `/api/books/import` | Start importing the books already on disk: `{"format": "ebook", "audiobook" or ""}` (administrators). 409 while one runs |
-| GET | `/api/books/import` | Where the import is: `phase` (running, done, failed), `done`, `total`, a `summary` by result and the `results` (administrators) |
+| GET | `/api/books/import` | Where the import is: `phase` (running, done, failed), `kinds` (what that run is about: `ebook`, `audiobook`), `done`, `total`, a `summary` by result and the `results`, which also hold the other kind's results from its own last run (administrators) |
 
 - The OPDS catalogue is at `/opds/` (Atom, OPDS 1.2) and `/opds/v2/` (JSON, OPDS 2.0), read-only, signed in with HTTP Basic: the account's user name and its e-reader password. `/opds/new`, `/opds/books`, `/opds/authors`, `/opds/series` and `/opds/search?q=` are the feeds (`?page=` pages of 50); `/opds/opensearch.xml` is the search description; `/opds/books/{id}/download`, `/cover` and `/thumbnail` are the file and the pictures.
 - Kobo sync lives under `/kobo/<token>/`: `v1/initialization`, `v1/library/sync`, `v1/library/{id}/metadata`, `v1/library/{id}/state` (GET and PUT), `v1/library/{id}` (DELETE), `download/{id}/kepub` and the cover addresses `{id}/{width}/{height}/{greyscale}/image.jpg`. Every other path is passed on to `storeapi.kobo.com`. A book's id on the Kobo is a UUID that starts `6d656469-6172-4975-8000-` followed by the book's number in hex.

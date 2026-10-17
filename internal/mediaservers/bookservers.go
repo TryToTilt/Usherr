@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 // Audiobookshelf and Kavita: the apps people read and listen to their books
@@ -283,7 +284,7 @@ func (c *Client) FindBook(ctx context.Context, s Server, title, author string) (
 func titleWords(s string) []string {
 	var out []string
 	for _, w := range strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
-		return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9')
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 	}) {
 		switch w {
 		case "the", "a", "an", "of", "and":

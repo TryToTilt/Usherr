@@ -141,7 +141,8 @@ export default function SubtitlesPanel({ kind, id }: { kind: 'movie' | 'episode'
             <Icon name="x" size={14} /> {t('Close')}
           </button>
         </div>
-        <table style={{ marginTop: 8 }}>
+        <div className="rel-scroll" style={{ marginTop: 8 }}>
+        <table className="rel-table">
           <thead>
             <tr>
               {head('release', t('Release'))}
@@ -154,16 +155,16 @@ export default function SubtitlesPanel({ kind, id }: { kind: 'movie' | 'episode'
           <tbody>
             {sorted.map((r) => (
               <tr key={r.link ?? r.fileId}>
-                <td style={{ wordBreak: 'break-all' }}>
+                <td className="rel-name">
                   {r.release || '—'}{' '}
                   {r.variant === 'sdh' && <span className="badge" title={t('Also describes sounds, for people who are deaf or hard of hearing')}>{t('SDH')}</span>}
                   {r.variant === 'forced' && <span className="badge" title={t('Only the lines spoken in another language')}>{t('forced')}</span>}{' '}
                   {r.hashMatch ? <span className="badge downloaded" title={t('Timed for this exact video file')}>{t('made for this file')}</span> : r === results[0] && <span className="badge downloaded">{t('best match')}</span>}
                 </td>
-                <td>{sourceName(r)}</td>
-                <td>{r.source ? '—' : r.rating}</td>
-                <td>{Math.round(r.score)}</td>
-                <td>
+                <td className="rel-fit">{sourceName(r)}</td>
+                <td className="rel-fit">{r.source ? '—' : r.rating}</td>
+                <td className="rel-fit">{Math.round(r.score)}</td>
+                <td className="rel-fit">
                   <button onClick={() => download(r)} disabled={status === t('Downloading…')}>
                     {t('Download')}
                   </button>
@@ -172,6 +173,7 @@ export default function SubtitlesPanel({ kind, id }: { kind: 'movie' | 'episode'
             ))}
           </tbody>
         </table>
+        </div>
         </>
       )}
     </div>

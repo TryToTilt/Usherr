@@ -232,7 +232,7 @@ export default function MusicProfilesSection() {
             </button>
             <button onClick={() => openDraft(null)}>{t('Cancel')}</button>
           </div>
-          <FormProblem v={v} verb={t('save this profile')} />
+          <FormProblem v={v} action="saveProfile" />
         </div>
       ) : (
         <div style={{ marginTop: 14 }}>

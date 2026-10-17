@@ -18,7 +18,6 @@ import (
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/quality"
 	"github.com/rdborg/mediarium/internal/settings"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 const (
@@ -234,7 +233,7 @@ func newFakeTorBoxCache(t *testing.T, cached ...string) *fakeTorBoxCache {
 
 func cacheServer(t *testing.T, fake *fakeTorBoxCache, service string, extra map[string]string) *Server {
 	t.Helper()
-	db, err := store.Open(filepath.Join(t.TempDir(), "app.db"))
+	db, err := OpenTestDB(filepath.Join(t.TempDir(), "app.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

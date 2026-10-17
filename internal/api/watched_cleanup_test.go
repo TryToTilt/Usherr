@@ -30,6 +30,8 @@ func fakeCleanupPlex(t *testing.T) *httptest.Server {
 				{"ratingKey": "1", "Guid": []map[string]any{{"id": "tmdb://603"}}, "viewCount": 1, "lastViewedAt": old}, // The Matrix
 				{"ratingKey": "2", "Guid": []map[string]any{{"id": "tmdb://949"}}, "viewCount": 1, "lastViewedAt": old}, // Heat
 				{"ratingKey": "3", "Guid": []map[string]any{{"id": "tmdb://680"}}, "viewCount": 1, "lastViewedAt": 0},   // Pulp Fiction
+				{"ratingKey": "4", "Guid": []map[string]any{{"id": "tmdb://348"}}, "viewCount": 0},                      // Alien, held but never played
+				{"ratingKey": "5", "Guid": []map[string]any{{"id": "tmdb://8195"}}, "viewCount": 0},                     // Ronin, held but never played
 			}}
 		case r.URL.Path == "/library/sections/2/all" && r.URL.Query().Get("type") == "4":
 			ep := func(n int) map[string]any {
@@ -86,6 +88,7 @@ func TestCleanupKeepsWhatIsStillWanted(t *testing.T) {
 	_, pulpFile := movie(680, "Pulp Fiction", longAgo, longAgo)                                      // watched, date unknown: stays
 	alien, alienFile := movie(348, "Alien", longAgo, longAgo)                                        // never watched for 90 days: goes
 	_, roninFile := movie(8195, "Ronin", time.Now().AddDate(0, 0, -1), time.Now().AddDate(0, -6, 0)) // wanted for months, downloaded yesterday: stays
+	_, ghostFile := movie(1000, "Ghost", longAgo, longAgo)                                           // no media server has it: never "unwatched", stays
 
 	// A show with a two-episode file (both watched), and a file holding a
 	// watched and an unwatched episode.
@@ -156,7 +159,7 @@ func TestCleanupKeepsWhatIsStillWanted(t *testing.T) {
 			t.Errorf("%s should be gone: %v", f, err)
 		}
 	}
-	for _, f := range []string{heatFile, pulpFile, roninFile, half, poster} {
+	for _, f := range []string{heatFile, pulpFile, roninFile, ghostFile, half, poster} {
 		if _, err := os.Stat(f); err != nil {
 			t.Errorf("%s should still be there: %v", f, err)
 		}

@@ -180,16 +180,25 @@ func removeEmptyParents(root, file string) {
 // are in the anime folder, or they're set to anime numbering), for the
 // Library's Anime tab.
 func (s *Server) handleAnimeSeries(w http.ResponseWriter, r *http.Request) {
+	ids, err := s.animeSeriesList(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, ids)
+}
+
+// animeSeriesList is the ids of the shows that are anime.
+func (s *Server) animeSeriesList(ctx context.Context) ([]int64, error) {
 	// Usherr: the anime folder set in Settings (or ANIME_DIR); /data/anime before there was one.
 	root := s.animeRoot()
 	if root == "" {
 		root = "/data/anime"
 	}
-	rows, err := s.db.QueryContext(r.Context(), `SELECT id FROM series WHERE series_type = 'anime' OR root_path = ?
+	rows, err := s.db.QueryContext(ctx, `SELECT id FROM series WHERE series_type = 'anime' OR root_path = ?
 		UNION SELECT DISTINCT series_id FROM episodes WHERE file_path LIKE ? || '/%'`, root, root)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, err
 	}
 	defer rows.Close()
 	ids := []int64{}
@@ -199,7 +208,17 @@ func (s *Server) handleAnimeSeries(w http.ResponseWriter, r *http.Request) {
 			ids = append(ids, id)
 		}
 	}
-	writeJSON(w, http.StatusOK, ids)
+	return ids, rows.Err()
+}
+
+// animeSeriesIDs is animeSeriesList as a set; empty when it can't be read.
+func (s *Server) animeSeriesIDs(ctx context.Context) map[int64]bool {
+	ids, _ := s.animeSeriesList(ctx)
+	set := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		set[id] = true
+	}
+	return set
 }
 
 // mergeStreamedIntoLibraries puts the streamed folders into Jellyfin's own

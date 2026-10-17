@@ -17,7 +17,6 @@ import (
 	"github.com/rdborg/mediarium/internal/config"
 	"github.com/rdborg/mediarium/internal/crypto"
 	"github.com/rdborg/mediarium/internal/library"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 // A torrent release goes to Real-Debrid, which "downloads" it; the finished
@@ -81,7 +80,7 @@ func TestDebridGrabDownloadImport(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	db, err := store.Open(filepath.Join(cfg.ConfigDir, "app.db"))
+	db, err := api.OpenTestDB(filepath.Join(cfg.ConfigDir, "app.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

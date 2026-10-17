@@ -411,7 +411,7 @@ func (s *Server) runBulkSearch(movies []library.Movie, shows []library.Series) {
 		log.Printf("bulk search: load quality profiles: %v", err)
 		return
 	}
-	blocked := s.blockedKeys()
+	blocked := s.searchSkipKeys()
 	started := 0
 	for _, m := range movies {
 		if ctx.Err() != nil {

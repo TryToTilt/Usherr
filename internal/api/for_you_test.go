@@ -15,7 +15,6 @@ import (
 	"github.com/rdborg/mediarium/internal/config"
 	"github.com/rdborg/mediarium/internal/crypto"
 	"github.com/rdborg/mediarium/internal/library"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 // newForYouTMDBServer serves per-movie "similar" lists designed to exercise
@@ -81,7 +80,7 @@ func TestForYouRanksByAgreementAndExcludesLibrary(t *testing.T) {
 			t.Fatalf("mkdir %s: %v", d, err)
 		}
 	}
-	db, err := store.Open(filepath.Join(cfg.ConfigDir, "app.db"))
+	db, err := api.OpenTestDB(filepath.Join(cfg.ConfigDir, "app.db"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
@@ -160,7 +159,7 @@ func TestForYouEmptyLibraryReturnsEmpty(t *testing.T) {
 			t.Fatalf("mkdir %s: %v", d, err)
 		}
 	}
-	db, err := store.Open(filepath.Join(cfg.ConfigDir, "app.db"))
+	db, err := api.OpenTestDB(filepath.Join(cfg.ConfigDir, "app.db"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}

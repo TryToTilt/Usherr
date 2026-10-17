@@ -14,7 +14,6 @@ import (
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/notify"
 	"github.com/rdborg/mediarium/internal/settings"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 func TestNotifyItemBuilders(t *testing.T) {
@@ -59,7 +58,7 @@ func TestNotifyItemBuilders(t *testing.T) {
 // subject, the details, and a link only once an address is set.
 func TestNotifyItemReachesTargetsComposed(t *testing.T) {
 	dir := t.TempDir()
-	db, err := store.Open(filepath.Join(dir, "app.db"))
+	db, err := OpenTestDB(filepath.Join(dir, "app.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

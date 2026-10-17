@@ -113,3 +113,11 @@ export function useIsHad(kind: 'movie' | 'tv', owned: Owned): (tmdbId: number) =
     [w, mine, s],
   )
 }
+
+// Usherr: whether a title is streamed (StreamNZB, the streamed folders), for
+// the "Streams" badge on titles that aren't in Mediarium's own library.
+export function useStreamed(kind: 'movie' | 'tv'): (tmdbId: number) => boolean {
+  const sets = useHaveSets()
+  const s = sets ? (kind === 'movie' ? sets.movies : sets.shows).streamed : null
+  return useCallback((id: number) => !!s?.has(id), [s])
+}

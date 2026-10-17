@@ -166,7 +166,8 @@ func (s *Server) handleTVXMLTV(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	progs := map[int64][]tv.Program{}
 	for _, c := range chans {
-		progs[c.ID], _ = repo.Programs(c.ID, now.Add(-2*time.Hour), now.Add(tv.Horizon))
+		list, _ := repo.Programs(c.ID, now.Add(-2*time.Hour), now.Add(tv.Horizon))
+		progs[c.ID] = shows(list) // Usherr: filler and cards aren't in the guide
 	}
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
 	_, _ = io.WriteString(w, xml.Header)
@@ -347,7 +348,7 @@ func (s *Server) handleTVStream(w http.ResponseWriter, r *http.Request) {
 			}
 			continue
 		}
-		offset, remaining := now.Sub(p.Start), p.End.Sub(now)
+		offset, remaining := now.Sub(p.Start)+p.Offset, p.End.Sub(now) // Usherr: Offset, a part of a show split by breaks
 		if remaining < time.Second {
 			if !sleepCtx(ctx, remaining+100*time.Millisecond) {
 				return
@@ -364,6 +365,13 @@ func (s *Server) handleTVStream(w http.ResponseWriter, r *http.Request) {
 				slog.Info("tv: off air", "channel", ch.Name, "program", p.Title, "err", err)
 				args = tvSlateArgs(remaining, now.Sub(started))
 			}
+		}
+		if p.Kind == "card" { // Usherr: an "Up next" card, drawn
+			var next *tv.Program
+			if n, ok := s.upNext(ch.ID, p.End); ok {
+				next = &n
+			}
+			args = tvCardArgs(ch.Name, next, remaining, now.Sub(started))
 		}
 		if args == nil {
 			args = tvFFmpegArgs(src, offset, remaining, now.Sub(started), burst, tvAudioTrack(ctx, src))
@@ -436,7 +444,7 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 func (s *Server) handleTVTunerInfo(w http.ResponseWriter, r *http.Request) {
 	base := s.feedAddress(r)
 	feed := strings.TrimRight(base, "/") + "/api/tvfeed/" + s.tvFeedKey()
-	writeJSON(w, http.StatusOK, map[string]any{"m3u": feed + "/channels.m3u", "xmltv": feed + "/xmltv.xml"})
+	writeJSON(w, http.StatusOK, map[string]any{"m3u": feed + "/channels.m3u", "xmltv": feed + "/xmltv.xml", "hdhr": feed + "/hdhr"}) // hdhr: Usherr, for Plex
 }
 
 // POST /api/tv/jellyfin: add Mediarium TV to Jellyfin's Live TV (a tuner

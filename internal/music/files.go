@@ -34,13 +34,15 @@ func IsArtwork(path string) bool { return artworkNames[strings.ToLower(filepath.
 // resource forks are skipped.
 func FindAudioFiles(dir string) ([]string, error) {
 	var out []string
-	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+	// The trailing separator makes a folder that is a link get walked.
+	root := dir + string(os.PathSeparator)
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		name := d.Name()
 		if d.IsDir() {
-			if path != dir && (strings.HasPrefix(name, ".") || name == "__MACOSX") {
+			if path != root && (strings.HasPrefix(name, ".") || name == "__MACOSX") {
 				return filepath.SkipDir
 			}
 			return nil

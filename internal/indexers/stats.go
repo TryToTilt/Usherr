@@ -66,11 +66,19 @@ func (t *Tracker) RecordSearch(id int64, results []Result, err error) {
 		return
 	}
 	if err != nil {
+		// Over the daily limit is not a failure: the indexer works, it is used
+		// up for today. It is left out until its requests are back.
+		if t.LearnLimit(id, err.Error()) {
+			t.bump(id, 1, 0, 0, 0)
+			return
+		}
 		t.Failed(id, err)
+		t.noteFailed(id)
 		t.bump(id, 1, 1, 0, 0)
 		return
 	}
 	t.Succeeded(id)
+	t.noteAnswered(id)
 	t.bump(id, 1, 0, len(results), 0)
 	t.remember(id, results)
 }
@@ -130,6 +138,7 @@ func (t *Tracker) NoteGrab(url string) {
 		return
 	}
 	t.bump(n.id, 0, 0, 0, 1)
+	t.CountRequest(n.id, 1) // the release file is fetched from the indexer
 }
 
 // Stats adds up the counters of every indexer since the given day (UTC). An

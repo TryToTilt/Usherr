@@ -29,6 +29,9 @@ export function failureHelp(error: string | undefined, protocol: 'usenet' | 'tor
       tips: [t('Press Blocklist & search again to try another release.'), t('A second Usenet provider from a different company often helps with damaged posts.')],
     }
   }
+  if (has(msg, 'password that came with it is wrong')) {
+    return { why: t('The release came with a password, but it does not open the archive.'), tips: [t('Press Blocklist & search again: this release is skipped from now on.')] }
+  }
   if (has(msg, 'password')) {
     return { why: t('The release is locked with a password, which usually means it is not what it says.'), tips: [t('Press Blocklist & search again: this release is skipped from now on.')] }
   }

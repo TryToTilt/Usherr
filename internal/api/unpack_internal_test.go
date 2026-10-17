@@ -9,7 +9,9 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/rdborg/mediarium/internal/download"
 	"github.com/rdborg/mediarium/internal/organizer"
+	"github.com/rdborg/mediarium/internal/queue"
 )
 
 // A full disk or a missing 7z is our setup's fault and must never blocklist
@@ -38,6 +40,57 @@ func TestUnpackFailureBlamesTheReleaseOnlyWhenItIsAtFault(t *testing.T) {
 			}
 			if !errors.Is(got, tt.err) {
 				t.Error("the original error must stay reachable with errors.Is")
+			}
+		})
+	}
+}
+
+// A password-protected RAR opens with the password from the NZB, or from the
+// {{password}} after the release name, and a wrong one is a bad release that
+// says the password is wrong. The fixture is a real RAR5 archive made with
+// rar a -hp (file names encrypted too); its password is S3cret.
+func TestUnpackArchivesUsesTheReleasePassword(t *testing.T) {
+	fixture, err := os.ReadFile(filepath.Join("..", "organizer", "testdata", "encrypted", "rar5-hp.rar"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := newAuditServer(t)
+	tests := []struct {
+		name, nzbPassword, title string
+		wantErr                  error
+	}{
+		{"password in the NZB", "S3cret", "Some.Movie.2020.1080p", nil},
+		{"password after the release name", "", "Some.Movie.2020.1080p{{S3cret}}", nil},
+		{"wrong password", "nope", "Some.Movie.2020.1080p", organizer.ErrWrongPassword},
+		{"no password", "", "Some.Movie.2020.1080p", organizer.ErrPasswordProtected},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "release.rar"), fixture, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			id, err := s.QueueRepo.Enqueue(queue.Item{ReleaseTitle: tt.title, NZBURL: "http://indexer.invalid/" + tt.name})
+			if err != nil {
+				t.Fatal(err)
+			}
+			s.keepArchivePassword(id, &download.NZB{Password: tt.nzbPassword}, dir)
+
+			err = unpackArchives(dir)
+			if tt.wantErr == nil {
+				if err != nil {
+					t.Fatalf("unpack: %v", err)
+				}
+				if _, err := os.Stat(filepath.Join(dir, "movie.mkv")); err != nil {
+					t.Fatalf("the movie was not unpacked: %v", err)
+				}
+				return
+			}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if !isBadRelease(unpackFailure(err)) {
+				t.Error("an archive that can't be opened is the release's fault")
 			}
 		})
 	}

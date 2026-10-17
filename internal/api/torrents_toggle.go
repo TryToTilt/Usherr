@@ -2,7 +2,11 @@ package api
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/settings"
@@ -49,16 +53,42 @@ func (s *Server) setTorrentsEnabled(enabled bool) error {
 // download client), torrent indexers are skipped so they are never queried.
 func (s *Server) searchableIndexers() ([]indexers.Instance, error) {
 	all, err := s.IndexerRepo.List()
-	if err != nil || s.torrentReleasesOn() {
-		return all, err
+	if err != nil {
+		logIndexerTrouble("list", "Mediarium couldn't read the list of indexers, so automatic searches are skipped: "+err.Error())
+		return nil, err
 	}
+	torrentsOn := s.torrentReleasesOn()
 	out := make([]indexers.Instance, 0, len(all))
 	for _, inst := range all {
-		if inst.Protocol != indexers.ProtocolTorrent {
-			out = append(out, inst)
+		if inst.SecretError != "" {
+			// Only the broken one is left out; the others keep working.
+			logIndexerTrouble(fmt.Sprint(inst.ID), inst.SecretError)
+			continue
 		}
+		if inst.Protocol == indexers.ProtocolTorrent && !torrentsOn {
+			continue
+		}
+		out = append(out, inst)
 	}
 	return out, nil
+}
+
+var (
+	indexerTroubleMu   sync.Mutex
+	indexerTroubleSeen = map[string]time.Time{}
+)
+
+// logIndexerTrouble writes a line about an indexer that can't be used, at most
+// once an hour for the same one, so a search that runs every few minutes does
+// not fill the log.
+func logIndexerTrouble(key, msg string) {
+	indexerTroubleMu.Lock()
+	defer indexerTroubleMu.Unlock()
+	if at, ok := indexerTroubleSeen[key]; ok && time.Since(at) < time.Hour {
+		return
+	}
+	indexerTroubleSeen[key] = time.Now()
+	log.Print("indexers: " + msg)
 }
 
 // writeGrabError maps a grab failure onto a status: a refusal because torrents

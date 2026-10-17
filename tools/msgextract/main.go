@@ -30,7 +30,7 @@ import (
 )
 
 // dirs are the packages whose sentences reach the screen.
-var dirs = []string{"internal/api", "internal/problems", "internal/health", "internal/plainerror", "internal/inputcheck"}
+var dirs = []string{"internal/api", "internal/indexers", "internal/problems", "internal/health", "internal/plainerror", "internal/inputcheck", "internal/vpn", "internal/library", "internal/store"}
 
 // out is the file the list is written to.
 const out = "web/src/serverText.json"
@@ -42,10 +42,21 @@ var messageCalls = map[string]int{
 	"writeError": 2, "LogActivity": 2, "LogSeriesActivity": 2, "LogItemActivity": 3,
 }
 
+// healthCalls are the functions that add a line to the Health list on the
+// dashboard: the title, the note and the button label are all shown.
+var healthCalls = map[string][]int{"addHealth": {2, 3, 4}}
+
+// shownFields are the types written out as positional literals in a list
+// whose fields are shown, with the positions of those fields: the problem
+// catalog's heading, explanation, what to try and the button label.
+var shownFields = map[string][]int{"Help": {3, 4, 5, 6}}
+
 var (
 	verb     = regexp.MustCompile(`%[-+# 0]*(\d+|\*)?(\.(\d+|\*))?[a-zA-Z]`)
 	indexed  = regexp.MustCompile(`%\[\d+\]`)
 	sqlWords = regexp.MustCompile(`(?i)\b(SELECT|INSERT INTO|UPDATE \w+ SET|DELETE FROM|CREATE TABLE|ALTER TABLE|PRAGMA)\b`)
+	// A piece of a query added to another one (" AND s.id = ?").
+	sqlClause = regexp.MustCompile(`^(AND|OR|WHERE|FROM|JOIN|LEFT JOIN|ORDER BY|GROUP BY|LIMIT|SET) `)
 )
 
 func main() {
@@ -116,6 +127,32 @@ func scan(path string, found map[string]bool) {
 				}
 			}
 		}
+		// A list of a type in shownFields: []Help{{code, level, area, "Title", ...}}.
+		if lit, ok := n.(*ast.CompositeLit); ok {
+			if arr, ok := lit.Type.(*ast.ArrayType); ok {
+				if id, ok := arr.Elt.(*ast.Ident); ok {
+					for _, pos := range shownFields[id.Name] {
+						for _, el := range lit.Elts {
+							if row, ok := el.(*ast.CompositeLit); ok && pos < len(row.Elts) {
+								markLiterals(row.Elts[pos], shown)
+							}
+						}
+					}
+				}
+			}
+		}
+		// A Health line written out as a literal: its title, note and label.
+		if lit, ok := n.(*ast.CompositeLit); ok {
+			if id, ok := lit.Type.(*ast.Ident); ok && (id.Name == "healthItem" || id.Name == "healthAction") {
+				for _, el := range lit.Elts {
+					if kv, ok := el.(*ast.KeyValueExpr); ok {
+						if key, ok := kv.Key.(*ast.Ident); ok && (key.Name == "Title" || key.Name == "Impact" || key.Name == "Label") {
+							markLiterals(kv.Value, shown)
+						}
+					}
+				}
+			}
+		}
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
@@ -133,6 +170,11 @@ func scan(path string, found map[string]bool) {
 		case *ast.Ident:
 			if pos, ok := messageCalls[fn.Name]; ok && len(call.Args) > pos {
 				markLiterals(call.Args[pos], shown)
+			}
+			for _, pos := range healthCalls[fn.Name] {
+				if len(call.Args) > pos {
+					markLiterals(call.Args[pos], shown)
+				}
 			}
 		}
 		return true
@@ -168,14 +210,22 @@ func markLiterals(e ast.Expr, set map[*ast.BasicLit]bool) {
 // format verbs, or says it is not one the screen shows.
 func template(s string, shown bool) (string, bool) {
 	s = strings.TrimSpace(s)
-	if len(s) < 8 || !strings.Contains(s, " ") || indexed.MatchString(s) || sqlWords.MatchString(s) {
+	if len(s) < 8 || !strings.Contains(s, " ") || indexed.MatchString(s) || sqlWords.MatchString(s) || sqlClause.MatchString(s) {
 		return "", false
 	}
-	if strings.ContainsAny(s, "`<>") || strings.Contains(s, "://") || strings.Contains(s, "\n") {
+	if strings.ContainsAny(s, "`<") || strings.Contains(s, "://") || strings.Contains(s, "\n") {
 		return "", false
 	}
 	first := []rune(s)[0]
-	if !unicode.IsUpper(first) || len(s) > 400 {
+	// A line that is always shown may start with a number or a name that is
+	// filled in ("%d downloads failed ...", "%s is paused").
+	startsOK := unicode.IsUpper(first) || (shown && (first == '%' || unicode.IsDigit(first)))
+	// Starting with a filled-in part, the sentence must still have enough words
+	// of its own that it cannot match some other text by accident.
+	if first == '%' && len(strings.TrimSpace(verb.ReplaceAllString(s, ""))) < 14 {
+		return "", false
+	}
+	if !startsOK || len(s) > 400 {
 		return "", false
 	}
 	if !shown {

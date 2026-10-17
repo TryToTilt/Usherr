@@ -209,7 +209,7 @@ func (s *Server) verifyStep(queueID int64, dir string, missing int) error {
 // unpackStep is the unpack step of post-processing, recorded in the item's
 // activity.
 func (s *Server) unpackStep(queueID int64, dir string) error {
-	archives, _ := organizer.FindPrimaryArchives(dir)
+	archives, _ := organizer.FindPrimaryArchivesDeep(dir)
 	if len(archives) == 0 {
 		return unpackArchives(dir)
 	}

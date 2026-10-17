@@ -2,7 +2,9 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -134,6 +136,18 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// auditAccount writes a line about a change to an account or an API key to the
+// log and to the Activity feed, where only administrators see it. text says
+// what happened and to whom; never put a password or key in it.
+func (s *Server) auditAccount(r *http.Request, text string) {
+	actor, ip := "someone", s.clientIP(r)
+	if u := auth.UserFromContext(r.Context()); u != nil {
+		actor = u.Username
+	}
+	slog.Warn("auth: account change", "what", text, "by", actor, "ip", ip)
+	_ = s.QueueRepo.LogActivity(0, "account", fmt.Sprintf("%s (by %s, from %s)", text, actor, ip))
+}
+
 type createUserRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -181,7 +195,19 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 			created = again
 		}
 	}
+	s.auditAccount(r, fmt.Sprintf("Account %q was created as %s", created.Username, roleWords(role)))
 	writeJSON(w, http.StatusCreated, toAccountPayload(created))
+}
+
+// roleWords names a role in a sentence.
+func roleWords(role string) string {
+	switch role {
+	case auth.RoleAdmin:
+		return "an administrator"
+	case auth.RoleViewer:
+		return "a viewer"
+	}
+	return "a member"
 }
 
 type updateUserRequest struct {
@@ -259,10 +285,26 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		}
 		upd.Password = req.Password
 	}
+	before, _ := s.Auth.GetAccount(id)
 	updated, err := s.Auth.UpdateAccount(id, upd)
 	if err != nil {
 		writeAccountError(w, err)
 		return
+	}
+	if before != nil {
+		if upd.IsAdmin != nil && before.Role() != updated.Role() {
+			s.auditAccount(r, fmt.Sprintf("Account %q went from %s to %s", updated.Username, roleWords(before.Role()), roleWords(updated.Role())))
+		}
+		if upd.Disabled != nil && before.Disabled != updated.Disabled {
+			if updated.Disabled {
+				s.auditAccount(r, fmt.Sprintf("Account %q was turned off", updated.Username))
+			} else {
+				s.auditAccount(r, fmt.Sprintf("Account %q was turned on again", updated.Username))
+			}
+		}
+	}
+	if upd.Password != nil {
+		s.auditAccount(r, fmt.Sprintf("The password of account %q was set by an administrator", updated.Username))
 	}
 	if req.Permissions != nil {
 		if err := s.Auth.SetPermissions(id, *req.Permissions); err != nil {
@@ -290,9 +332,14 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "You can't delete your own account.")
 		return
 	}
+	name := fmt.Sprintf("number %d", id)
+	if target, err := s.Auth.GetAccount(id); err == nil {
+		name = fmt.Sprintf("%q", target.Username)
+	}
 	if err := s.Auth.DeleteAccount(id); err != nil {
 		writeAccountError(w, err)
 		return
 	}
+	s.auditAccount(r, fmt.Sprintf("Account %s was deleted", name))
 	writeJSON(w, http.StatusOK, nil)
 }

@@ -598,6 +598,8 @@ td {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   animation: toast-in 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.2);
   max-width: 380px;
+  /* Pointing at a toast keeps it on screen. */
+  pointer-events: auto;
 }
 
 .toast-icon {
@@ -617,6 +619,11 @@ td {
 .toast-success .toast-icon { background: var(--success); }
 .toast-error { border-color: var(--danger); }
 .toast-error .toast-icon { background: var(--danger); }
+/* The "slow to answer" notice: a warning that stays while the problem lasts. */
+.toast-warn { border-color: var(--warning); max-width: 440px; }
+.toast-warn .toast-icon { background: var(--warning); }
+.toast-warn .toast-text { min-width: 0; }
+.toast-action { pointer-events: auto; flex: 0 0 auto; }
 
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(12px) scale(0.96); }
@@ -728,13 +735,18 @@ td {
     width: min(280px, 82vw);
     z-index: 900;
     transform: translateX(-100%);
-    transition: transform 0.22s ease;
+    /* Hidden once it has slid out, so its links leave the Tab order and the
+       screen reader's view while the drawer is closed. */
+    visibility: hidden;
+    transition: transform 0.22s ease, visibility 0s linear 0.22s;
     overflow-y: auto;
     box-shadow: none;
   }
 
   .sidebar.open {
     transform: none;
+    visibility: visible;
+    transition-delay: 0s;
     box-shadow: 8px 0 30px rgba(0, 0, 0, 0.45);
   }
 
@@ -1536,8 +1548,6 @@ a.icon-btn { text-decoration: none; }
 .folder-list { display: grid; gap: 12px; }
 .folder-card { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); display: grid; gap: 8px; }
 .folder-card.broken { border-color: var(--danger); }
-.folder-card.is-off { opacity: 0.5; filter: grayscale(0.7); }
-.folder-card.is-off .folder-head .badge { margin-left: auto; }
 .folders-tile { margin-bottom: 22px; }
 .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 12px; align-items: start; }
 .folder-head { display: flex; align-items: center; gap: 12px; }

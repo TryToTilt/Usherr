@@ -105,6 +105,150 @@ func TestFitLanguageSeveralLanguages(t *testing.T) {
 	}
 }
 
+// With "Only take releases in these languages" on, a release has to say it is in
+// a wanted language. With it off, nothing changes from FitLanguage.
+func TestFitLanguageOnly(t *testing.T) {
+	const (
+		untagged   = "Movie.2020.1080p.BluRay.x264-GRP"
+		english    = "Movie.2020.ENG.1080p.BluRay.x264-GRP"
+		german     = "Movie.2020.GERMAN.1080p.BluRay.x264-GRP"
+		germanEng  = "Movie.2020.GERMAN.ENG.1080p.BluRay.x264-GRP"
+		italian    = "Movie.2020.ITA.1080p.BluRay.x264-GRP"
+		bareMulti  = "Movie.2020.MULTi.1080p.BluRay.x264-GRP"
+		bareDual   = "Movie.2020.DUAL.1080p.BluRay.x264-GRP"
+		multiDeEn  = "Movie.2020.MULTi.GERMAN.ENG.1080p.BluRay.x264-GRP"
+		multiItEn  = "Movie.2020.MULTi.ITA.ENG.1080p.BluRay.x264-GRP"
+		germanDL   = "Movie.2020.German.DL.1080p.BluRay.x264-GRP"
+		subtitled  = "Movie.2020.VOSTFR.1080p.BluRay.x264-GRP"
+		titleWords = "The.Italian.Job.2003.1080p.BluRay.x264-GRP"
+	)
+	tests := []struct {
+		name      string
+		title     string
+		preferred string
+		only      bool
+		accepted  bool
+		rank      int
+	}{
+		// German only: nothing but a release that says it is German is taken.
+		{"German only, off: untagged is a fallback", untagged, "German", false, true, 2},
+		{"German only, on: untagged is turned down", untagged, "German", true, false, 0},
+		{"German only, off: English tag is a fallback", english, "German", false, true, 2},
+		{"German only, on: English tag is turned down", english, "German", true, false, 0},
+		{"German only, off: bare multi is a fallback", bareMulti, "German", false, true, 1},
+		{"German only, on: bare multi is turned down", bareMulti, "German", true, false, 0},
+		{"German only, on: bare dual is turned down", bareDual, "German", true, false, 0},
+		{"German only, off: multi without German is a fallback", multiItEn, "German", false, true, 1},
+		{"German only, on: multi without German is turned down", multiItEn, "German", true, false, 0},
+		{"German only, on: multi naming German is taken", multiDeEn, "German", true, true, 2},
+		{"German only, on: German.DL is taken", germanDL, "German", true, true, 2},
+		{"German only, on: German is taken", german, "German", true, true, 3},
+		{"German only, off: German is taken", german, "German", false, true, 3},
+		{"German only, on: German and English is taken", germanEng, "German", true, true, 2},
+		{"German only, on: Italian is still turned down", italian, "German", true, false, 0},
+		{"German only, on: a subtitle tag is not a language", subtitled, "German", true, false, 0},
+		{"German only, on: a word in the title is not a language", titleWords, "German", true, false, 0},
+
+		// English wanted: untagged and English are what it asks for.
+		{"English, on: untagged is taken first", untagged, "English", true, true, 3},
+		{"English, on: English tag is taken first", english, "English", true, true, 3},
+		{"English, on: Italian is turned down", italian, "English", true, false, 0},
+		{"English, off: bare multi is a fallback", bareMulti, "English", false, true, 1},
+		{"English, on: bare multi is turned down", bareMulti, "English", true, false, 0},
+		{"English, on: multi naming English is taken", multiItEn, "English", true, true, 2},
+
+		// Several languages: a release has to suit one of them.
+		{"German then English, on: untagged is taken as English", untagged, "German,English", true, true, 3 + 4},
+		{"German then English, on: German ranks above English", german, "German,English", true, true, 3 + 8},
+		{"German then English, on: English tag is taken", english, "German,English", true, true, 3 + 4},
+		{"German then English, on: Italian is turned down", italian, "German,English", true, false, 0},
+		{"German then English, on: bare multi is turned down", bareMulti, "German,English", true, false, 0},
+		{"German then Italian, on: untagged is turned down", untagged, "German,Italian", true, false, 0},
+		{"German then Italian, on: English tag is turned down", english, "German,Italian", true, false, 0},
+		{"German then Italian, off: untagged is a fallback", untagged, "German,Italian", false, true, 2 + 8},
+		{"German then Italian, on: multi naming Italian is taken", multiItEn, "German,Italian", true, true, 2 + 4},
+
+		// No language wanted: the switch has nothing to hold against a release.
+		{"no language, on: everything is taken", german, "", true, true, 3},
+		{"no language, on: untagged is taken", untagged, "", true, true, 3},
+		{"only the original, still unknown, on: everything is taken", bareMulti, "Original", true, true, 3},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := quality.FitLanguageOnly(parser.Parse(tc.title), tc.preferred, tc.only)
+			if got.Accepted != tc.accepted || got.Rank != tc.rank {
+				t.Fatalf("fit = %+v, want accepted=%v rank=%d", got, tc.accepted, tc.rank)
+			}
+			// With the switch off it is exactly FitLanguage.
+			if plain := quality.FitLanguage(parser.Parse(tc.title), tc.preferred); !tc.only && plain != got {
+				t.Errorf("FitLanguage = %+v, but FitLanguageOnly(off) = %+v", plain, got)
+			}
+		})
+	}
+}
+
+// The profile carries the switch the way it carries the language: the
+// decisions automation makes (accept, rank, upgrade) and the reason shown in the
+// release list all follow it.
+func TestProfileLanguageOnly(t *testing.T) {
+	p := quality.Presets()[quality.Preset1080p]
+	p.Language = "German"
+	untagged := parser.Parse("Weapons.2025.Bluray.1080p.x264-CYBER")
+	english := parser.Parse("Weapons.2025.ENG.Bluray.1080p.x264-CYBER")
+	bareMulti := parser.Parse("Weapons.2025.MULTi.Bluray.1080p.x264-CYBER")
+	multi := parser.Parse("Weapons.2025.MULTi.ITA.ENG.Bluray.1080p.x264-CYBER")
+	german := parser.Parse("Weapons.2025.GERMAN.Bluray.1080p.x264-CYBER")
+	italian := parser.Parse("Weapons.2025.ITA.Bluray.1080p.x264-CYBER")
+
+	for _, rel := range []parser.Release{untagged, english, bareMulti, multi, german} {
+		if !p.Accepts(rel) || p.LanguageReason(rel) != "" {
+			t.Fatalf("with the switch off %+v should be accepted (%q)", rel.Languages, p.LanguageReason(rel))
+		}
+	}
+
+	p.LanguageOnly = true
+	reasons := []struct {
+		name string
+		rel  parser.Release
+		want string
+	}{
+		{"untagged", untagged, "Untagged release, taken to be English, not German"},
+		{"English only", english, "English audio, not German"},
+		{"bare multi", bareMulti, "Multi-language release that doesn't name German"},
+		{"multi without German", multi, "Multi-language release with Italian and English audio, not German"},
+		{"another language", italian, "Italian audio, not German"},
+		{"German", german, ""},
+	}
+	for _, tc := range reasons {
+		if got := p.LanguageReason(tc.rel); got != tc.want {
+			t.Errorf("%s: reason = %q, want %q", tc.name, got, tc.want)
+		}
+		if p.LanguageOK(tc.rel) != (tc.want == "") || p.Accepts(tc.rel) != (tc.want == "") {
+			t.Errorf("%s: accepted = %v, want %v", tc.name, p.Accepts(tc.rel), tc.want == "")
+		}
+		if (tc.want == "") != (p.LanguageRank(tc.rel) > 0) {
+			t.Errorf("%s: rank = %d", tc.name, p.LanguageRank(tc.rel))
+		}
+	}
+	if p.IsUpgradeOverTier(quality.TierWebDL720p, untagged) {
+		t.Error("an untagged release should not be an upgrade when only German is wanted")
+	}
+	if !p.IsUpgradeOverTier(quality.TierWebDL720p, german) {
+		t.Error("a German release should still be an upgrade")
+	}
+
+	// A list that names English keeps untagged releases.
+	p.Language = "German,English"
+	if !p.Accepts(untagged) || !p.Accepts(english) || p.Accepts(bareMulti) {
+		t.Error("with English on the list, untagged and English are taken and a bare multi is not")
+	}
+	// A reason never mentions "Original", which stands for a language not yet known.
+	p.Language = "Original,German"
+	if got, want := p.LanguageReason(italian), "Italian audio, not German"; got != want {
+		t.Errorf("reason = %q, want %q", got, want)
+	}
+}
+
 func TestResolveOriginal(t *testing.T) {
 	for _, tc := range []struct{ list, orig, want string }{
 		{"Original,English", "Japanese", "Japanese,English"},
@@ -119,5 +263,10 @@ func TestResolveOriginal(t *testing.T) {
 	}
 	if quality.LanguageName("ja") != "Japanese" || quality.LanguageName("xx") != "" {
 		t.Error("LanguageName")
+	}
+	for iso, want := range map[string]string{"hr": "Croatian", "sr": "Serbian", "bs": "Bosnian", "sl": "Slovenian", "bg": "Bulgarian"} {
+		if got := quality.LanguageName(iso); got != want {
+			t.Errorf("LanguageName(%q) = %q, want %q", iso, got, want)
+		}
 	}
 }

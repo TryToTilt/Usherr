@@ -280,17 +280,17 @@ func (s *Server) playFile(r *http.Request, kind string, id int64) (string, strin
 			return "", "", errors.New("That episode isn't in your library.")
 		}
 		return ep.FilePath, fmt.Sprintf("/api/play/episode/%d", id), nil
-	case "scene":
-		if !s.userAllows(r, auth.PermNSFW) || !s.scenesEnabled() { // home fork: or the NSFW 18+ switch
-			return "", "", errors.New("That scene isn't available.")
+	case "video":
+		if !s.userAllows(r, auth.PermNSFW) || !s.nsfwEnabled() { // home fork: or the NSFW 18+ switch
+			return "", "", errors.New("That video isn't available.")
 		}
-		sc, err := s.sceneRepo().GetScene(id)
+		sc, err := s.videoRepo().GetVideo(id)
 		if err != nil {
-			return "", "", errors.New("That scene isn't in your library.")
+			return "", "", errors.New("That video isn't in your library.")
 		}
-		return sc.FilePath, fmt.Sprintf("/api/scenes/%d/stream", id), nil
+		return sc.FilePath, fmt.Sprintf("/api/nsfw/%d/stream", id), nil
 	}
-	return "", "", errors.New("Say what to play: a movie, an episode or a scene.")
+	return "", "", errors.New("Say what to play: a movie, an episode or a video.")
 }
 
 // POST /api/play/prepare {"kind":"movie","id":1,"caps":{...}} answers how to

@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rdborg/mediarium/internal/api"
 	"github.com/rdborg/mediarium/internal/library"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 // fakeTracker is a small private torrent site with a login form, the kind
@@ -175,7 +175,7 @@ func TestDefinitionIndexerEndToEnd(t *testing.T) {
 		t.Fatalf("storedSecrets = %v", created["storedSecrets"])
 	}
 	// the password is encrypted at rest
-	db, err := store.Open(filepath.Join(filepath.Dir(server.Definitions.Dir), "app.db"))
+	db, err := api.OpenTestDB(filepath.Join(filepath.Dir(server.Definitions.Dir), "app.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

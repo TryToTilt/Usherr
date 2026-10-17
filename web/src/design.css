@@ -536,7 +536,9 @@ button.danger-ghost:hover { background: color-mix(in srgb, var(--danger) 12%, tr
 .state-tag.st-details { --stc: var(--c-activity); }
 .state-tag.st-nodetails { --stc: var(--warning); }
 .title-controls { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; padding-top: 6px; border-top: 1px dashed var(--border); margin-top: 6px; }
-.filepath { font-size: 0.78rem; color: var(--text-dim); word-break: break-all; }
+.folder-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 10px; font-size: 0.9rem; }
+.folder-line code { min-width: 0; font-size: 0.82rem; overflow-wrap: anywhere; user-select: all; }
+.filepath {font-size: 0.78rem; color: var(--text-dim); word-break: break-all; }
 
 /* ---- Search dropdown groups ------------------------------------------- */
 .searchbox-group { padding: 8px 14px 4px; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); font-weight: 600; }
@@ -951,6 +953,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--sec, var(--accen
 .auth-card input { width: 100%; }
 .auth-card button.primary { width: 100%; margin-top: 4px; }
 .auth-card .error-text { margin: 0; }
+.auth-card .auth-done { margin: 0; color: var(--success); }
 .auth-alt { display: grid; gap: 10px; }
 .auth-or { display: flex; align-items: center; gap: 10px; color: var(--text-dim); font-size: 0.85rem; }
 .auth-or::before, .auth-or::after { content: ''; flex: 1; border-top: 1px solid var(--border); }
@@ -2324,6 +2327,7 @@ label.check-hint small { display: block; margin-top: 2px; color: var(--text-dim)
   .bulkbar.open .bulkbar-actions { display: flex; }
 }
 .lang-hint { color: var(--text-dim); font-size: 0.85rem; white-space: nowrap; }
+.lang-hint.lang-hint-wrap { white-space: normal; overflow-wrap: anywhere; }
 
 /* "More like your library": the switch for older titles sits in the heading */
 .rail-head .rail-older { margin-left: auto; }
@@ -2533,7 +2537,7 @@ p a:not(.btn-link):not(.tile-link), li a:not(.mini-link), small a, .field-help a
   .sidebar .subnav > a, .sidebar .subnav .sn-head, .sidebar .subnav .sn-pages a.sn-page { margin-right: 14px; }
   .sidebar .subnav .sn-pages { margin-right: 0; padding-right: 0; }
 
-  .sidebar > a.active:not(.parent-open),
+  .sidebar :where(.side-scroll) > a.active:not(.parent-open),
   .sidebar .subnav > a.active,
   .sidebar .subnav .sn-pages a.sn-page.active {
     background: var(--bg);
@@ -2543,8 +2547,8 @@ p a:not(.btn-link):not(.tile-link), li a:not(.mini-link), small a, .field-help a
     color: var(--text);
     font-weight: 600;
   }
-  .sidebar > a.active:not(.parent-open)::before,
-  .sidebar > a.active:not(.parent-open)::after,
+  .sidebar :where(.side-scroll) > a.active:not(.parent-open)::before,
+  .sidebar :where(.side-scroll) > a.active:not(.parent-open)::after,
   .sidebar .subnav > a.active::before,
   .sidebar .subnav > a.active::after,
   .sidebar .subnav .sn-pages a.sn-page.active::before,
@@ -2557,10 +2561,10 @@ p a:not(.btn-link):not(.tile-link), li a:not(.mini-link), small a, .field-help a
     height: 13px;
     pointer-events: none;
   }
-  .sidebar > a.active:not(.parent-open)::before,
+  .sidebar :where(.side-scroll) > a.active:not(.parent-open)::before,
   .sidebar .subnav > a.active::before,
   .sidebar .subnav .sn-pages a.sn-page.active::before { top: -12px; background: radial-gradient(circle at 0 0, transparent 11.5px, var(--bg) 12px); }
-  .sidebar > a.active:not(.parent-open)::after,
+  .sidebar :where(.side-scroll) > a.active:not(.parent-open)::after,
   .sidebar .subnav > a.active::after,
   .sidebar .subnav .sn-pages a.sn-page.active::after { bottom: -12px; background: radial-gradient(circle at 0 100%, transparent 11.5px, var(--bg) 12px); }
 
@@ -2606,7 +2610,7 @@ tr.is-default > td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .side-support-x { background: none; border: 0; color: var(--text-dim); cursor: pointer; padding: 2px 8px; border-radius: 8px; font-size: 1rem; line-height: 1; opacity: 0; transition: opacity .15s; }
 .side-support:hover .side-support-x, .side-support-x:focus-visible { opacity: 1; }
 
-.sidebar > .side-support { margin-top: auto; }
+.sidebar :where(.side-scroll) > .side-support { margin-top: auto; }
 
 /* Page not found */
 .not-found { max-width: 560px; margin: 12vh auto 0; text-align: center; color: var(--text-dim); }
@@ -2614,7 +2618,8 @@ tr.is-default > td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .not-found code { word-break: break-all; }
 .not-found-links { display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: center; align-items: center; margin-top: 22px; }
 /* Import banners: one button to clear the finished ones */
-.import-banners-all { display: flex; justify-content: flex-end; }
+.import-banners-all { display: flex; justify-content: flex-end; align-items: center; gap: 12px; }
+.import-banners-all small { color: var(--text-dim); }
 
 /* Backup card */
 .backup-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
@@ -2739,6 +2744,7 @@ a.bar-label:hover { color: var(--accent); }
 @media (max-width: 700px) {
   .hero-server .info-summary { grid-template-columns: minmax(0, 1fr); }
   .hero-server .info-rows { grid-template-columns: minmax(0, 1fr); }
+  .hero-server .info-row .info-value { white-space: normal; overflow: visible; text-overflow: clip; }
 }
 
 /* Dashboard: the status bubbles sit above the server panel, on the right */
@@ -2760,6 +2766,7 @@ a.bar-label:hover { color: var(--accent); }
 .book-add { margin-bottom: 18px; display: grid; gap: 12px; }
 .book-add-head { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
 .book-add-head input[type='search'] { flex: 1 1 320px; min-width: 0; }
+.book-add-head input[type='search'].author { flex: 1 1 200px; }
 .check-inline { display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-dim); }
 .book-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
 .book-result { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
@@ -2773,6 +2780,14 @@ a.bar-label:hover { color: var(--accent); }
 .book-format.kind-ebook { --fc: var(--c-book); }
 .book-format.kind-audiobook { --fc: var(--c-audiobook); }
 .book-format .switch input:checked + .switch-track { background: var(--fc); border-color: var(--fc); }
+/* Change cover: the picture chosen, and the covers of other editions to pick from. */
+.change-cover-preview { width: 120px; aspect-ratio: 2 / 3; border-radius: 8px; overflow: hidden; background: var(--surface); border: 1px solid var(--border); }
+.change-cover-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.change-cover-editions { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; }
+.change-cover-pick { padding: 0; aspect-ratio: 2 / 3; border-radius: 8px; overflow: hidden; background: var(--surface); border: 2px solid var(--border); cursor: pointer; }
+.change-cover-pick img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.change-cover-pick:hover:not(:disabled) { border-color: var(--text-dim); }
+.change-cover-pick.current { border-color: var(--c-book); }
 .book-format-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .book-format-head h2 { margin: 0; display: inline-flex; align-items: center; gap: 8px; font-size: 1.1rem; }
 .book-file { margin: 0; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
@@ -3105,3 +3120,21 @@ img[data-broken] { visibility: hidden; }
 .addon-row select { flex: 0 0 auto; }
 .app-frame { display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 420px; }
 .app-frame-view { flex: 1; width: 100%; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+
+/* Release list: the short cells stay on one line, the release name takes what is left and wraps, and the table scrolls inside its own box when the window really is too narrow. */
+.rel-scroll { max-width: 100%; overflow-x: auto; }
+.rel-scroll table.rel-table { display: table; width: 100%; overflow: visible; }
+.rel-table th { white-space: nowrap; }
+.rel-table td.rel-fit { white-space: nowrap; }
+.rel-table th, .rel-table td { padding-left: 8px; padding-right: 8px; }
+.rel-table td.rel-name { min-width: 11rem; overflow-wrap: anywhere; }
+.rel-table td.rel-name .badge { white-space: normal; overflow-wrap: normal; }
+
+/* Library list: status, quality, profile and the buttons stay whole; only the title wraps. */
+.lib-list th, .lib-list td { white-space: nowrap; }
+.lib-list td .lib-title { min-width: 13rem; white-space: normal; overflow-wrap: anywhere; }
+.lib-list td .row-actions { flex-wrap: nowrap; }
+
+/* Episode list: dates, status, quality and size stay whole; only the title wraps. */
+.ep-table th, .ep-table td:not(:nth-child(3)) { white-space: nowrap; }
+.ep-table td:nth-child(3) { overflow-wrap: anywhere; }

@@ -152,6 +152,18 @@ if [ "$(id -u)" != "0" ]; then
   exec "$@"
 fi
 
+# PUID and PGID are numbers. Anything else could not start the app anyway; say
+# why instead of failing further down.
+for id_name in PUID PGID; do
+  eval "id_value=\${$id_name:-}"
+  case "$id_value" in
+    ''|*[!0-9]*)
+      echo "ERROR: $id_name must be a number (the output of \"id -u\" or \"id -g\" for the user who owns your media folders), but it is set to \"$id_value\". Fix it in your compose file." >&2
+      exit 1
+      ;;
+  esac
+done
+
 # run_as runs a command as PUID:PGID. The small Alpine image has su-exec; the
 # "full" image is Debian-based and uses setpriv (numeric ids need no user entry).
 if command -v su-exec >/dev/null 2>&1; then
@@ -168,6 +180,12 @@ fi
 mkdir -p /config
 # -h: a link inside /config is changed itself, never what it points at.
 chown -hR "${PUID}:${PGID}" /config 2>/dev/null || true
+# The chown above can fail quietly (a network share with root squash, a host
+# folder that does not allow it). Say so now, instead of leaving the first sign
+# to be a database that "can't be opened".
+if ! run_as test -w /config; then
+  echo "WARNING: /config is not writable by uid ${PUID}/gid ${PGID}, so Mediarium cannot save its settings or database there. Fix the folder permissions on the host (on a network share, check that it allows this user to write), or change PUID/PGID." >&2
+fi
 
 # is_mapped DIR: true when DIR, or a folder above it, is mounted from the host
 # (for example /data/movies inside a /data mount).

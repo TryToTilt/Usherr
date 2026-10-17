@@ -6,6 +6,7 @@ package queue
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -328,13 +329,40 @@ func (r *Repo) Pause(id int64, interrupted bool) error {
 // way until a person resumes them. Items that were only waiting in line stay
 // waiting: nothing was started for them, and the line carries on by itself.
 // Call it once at startup, before anything can start a download. It returns
-// how many it paused.
+// how many it paused. Each one gets a line in its title's history saying so.
 func (r *Repo) RecoverInterrupted() (int64, error) {
-	res, err := r.db.Exec(`UPDATE download_queue SET status = ?, interrupted = 1 WHERE status IN ('downloading', 'importing')`, string(StatusPaused))
+	rows, err := r.db.Query(`SELECT id FROM download_queue WHERE status IN ('downloading', 'importing')`)
 	if err != nil {
-		return 0, fmt.Errorf("pause interrupted downloads: %w", err)
+		return 0, fmt.Errorf("find interrupted downloads: %w", err)
 	}
-	return res.RowsAffected()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("find interrupted downloads: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("find interrupted downloads: %w", err)
+	}
+	var paused int64
+	for _, id := range ids {
+		res, err := r.db.Exec(`UPDATE download_queue SET status = ?, interrupted = 1 WHERE id = ? AND status IN ('downloading', 'importing')`, string(StatusPaused), id)
+		if err != nil {
+			return paused, fmt.Errorf("pause interrupted download %d: %w", id, err)
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			continue
+		}
+		paused++
+		if err := r.ReleaseEvent(id, "download", LevelWarn, "Mediarium was restarted while this was downloading, so it is paused"); err != nil {
+			slog.Warn("queue: record an interrupted download", "queueId", id, "err", err)
+		}
+	}
+	return paused, nil
 }
 
 func (r *Repo) SetProgress(id int64, pct float64) error {
@@ -412,10 +440,12 @@ type CompletedItem struct {
 }
 
 // RecentCompleted returns the most recently completed downloads, newest first.
+// One that finished without being imported (the file already in the library
+// was kept) says so in its error and is left out.
 func (r *Repo) RecentCompleted(limit int) ([]CompletedItem, error) {
 	rows, err := r.db.Query(
 		`SELECT id, COALESCE(movie_id, 0), COALESCE(series_id, 0), COALESCE(season, 0), COALESCE(episode, 0), COALESCE(album_id, 0), COALESCE(book_id, 0), release_title, COALESCE(size_bytes, 0), protocol, COALESCE(completed_at, '')
-		 FROM download_queue WHERE status = 'completed' ORDER BY completed_at DESC LIMIT ?`, limit)
+		 FROM download_queue WHERE status = 'completed' AND COALESCE(error, '') = '' ORDER BY completed_at DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list recent completed downloads: %w", err)
 	}

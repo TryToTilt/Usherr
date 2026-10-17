@@ -86,7 +86,7 @@ func Load() Config {
 	fileProblems = nil
 	fileMu.Unlock()
 	cfg := Config{
-		Port:          envInt("APP_PORT", 8264),
+		Port:          envPort("APP_PORT", 8264),
 		ConfigDir:     envStr("CONFIG_DIR", "/config"),
 		DownloadsDir:  envStr("DOWNLOADS_DIR", "/downloads"),
 		MoviesDir:     envStr("MOVIES_DIR", "/movies"),
@@ -172,6 +172,21 @@ func envStr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// envPort reads a port number. A value that is not a number from 1 to 65535 is
+// noted (see Problems) and the default is used.
+func envPort(key string, def int) int {
+	v := lookup(key)
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 1 || n > 65535 {
+		noteProblem("%s is %q, which is not a port number from 1 to 65535, so port %d is used instead.", key, v, def)
+		return def
+	}
+	return n
 }
 
 func envInt(key string, def int) int {

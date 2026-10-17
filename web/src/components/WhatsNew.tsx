@@ -25,7 +25,9 @@ function writeSeen(v: string) {
 // After Mediarium updates, a short note with the new version's highlights,
 // once in each browser. A browser that has never seen Mediarium before only
 // remembers the version, so a fresh install doesn't greet anyone with it.
-export default function WhatsNew({ version }: { version: string }) {
+// onDone runs once there is nothing (more) to show, so another window can wait
+// for this one instead of opening on top of it.
+export default function WhatsNew({ version, onDone }: { version: string; onDone?: () => void }) {
   const [notes, setNotes] = useState<ReleaseNotes[]>([])
   const box = useRef<HTMLDivElement>(null)
 
@@ -34,16 +36,22 @@ export default function WhatsNew({ version }: { version: string }) {
     const seen = readSeen()
     if (seen === null) {
       writeSeen(version)
+      onDone?.()
       return
     }
     const due = notesToShow(seen, version)
-    if (due.length > 0) setNotes(due)
-    else if (seen !== version) writeSeen(version)
-  }, [version])
+    if (due.length > 0) {
+      setNotes(due)
+      return
+    }
+    if (seen !== version) writeSeen(version)
+    onDone?.()
+  }, [version, onDone])
 
   const close = () => {
     writeSeen(version)
     setNotes([])
+    onDone?.()
   }
 
   useEffect(() => {
@@ -58,6 +66,11 @@ export default function WhatsNew({ version }: { version: string }) {
 }
 
 function WhatsNewDialog({ notes, onClose, box }: { notes: ReleaseNotes[]; onClose: () => void; box: React.RefObject<HTMLDivElement | null> }) {
+  // Start at the top of the notes: focusing the last button would scroll a long list to its end on a phone.
+  useEffect(() => {
+    box.current?.focus({ preventScroll: true })
+    box.current?.scrollTo?.(0, 0)
+  }, [box])
   useFocusTrap(box)
   const newest = notes[0].version.replace(/\.0$/, '')
   return createPortal(
@@ -87,7 +100,7 @@ function WhatsNewDialog({ notes, onClose, box }: { notes: ReleaseNotes[]; onClos
           </p>
         </div>
         <div className="modal-foot">
-          <button className="primary" onClick={onClose} autoFocus>
+          <button className="primary" onClick={onClose}>
             {t('Got it')}
           </button>
         </div>

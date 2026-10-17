@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { SLOW_MS } from '../busyState'
 import { t } from '../i18n'
+import { useBusyNotice } from '../useBusyNotice'
 
 // The grey placeholder shown while a page's data loads. If the data has not
 // arrived after ten seconds it turns into a plain message with a Try again
@@ -23,7 +24,9 @@ export default function Loading({
     return () => clearTimeout(t)
   }, [])
 
-  if (!slow) {
+  // The corner notice already says the same thing, with its own Try again button.
+  const cornerNotice = useBusyNotice()
+  if (!slow || cornerNotice) {
     const style: CSSProperties = { height, ...(radius ? { borderRadius: radius } : {}) }
     return <>{children ?? <div className="skeleton" style={style} />}</>
   }

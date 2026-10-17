@@ -158,3 +158,31 @@ func TestToUTF8LeavesUTF8AloneAndDropsTheBOM(t *testing.T) {
 		t.Errorf("windows-1251: %q", got)
 	}
 }
+
+// Subtitles in the older Windows code pages come out right for the Balkan
+// languages too, and a Serbian file is read as Cyrillic or Latin by its letters.
+func TestToUTF8CodePages(t *testing.T) {
+	tests := []struct {
+		name string
+		lang string
+		in   string
+		want string
+	}{
+		{"croatian", "hr", "\x8ata \xe8ak", "\u0160ta \u010dak"},
+		{"bosnian", "bs", "\x8ata \xe8ak", "\u0160ta \u010dak"},
+		{"slovenian", "sl", "\x8ee\xe8", "\u017de\u010d"},
+		{"serbian latin", "sr", "1\n00:00:01,000 --> 00:00:02,000\n\x8ata je ovo, \xf0ak?\n", "1\n00:00:01,000 --> 00:00:02,000\n\u0160ta je ovo, \u0111ak?\n"},
+		{"serbian cyrillic", "sr", "1\n00:00:01,000 --> 00:00:02,000\n\xc7\xe4\xf0\xe0\xe2\xee \xf1\xe2\xe5\xf2\n", "1\n00:00:01,000 --> 00:00:02,000\n\u0417\u0434\u0440\u0430\u0432\u043e \u0441\u0432\u0435\u0442\n"},
+		{"bulgarian", "bg", "\xc7\xe4\xf0\xe0\xe2\xe5\xe9", "\u0417\u0434\u0440\u0430\u0432\u0435\u0439"},
+		{"ukrainian", "uk", "\xcf\xf0\xe8\xe2\xb3\xf2", "\u041f\u0440\u0438\u0432\u0456\u0442"},
+		{"vietnamese", "vi", "\xd0\xe2y", "\u0110\u00e2y"},
+		{"already utf-8", "sr", "\u0417\u0434\u0440\u0430\u0432\u043e", "\u0417\u0434\u0440\u0430\u0432\u043e"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := string(ToUTF8([]byte(tc.in), tc.lang)); got != tc.want {
+				t.Errorf("ToUTF8(%q, %q) = %q, want %q", tc.in, tc.lang, got, tc.want)
+			}
+		})
+	}
+}

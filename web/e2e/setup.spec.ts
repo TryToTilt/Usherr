@@ -18,6 +18,10 @@ test('first run: setup wizard to the dashboard', async ({ page }) => {
   const pw = page.locator('input[autocomplete="new-password"]')
   await pw.nth(0).fill(password)
   await pw.nth(1).fill(password)
+  // Behind Docker's port forwarding the visit is not told apart from a stranger's, so
+  // the setup code from the log is asked for: pass it in MEDIARIUM_SETUP_CODE.
+  const setupCode = page.getByLabel('Setup code')
+  if (process.env.MEDIARIUM_SETUP_CODE && (await setupCode.isVisible())) await setupCode.fill(process.env.MEDIARIUM_SETUP_CODE)
   await page.getByLabel(/^I have read this and accept responsibility for how I use (Mediarium|Usherr)\.$/).check()
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
 

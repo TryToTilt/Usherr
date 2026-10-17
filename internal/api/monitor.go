@@ -42,7 +42,8 @@ func (s *Server) monitorInterval() time.Duration {
 }
 
 // newMonitor wires the connectivity monitor to the real Usenet servers and
-// indexers, using the same probes as the Test buttons in Settings.
+// indexers. Usenet servers get the same login as the Test button in Settings;
+// indexers get the lighter check in probeIndexer.
 func (s *Server) newMonitor() *monitor.Monitor {
 	return &monitor.Monitor{
 		Checks:   s.monitorChecks,
@@ -81,19 +82,53 @@ func (s *Server) monitorChecks(ctx context.Context) ([]monitor.Check, error) {
 	}
 	torrentsOn := s.torrentReleasesOn()
 	for _, inst := range instances {
-		if !inst.Enabled || (inst.Protocol == indexers.ProtocolTorrent && !torrentsOn) {
+		if !inst.Enabled || inst.SecretError != "" || (inst.Protocol == indexers.ProtocolTorrent && !torrentsOn) {
 			continue
 		}
 		checks = append(checks, monitor.Check{
 			Kind: monitor.KindIndexer, ID: inst.ID, Name: inst.Name,
-			Run: func(ctx context.Context) error {
-				return runProbe(ctx, func() connTestResult {
-					return s.testIndexerInstance(ctx, inst)
-				})
-			},
+			Run: func(ctx context.Context) error { return s.probeIndexer(ctx, inst) },
 		})
 	}
 	return checks, nil
+}
+
+// forceProbeKey marks a context whose checks ask the indexers whatever the
+// schedule says: the "Check now" button.
+type forceProbeKey struct{}
+
+// probeIndexer is the monitor's check of one indexer. It must not use up an
+// indexer's requests (free ones allow only a few a day), so it asks as little
+// as it can: not at all when a real search or feed read worked since the last
+// check, not more than once every six hours, and with the capabilities question
+// instead of a search. The Test button in Settings still does a real search.
+func (s *Server) probeIndexer(ctx context.Context, inst indexers.Instance) error {
+	tr := inst.Tracker
+	if ctx.Value(forceProbeKey{}) == nil {
+		switch tr.ProbeAdvice(inst.ID, inst.RequestsPerDay) {
+		case indexers.ProbeSkipWorks:
+			return nil
+		case indexers.ProbeSkipWait:
+			return monitor.ErrSkip
+		}
+	}
+	tr.NoteProbe(inst.ID)
+	if inst.IsCardigann() {
+		// a site that a definition drives has no capabilities call to ask
+		return runProbe(ctx, func() connTestResult { return s.testIndexerInstance(ctx, inst) })
+	}
+	err := runProbe(ctx, func() connTestResult {
+		cctx, cancel := context.WithTimeout(ctx, max(connTestTimeout, indexers.FeedWait(inst.BaseURL)))
+		defer cancel()
+		if err := indexers.NewNewznabClient(inst.Name, inst.BaseURL, inst.APIKey).Caps(cctx); err != nil {
+			return connTestResult{Message: err.Error()}
+		}
+		return connTestResult{OK: true}
+	})
+	if err != nil && tr.LearnLimit(inst.ID, err.Error()) {
+		return monitor.ErrSkip // it works, its requests for today are used up
+	}
+	return err
 }
 
 // probeTimeout bounds a single monitor check, whatever the probe itself does.
@@ -145,6 +180,6 @@ func (s *Server) handleMonitorStatus(w http.ResponseWriter, r *http.Request) {
 // handleMonitorRun checks everything right now (even when the schedule is off)
 // and returns the fresh results.
 func (s *Server) handleMonitorRun(w http.ResponseWriter, r *http.Request) {
-	s.Monitor.RunOnce(r.Context())
+	s.Monitor.RunOnce(context.WithValue(r.Context(), forceProbeKey{}, true))
 	writeJSON(w, http.StatusOK, s.Monitor.Statuses())
 }

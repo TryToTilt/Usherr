@@ -55,6 +55,10 @@ func (s *Server) grabAlbum(artist music.Artist, album music.Album, releaseTitle,
 		}
 		return 0, alreadyDownloadingError{release: running}
 	}
+	if kind.refusesDuplicates() && s.nzbLinkHeld(downloadURL, releaseTitle) {
+		s.grabMu.Unlock()
+		return 0, errNZBLinkHeld
+	}
 	current, err := s.MusicRepo.GetAlbum(album.ID)
 	if err != nil {
 		s.grabMu.Unlock()
@@ -136,7 +140,9 @@ func (s *Server) runMusicPipeline(queueID, artistID, albumID int64, restore musi
 		_ = s.MusicRepo.SetAlbumStatus(albumID, restore)
 		message := fmt.Sprintf("%s: %s", label, plain)
 		_ = s.QueueRepo.LogItemEvent(queue.ItemEvent{AlbumID: albumID, Kind: "failed", Level: queue.LevelError, Message: message})
-		s.notifyItem("failed", notify.Item{Media: "album", Title: label, Reason: plain, Release: releaseTitle, LinkPath: fmt.Sprintf("/music/artist/%d", artistID)})
+		if s.failureNotifyWanted(stepErr, downloadURL, releaseTitle) {
+			s.notifyItem("failed", notify.Item{Media: "album", Title: label, Reason: plain, Release: releaseTitle, LinkPath: fmt.Sprintf("/music/artist/%d", artistID)})
+		}
 		if blocklisted {
 			s.background(func() { s.retryAlbum(albumID) })
 		}

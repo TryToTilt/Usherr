@@ -29,6 +29,7 @@ const (
 	KeyNamingPreset        = "library.naming_preset"       // plex|jellyfin|kodi|minimal|custom
 	KeyMovieNameFormat     = "library.movie_name_format"   // token string, used when preset=custom
 	KeyEpisodeNameFormat   = "library.episode_name_format" // token string, used when preset=custom
+	KeyKeepOriginalNames   = "library.keep_original_names" // "1" keeps the file name an imported video came with (folders are still named by the preset; a random, obfuscated name falls back to the preset); unset or "0" renames as the preset says
 	KeyTMDBAPIKey          = "metadata.tmdb_api_key"       // encrypted
 	KeyOnboardingDone      = "onboarding.done"             // "1" once the first-run wizard completes
 
@@ -78,6 +79,9 @@ const (
 	KeyDefaultProfileID   = "library.default_profile_id"    // id of the stored quality profile used by items with no profile of their own
 	KeyDefaultTVProfileID = "library.default_profile_id_tv" // id of the quality profile shows with none of their own use; unset = the same default as movies
 	KeyPresetsVersion     = "library.presets_version"       // revision of the built-in quality presets last applied; unset means never (set at start, not user-editable)
+
+	// "Only take releases in these languages", next to quality.language.
+	KeyQualityLanguageOnly = "quality.language_only" // "1" takes only releases that say they are in a wanted audio language (no untagged, English-only or bare multi releases unless English is wanted); unset or "0" keeps those as a lower-ranked fallback
 
 	// Phase 4 — subtitles module.
 	KeySubtitlesEnabled      = "subtitles.enabled"                // the master switch: "1" turns downloading subtitles on; unset or "0" leaves it off (upgrades from a version that had subtitles in use are switched on once, by a migration)
@@ -168,6 +172,7 @@ const (
 	KeyRetentionDays        = "downloads.retention_days"       // Usenet releases posted longer ago than this many days are not taken (the provider no longer has them): 1 to 10000, "0" or unset = off
 	KeyRejectExecutables    = "downloads.reject_executables"   // "0" lets releases that hold programs or scripts (.exe, .scr, .bat...) through; anything else (including unset) rejects them
 	KeySkipDuplicates       = "downloads.skip_duplicates"      // "1" does not download a release twice (same NZB, or same name and size, for the same title); unset or "0" leaves it off
+	KeyNZBLinkHolds         = "downloads.nzb_link_holds"       // kept by Mediarium itself: JSON of releases whose NZB link answered with a web page or another answer that is not an NZB, and until when automatic searches leave each one alone
 	KeyPrecheck             = "downloads.precheck"             // "1" asks the news servers whether a sample of an NZB's articles exist before downloading it, and gives up at once on a release the PAR2 files could not repair; unset or "0" leaves it off
 	KeyDigestDay            = "notify.digest_day"              // the day of the weekly summary, "0" (Sunday) to "6"; unset = no summary
 	KeyDigestHour           = "notify.digest_hour"             // the hour it is sent (server time), "0" to "23"; unset = 9

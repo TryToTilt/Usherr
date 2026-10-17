@@ -442,7 +442,10 @@ function EpubReader({ book, src }: { book: Book; src: string }) {
           onChange={(e) => setPercent(Number(e.target.value))}
           onMouseUp={(e) => jump(Number((e.target as HTMLInputElement).value))}
           onTouchEnd={(e) => jump(Number((e.target as HTMLInputElement).value))}
-          onKeyUp={(e) => jump(Number((e.target as HTMLInputElement).value))}
+          onKeyUp={(e) => {
+            // Only the keys that move the slider; Tab in and out must not jump.
+            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) jump(Number((e.target as HTMLInputElement).value))
+          }}
         />
         <span className="rdr-pct">{located ? `${Math.round(percent)}%` : '…'}</span>
       </footer>

@@ -3,6 +3,7 @@ package queue_test
 import (
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -114,9 +115,10 @@ func TestRecoverInterruptedTable(t *testing.T) {
 	repo := queue.NewRepo(db)
 	lib := library.NewRepo(db)
 	ids := make([]int64, len(tests))
+	movieIDs := make([]int64, len(tests))
 	for i, tc := range tests {
 		m, _ := lib.Add(library.Movie{TMDBID: 100 + i, Title: "Film"})
-		ids[i] = seedItem(t, repo, m.ID, tc.from)
+		ids[i], movieIDs[i] = seedItem(t, repo, m.ID, tc.from), m.ID
 		if tc.from == queue.StatusPaused {
 			_ = repo.Pause(ids[i], false)
 		}
@@ -132,6 +134,22 @@ func TestRecoverInterruptedTable(t *testing.T) {
 		got, _ := repo.Get(ids[i])
 		if got.Status != tc.wantStatus || got.Interrupted != tc.wantInterrupted {
 			t.Errorf("%s: got %s interrupted=%v, want %s interrupted=%v", tc.from, got.Status, got.Interrupted, tc.wantStatus, tc.wantInterrupted)
+		}
+	}
+	// The title's history says the restart interrupted it.
+	for i, tc := range tests {
+		events, err := repo.MovieEvents(movieIDs[i], 50)
+		if err != nil {
+			t.Fatal(err)
+		}
+		said := false
+		for _, e := range events {
+			if strings.HasPrefix(e.Message, "Mediarium was restarted while this was downloading, so it is paused: ") {
+				said = true
+			}
+		}
+		if said != tc.wantInterrupted {
+			t.Errorf("%s: history line about the restart = %v, want %v", tc.from, said, tc.wantInterrupted)
 		}
 	}
 	// Doing it again changes nothing: a restart never resumes anything.

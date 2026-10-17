@@ -122,7 +122,7 @@ func (s *Server) ebookCover(ctx context.Context, b books.Book, wantW, wantH int)
 		stamp = fileSig(info)
 		f.Close()
 	}
-	sum := sha256.Sum256([]byte(fmt.Sprintf("%d|%s|%s|%d|%dx%d", b.ID, b.EbookPath, stamp, b.CoverID, bw, bh)))
+	sum := sha256.Sum256([]byte(fmt.Sprintf("%d|%s|%s|%d|%d|%dx%d", b.ID, b.EbookPath, stamp, b.OLCoverID(), b.OwnCover, bw, bh)))
 	cached := filepath.Join(s.ereaderCoverDir(), hex.EncodeToString(sum[:14])+".jpg")
 	if data, err := os.ReadFile(cached); err == nil && len(data) > 0 {
 		return data, nil
@@ -156,11 +156,16 @@ func (s *Server) ebookCover(ctx context.Context, b books.Book, wantW, wantH int)
 
 // coverSource finds the largest picture there is for a book.
 func (s *Server) coverSource(ctx context.Context, b books.Book) ([]byte, error) {
+	if b.OwnCover > 0 { // a cover a person chose beats the file's own and Open Library's
+		if img, err := s.BookRepo.OwnCoverImage(b.ID); err == nil {
+			return img, nil
+		}
+	}
 	fromOpenLibrary := func() ([]byte, error) {
-		if b.CoverID <= 0 {
+		if b.OLCoverID() <= 0 {
 			return nil, books.ErrNoCover
 		}
-		path, err := s.cachedBookCover(ctx, b.CoverID, "L")
+		path, err := s.cachedBookCover(ctx, b.OLCoverID(), "L")
 		if err != nil {
 			if !errors.Is(err, books.ErrNotFound) {
 				slog.Info("ereader: Open Library cover", "book", b.ID, "err", err)

@@ -128,12 +128,62 @@ export function FieldError({ v, name }: { v: Validation; name: string }) {
   )
 }
 
+/** What the blocked button would have done. Each one has its own whole sentence so it translates cleanly. */
+export type FormAction =
+  | 'save'
+  | 'saveProfile'
+  | 'test'
+  | 'signin'
+  | 'add'
+  | 'import'
+  | 'continue'
+  | 'password'
+  | 'key'
+  | 'account'
+  | 'checkThem'
+  | 'checkAgain'
+  | 'notification'
+  | 'connection'
+
+function problemText(action: FormAction): string {
+  switch (action) {
+    case 'saveProfile':
+      return t('A field above needs fixing before you can save this profile. It is marked in red.')
+    case 'test':
+      return t('A field above needs fixing before you can test the connection. It is marked in red.')
+    case 'signin':
+      return t('A field above needs fixing before you can sign in. It is marked in red.')
+    case 'add':
+      return t('A field above needs fixing before you can add it. It is marked in red.')
+    case 'import':
+      return t('A field above needs fixing before you can import. It is marked in red.')
+    case 'continue':
+      return t('A field above needs fixing before you can continue. It is marked in red.')
+    case 'password':
+      return t('A field above needs fixing before you can change your password. It is marked in red.')
+    case 'key':
+      return t('A field above needs fixing before you can create the key. It is marked in red.')
+    case 'account':
+      return t('A field above needs fixing before you can add the account. It is marked in red.')
+    case 'checkThem':
+      return t('A field above needs fixing before you can check them. It is marked in red.')
+    case 'checkAgain':
+      return t('A field above needs fixing before you can check again. It is marked in red.')
+    case 'notification':
+      return t('A field above needs fixing before you can add this notification. It is marked in red.')
+    case 'connection':
+      return t('A field above needs fixing before you can add this connection. It is marked in red.')
+    default:
+      return t('A field above needs fixing before you can save. It is marked in red.')
+  }
+}
+
 /** A line under the submit button after a blocked attempt, so it is clear why nothing happened. */
-export function FormProblem({ v, verb = t('save') }: { v: Validation; verb?: string }) {
+export function FormProblem({ v, action = 'save' }: { v: Validation; action?: FormAction }) {
   if (!v.attempted || v.ok) return null
   return (
     <p className="form-problem" role="alert">
-      {t('A field above needs fixing before you can {verb}. It is marked in red.', { verb })}
+      {problemText(action)}
     </p>
   )
 }

@@ -238,7 +238,7 @@ export default function WatchedSettings() {
                         if (!(await confirm({ title: t('Remove these now?'), body: t('The files of the titles listed are deleted now (into the recycle bin when it is on).'), confirmLabel: t('Remove now'), danger: true })))
                           return
                         await api.putWatchedSettings({ cleanup: JSON.parse(previewRules) })
-                        const r = await api.runLibraryCleanup()
+                        const r = await api.runLibraryCleanup(preview)
                         toast.success(
                           r.failed.length
                             ? plural(r.removed.length, "Removed {n} title, {failed} couldn't be removed.", "Removed {n} titles, {failed} couldn't be removed.", { failed: r.failed.length })

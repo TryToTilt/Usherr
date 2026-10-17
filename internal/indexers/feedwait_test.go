@@ -13,6 +13,9 @@ func TestFeedWait(t *testing.T) {
 	}{
 		{"an indexer's own api", "https://api.nzbgeek.info", normalFeedWait},
 		{"a plain path", "https://indexer.example/api", normalFeedWait},
+		{"prowlarr behind a folder", "https://host.example/prowlarr/5/api", slowFeedWait},
+		{"jackett behind a folder", "https://host.example/jackett/api/v2.0/indexers/x/results/torznab/", slowFeedWait},
+		{"a folder with a number that is not prowlarr", "https://host.example/v2/api", normalFeedWait},
 		{"prowlarr feed by id", "http://172.30.0.254:9696/14", slowFeedWait},
 		{"prowlarr feed by name and id", "http://prowlarr.lan/14/", slowFeedWait},
 		{"jackett torznab", "http://jackett.lan/api/v2.0/indexers/rede/results/torznab/", slowFeedWait},

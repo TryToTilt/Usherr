@@ -1,7 +1,7 @@
 // Home fork: Discover has the same tabs as the Library, in the same order:
 // Movies, TV, Anime, Ebooks, Audiobooks, Music, Comics, NSFW 18+ (no All tab).
 // Anime gets its own rails from TMDB; Comics shows the week's new issues and
-// NSFW the Scenes "Find" view (administrators only).
+// NSFW the NSFW "Find" view (administrators only).
 import { lazy, Suspense } from 'react'
 import RecipeRails from './Recipes'
 import type { AddTarget } from '../components/AddDialog'
@@ -11,7 +11,7 @@ import { sourceTitle, sourceToQuery, type ListName, type Source } from '../disco
 import { t } from '../i18n'
 import { useModules } from '../ModulesContext'
 import type { Owned } from '../useOwned'
-import { useComicsOn, useScenesOn } from './libraryKinds'
+import { useComicsOn, useNsfwOn } from './libraryKinds'
 
 export type DTab = 'movie' | 'tv' | 'anime' | 'ebook' | 'audiobook' | 'music' | 'comics' | 'nsfw'
 
@@ -30,7 +30,7 @@ export const DTAB_INFO: Record<DTab, { label: () => string; glyph: GlyphKind; co
 export function useDiscoverTabs(admin: boolean): DTab[] {
   const { on } = useModules()
   const comicsOn = useComicsOn(admin)
-  const nsfwOn = useScenesOn(admin)
+  const nsfwOn = useNsfwOn(admin)
   const tabs: DTab[] = []
   if (on('movies')) tabs.push('movie')
   if (on('tv')) tabs.push('tv', 'anime')
@@ -66,7 +66,7 @@ export function AnimeRails({ owned, onAdd }: { owned: Owned; onAdd: (t: AddTarge
 }
 
 const ComicWeek = lazy(() => import('./ComicWeek'))
-const SceneFind = lazy(() => import('./Scenes').then((m) => ({ default: m.FindTab })))
+const VideoFind = lazy(() => import('./Nsfw').then((m) => ({ default: m.FindTab })))
 
 export function ComicsDiscover({ admin }: { admin: boolean }) {
   return (
@@ -78,10 +78,10 @@ export function ComicsDiscover({ admin }: { admin: boolean }) {
   )
 }
 
-export function ScenesDiscover() {
+export function NsfwDiscover() {
   return (
     <Suspense fallback={<div className="skeleton" style={{ height: 200 }} />}>
-      <SceneFind />
+      <VideoFind />
     </Suspense>
   )
 }

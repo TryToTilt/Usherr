@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { api } from '../api'
 import { t } from '../i18n'
+import { pickedSuggestion } from '../tagPick'
 import Icon from './Icon'
 import { useToast } from './Toast'
 
@@ -30,8 +31,10 @@ export function TagInput({ suggestions, onAdd, placeholder = t('Add a tag'), dis
         maxLength={30}
         onChange={(e) => {
           const v = e.target.value
-          // Picking a suggestion fills the whole word: add it straight away.
-          if (suggestions.includes(v)) {
+          // Picking a suggestion from the list fills the whole word: add it
+          // straight away. Typing the same letters does not (Enter, a comma
+          // or leaving the box adds those).
+          if (pickedSuggestion((e.nativeEvent as InputEvent).inputType, v, suggestions)) {
             onAdd(v)
             setText('')
             return

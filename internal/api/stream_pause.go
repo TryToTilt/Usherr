@@ -161,7 +161,7 @@ func (s *Server) streamPauseRound(ctx context.Context) {
 // pauseForStreaming pauses every download that is running or waiting.
 // Importing is left to finish: it uses no bandwidth.
 func (s *Server) pauseForStreaming() {
-	items, err := s.QueueRepo.List()
+	items, err := s.QueueRepo.ListActive()
 	if err != nil {
 		return
 	}

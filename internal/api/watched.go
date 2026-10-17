@@ -59,6 +59,10 @@ type watchedStatus struct {
 	LastClean    string `json:"lastCleanup,omitempty"`
 }
 
+// watchedHeld marks a movie that a media server has but nobody played. The
+// "never watched" rule only applies to such movies.
+const watchedHeld = "held"
+
 var watchedMu sync.Mutex // one sync or cleanup at a time
 
 func (s *Server) watchedSyncOn() bool { return s.settingOn(settings.KeyWatchedSync, false) }
@@ -99,6 +103,7 @@ func (s *Server) syncWatched(ctx context.Context) (watchedStatus, error) {
 	}
 	movies := map[int]mediaservers.Play{}
 	episodes := map[mediaservers.EpisodeKey]mediaservers.Play{}
+	held := map[int]bool{} // TMDB ids of the movies some server holds
 	read := 0
 	var problems []string
 	for _, srv := range servers {
@@ -110,7 +115,16 @@ func (s *Server) syncWatched(ctx context.Context) (watchedStatus, error) {
 			problems = append(problems, fmt.Sprintf("%s: %v", srv.Name, err))
 			continue
 		}
+		if state.Titles == 0 {
+			// Answering with nothing is not the same as nobody watching
+			// anything: its drive may be unmounted or its libraries still empty.
+			problems = append(problems, fmt.Sprintf("%s: it answered but has no libraries or titles, so it was left out", srv.Name))
+			continue
+		}
 		read++
+		for id := range state.Held {
+			held[id] = true
+		}
 		for id, p := range state.Movies {
 			movies[id] = mergePlay(movies[id], p)
 		}
@@ -136,6 +150,8 @@ func (s *Server) syncWatched(ctx context.Context) (watchedStatus, error) {
 		if p, ok := movies[m.TMDBID]; ok {
 			rows = append(rows, library.Watched{Kind: "movie", TitleID: m.ID, Plays: p.Plays, LastPlayed: p.LastPlayed})
 			nMovies++
+		} else if held[m.TMDBID] {
+			rows = append(rows, library.Watched{Kind: watchedHeld, TitleID: m.ID})
 		}
 	}
 	shows, err := s.MovieRepo.ListSeries()
@@ -198,7 +214,7 @@ func (s *Server) watchedJob(ctx context.Context) {
 	rules := s.cleanupRules()
 	lastClean, _ := time.Parse(time.RFC3339, st.LastClean)
 	if rules.Enabled && time.Since(lastClean) >= cleanupRunEvery {
-		if _, err := s.runLibraryCleanup(rules, false); err != nil {
+		if _, err := s.runLibraryCleanup(rules, false, nil); err != nil {
 			slog.Info("cleanup: run failed", "err", err)
 		}
 	}
@@ -300,10 +316,13 @@ func (s *Server) libraryCleanupCandidates(rules CleanupRules, now time.Time) ([]
 		return nil, fmt.Errorf("read tags: %w", err)
 	}
 	movieWatch := map[int64]library.Watched{}
+	movieHeld := map[int64]bool{}
 	epWatch := map[[3]int64]library.Watched{}
 	for _, w := range watched {
 		if w.Kind == "movie" {
 			movieWatch[w.TitleID] = w
+		} else if w.Kind == watchedHeld {
+			movieHeld[w.TitleID] = true
 		} else {
 			epWatch[[3]int64{w.TitleID, int64(w.Season), int64(w.Episode)}] = w
 		}
@@ -332,7 +351,7 @@ func (s *Server) libraryCleanupCandidates(rules CleanupRules, now time.Time) ([]
 			case seen && rules.MoviesWatchedDays > 0 && !w.LastPlayed.IsZero() && fresh.Before(w.LastPlayed) &&
 				now.Sub(w.LastPlayed) >= time.Duration(rules.MoviesWatchedDays)*24*time.Hour:
 				out = append(out, libraryCleanupItem{Kind: "movie", ID: m.ID, Title: movieLabel(m), Reason: "watched " + ago(w.LastPlayed, now) + " ago", Path: m.FilePath, since: w.LastPlayed})
-			case !seen && rules.MoviesUnwatchedDays > 0:
+			case !seen && movieHeld[m.ID] && rules.MoviesUnwatchedDays > 0:
 				arrived := latest(added[m.ID], fresh)
 				if !arrived.IsZero() && now.Sub(arrived) >= time.Duration(rules.MoviesUnwatchedDays)*24*time.Hour {
 					out = append(out, libraryCleanupItem{Kind: "movie", ID: m.ID, Title: movieLabel(m), Reason: "not watched in the " + ago(arrived, now) + " since it arrived", Path: m.FilePath, since: arrived})
@@ -415,7 +434,11 @@ type libraryCleanupResult struct {
 // runLibraryCleanup removes what the rules match: the files go (to the recycle bin
 // when it is on) and the title is no longer looked for. manual runs (Run now)
 // still need the watch data to be fresh.
-func (s *Server) runLibraryCleanup(rules CleanupRules, manual bool) (libraryCleanupResult, error) {
+//
+// only, when not nil, limits the run to the titles that were on the preview
+// the person looked at (keyed by cleanupKey): a title that has come up since
+// is left for the next run, and one that no longer matches is not removed.
+func (s *Server) runLibraryCleanup(rules CleanupRules, manual bool, only map[string]bool) (libraryCleanupResult, error) {
 	var res libraryCleanupResult
 	st := s.watchedStatus()
 	last, _ := time.Parse(time.RFC3339, st.LastFullSync)
@@ -427,6 +450,15 @@ func (s *Server) runLibraryCleanup(rules CleanupRules, manual bool) (libraryClea
 	items, err := s.libraryCleanupCandidates(rules, time.Now())
 	if err != nil {
 		return res, err
+	}
+	if only != nil {
+		kept := items[:0]
+		for _, it := range items {
+			if only[cleanupKey(it.Kind, it.ID)] {
+				kept = append(kept, it)
+			}
+		}
+		items = kept
 	}
 	if len(items) > maxCleanupPerRun {
 		res.More = len(items) - maxCleanupPerRun
@@ -449,6 +481,9 @@ func (s *Server) runLibraryCleanup(rules CleanupRules, manual bool) (libraryClea
 	}
 	return res, nil
 }
+
+// cleanupKey names a title in the list sent with a manual run.
+func cleanupKey(kind string, id int64) string { return fmt.Sprintf("%s:%d", kind, id) }
 
 func (s *Server) cleanLibraryItem(it libraryCleanupItem) error {
 	switch it.Kind {
@@ -597,14 +632,35 @@ func (s *Server) handleLibraryCleanupPreview(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "limit": maxCleanupPerRun})
 }
 
-// POST /api/watched/cleanup/run: apply the saved rules once, now.
+// POST /api/watched/cleanup/run: apply the saved rules once, now. A body of
+// {"items": [{"kind": "movie", "id": 3}]} limits the run to the titles on the
+// preview that was shown.
 func (s *Server) handleLibraryCleanupRun(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Items []struct {
+			Kind string `json:"kind"`
+			ID   int64  `json:"id"`
+		} `json:"items"`
+	}
+	if r.ContentLength != 0 {
+		if err := decodeJSON(r, &req); err != nil {
+			writeError(w, http.StatusBadRequest, "That request couldn't be read.")
+			return
+		}
+	}
+	var only map[string]bool
+	if req.Items != nil {
+		only = make(map[string]bool, len(req.Items))
+		for _, it := range req.Items {
+			only[cleanupKey(it.Kind, it.ID)] = true
+		}
+	}
 	rules := s.cleanupRules()
 	if rules.MoviesWatchedDays == 0 && rules.MoviesUnwatchedDays == 0 && rules.EpisodesWatchedDays == 0 {
 		writeError(w, http.StatusBadRequest, "Set at least one rule first.")
 		return
 	}
-	res, err := s.runLibraryCleanup(rules, true)
+	res, err := s.runLibraryCleanup(rules, true, only)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -641,6 +697,9 @@ func (s *Server) handleWatched(w http.ResponseWriter, r *http.Request) {
 		last := ""
 		if !x.LastPlayed.IsZero() {
 			last = x.LastPlayed.Format(time.RFC3339)
+		}
+		if x.Kind == watchedHeld {
+			continue
 		}
 		if x.Kind == "movie" {
 			out["movies"][x.TitleID] = watchedTitle{Plays: x.Plays, LastPlayed: last}

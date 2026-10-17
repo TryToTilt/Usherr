@@ -21,6 +21,19 @@ import (
 func (s *Server) TestHunt(ctx context.Context)    { s.hunt(ctx) }
 func (s *Server) TestRSSSync(ctx context.Context) { s.rssSync(ctx) }
 
+// TestTitleNamesJob runs the job that picks the other titles of each movie and show.
+func (s *Server) TestTitleNamesJob(ctx context.Context) { s.titleNamesJob(ctx) }
+
+// ResetTitleNamesState forgets the TMDB back-off and the titles the job
+// skips after a failure, which are shared by the whole process.
+func ResetTitleNamesState() {
+	ResetTitleNamesPause()
+	titleNamesFailed.Range(func(k, _ any) bool { titleNamesFailed.Delete(k); return true })
+}
+
+// ResetTitleNamesPause ends the wait the job keeps after TMDB failed.
+func ResetTitleNamesPause() { titleNamesPausedUntil.Store(0) }
+
 // TestWaitBackground blocks until every download pipeline and automatic
 // retry started so far (and any they start in turn) has finished, so a test
 // can assert on the end state without sleeping, and no goroutine outlives

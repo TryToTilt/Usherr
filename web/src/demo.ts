@@ -3,6 +3,7 @@
 // It only fakes what the app READS; nothing is written to your library or
 // database, and turning it off restores your real data.
 import { withBase, withoutBase } from './base'
+import { pageOfWanted } from './wantedPage'
 import type {
   ActivityEntry,
   CalendarEntry,
@@ -424,8 +425,17 @@ export function installDemo() {
         return json({ hasKey: true, hasSource: true, sourcesSetUp: true, hasAccount: false, limit: 5, used: 3, remaining: 2, windowHours: 24, resetsAt: new Date(Date.now() + 6 * 3600e3).toISOString(), source: 'estimated', missingItems: 5, missingFiles: 6, daysToFinish: 2, exceeded: false, message: 'You have 6 subtitles to get but 2 downloads left today. At 5 a day that takes 2 days. A free OpenSubtitles account raises it to about 20 a day.' })
       case p === '/api/calendar':
         return json(calendar)
-      case p === '/api/wanted':
-        return json(u.searchParams.get('kind') === 'cutoff' ? wantedCutoff : wantedMissing)
+      case p === '/api/wanted': {
+        const list = u.searchParams.get('kind') === 'cutoff' ? wantedCutoff : wantedMissing
+        const show = Number(u.searchParams.get('series') ?? 0)
+        if (show) return json(list.filter((i) => i.seriesId === show))
+        if (u.searchParams.get('group') !== '1') return json(list)
+        const num = (k: string) => (u.searchParams.has(k) ? Number(u.searchParams.get(k)) : undefined)
+        const media = u.searchParams.get('media')
+        return json(pageOfWanted(list, { limit: num('limit'), offset: num('offset'), media: media === 'movie' || media === 'tv' ? media : undefined, q: u.searchParams.get('q') ?? '' }))
+      }
+      case p === '/api/library/counts':
+        return json({ movies: movies.length, shows: series.length })
       case p === '/api/dashboard': {
         let realData: DashboardData | null = null
         try {

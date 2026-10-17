@@ -16,12 +16,20 @@ import (
 // the person allowed "a lower score for a cached release": a cached release
 // then beats an uncached one of the same language and tier whatever the score.
 // It never lifts a release over a better language or tier.
+//
+// A torrent its indexer reports with no seeders at all is dead: dead goes
+// below everything else, so it is only picked when nothing alive is left, and
+// among two otherwise equal torrents the one with more seeders wins (see
+// preferOver). A release whose seeders are not known is never counted as dead.
 type pickKey struct {
-	language, tier, cached, score int
+	alive, language, tier, cached, score int
 }
 
 // above reports whether k beats other.
 func (k pickKey) above(other pickKey) bool {
+	if k.alive != other.alive {
+		return k.alive > other.alive
+	}
 	if k.language != other.language {
 		return k.language > other.language
 	}
@@ -36,7 +44,10 @@ func (k pickKey) above(other pickKey) bool {
 
 // keyFor is the pickKey of a release that profile accepts.
 func keyFor(profile quality.Profile, rel parser.Release, res *indexers.Result) pickKey {
-	k := pickKey{language: profile.LanguageRank(rel), tier: quality.Rank(quality.Classify(rel)), score: profile.Score(res.Title)}
+	k := pickKey{alive: 1, language: profile.LanguageRank(rel), tier: quality.Rank(quality.Classify(rel)), score: profile.Score(res.Title)}
+	if res.SeedersKnown && !res.Cached && res.Seeders <= 0 {
+		k.alive = 0
+	}
 	if res.Cached && cachedOverScore.Load() {
 		k.cached = 1
 	}

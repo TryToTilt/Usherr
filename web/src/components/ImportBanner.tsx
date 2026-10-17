@@ -5,7 +5,7 @@ import { useAuth } from '../AuthContext'
 import { etaText, finishedText, progressText, upNextText } from '../importText'
 import { useLive } from '../useLive'
 import Icon from './Icon'
-import { t } from '../i18n'
+import { plural, t } from '../i18n'
 
 // A wide banner under the top bar, on every page, while a library import is
 // running (or has just finished). An import carries on in the background, so
@@ -36,6 +36,11 @@ function Banners() {
   const batches = active.batches.filter((b) => !(onImportPage && b.id === shownHere))
   const liveScans = onImportPage ? [] : scans
   if (liveScans.length === 0 && batches.length === 0) return null
+  // Running imports all show. Of the finished ones only the newest of each
+  // kind does, so a few imports in a row don't stack up over every page.
+  const finished = batches.filter((b) => !b.running)
+  const shown = batches.filter((b) => b.running || finished.find((f) => f.kind === b.kind) === b)
+  const hidden = finished.length - shown.filter((b) => !b.running).length
 
   return (
     <div className="import-banners">
@@ -61,16 +66,15 @@ function Banners() {
           </Link>
         </div>
       ))}
-      {batches.map((b) => (
+      {shown.map((b) => (
         <BatchBanner key={b.id} batch={b} onDismissed={load} />
       ))}
-      {batches.filter((b) => !b.running).length > 1 && (
+      {finished.length > 1 && (
         <div className="import-banners-all">
+          {hidden > 0 && <small>{plural(hidden, '{n} earlier import also finished.', '{n} earlier imports also finished.')}</small>}
           <button
             className="btn-sm"
-            onClick={() =>
-              void Promise.all(batches.filter((b) => !b.running).map((b) => api.dismissImportBatch(b.id).catch(() => undefined))).then(load)
-            }
+            onClick={() => void Promise.all(finished.map((b) => api.dismissImportBatch(b.id).catch(() => undefined))).then(load)}
           >
             {t('Dismiss all')}
           </button>

@@ -38,8 +38,12 @@ func (s *Server) registerTVChannelRoutes(play, admin routeGroup) {
 	play.HandleFunc("GET /api/tv/channels/{id}/now", s.handleTVNow)
 	play.HandleFunc("GET /api/tv/channels/{id}/info", revalidated(s.handleTVInfo))
 	play.HandleFunc("GET /api/tv/channels/{id}/logo", s.handleTVLogo)
+	play.HandleFunc("GET /api/tv/channels/{id}/filler/{start}", s.handleTVFiller) // Usherr
 	play.HandleFunc("GET /api/stream/{id}/browser", s.handleStreamBrowser)
 	admin.HandleFunc("POST /api/tv/channels", s.handleTVSave)
+	admin.HandleFunc("POST /api/tv/ai-build", s.handleTVAIBuild)  // Usherr: the AI channel builder
+	play.HandleFunc("POST /api/tv/remind", s.handleTVRemind)      // Usherr: reminders
+	play.HandleFunc("GET /api/tv/reminders", s.handleTVReminders) // Usherr
 	admin.HandleFunc("PUT /api/tv/channels/{id}", s.handleTVSave)
 	admin.HandleFunc("DELETE /api/tv/channels/{id}", s.handleTVDelete)
 	admin.HandleFunc("POST /api/tv/channels/{id}/rebuild", s.handleTVRebuild)
@@ -132,7 +136,8 @@ func (s *Server) handleTVChannels(w http.ResponseWriter, r *http.Request) {
 	out := make([]tvChannelPayload, 0, len(chans))
 	for _, ch := range s.appChannels(chans) {
 		p := tvChannelPayload{Channel: ch}
-		if list, err := repo.Programs(ch.ID, now, now.Add(6*time.Hour)); err == nil && len(list) > 0 {
+		if list, err := repo.Programs(ch.ID, now, now.Add(6*time.Hour)); err == nil && len(shows(list)) > 0 {
+			list = shows(list) // Usherr: filler and cards aren't shows
 			cur := list[0]
 			if !cur.Start.After(now) {
 				p.Now = &tvProgramPayload{Program: cur, Progress: float64(now.Sub(cur.Start)) / float64(cur.End.Sub(cur.Start))}
@@ -161,8 +166,12 @@ func (s *Server) handleTVGuide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now()
-	// From half an hour back, so what just finished shows too.
+	// From half an hour back, so what just finished shows too (Usherr: or
+	// ?back= hours, up to 24, for catch-up).
 	from := now.Truncate(30 * time.Minute).Add(-30 * time.Minute)
+	if back, _ := strconv.Atoi(r.URL.Query().Get("back")); back > 0 && back <= 24 {
+		from = now.Truncate(30 * time.Minute).Add(-time.Duration(back) * time.Hour)
+	}
 	type row struct {
 		Channel  tv.Channel     `json:"channel"`
 		Programs []guideProgram `json:"programs"`
@@ -173,7 +182,7 @@ func (s *Server) handleTVGuide(w http.ResponseWriter, r *http.Request) {
 		progs := []guideProgram{}
 		if ch.Enabled { // a switched-off channel keeps its row (admins see it) but no guide
 			list, _ := repo.Programs(ch.ID, from, from.Add(time.Duration(hours)*time.Hour))
-			for _, p := range list {
+			for _, p := range shows(list) { // Usherr: filler and cards aren't in the guide
 				progs = append(progs, badges.of(p))
 			}
 		}
@@ -215,7 +224,22 @@ func (s *Server) handleTVNow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "Nothing is on "+ch.Name+" yet: its schedule is still being made. Try again in a minute.")
 		return
 	}
-	out := map[string]any{"channel": ch, "program": p, "offset": now.Sub(p.Start).Seconds(), "remaining": p.End.Sub(now).Seconds()}
+	out := map[string]any{"channel": ch, "program": p, "offset": (now.Sub(p.Start) + p.Offset).Seconds(), "remaining": p.End.Sub(now).Seconds()}
+	// Usherr: part of a show split by breaks: the player stops at the part's end.
+	if s.isSplitPart(id, p) {
+		out["cut"] = true
+	}
+	// Usherr: between shows, a card says what's next; filler plays from the channel's folder.
+	if p.Kind == "card" || p.Kind == "filler" {
+		if next, ok := s.upNext(id, p.End); ok {
+			out["upNext"] = next
+		}
+		if p.Kind == "filler" {
+			out["filler"] = fmt.Sprintf("/api/tv/channels/%d/filler/%d", id, p.Start.UnixMilli())
+		}
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
 	if p.Kind == "stream" {
 		// A streamed episode plays through a Stream now session of the
 		// viewer's, like any stream.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -26,8 +27,15 @@ const (
 	musicScanMatching = "matching"
 	musicScanDone     = "done"
 	musicScanFailed   = "failed"
+	musicScanStopped  = "stopped" // cancelled by hand
 
 	maxMusicScanJobs = 5
+
+	// musicScanStale is how long a scan may go without any progress before a
+	// new scan replaces it. Reading one file's tags is capped at a few
+	// seconds and every lookup has its own timeout, so a scan that hasn't
+	// moved for this long is stuck.
+	musicScanStale = 10 * time.Minute
 
 	// Result statuses.
 	musicResultImported  = "imported"  // registered in the library
@@ -48,6 +56,8 @@ type musicScanResult struct {
 	AlbumID  int64  `json:"albumId,omitempty"`
 	Quality  string `json:"quality,omitempty"`
 	Tracks   int    `json:"tracks,omitempty"` // tracks matched to a file
+	// Note is shown with any result: here, files whose tags couldn't be read.
+	Note string `json:"note,omitempty"`
 }
 
 type musicScanSummary struct {
@@ -64,11 +74,15 @@ type musicScanJob struct {
 	id      string
 	root    string
 	phase   string
-	done    int // albums handled
-	total   int // albums found
+	done    int    // albums handled
+	total   int    // albums found
+	current string // the folder being read or looked up
 	results []musicScanResult
 	err     string
 	created time.Time
+	moved   time.Time // the last time the scan made progress
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
 type musicScanPayload struct {
@@ -78,6 +92,7 @@ type musicScanPayload struct {
 	Done    int               `json:"done"`
 	Total   int               `json:"total"`
 	Summary musicScanSummary  `json:"summary"`
+	Current string            `json:"current,omitempty"` // the folder being read or looked up
 	Results []musicScanResult `json:"results"`
 	Error   string            `json:"error,omitempty"`
 }
@@ -85,7 +100,7 @@ type musicScanPayload struct {
 func (j *musicScanJob) snapshot() musicScanPayload {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	p := musicScanPayload{ID: j.id, Root: j.root, Phase: j.phase, Done: j.done, Total: j.total, Error: j.err,
+	p := musicScanPayload{ID: j.id, Root: j.root, Phase: j.phase, Done: j.done, Total: j.total, Current: j.current, Error: j.err,
 		Results: append([]musicScanResult{}, j.results...)}
 	artists := map[string]bool{}
 	for _, r := range j.results {
@@ -114,12 +129,42 @@ func (j *musicScanJob) add(r musicScanResult) {
 	if r.Album != "" {
 		j.done++
 	}
+	j.moved = time.Now()
 	j.mu.Unlock()
+}
+
+// working notes the folder being worked on, which is progress too.
+func (j *musicScanJob) working(folder string) {
+	j.mu.Lock()
+	j.current, j.moved = folder, time.Now()
+	j.mu.Unlock()
+}
+
+// stop ends a running scan with the given phase and reason. It reports
+// whether the scan was still running.
+func (j *musicScanJob) stop(phase, reason string) bool {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.phase != musicScanScanning && j.phase != musicScanMatching {
+		return false
+	}
+	j.phase, j.err, j.current = phase, reason, ""
+	if j.cancel != nil {
+		j.cancel()
+	}
+	return true
 }
 
 func (j *musicScanJob) setPhase(phase string, total int) {
 	j.mu.Lock()
-	j.phase = phase
+	if j.phase == musicScanStopped || j.phase == musicScanFailed {
+		j.mu.Unlock()
+		return // stopped by hand or replaced: it stays that way
+	}
+	j.phase, j.moved = phase, time.Now()
+	if phase == musicScanDone {
+		j.current = ""
+	}
 	if total >= 0 {
 		j.total = total
 	}
@@ -145,18 +190,41 @@ func (m *musicScans) get(id string) *musicScanJob {
 	return m.jobs[id]
 }
 
-// start registers a new job, or returns the one still running.
+// latest is the most recent job, nil when there is none.
+func (m *musicScans) latest() *musicScanJob {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.order) == 0 {
+		return nil
+	}
+	return m.jobs[m.order[len(m.order)-1]]
+}
+
+// start registers a new job, or returns the one still running. A running
+// job that hasn't made progress for musicScanStale is stopped and replaced,
+// so a stuck scan never blocks new ones.
 func (m *musicScans) start(root string) (job *musicScanJob, created bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, id := range m.order {
-		if j := m.jobs[id]; j.running() {
+		j := m.jobs[id]
+		if !j.running() {
+			continue
+		}
+		j.mu.Lock()
+		stale := time.Since(j.moved) > musicScanStale
+		j.mu.Unlock()
+		if !stale {
 			return j, false
 		}
+		j.stop(musicScanFailed, "it made no progress for 10 minutes")
+		slog.Warn("music: replaced a scan that made no progress", "id", j.id, "root", j.root)
 	}
 	buf := make([]byte, 8)
 	_, _ = rand.Read(buf)
-	job = &musicScanJob{id: hex.EncodeToString(buf), root: root, phase: musicScanScanning, created: time.Now()}
+	now := time.Now()
+	job = &musicScanJob{id: hex.EncodeToString(buf), root: root, phase: musicScanScanning, created: now, moved: now}
+	job.ctx, job.cancel = context.WithCancel(context.Background())
 	if m.jobs == nil {
 		m.jobs = map[string]*musicScanJob{}
 	}
@@ -189,6 +257,32 @@ func (s *Server) handleMusicImportScan(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]string{"id": job.id})
 }
 
+// handleMusicImportLatest returns the most recent scan job, running or
+// finished, so the page shows it again when it is reopened (administrators).
+// Answers {"id": ""} when no scan has run since the server started.
+func (s *Server) handleMusicImportLatest(w http.ResponseWriter, r *http.Request) {
+	job := s.music.scans.latest()
+	if job == nil {
+		writeJSON(w, http.StatusOK, map[string]string{"id": ""})
+		return
+	}
+	writeJSON(w, http.StatusOK, job.snapshot())
+}
+
+// handleMusicImportCancel stops a running scan (administrators). What was
+// registered so far stays in the library.
+func (s *Server) handleMusicImportCancel(w http.ResponseWriter, r *http.Request) {
+	job := s.music.scans.get(r.PathValue("id"))
+	if job == nil {
+		writeError(w, http.StatusNotFound, "That scan isn't available any more.")
+		return
+	}
+	if job.stop(musicScanStopped, "") {
+		slog.Info("music: scan stopped by hand", "id", job.id, "root", job.root)
+	}
+	writeJSON(w, http.StatusOK, job.snapshot())
+}
+
 // handleMusicImportResults returns a scan job: its phase, progress, the
 // summary and one result per album folder found (administrators).
 func (s *Server) handleMusicImportResults(w http.ResponseWriter, r *http.Request) {
@@ -201,12 +295,19 @@ func (s *Server) handleMusicImportResults(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) runMusicScan(job *musicScanJob, userID int64) {
-	ctx := context.Background()
+	ctx := job.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	defer func() {
+		if job.cancel != nil {
+			job.cancel()
+		}
+	}()
+	slog.Info("music: library scan started", "root", job.root)
 	artists, err := music.ScanLibrary(job.root)
 	if err != nil {
-		job.mu.Lock()
-		job.phase, job.err = musicScanFailed, err.Error()
-		job.mu.Unlock()
+		job.stop(musicScanFailed, err.Error())
 		slog.Warn("music: scan music folder", "root", job.root, "err", err)
 		return
 	}
@@ -215,8 +316,13 @@ func (s *Server) runMusicScan(job *musicScanJob, userID int64) {
 		total += len(a.Albums)
 	}
 	job.setPhase(musicScanMatching, total)
+	slog.Info("music: library scan read the folder", "root", job.root, "artists", len(artists), "albums", total)
 	cache := map[string]*scanArtist{}
 	for _, a := range artists {
+		if ctx.Err() != nil {
+			slog.Info("music: library scan stopped", "root", job.root, "albums_done", job.snapshot().Done, "albums", total)
+			return
+		}
 		if music.IsVariousArtists(a.Name) { // home fork: compilations are skipped
 			job.add(musicScanResult{Artist: a.Name, Folder: a.Path, Files: len(a.Loose), Status: musicResultUnmatched,
 				Message: "Skipped: compilation folders (Various Artists) aren't imported."})
@@ -227,9 +333,35 @@ func (s *Server) runMusicScan(job *musicScanJob, userID int64) {
 			continue
 		}
 		s.matchScannedArtist(ctx, job, a, userID, cache)
+		slog.Info("music: library scan progress", "artist", a.Name, "albums_done", job.snapshot().Done, "albums", total)
 	}
 	job.setPhase(musicScanDone, -1)
 	slog.Info("music: library scan finished", "root", job.root, "artists", len(artists), "albums", total)
+}
+
+// skippedTags is a TagReader that counts the files whose tags took too long
+// to read (they are then matched by their names alone).
+type skippedTags struct {
+	inner   music.TagReader
+	skipped int
+}
+
+func (r *skippedTags) ReadTags(path string) (music.FileInfo, bool, error) {
+	info, ok, err := r.inner.ReadTags(path)
+	if errors.Is(err, music.ErrTagReadLimit) {
+		r.skipped++
+		slog.Warn("music scan: gave up reading a file's tags, it may be damaged", "file", path)
+	}
+	return info, ok, err
+}
+
+// skippedTagsNote is the note for an album with files whose tags couldn't
+// be read in time.
+func skippedTagsNote(n int) string {
+	if n == 1 {
+		return "The tags of 1 file couldn't be read in time, so it was matched by its name. It may be damaged."
+	}
+	return fmt.Sprintf("The tags of %d files couldn't be read in time, so they were matched by their names. They may be damaged.", n)
 }
 
 // scanArtist is an artist resolved on MusicBrainz (and added to the
@@ -359,22 +491,35 @@ func (s *Server) matchScannedArtist(ctx context.Context, job *musicScanJob, fold
 	// The album names found on disk (from the tags, and from the folder
 	// names) help to tell apart two artists that share a name.
 	scanned := make([][]music.FileInfo, len(folder.Albums))
+	skipped := make([]int, len(folder.Albums))
 	var hints []string
 	for n, al := range folder.Albums {
+		job.working(al.Path)
 		infos := make([]music.FileInfo, len(al.Files))
+		reader := &skippedTags{inner: musicTagReader}
 		for i, f := range al.Files {
-			infos[i] = music.IdentifyFile(f, musicTagReader)
+			if ctx.Err() != nil {
+				return
+			}
+			infos[i] = music.IdentifyFile(f, reader)
 		}
-		scanned[n] = infos
+		scanned[n], skipped[n] = infos, reader.skipped
 		hints = append(hints, al.Title)
 		if t := music.ConsensusOf(infos).Album; t != "" {
 			hints = append(hints, t)
 		}
 	}
 	for n, al := range folder.Albums {
+		if ctx.Err() != nil {
+			return
+		}
+		job.working(al.Path)
 		infos := scanned[n]
 		tags := music.ConsensusOf(infos)
 		res := musicScanResult{Artist: folder.Name, Album: al.Title, Folder: al.Path, Files: len(al.Files)}
+		if skipped[n] > 0 {
+			res.Note = skippedTagsNote(skipped[n])
+		}
 
 		var sa *scanArtist
 		var errs []string
@@ -386,6 +531,9 @@ func (s *Server) matchScannedArtist(ctx context.Context, job *musicScanJob, fold
 				break
 			}
 			errs = append(errs, cand.err)
+		}
+		if ctx.Err() != nil {
+			return // stopped: a lookup cut short says nothing about the album
 		}
 		if sa == nil {
 			res.Status, res.Message = musicResultUnmatched, errs[0]

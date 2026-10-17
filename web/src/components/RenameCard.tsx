@@ -5,8 +5,9 @@ import { plural, t } from '../i18n'
 import { useToast } from './Toast'
 
 // Settings > Library: rename the files already in the library so they match
-// the naming preset. A preview first; only ticked files are renamed.
-export default function RenameCard() {
+// the naming preset. A preview first; only ticked files are renamed. While
+// files keep their original names there is nothing to rename to.
+export default function RenameCard({ keepOriginalNames = false }: { keepOriginalNames?: boolean }) {
   const toast = useToast()
   const [plan, setPlan] = useState<RenameItem[] | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
@@ -50,7 +51,9 @@ export default function RenameCard() {
       <p style={{ marginTop: 0 }}>
         {t('Files keep the name they had when they arrived. After changing the naming preset, this renames them to match. You see every change first, and subtitles move with their video. Your media server is told afterwards.')}
       </p>
-      {plan === null ? (
+      {keepOriginalNames ? (
+        <p className="field-hint">{t('Keep the original file names is on, so nothing is renamed. Turn it off above and save to rename files to match the naming preset.')}</p>
+      ) : plan === null ? (
         <button onClick={() => void preview()} disabled={busy}>
           {busy ? t('Looking…') : t('Show what would change')}
         </button>

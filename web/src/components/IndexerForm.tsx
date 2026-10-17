@@ -145,7 +145,7 @@ export default function IndexerForm({ onAdded, torrentDisabled }: { onAdded: (i:
       <div className="form-cols">
         <label>
           {t('Indexer')}
-          <select value={preset || '__custom'} onChange={(e) => choosePreset(e.target.value)}>
+          <select aria-label={t('Indexer')} value={preset || '__custom'} onChange={(e) => choosePreset(e.target.value)}>
             {protocol === 'usenet' && (
               <>
                 <option value="__custom">{t('Other (type the address)')}</option>
@@ -171,7 +171,7 @@ export default function IndexerForm({ onAdded, torrentDisabled }: { onAdded: (i:
         </label>
         <label>
           <TipLabel text={t('Your personal key from the indexer\'s account page. It lets Mediarium search as you, so do not share it.')}>{t('API key')}</TipLabel> {!needsKey && <small style={{ color: 'var(--text-dim)' }}>{t('(not needed for this one)')}</small>}
-          <input value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoComplete="off" spellCheck={false} {...v.bind('apiKey', apiKey, setApiKey)} />
+          <input aria-label={t('API key')} value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoComplete="off" spellCheck={false} {...v.bind('apiKey', apiKey, setApiKey)} />
           <FieldError v={v} name="apiKey" />
         </label>
       </div>
@@ -184,7 +184,7 @@ export default function IndexerForm({ onAdded, torrentDisabled }: { onAdded: (i:
         </button>
         {!tested && test.state !== 'fail' && <small className="test-hint">{t('Test the connection to unlock Add.')}</small>}
       </div>
-      <FormProblem v={v} verb={t('test the connection')} />
+      <FormProblem v={v} action="test" />
       {test.forKey === detailsKey && test.state === 'ok' && (
         <div className="test-result ok">
           <Icon name="check" size={15} /> {test.message || t('Connected.')}

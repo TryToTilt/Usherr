@@ -16,7 +16,7 @@ func init() {
 	usherrNoPrivateReports = false
 	brand.Reset()
 	updatecheck.DefaultRepo = "rdborg/Mediarium"
-	os.Setenv(adultEnv, "1") // the fork's scene tests switch the module on
+	os.Setenv(adultEnv, "1") // the fork's video tests switch the module on
 	usherrAdultConfirm = false
 }
 
@@ -68,7 +68,7 @@ func TestUsherrAdultSwitchRefusals(t *testing.T) {
 	s := &Server{}
 	put := func(body string) int {
 		w := httptest.NewRecorder()
-		s.handlePutSceneSettings(w, httptest.NewRequest(http.MethodPut, "/api/scenes/settings", strings.NewReader(body)))
+		s.handlePutVideoSettings(w, httptest.NewRequest(http.MethodPut, "/api/nsfw/settings", strings.NewReader(body)))
 		return w.Code
 	}
 	os.Unsetenv(adultEnv)

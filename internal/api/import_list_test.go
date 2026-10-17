@@ -12,7 +12,6 @@ import (
 	"github.com/rdborg/mediarium/internal/api"
 	"github.com/rdborg/mediarium/internal/config"
 	"github.com/rdborg/mediarium/internal/crypto"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 // newFakeTraktServer serves a fixed two-item public-list response (one
@@ -65,7 +64,7 @@ func TestImportListEndToEnd(t *testing.T) {
 			t.Fatalf("mkdir %s: %v", d, err)
 		}
 	}
-	db, err := store.Open(filepath.Join(cfg.ConfigDir, "app.db"))
+	db, err := api.OpenTestDB(filepath.Join(cfg.ConfigDir, "app.db"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}

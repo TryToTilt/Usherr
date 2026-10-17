@@ -106,9 +106,9 @@ const VPNSettings = lazy(() => import('./pages/settings/VPNSettings'))
 const SchedulesSettings = lazy(() => import('./home/SchedulesSettings'))
 const ExtrasSettings = lazy(() => import('./home/ExtrasSettings'))
 const SetupChecklist = lazy(() => import('./home/SetupChecklist')) // home fork
-const Scenes = lazy(() => import('./home/Scenes'))
-const SceneBrowse = lazy(() => import('./home/Scenes').then((m) => ({ default: m.SceneBrowse })))
-const SceneDetail = lazy(() => import('./home/Scenes').then((m) => ({ default: m.SceneDetail })))
+const Nsfw = lazy(() => import('./home/Nsfw'))
+const VideoBrowse = lazy(() => import('./home/Nsfw').then((m) => ({ default: m.VideoBrowse })))
+const VideoDetail = lazy(() => import('./home/Nsfw').then((m) => ({ default: m.VideoDetail })))
 const Comics = lazy(() => import('./home/Comics'))
 const ComicSeriesPage = lazy(() => import('./home/Comics').then((m) => ({ default: m.ComicSeriesPage })))
 const ComicArcPage = lazy(() => import('./home/ComicArcs').then((m) => ({ default: m.ComicArcPage })))
@@ -217,9 +217,10 @@ function Gate() {
         <Route path="/you/wrapped" element={<You tab="wrapped" />} /> {/* home fork */}
         <Route path="/queue" element={<Queue />} />
         {/* home fork: NSFW 18+ (administrators only), comics, Live TV, the streamed library */}
-        <Route path="/scenes" element={<NSFWOnly><Scenes /></NSFWOnly>} />
-        <Route path="/scenes/:id" element={<NSFWOnly><SceneDetail /></NSFWOnly>} />
-        <Route path="/scenes/browse/:kind/:stashId" element={<NSFWOnly><SceneBrowse /></NSFWOnly>} />
+        <Route path="/nsfw" element={<NSFWOnly><Nsfw /></NSFWOnly>} />
+        <Route path="/scenes/*" element={<OldNsfwAddress />} /> {/* Usherr: the old address */}
+        <Route path="/nsfw/:id" element={<NSFWOnly><VideoDetail /></NSFWOnly>} />
+        <Route path="/nsfw/browse/:kind/:stashId" element={<NSFWOnly><VideoBrowse /></NSFWOnly>} />
         <Route path="/comics" element={<Comics />} />
         <Route path="/comics/:id" element={<ComicSeriesPage />} />
         <Route path="/comics/arc/:id" element={<ComicArcPage />} />
@@ -281,6 +282,12 @@ function Gate() {
 // screen, and going to another page clears it.
 function Guarded({ children }: { children: ReactNode }) {
   return <ErrorBoundary resetKey={useLocation().pathname}>{children}</ErrorBoundary>
+}
+
+// Usherr: NSFW 18+ was at /scenes; an old link or bookmark lands on the same page.
+function OldNsfwAddress() {
+  const l = useLocation()
+  return <Navigate to={l.pathname.replace(/^\/scenes/, '/nsfw') + l.search} replace />
 }
 
 export default function App() {

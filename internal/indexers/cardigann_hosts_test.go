@@ -12,7 +12,7 @@ import (
 func TestResolvePathOnlyLeadsToTheSite(t *testing.T) {
 	mk := func(base string, links ...string) *cgSession {
 		b, _ := url.Parse(base)
-		return &cgSession{name: "Fixture", base: b, def: &Definition{Links: links}}
+		return &cgSession{name: "Fixture", base: b, def: &Definition{Links: links, Login: &LoginBlock{}}}
 	}
 	tests := []struct {
 		name string

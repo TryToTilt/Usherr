@@ -69,7 +69,7 @@ Then open `http://<your-server-ip>:8264` and follow the setup. The full guide is
 
 ### NSFW 18+
 
-Usherr includes a module for adult content (scenes from StashDB, followed by performer or studio). It is **locked** unless whoever runs the server unlocks it, by adding this to the container's environment and restarting:
+Usherr includes a module for adult content (videos from StashDB, followed by performer or studio). It is **locked** unless whoever runs the server unlocks it, by adding this to the container's environment and restarting:
 
 ```yaml
       - USHERR_ALLOW_ADULT=1

@@ -74,12 +74,9 @@ func (s *Server) comicKeySet() bool {
 	k, _ := s.Settings.Get(keyComicVineKey)
 	return strings.TrimSpace(k) != ""
 }
-func (s *Server) comicsRoot() string {
-	if v, _ := s.Settings.Get(keyComicsPath); strings.TrimSpace(v) != "" {
-		return strings.TrimSpace(v)
-	}
-	return strings.TrimSpace(os.Getenv("COMICS_DIR"))
-}
+
+// comicsRoot: the saved folder, else COMICS_DIR, else /comics or /data/comics (Usherr, see home_extra_folders.go).
+func (s *Server) comicsRoot() string { return s.extraFolderRoot("comics") }
 
 func (s *Server) registerComicRoutes(admin, member routeGroup) {
 	on := func(h http.HandlerFunc) http.HandlerFunc {

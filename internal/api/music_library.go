@@ -385,7 +385,11 @@ func (s *Server) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 		if a.Status == music.StatusDownloaded {
 			out.DownloadedCount++
 		}
-		out.Albums = append(out.Albums, toMusicAlbumPayload(a))
+		ap := toMusicAlbumPayload(a)
+		if !isAdminRequest(r) {
+			ap.Path = "" // only administrators see where the files lie
+		}
+		out.Albums = append(out.Albums, ap)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -403,10 +407,13 @@ func (s *Server) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := toMusicAlbumPayload(album)
+	if !isAdminRequest(r) {
+		out.Path = "" // only administrators see where the files lie
+	}
 	out.ArtistName = artist.Name
 	out.Tracks = make([]musicTrackPayload, len(tracks))
 	for i, t := range tracks {
-		out.Tracks[i] = musicTrackPayload{ID: t.ID, Disc: t.Disc, Position: t.Position, Title: t.Title, LengthMs: t.LengthMs, HasFile: t.FilePath != "", FilePath: t.FilePath}
+		out.Tracks[i] = musicTrackPayload{ID: t.ID, Disc: t.Disc, Position: t.Position, Title: t.Title, LengthMs: t.LengthMs, HasFile: t.FilePath != "", FilePath: fileLabel(r, t.FilePath)}
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -444,7 +451,7 @@ func (s *Server) handleAlbumEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	events, err := s.QueueRepo.AlbumEvents(album.ID, maxItemEvents)
-	writeItemEvents(w, events, err)
+	writeItemEvents(w, events, err, isAdminRequest(r))
 }
 
 // handleDeleteArtist removes an artist and its albums from the library. Its

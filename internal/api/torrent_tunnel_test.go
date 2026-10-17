@@ -7,7 +7,6 @@ import (
 	"github.com/rdborg/mediarium/internal/config"
 	"github.com/rdborg/mediarium/internal/crypto"
 	"github.com/rdborg/mediarium/internal/settings"
-	"github.com/rdborg/mediarium/internal/store"
 )
 
 // With no VPN connected, the kill switch decides: off means a direct
@@ -16,7 +15,7 @@ import (
 func TestTorrentTunnelWithoutVPN(t *testing.T) {
 	dir := t.TempDir()
 	cfg := config.Config{ConfigDir: dir, DownloadsDir: dir, DownloadsIncomplete: dir, DownloadsComplete: dir, MoviesDir: dir}
-	db, err := store.Open(filepath.Join(dir, "app.db"))
+	db, err := OpenTestDB(filepath.Join(dir, "app.db"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}

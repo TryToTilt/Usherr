@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useStreamed } from '../home/useHave' // Usherr
+import { describeState } from './state' // Usherr
 import { useVotes } from '../home/useVotes' // home fork
 import { voteActions } from '../home/VoteButtons' // home fork
 import { CardScores } from '../home/scores' // home fork
@@ -27,6 +29,7 @@ export function DiscoverCards({ items, kind, owned, onAdd, why }: { items: Disco
   const picks = usePicks()
   const votes = useVotes() // home fork
   const map = kind === 'movie' ? owned.movies : owned.shows
+  const streamed = useStreamed(kind) // Usherr
   return (
     <>
       {items.filter((m) => !picks?.excluded.has(pickKey({ kind, tmdbId: m.tmdbId }))).map((m) => {
@@ -44,7 +47,7 @@ export function DiscoverCards({ items, kind, owned, onAdd, why }: { items: Disco
             genres={m.genres}
             rating={coming ? undefined : m.rating}
             kind={kind}
-            state={own?.state}
+            state={own?.state ?? (streamed(m.tmdbId) ? describeState('streams') : undefined)} // Usherr: streamed titles say so
             actions={voteActions(votes, kind, m.tmdbId, { title: m.title, year: m.year, image: m.posterUrl })} // home fork: votes
             footer={
               <div className="pcard-footer">

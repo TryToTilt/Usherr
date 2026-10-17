@@ -138,7 +138,7 @@ It is off until you choose a day. On the Notifications page, under **Weekly summ
 
 ## Connection watch
 
-Every half hour Mediarium checks that your Usenet provider and indexers still accept your login. If one stops working it notifies you once, and again when it recovers; turn on **Something is wrong** on a notification to get these. **Check now** runs it straight away. The box **Check every … minutes** changes how often (5 or more; 0 turns the checks off), and you press **Save**. Scripts use `monitorIntervalMinutes` in `PUT /api/settings`, stored as `monitor.interval_minutes`.
+Every half hour Mediarium checks that your Usenet provider and indexers still accept your login. Usenet providers are logged into every time. Indexers are asked far less often, because many free ones allow only a few requests a day: an indexer is skipped when a search or feed read has worked since the last check, is asked at most once every 6 hours, and is asked with the small capabilities question that indexers answer, not with a search. An indexer that has used up its daily limit isn't asked at all ([Daily limits](./indexers.md#daily-limits)). The **Test** button on an indexer in Settings still does a real search, and **Check now** asks every indexer straight away. If one stops working it notifies you once, and again when it recovers; turn on **Something is wrong** on a notification to get these. **Check now** runs it straight away. The box **Check every … minutes** changes how often (5 or more; 0 turns the checks off), and you press **Save**. Scripts use `monitorIntervalMinutes` in `PUT /api/settings`, stored as `monitor.interval_minutes`.
 
 ## Errors
 

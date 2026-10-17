@@ -77,6 +77,7 @@ func TestSettingsRejectValuesThatCannotWork(t *testing.T) {
 		{"language with a space", map[string]any{"subtitleLanguages": []string{"en", "x y"}}, "isn't a language code"},
 		{"language that climbs out of a folder", map[string]any{"subtitleLanguages": []string{"../etc"}}, "isn't a language code"},
 		{"only blank languages", map[string]any{"subtitleLanguages": []string{" "}}, "at least one subtitle language"},
+		{"more languages than the list has", map[string]any{"subtitleLanguages": manyLanguageCodes(51)}, "at most 50 subtitle languages"},
 		{"legal date that is not a date", map[string]any{"legalAcknowledgedAt": "yesterday"}, "date doesn't look right"},
 		{"TMDB key with a space", map[string]any{"tmdbApiKey": "abc def"}, "space or line break"},
 		{"OpenSubtitles key with a line break", map[string]any{"openSubtitlesApiKey": "abc\ndef"}, "space or line break"},
@@ -91,6 +92,15 @@ func TestSettingsRejectValuesThatCannotWork(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) { wantBad(t, client, http.MethodPut, url, tc.body, tc.want) })
 	}
+}
+
+// manyLanguageCodes is n different two-letter codes (aa, ab, ac...).
+func manyLanguageCodes(n int) []string {
+	out := make([]string, n)
+	for i := range out {
+		out[i] = string([]byte{'a' + byte(i/26), 'a' + byte(i%26)})
+	}
+	return out
 }
 
 func TestSettingsAcceptGoodValuesAndBlanks(t *testing.T) {
@@ -108,6 +118,8 @@ func TestSettingsAcceptGoodValuesAndBlanks(t *testing.T) {
 		{"monitorIntervalMinutes": 0}, {"monitorIntervalMinutes": 45},
 		{"historyRetentionDays": 0}, {"historyRetentionDays": 90},
 		{"subtitleLanguages": []string{"en", "pt-BR", "zh-CN"}},
+		{"subtitleLanguages": []string{"hr", "sr", "bs", "sl", "sk", "bg", "uk", "ca", "id", "th", "vi", "hi"}},
+		{"subtitleLanguages": manyLanguageCodes(50)},
 		{"legalAcknowledgedAt": "2026-01-02T03:04:05Z"},
 		{"flareSolverrUrl": "http://flaresolverr:8191/"}, {"flareSolverrUrl": ""},
 		{"defaultSources": "both"},

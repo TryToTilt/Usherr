@@ -197,6 +197,65 @@ func TestImportExistingMovieLibrary(t *testing.T) {
 	}
 }
 
+// Two folders of one import that are the same film used to be reported as
+// "Already in your library", and a second copy next to the one used was
+// dropped without a word. Now the copy in use is named, and so is every file
+// that wasn't used.
+func TestImportReportsCopiesOfTheSameFilm(t *testing.T) {
+	server, httpSrv, client := newHuntTestServer(t)
+	server.TestSetTMDBBaseURL("fixture-tmdb-key", newImportTMDBServer(t).URL)
+	postJSON[map[string]any](t, client, httpSrv.URL+"/api/onboarding/admin", map[string]string{
+		"username": "ryan", "password": "correct-horse-battery-staple", "firstName": "Ryan", "lastName": "Tester",
+	}, http.StatusCreated)
+
+	root := t.TempDir()
+	main := filepath.Join(root, "Inception (2010)", "Inception (2010) 1080p BluRay.mkv")
+	if err := os.MkdirAll(filepath.Dir(main), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(main, []byte("a bigger video file"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loose := writeFile(t, root, "Inception.2010.720p.BluRay.x264-OTHER.mkv") // same title and year: the same group
+	writeFile(t, root, "Inception/inception.mkv")                            // no year: a group of its own
+
+	started := postJSON[map[string]any](t, client, httpSrv.URL+"/api/library/scan", map[string]any{"path": root, "kind": "movie"}, http.StatusAccepted)
+	job := waitForImportPhase(t, client, httpSrv.URL, started["jobId"].(string), "ready")
+	var sels []map[string]any
+	for _, raw := range job["items"].([]any) {
+		it := raw.(map[string]any)
+		sels = append(sels, map[string]any{"key": it["key"], "tmdbId": 27205})
+	}
+	if len(sels) != 2 {
+		t.Fatalf("expected two review rows, got %+v", job["items"])
+	}
+	confirmed := postJSON[map[string]any](t, client, httpSrv.URL+"/api/library/import", map[string]any{"jobId": started["jobId"], "selections": sels}, http.StatusAccepted)
+	batch := waitForImportBatch(t, client, httpSrv.URL, confirmed["batchId"].(float64))
+	if batch["added"] != float64(1) || batch["already"] != float64(0) {
+		t.Fatalf("totals: %+v", batch)
+	}
+	var added, dup map[string]any
+	for _, raw := range batch["items"].([]any) {
+		it := raw.(map[string]any)
+		switch it["outcome"] {
+		case "added":
+			added = it
+		case "duplicate":
+			dup = it
+		}
+	}
+	if added == nil || !strings.Contains(fmt.Sprint(added["note"]), loose) {
+		t.Fatalf("the unused copy should be named: %+v", batch["items"])
+	}
+	if dup == nil || !strings.Contains(fmt.Sprint(dup["note"]), "Same film as another folder in this import") || !strings.Contains(fmt.Sprint(dup["note"]), main) {
+		t.Fatalf("the duplicate should name the copy in use: %+v", dup)
+	}
+	movies := getJSON[[]map[string]any](t, client, httpSrv.URL+"/api/movies")
+	if len(movies) != 1 || movies[0]["filePath"] != main {
+		t.Fatalf("the biggest copy is used: %+v", movies)
+	}
+}
+
 func TestImportExistingTVLibrary(t *testing.T) {
 	server, httpSrv, client := newHuntTestServer(t)
 	server.TestSetTMDBBaseURL("fixture-tmdb-key", newTVTMDBServer(t, nil).URL)
@@ -240,6 +299,24 @@ func TestImportExistingTVLibrary(t *testing.T) {
 		if ep["season"] == float64(1) && ep["episode"] == float64(1) && ep["filePath"] != e1 {
 			t.Fatalf("S01E01 should point at the original file, got %v", ep["filePath"])
 		}
+	}
+	if batch["added"] != float64(1) || batch["already"] != float64(0) {
+		t.Fatalf("first import counts: added %v already %v", batch["added"], batch["already"])
+	}
+
+	// The same show in another folder is already in the library: the report
+	// says so, as it does for movies, instead of counting it as added.
+	other := t.TempDir()
+	writeFile(t, other, "Fixture Show (2011)/Season 01/Fixture.Show.S01E02.1080p.WEB.mkv")
+	again := postJSON[map[string]any](t, client, httpSrv.URL+"/api/library/scan", map[string]any{"path": other, "kind": "tv"}, http.StatusAccepted)
+	job = waitForImportPhase(t, client, httpSrv.URL, again["jobId"].(string), "ready")
+	item = itemByTitle(t, job, "Fixture Show")
+	confirmed = postJSON[map[string]any](t, client, httpSrv.URL+"/api/library/import", map[string]any{
+		"jobId": again["jobId"], "selections": []map[string]any{{"key": item["key"], "tmdbId": 1399}},
+	}, http.StatusAccepted)
+	batch = waitForImportBatch(t, client, httpSrv.URL, confirmed["batchId"].(float64))
+	if batch["added"] != float64(0) || batch["already"] != float64(1) || batch["total"] != float64(1) {
+		t.Fatalf("second import counts: added %v already %v total %v", batch["added"], batch["already"], batch["total"])
 	}
 }
 

@@ -160,6 +160,24 @@ func TestScanRejectsMissingFolder(t *testing.T) {
 	}
 }
 
+// A release by a group called OTHER (or SHORT, SCENE...) ends like a Plex
+// extra ("-other"), but it is the film: only names without a quality are
+// taken as extras.
+func TestScanMoviesKeepsReleasesThatEndLikeExtras(t *testing.T) {
+	root := t.TempDir()
+	touch(t, root, "Inception (2010)/Inception (2010) 1080p BluRay.mkv", 10)
+	touch(t, root, "Inception.2010.720p.BluRay.x264-OTHER.mkv", 5)
+	touch(t, root, "Inception (2010)/Inception (2010)-other.mkv", 5)
+	touch(t, root, "Inception (2010)/Inception-short.mkv", 5)
+	res, err := libimport.ScanMovies(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := summarize(res.Groups); len(got) != 1 || got[0] != (found{"Inception", 2010, 2}) {
+		t.Fatalf("groups = %+v", got)
+	}
+}
+
 func TestDecide(t *testing.T) {
 	cands := func(cs ...libimport.Candidate) []libimport.Candidate { return cs }
 	c := func(id int, title string, year int) libimport.Candidate {
@@ -181,6 +199,20 @@ func TestDecide(t *testing.T) {
 		{"year given but titles differ", "Heat", 1995, cands(c(1, "Heated Rivalry", 2025)), libimport.MatchAmbiguous, 1},
 		{"exact title but wrong year", "Heat", 2001, cands(c(1, "Heat", 1995)), libimport.MatchAmbiguous, 1},
 		{"nothing found", "Zzzz", 0, nil, libimport.MatchUnmatched, 0},
+		// A folder named in the film's own language or script: the title
+		// TMDB gives differs, so the year decides the default.
+		{"other titles: the exact year comes first", "Hausu", 1977,
+			cands(c(1, "Rorikon hausu: Oshimeri Junko", 1983), c(2, "Hausu", 2011), c(3, "House", 1977)), libimport.MatchAmbiguous, 3},
+		{"other titles: exact year before a year off", "Леон", 1994,
+			cands(c(1, "Leon Drey", 1915), c(2, "Leon", 1995), c(3, "Léon: The Professional", 1994)), libimport.MatchAmbiguous, 3},
+		{"other titles: a year off before any other year", "ゴジラ", 1954,
+			cands(c(1, "Shin Godzilla", 2016), c(2, "Godzilla", 1955)), libimport.MatchAmbiguous, 2},
+		{"the original title counts as the same title", "La vita è bella", 1997,
+			cands(c(1, "La vita è bella", 1943), libimport.Candidate{TMDBID: 637, Title: "Life Is Beautiful", OriginalTitle: "La vita è bella", Year: 1997}), libimport.MatchMatched, 637},
+		{"an adult title never comes first", "House", 1977,
+			cands(libimport.Candidate{TMDBID: 1, Title: "House", Year: 1977, Adult: true}, c(2, "House", 1986)), libimport.MatchAmbiguous, 2},
+		{"only adult titles are still offered", "House", 1977,
+			cands(libimport.Candidate{TMDBID: 1, Title: "House", Year: 1977, Adult: true}), libimport.MatchMatched, 1},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -33,23 +34,38 @@ func (s *Server) sendNotification(event notify.Event) {
 // background. It counts as background work, so anything that waits for the
 // downloads to settle (the tests do) waits for it too.
 func (s *Server) deliverNotification(event notify.Event) {
-	s.background(func() {
-		senders, err := s.NotifyRepo.SendersFor(notify.EventKind(event.Type))
-		if err != nil {
-			log.Printf("notify: load senders: %v", err)
-			return
-		}
-		if len(senders) == 0 {
-			return
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
-		defer cancel()
-		errs := notify.NotifyAll(ctx, senders, event)
-		for _, err := range errs {
-			log.Printf("notify: %v", err)
-			noteNotifyFailure(err)
-		}
-	})
+	s.background(func() { s.deliverNotificationNow(event) })
+}
+
+// deliverNotificationNow is deliverNotification run in the caller's goroutine.
+func (s *Server) deliverNotificationNow(event notify.Event) {
+	senders, err := s.NotifyRepo.SendersFor(notify.EventKind(event.Type))
+	if err != nil {
+		log.Printf("notify: load senders: %v", err)
+		return
+	}
+	if len(senders) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	errs := notify.NotifyAll(ctx, senders, event)
+	for _, err := range errs {
+		logNotifyFailure(event.Type, err)
+		noteNotifyFailure(err)
+	}
+}
+
+// logNotifyFailure writes one warning per target that didn't take a message,
+// naming the target. The error never holds the target's address (webhook and
+// chat addresses are secrets; see notify.redactURLError).
+func logNotifyFailure(eventType string, err error) {
+	var te *notify.TargetError
+	if errors.As(err, &te) {
+		slog.Warn("notify: a notification could not be delivered", "target", te.Name, "type", string(te.Type), "event", eventType, "err", te.Err)
+		return
+	}
+	slog.Warn("notify: a notification could not be delivered", "event", eventType, "err", err)
 }
 
 // notifyTargetRequest is the body of create, update and test. Config holds the

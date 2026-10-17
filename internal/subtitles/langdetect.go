@@ -36,7 +36,9 @@ var languageNames = []struct {
 	{"ro", []string{"ro", "rum", "ron", "romanian", "romana"}},
 	{"bg", []string{"bg", "bul", "bulgarian"}},
 	{"hr", []string{"hr", "hrv", "scr", "croatian", "hrvatski"}},
-	{"sr", []string{"sr", "srp", "scc", "serbian", "srpski"}},
+	// OpenSubtitles has one Serbian, Latin and Cyrillic alike.
+	{"sr", []string{"sr", "srp", "scc", "serbian", "srpski", "sr-latn", "sr-cyrl", "serbian-latin", "serbian-cyrillic"}},
+	{"bs", []string{"bs", "bos", "bosnian", "bosanski"}},
 	{"uk", []string{"uk", "ukr", "ukrainian"}},
 	{"el", []string{"el", "gre", "ell", "greek", "ellinika", "ελληνικα", "ελληνικά"}},
 	{"tr", []string{"tr", "tur", "turkish", "turkce"}},

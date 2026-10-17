@@ -27,6 +27,10 @@ type Show struct {
 	Type          string   `json:"type"`
 	// The show's own language ("en"); home fork: "Not English" recipes.
 	OriginalLanguage string `json:"original_language"`
+	// OriginalName is the show's name in its own language, and Adult is
+	// TMDB's adult flag (both on search results too).
+	OriginalName string `json:"original_name"`
+	Adult        bool   `json:"adult"`
 }
 
 // Year extracts the 4-digit first-air year, or 0 if unknown.
@@ -49,6 +53,9 @@ type ShowDetail struct {
 	EpisodeRunTime []int `json:"episode_run_time"`
 	// Status is TMDB's: "Returning Series", "Ended", "Canceled", "In Production"…
 	Status string `json:"status"`
+	// Usherr: the latest episode out and the next one due, when TMDB knows them.
+	LastEpisodeToAir *EpisodeInfo `json:"last_episode_to_air"`
+	NextEpisodeToAir *EpisodeInfo `json:"next_episode_to_air"`
 	// ExternalIDs are the show's ids elsewhere (TheTVDB, IMDb); zero when
 	// TMDB doesn't know them.
 	ExternalIDs struct {

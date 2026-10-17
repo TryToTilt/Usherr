@@ -28,7 +28,7 @@ func TestWantedShowsEachTitlesLastSearch(t *testing.T) {
 		if err := env.server.QueueRepo.LogItemEvent(e); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(1100 * time.Millisecond) // event times have one second resolution
+		time.Sleep(5 * time.Millisecond) // event times have millisecond resolution
 	}
 	log(queue.ItemEvent{MovieID: one.ID, Kind: "searched", Message: "first search", ItemOnly: true})
 	log(queue.ItemEvent{MovieID: one.ID, Kind: "searched", Message: "second search", ItemOnly: true})

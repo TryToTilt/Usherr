@@ -101,10 +101,13 @@ func ParseAddonURL(raw string) (string, error) {
 // AddonClient asks subtitle add-ons for subtitles.
 type AddonClient struct {
 	httpClient *http.Client
+	// publicClient fetches subtitle files from a host other than the add-on's
+	// own, and only ever connects to public addresses.
+	publicClient *http.Client
 }
 
 func NewAddonClient() *AddonClient {
-	return &AddonClient{httpClient: netguard.Client(20 * time.Second)}
+	return &AddonClient{httpClient: netguard.Client(20 * time.Second), publicClient: netguard.PublicClient(20 * time.Second)}
 }
 
 func (c *AddonClient) getJSON(ctx context.Context, rawURL string, out any) error {
@@ -268,6 +271,14 @@ func addonLanguageMatches(wanted, got string) bool {
 // opened. For an episode in a zip with several files, the one named for the
 // episode is taken.
 func (c *AddonClient) Download(ctx context.Context, rawURL, language string, season, episode int) ([]byte, error) {
+	return c.DownloadFrom(ctx, rawURL, rawURL, language, season, episode)
+}
+
+// DownloadFrom is Download for a file an add-on (at addonBase) pointed to. An
+// add-on may be on the home network, so its own host is reached as it is; a
+// file it sends us to on any other host is fetched over public addresses only,
+// so a bad add-on cannot make the server read something else on the network.
+func (c *AddonClient) DownloadFrom(ctx context.Context, addonBase, rawURL, language string, season, episode int) ([]byte, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return nil, errors.New("download from the add-on: not a web address")
@@ -277,7 +288,14 @@ func (c *AddonClient) Download(ctx context.Context, rawURL, language string, sea
 		return nil, netguard.CleanError(err)
 	}
 	req.Header.Set("Accept", "*/*")
-	resp, err := c.httpClient.Do(req)
+	client := c.publicClient
+	if b, err := url.Parse(addonBase); err == nil && strings.EqualFold(b.Host, u.Host) {
+		client = c.httpClient
+	}
+	if client == nil {
+		client = c.httpClient
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("download from the add-on: %w", netguard.CleanError(err))
 	}

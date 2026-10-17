@@ -9,6 +9,10 @@ import (
 
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/encoding/korean"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/encoding/traditionalchinese"
 	"golang.org/x/text/encoding/unicode"
 )
 
@@ -28,18 +32,80 @@ func ToUTF8(data []byte, language string) []byte {
 		return data
 	case utf8.Valid(data):
 		return data
+	case mostlyUTF8(data):
+		// One stray bad byte in an otherwise UTF-8 file: keep the text, mark
+		// the bad spot, rather than reading everything as a code page.
+		return []byte(strings.ToValidUTF8(string(data), "\uFFFD"))
 	}
-	if out, err := codePageFor(language).NewDecoder().Bytes(data); err == nil {
+	enc := codePageFor(language)
+	if enc == nil {
+		return data // no legacy code page is known for this language: leave it alone
+	}
+	if baseLanguage(strings.ToLower(language)) == "sr" && mostlyCyrillic(data) {
+		enc = charmap.Windows1251
+	}
+	if out, err := enc.NewDecoder().Bytes(data); err == nil {
 		return out
 	}
 	return data
 }
 
+// mostlyUTF8 reports whether data is UTF-8 with a few damaged bytes: plenty of
+// valid multi-byte characters and at most one bad byte in ten of them. A file
+// in an old single-byte code page has almost no valid multi-byte sequences.
+func mostlyUTF8(data []byte) bool {
+	multi, bad := 0, 0
+	for i := 0; i < len(data); {
+		r, size := utf8.DecodeRune(data[i:])
+		switch {
+		case r == utf8.RuneError && size <= 1:
+			bad++
+		case size > 1:
+			multi++
+		}
+		i += size
+	}
+	return multi >= 10 && bad*10 <= multi
+}
+
+// mostlyCyrillic tells a Serbian subtitle saved in Windows-1251 (Cyrillic)
+// from one saved in Windows-1250 (Latin). OpenSubtitles has one "sr" for both.
+// In a Cyrillic file nearly every letter is a byte above 0x7F; in a Latin one
+// only the few letters with a hook or a stroke (š, đ, č, ć, ž) are.
+func mostlyCyrillic(data []byte) bool {
+	high, ascii := 0, 0
+	for _, b := range data {
+		switch {
+		case b >= 0x80:
+			high++
+		case b >= 'A' && b <= 'Z', b >= 'a' && b <= 'z':
+			ascii++
+		}
+	}
+	return high > ascii
+}
+
 // codePageFor is the Windows code page subtitles in a language are usually
 // saved in.
+// It is nil for a language with no known legacy page, whose text is then left
+// as it came.
 func codePageFor(language string) encoding.Encoding {
 	var e encoding.Encoding
-	switch baseLanguage(strings.ToLower(language)) {
+	lang := strings.ToLower(language)
+	switch baseLanguage(lang) {
+	case "zh":
+		// Traditional Chinese (Taiwan, Hong Kong, Macau) is Big5; the rest GBK.
+		if strings.ContainsAny(lang, "-_") && (strings.Contains(lang, "tw") || strings.Contains(lang, "hk") || strings.Contains(lang, "mo") || strings.Contains(lang, "hant")) {
+			e = traditionalchinese.Big5
+		} else {
+			e = simplifiedchinese.GB18030
+		}
+	case "ja":
+		e = japanese.ShiftJIS
+	case "ko":
+		e = korean.EUCKR
+	case "th":
+		e = charmap.Windows874
 	case "ro", "pl", "cs", "sk", "hu", "hr", "sl", "sr", "bs", "sq":
 		e = charmap.Windows1250
 	case "ru", "uk", "bg", "be", "mk", "kk":
@@ -56,7 +122,7 @@ func codePageFor(language string) encoding.Encoding {
 		e = charmap.Windows1257
 	case "vi":
 		e = charmap.Windows1258
-	default:
+	case "", "en", "fr", "de", "es", "pt", "it", "nl", "sv", "da", "no", "nb", "nn", "fi", "is", "ca", "gl", "eu", "af", "id", "ms", "sw", "ga", "cy", "la", "tl", "fil", "lb", "eo":
 		e = charmap.Windows1252
 	}
 	return e

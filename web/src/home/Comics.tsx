@@ -3,7 +3,6 @@
 import VoteButtons from './VoteButtons'
 import HelpLink from '../components/HelpLink'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import OmniBar from './OmniBar'
 import { ComicCatchUp } from './CatchUp'
 import LibraryTabs from './LibraryTabs' // library hook (home fork)
 import { createPortal } from 'react-dom'
@@ -96,7 +95,7 @@ export default function Comics() {
 
   return (
     <div className="page-pad cx-page">
-      <OmniBar page="comics" /> {/* search and AI */}
+      {/* Usherr: search and AI are in the top bar */}
       {/* home fork: one card like the Library's other tabs: kinds, Comics' own tabs, and the search */}
       <div className="toolbar lib-toolbar cx-libbar">
         <LibraryTabs current="comics" />

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -103,6 +104,49 @@ func TestMusicImportRegistersAnExistingCollectionInPlace(t *testing.T) {
 	}
 	if status, _ := doStatus(t, e.client, http.MethodGet, e.base+"/api/music/import/scan/nope"); status != http.StatusNotFound {
 		t.Fatalf("unknown scan: %d", status)
+	}
+}
+
+// A FLAC that is only a header followed by zeros (an interrupted copy) used
+// to hold the scan for hours. Its tags are now given up on, the album is
+// still matched by its folder and file names with a note, and the page can
+// find the scan again after a reload.
+func TestMusicImportGetsPastAZeroFilledFLAC(t *testing.T) {
+	e := newMusicEnv(t)
+	folder := filepath.Join(e.musicRoot, "Fixture Band", "First Album (1999)")
+	if err := os.MkdirAll(folder, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"01 - Opening.flac", "02 - Middle Song.flac"} {
+		if err := os.WriteFile(filepath.Join(folder, name), []byte("one"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f, err := os.Create(filepath.Join(folder, "03 - Closing Time.flac"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = f.Write([]byte("fLaC"))
+	if err := f.Truncate(24 << 20); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	if got := getJSON[map[string]any](t, e.client, e.base+"/api/music/import/scan"); got["id"] != "" {
+		t.Fatalf("no scan has run yet: %v", got)
+	}
+	start := postJSON[map[string]any](t, e.client, e.base+"/api/music/import/scan", nil, http.StatusAccepted)
+	waitBackground(t, e.server)
+	job := getJSON[map[string]any](t, e.client, e.base+"/api/music/import/scan")
+	if job["id"] != start["id"] || job["phase"] != "done" {
+		t.Fatalf("latest scan: %v", job)
+	}
+	r := job["results"].([]any)[0].(map[string]any)
+	if r["status"] != "imported" || r["tracks"] != float64(3) {
+		t.Fatalf("the album is still matched by its names: %v", r)
+	}
+	if note, _ := r["note"].(string); !strings.Contains(note, "1 file couldn't be read in time") {
+		t.Fatalf("note: %q", note)
 	}
 }
 

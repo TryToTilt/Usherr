@@ -167,7 +167,9 @@ func (d *Dialer) checkTarget(ctx context.Context, addr string) error {
 func plain(err error) error {
 	msg := err.Error()
 	switch {
-	case strings.Contains(msg, "username/password authentication failed"), strings.Contains(msg, "407"):
+	// "(407)" and not just "407": the message also holds the proxy's port
+	// number, and 40700 to 40799 are ordinary ports.
+	case strings.Contains(msg, "username/password authentication failed"), strings.Contains(msg, "(407)"), strings.Contains(msg, "Proxy Authentication Required"):
 		return errors.New("the proxy refused the user name or password")
 	case strings.Contains(msg, "no acceptable authentication methods"):
 		return errors.New("the proxy wants a user name and password")

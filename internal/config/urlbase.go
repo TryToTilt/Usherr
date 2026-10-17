@@ -15,6 +15,7 @@ var reservedFirstSegments = map[string]bool{
 	"search": true, "stats": true, "import": true, "discover": true, "library": true, "music": true,
 	"book": true, "books": true, "title": true, "series": true, "show": true, "wanted": true,
 	"calendar": true, "queue": true, "settings": true, "profile": true, "about": true,
+	"help": true, "apps": true, "opds": true, "kobo": true,
 }
 
 // NormalizeURLBase turns the URL_BASE a person typed into the form the app

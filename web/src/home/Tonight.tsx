@@ -2,7 +2,6 @@
 // to watch tonight, from what you're in the middle of, the next episodes of
 // your shows and films you have but haven't seen (from Jellyfin or Emby).
 // Nothing is asked until you tap, and the answer is kept for the evening.
-import RouletteButton from './RouletteButton'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from '../components/Icon'
@@ -90,13 +89,11 @@ export default function Tonight({ autoAsk }: { autoAsk?: boolean } = {}) {
   if (!on) return null
 
   return (
-    <section className="card tonight-card" aria-labelledby="tonight-title">
-      <div className="tonight-head">
-        <Icon name="sparkles" size={18} />
-        <h2 id="tonight-title">{t('Tonight')}</h2>
+    // Usherr: just the button, on its own line (Roulette is the dice in the top bar).
+    <section className={`card tonight-card${answer || error ? '' : ' tonight-idle'}`} aria-label={t('Tonight')}>
+      <div className="tonight-head tonight-solo">
         {answer?.note && <p className="hint">{answer.note}</p>}
-        <RouletteButton />
-        <button className={`btn-sm btn-with-icon${answer ? '' : ' primary'}`} onClick={() => void ask(!!answer)} disabled={busy}>
+        <button className={`btn-with-icon tonight-ask${answer ? '' : ' primary'}`} onClick={() => void ask(!!answer)} disabled={busy}>
           <Icon name={answer ? 'shuffle' : 'sparkles'} size={14} /> {busy ? t('Thinking…') : answer ? t('Something else') : t('What should I watch tonight?')}
         </button>
       </div>

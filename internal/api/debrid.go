@@ -12,10 +12,12 @@ import (
 	"time"
 
 	"github.com/rdborg/mediarium/internal/debrid"
+	"github.com/rdborg/mediarium/internal/fsinfo"
 	"github.com/rdborg/mediarium/internal/netproxy"
 	"github.com/rdborg/mediarium/internal/plainerror"
 	"github.com/rdborg/mediarium/internal/queue"
 	"github.com/rdborg/mediarium/internal/settings"
+	"github.com/rdborg/mediarium/internal/torrentclient"
 )
 
 // Debrid: torrent releases go to Real-Debrid or TorBox instead of the
@@ -146,9 +148,16 @@ func (s *Server) downloadDebrid(ctx context.Context, queueID int64, downloadURL,
 	if err != nil {
 		return s.debridError(label, err)
 	}
-	var total, done int64
+	files = s.debridWantedFiles(queueID, files)
+	var total, done, have int64
 	for _, f := range files {
 		total += f.Size
+		have += debridOnDisk(incompleteDir, f)
+	}
+	// Never start on files the disk cannot hold: a pack can be hundreds of GB.
+	// What an earlier try already brought home is not counted again.
+	if u, err := fsinfo.DiskUsage(incompleteDir); err == nil && u.TotalBytes > 0 && total-have > 0 && uint64(total-have)+debridSpaceReserve > u.FreeBytes {
+		return fmt.Errorf("there isn't enough free space in the downloads folder to bring this home: it needs %s and %s is free", humanBytes(total-have), humanBytes(int64(u.FreeBytes)))
 	}
 	s.queueEvent(queueID, "download", queue.LevelInfo, fmt.Sprintf("%s has it ready; bringing %s home", label, plural(len(files), "file")))
 	hc := debridHTTP()
@@ -170,6 +179,49 @@ func (s *Server) downloadDebrid(ctx context.Context, queueID int64, downloadURL,
 	report(100)
 	s.debridForget(svc, id, idPath)
 	return nil
+}
+
+// debridSpaceReserve is kept free on top of what the files need.
+const debridSpaceReserve = 256 << 20
+
+// debridWantedFiles leaves out the files the built-in client would not
+// download either (samples, notes, other seasons of a pack), as set in the
+// torrent settings. Nothing is left out when that would leave no file.
+func (s *Server) debridWantedFiles(queueID int64, files []debrid.File) []debrid.File {
+	item, err := s.QueueRepo.Get(queueID)
+	if err != nil {
+		return files
+	}
+	states := make([]torrentclient.FileState, len(files))
+	for i, f := range files {
+		states[i] = torrentclient.FileState{Index: i, Path: filepath.ToSlash(f.Name), Size: f.Size}
+	}
+	skip := map[string]bool{}
+	for _, p := range s.autoSkips(item, states) {
+		skip[p] = true
+	}
+	if len(skip) == 0 {
+		return files
+	}
+	out := make([]debrid.File, 0, len(files))
+	for i, f := range files {
+		if !skip[states[i].Path] {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// debridOnDisk is how much of f an earlier try already saved in dir.
+func debridOnDisk(dir string, f debrid.File) int64 {
+	dest := filepath.Join(dir, debrid.SafeName(f.Name))
+	if st, err := os.Stat(dest); err == nil && f.Size > 0 && st.Size() == f.Size {
+		return f.Size
+	}
+	if st, err := os.Stat(dest + ".part"); err == nil {
+		return st.Size()
+	}
+	return 0
 }
 
 // debridForget removes the torrent from the service (it has served its

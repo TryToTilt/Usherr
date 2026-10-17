@@ -15,13 +15,13 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/api"
 	"github.com/rdborg/mediarium/internal/backup"
 	"github.com/rdborg/mediarium/internal/config"
-	"github.com/rdborg/mediarium/internal/crypto"
 	"github.com/rdborg/mediarium/internal/httpsec"
 	"github.com/rdborg/mediarium/internal/logbuf"
 	"github.com/rdborg/mediarium/internal/selfupdate"
@@ -178,9 +178,14 @@ func run() error {
 	}
 	defer db.Close()
 
-	box, err := crypto.LoadOrCreateKey(cfg.SecretKeyPath)
+	box, err := loadSecretKey(db, cfg.SecretKeyPath)
 	if err != nil {
 		return fmt.Errorf("load encryption key: %w", err)
+	}
+	// A key that is there but belongs to another database would otherwise only
+	// show up as searches that quietly find nothing.
+	if err := api.CheckSecretKey(db, box); err != nil {
+		log.Printf("warning: %v", err)
 	}
 
 	server, err := api.New(db, cfg, box, defaultTMDBAPIKey, version)
@@ -216,7 +221,10 @@ func run() error {
 	server.AnnounceSetup()
 
 	scheduler := server.StartAutomation()
-	defer scheduler.Stop()
+	defer func() { stopWithin("the background jobs", scheduler.Stop, stopBudget.left(0)) }()
+	// Runs before the scheduler stops (defers run last to first): downloads end and
+	// the torrent engine closes, with every item left as the next start resumes from.
+	defer func() { server.Shutdown(stopBudget.left(schedulerReserve)) }()
 
 	stopMonitor := server.StartMonitor()
 	defer stopMonitor()
@@ -239,8 +247,10 @@ func run() error {
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Handler: server.Routes(),
-		// Slow-header and idle-connection limits. No read or write timeout:
-		// video streaming and backup uploads legitimately take a long time.
+		// Slow-header and idle-connection limits. No server-wide read or write
+		// timeout: video streaming and backup downloads legitimately take a long
+		// time, and a read timeout would cut them off. A slow request body is
+		// limited per request instead (api.Routes, read_deadline.go).
 		ReadHeaderTimeout: 15 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 		MaxHeaderBytes:    64 << 10,
@@ -274,16 +284,68 @@ func run() error {
 		return nil
 	case <-ctx.Done():
 		log.Println("Mediarium shutting down...")
-		stopServing(httpServer, shutdownGrace)
+		stopServing(httpServer, stopBudget.left(shutdownReserve))
 		return nil
 	}
 }
 
-// shutdownGrace is how long requests that are still running may take to
-// finish when the program is asked to stop. Docker waits 10 seconds after the
-// stop signal before it kills a container, and the database still has to be
-// closed after this.
-const shutdownGrace = 5 * time.Second
+// Docker waits 10 seconds after the stop signal before it kills a container,
+// and the database still has to be closed after the steps of the stop. They
+// share one budget, counted from the moment the stop starts, so one slow step
+// cannot push the others past the kill.
+const (
+	// shutdownBudget is how long all the steps of the stop may take together.
+	shutdownBudget = 8 * time.Second
+	// shutdownReserve is what stays for the later steps while requests that are
+	// still running get to finish: the downloads and the torrent engine, then
+	// the background jobs.
+	shutdownReserve = 5 * time.Second
+	// schedulerReserve is what stays for the background jobs while the downloads
+	// and the torrent engine stop.
+	schedulerReserve = 2 * time.Second
+)
+
+// stopBudget is the shared time of the stop.
+var stopBudget shutdownClock
+
+// shutdownClock counts the shared stop time from its first use.
+type shutdownClock struct {
+	once  sync.Once
+	start time.Time
+	now   func() time.Time // time.Now when nil
+}
+
+func (c *shutdownClock) clock() time.Time {
+	if c.now != nil {
+		return c.now()
+	}
+	return time.Now()
+}
+
+// left is the time a step may take: what is left of the budget less reserve
+// for the steps after it, but never less than a short moment, so each step
+// still gets to try.
+func (c *shutdownClock) left(reserve time.Duration) time.Duration {
+	c.once.Do(func() { c.start = c.clock() })
+	d := shutdownBudget - c.clock().Sub(c.start) - reserve
+	return max(d, 300*time.Millisecond)
+}
+
+// stopWithin runs stop and gives up waiting for it after grace, so what comes
+// next (closing the database) always happens. The slow one is left running; the
+// program is exiting anyway.
+func stopWithin(what string, stop func(), grace time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(grace):
+		log.Printf("Stopped waiting for %s after %s; closing anyway.", what, grace)
+	}
+}
 
 // stopServing stops taking requests and gives the running ones up to grace to
 // finish. A video stream or a big upload can go on for hours, so whatever is

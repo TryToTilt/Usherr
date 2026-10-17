@@ -41,6 +41,57 @@ type Rules struct {
 	// Stream adds shows that aren't in the library: their episodes come from
 	// TMDB and play through StreamNZB when they come on.
 	Stream []StreamShow `json:"stream,omitempty"`
+
+	// Usherr: programming like a network (blocks.go).
+	// Grid makes programs start on the hour and every Grid minutes after it
+	// (15, 30 or 60; 0 = back to back); the gaps get filler.
+	Grid int `json:"grid,omitempty"`
+	// Dayparts give parts of the day line-ups of their own (Morning
+	// cartoons, Prime-time dramas); a part without one plays the channel's.
+	Dayparts []Daypart `json:"dayparts,omitempty"`
+	// Slots pin a show or a movie to a time: "Seinfeld, weeknights at 7".
+	Slots []Slot `json:"slots,omitempty"`
+	// Filler is what plays between programs.
+	Filler Filler `json:"filler,omitempty"`
+	// Holidays puts holiday episodes (and movies) on in their season.
+	Holidays bool `json:"holidays,omitempty"`
+	// Premieres airs episodes that came out in the last two weeks in prime
+	// time first, marked NEW; they come round again later as reruns.
+	Premieres bool `json:"premieres,omitempty"`
+	// Breaks splits each episode and movie for commercial breaks from the
+	// filler folder: how many breaks a show (0 = none), BreakMinutes long.
+	Breaks       int `json:"breaks,omitempty"`
+	BreakMinutes int `json:"breakMinutes,omitempty"`
+	// FamilyHours keeps anything for older than about ten off before 9 PM.
+	FamilyHours bool `json:"familyHours,omitempty"`
+}
+
+// Daypart is a part of the day with a line-up of its own.
+type Daypart struct {
+	Part      string       `json:"part"` // morning, midmorning, afternoon, evening, prime, latenight, overnight
+	Series    []int64      `json:"series,omitempty"`
+	Movies    []int64      `json:"movies,omitempty"`
+	Genres    []string     `json:"genres,omitempty"`
+	Decades   []int        `json:"decades,omitempty"`
+	AllMovies bool         `json:"allMovies,omitempty"`
+	Stream    []StreamShow `json:"stream,omitempty"`
+}
+
+// Slot pins something to a time on some days.
+type Slot struct {
+	Days       []int  `json:"days,omitempty"` // 0 = Sunday ... 6 = Saturday; none = every day
+	At         string `json:"at"`             // "19:00"
+	SeriesID   int64  `json:"seriesId,omitempty"`
+	StreamTMDB int64  `json:"streamTmdb,omitempty"` // a streamed show instead
+	Movie      bool   `json:"movie,omitempty"`      // a movie from the channel's movies instead
+	Count      int    `json:"count,omitempty"`      // episodes in a row (1 when unset)
+	Name       string `json:"name,omitempty"`       // "Sunday Night Movie", shown in the guide
+}
+
+// Filler says what fills the time between programs.
+type Filler struct {
+	NoCards bool   `json:"noCards,omitempty"` // no "Up next" cards: the channel is off air in the gaps
+	Folder  string `json:"folder,omitempty"`  // a folder of bumpers, idents and ads to play first
 }
 
 // StreamShow is a show a channel streams rather than plays from the library.
@@ -84,6 +135,8 @@ type Program struct {
 	Title     string    `json:"title"`
 	Subtitle  string    `json:"subtitle,omitempty"`
 	FilePath  string    `json:"-"`
+	// Offset is where in the file this program starts (a show split by breaks).
+	Offset time.Duration `json:"offset,omitempty"`
 }
 
 // Repo stores channels and schedules.
@@ -172,7 +225,7 @@ func (r *Repo) Delete(id int64) error {
 
 // Programs returns a channel's programs that overlap [from, to).
 func (r *Repo) Programs(channelID int64, from, to time.Time) ([]Program, error) {
-	rows, err := r.db.Query(`SELECT channel_id, start_ms, end_ms, kind, item_id, series_id, title, subtitle, file_path
+	rows, err := r.db.Query(`SELECT channel_id, start_ms, end_ms, kind, item_id, series_id, title, subtitle, file_path, offset_ms
 		FROM tv_programs WHERE channel_id = ? AND end_ms > ? AND start_ms < ? ORDER BY start_ms`,
 		channelID, from.UnixMilli(), to.UnixMilli())
 	if err != nil {
@@ -182,11 +235,11 @@ func (r *Repo) Programs(channelID int64, from, to time.Time) ([]Program, error) 
 	var out []Program
 	for rows.Next() {
 		var p Program
-		var s, e int64
-		if err := rows.Scan(&p.ChannelID, &s, &e, &p.Kind, &p.ItemID, &p.SeriesID, &p.Title, &p.Subtitle, &p.FilePath); err != nil {
+		var s, e, off int64
+		if err := rows.Scan(&p.ChannelID, &s, &e, &p.Kind, &p.ItemID, &p.SeriesID, &p.Title, &p.Subtitle, &p.FilePath, &off); err != nil {
 			return nil, err
 		}
-		p.Start, p.End = time.UnixMilli(s), time.UnixMilli(e)
+		p.Start, p.End, p.Offset = time.UnixMilli(s), time.UnixMilli(e), time.Duration(off)*time.Millisecond
 		out = append(out, p)
 	}
 	return out, rows.Err()
@@ -219,8 +272,8 @@ func (r *Repo) Append(list []Program) error {
 	}
 	defer tx.Rollback()
 	for _, p := range list {
-		if _, err := tx.Exec(`INSERT OR REPLACE INTO tv_programs (channel_id, start_ms, end_ms, kind, item_id, series_id, title, subtitle, file_path)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, p.ChannelID, p.Start.UnixMilli(), p.End.UnixMilli(), p.Kind, p.ItemID, p.SeriesID, p.Title, p.Subtitle, p.FilePath); err != nil {
+		if _, err := tx.Exec(`INSERT OR REPLACE INTO tv_programs (channel_id, start_ms, end_ms, kind, item_id, series_id, title, subtitle, file_path, offset_ms)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, p.ChannelID, p.Start.UnixMilli(), p.End.UnixMilli(), p.Kind, p.ItemID, p.SeriesID, p.Title, p.Subtitle, p.FilePath, p.Offset.Milliseconds()); err != nil {
 			return err
 		}
 	}
@@ -246,8 +299,8 @@ func (r *Repo) Replace(channelID int64, list []Program) error {
 		return err
 	}
 	for _, p := range list {
-		if _, err := tx.Exec(`INSERT OR REPLACE INTO tv_programs (channel_id, start_ms, end_ms, kind, item_id, series_id, title, subtitle, file_path)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, channelID, p.Start.UnixMilli(), p.End.UnixMilli(), p.Kind, p.ItemID, p.SeriesID, p.Title, p.Subtitle, p.FilePath); err != nil {
+		if _, err := tx.Exec(`INSERT OR REPLACE INTO tv_programs (channel_id, start_ms, end_ms, kind, item_id, series_id, title, subtitle, file_path, offset_ms)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, channelID, p.Start.UnixMilli(), p.End.UnixMilli(), p.Kind, p.ItemID, p.SeriesID, p.Title, p.Subtitle, p.FilePath, p.Offset.Milliseconds()); err != nil {
 			return err
 		}
 	}

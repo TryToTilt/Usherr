@@ -1,6 +1,8 @@
 package api
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -74,6 +76,10 @@ type queueItemPayload struct {
 	Source     string `json:"source,omitempty"`
 	Codec      string `json:"codec,omitempty"`
 	Language   string `json:"language,omitempty"`
+	// Note is a sentence for the row that its status alone does not say: why a
+	// waiting download does not start (the disk is nearly full), or that a
+	// failed release is held back from searches for now.
+	Note string `json:"note,omitempty"`
 }
 
 // queueRank orders the statuses on the Activity page: what is being worked
@@ -155,7 +161,7 @@ func (s *Server) handleListQueue(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	items = s.hideSceneItems(r, items) // scenes hook (home fork)
+	items = s.hideVideoItems(r, items) // videos hook (home fork)
 	sortQueueItems(items)
 	positions := waitingPositions(items)
 	out := make([]queueItemPayload, len(items))
@@ -163,6 +169,21 @@ func (s *Server) handleListQueue(w http.ResponseWriter, r *http.Request) {
 	categories, _ := s.TorrentOpts.Categories()
 	namer := s.newQueueNamer(items)
 	preferred := s.preferredLanguage()
+	// Asked once for the whole list, and only when a row needs it.
+	var diskNote string
+	var held map[string]bool
+	for _, it := range items {
+		if it.Status == queue.StatusQueued && diskNote == "" {
+			if _, message, short := s.diskSpaceShort(); short {
+				diskNote = message
+			} else {
+				diskNote = "-"
+			}
+		}
+		if it.Status == queue.StatusFailed && held == nil {
+			held = s.activeNZBLinkHolds(time.Now())
+		}
+	}
 	for i, it := range items {
 		title, subtitle, poster := namer.describe(it)
 		p := queueItemPayload{
@@ -199,6 +220,12 @@ func (s *Server) handleListQueue(w http.ResponseWriter, r *http.Request) {
 			rel := parser.Parse(it.ReleaseTitle)
 			p.Resolution, p.Source, p.Codec = rel.Resolution, rel.Source, rel.Codec
 			p.Language = quality.FitLanguage(rel, preferred).Label
+		}
+		switch {
+		case it.Status == queue.StatusQueued && diskNote != "-":
+			p.Note = diskNote
+		case it.Status == queue.StatusFailed && held[nzbLinkHoldKey(it.NZBURL, it.ReleaseTitle)]:
+			p.Note = nzbLinkHeldNote
 		}
 		out[i] = p
 	}
@@ -245,13 +272,18 @@ func (s *Server) handleDeleteQueueItem(w http.ResponseWriter, r *http.Request) {
 // its partly downloaded files from the downloads folder. controlLocked says
 // the caller already holds queueControlMu.
 func (s *Server) removeQueueEntry(item queue.Item, deleteFiles, controlLocked bool) error {
-	if item.Status == queue.StatusPaused {
+	if item.Status == queue.StatusPaused || item.Status == queue.StatusConflict {
+		// A paused download, or one parked on a file that already exists, still
+		// holds its title as "downloading": hand it back.
 		if !controlLocked {
 			queueControlMu.Lock()
 			defer queueControlMu.Unlock()
 		}
 		s.releaseAfterPause(item)
 	}
+	// A torrent that is still seeding for this entry stops with it, before its
+	// files can be deleted underneath it.
+	s.torrents.stopQueue(item.ID)
 	work := s.workDirFor(item.ID) // before the row goes: a torrent may be filed in a category folder
 	if err := s.QueueRepo.Delete(item.ID); err != nil {
 		return err
@@ -294,7 +326,7 @@ func (s *Server) handleRetryQueueItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "Only a failed or stopped download can be retried.")
 		return
 	}
-	if s.retrySceneDownload(w, item) { // scenes hook (home fork)
+	if s.retryVideoDownload(w, item) { // videos hook (home fork)
 		return
 	}
 	if s.retryComicDownload(w, item) { // comics hook (home fork)
@@ -388,8 +420,13 @@ func (s *Server) handleBlocklistQueueItem(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusConflict, "This download is still running.")
 		return
 	}
+	reason, err := s.personBlocklistReason(item)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	if err := s.Blocklist.Add(blocklist.Entry{
-		ReleaseTitle: item.ReleaseTitle, Protocol: string(item.Protocol), Reason: "Blocklisted by you", MovieID: item.MovieID, SeriesID: item.SeriesID,
+		ReleaseTitle: item.ReleaseTitle, Protocol: string(item.Protocol), Reason: reason, MovieID: item.MovieID, SeriesID: item.SeriesID,
 	}); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -413,6 +450,28 @@ func (s *Server) handleBlocklistQueueItem(w http.ResponseWriter, r *http.Request
 		s.background(func() { s.searchBook(item.BookID, books.Format(item.BookFormat), true) })
 	}
 	writeJSON(w, http.StatusOK, nil)
+}
+
+// personBlocklistReason is the blocklist reason for a release a person
+// blocklists from Activity. It says it was them, and keeps why the release
+// was bad: the reason it was already blocklisted for (a failed download is
+// often blocklisted by itself first), or else the failure on its row.
+func (s *Server) personBlocklistReason(item queue.Item) (string, error) {
+	const byYou = "Blocklisted by you"
+	why, listed, err := s.Blocklist.Reason(item.ReleaseTitle)
+	if err != nil {
+		return "", err
+	}
+	if listed && strings.HasPrefix(why, byYou) {
+		return why, nil // blocklisted by a person before: nothing new to say
+	}
+	if !listed || why == "" {
+		why = item.Error
+	}
+	if why == "" {
+		return byYou, nil
+	}
+	return fmt.Sprintf("Blocklisted by you: %s", why), nil
 }
 
 // dropBlocklistedItem takes a download whose release a person blocklisted off
@@ -456,6 +515,10 @@ func (s *Server) handleResolveQueueConflict(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if err := s.resolveConflict(id, req.Overwrite); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "That download isn't in the list any more.")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -490,12 +553,16 @@ func (s *Server) handleListActivity(w http.ResponseWriter, r *http.Request) {
 	admin := isAdminRequest(r)
 	out := make([]activityEntryPayload, 0, len(entries))
 	for _, e := range entries {
-		// Updates, restarts and shut-downs say who did it and from which
-		// address: for administrators only.
-		if (e.EventType == "update" && !admin) || hideActivity(r, e.EventType) { // scenes hook (home fork)
+		// Updates, restarts and shut-downs, and changes to accounts, say who
+		// did it and from which address: for administrators only.
+		if ((e.EventType == "update" || e.EventType == "account") && !admin) || hideActivity(r, e.EventType) { // videos hook (home fork)
 			continue
 		}
-		p := activityEntryPayload{ID: e.ID, EventType: e.EventType, Message: plainFailure(e.EventType, e.Message), CreatedAt: e.CreatedAt}
+		msg := plainFailure(e.EventType, e.Message)
+		if !admin {
+			msg = hideLibraryPaths(msg) // where files lie on the server is for administrators
+		}
+		p := activityEntryPayload{ID: e.ID, EventType: e.EventType, Message: msg, CreatedAt: e.CreatedAt}
 		switch {
 		case e.MovieTMDBID > 0:
 			p.Link = fmt.Sprintf("/title/%d", e.MovieTMDBID)

@@ -27,10 +27,13 @@ export function uniqueDisks(stats: SystemStats) {
   return out
 }
 
-export function useServerStats(ms = 10000) {
+// allowed is false for accounts that may not read the numbers (only
+// administrators can): nothing is asked for and the card stays hidden.
+export function useServerStats(ms = 10000, allowed = true) {
   const [stats, setStats] = useState<SystemStats | null>(null)
   const [denied, setDenied] = useState(false)
   const load = useCallback(() => {
+    if (!allowed) return
     api
       .systemStats()
       .then((s) => {
@@ -41,10 +44,10 @@ export function useServerStats(ms = 10000) {
         // Only an answer of "not for you" hides the card. A refresh that fails for another reason keeps what is showing.
         if (e instanceof ApiError && (e.status === 401 || e.status === 403 || e.status === 404)) setDenied(true)
       })
-  }, [])
+  }, [allowed])
   useEffect(load, [load])
-  useLive(load, ms)
-  return { stats, denied }
+  useLive(load, ms, allowed)
+  return { stats, denied: denied || !allowed }
 }
 
 export type Level = 'ok' | 'warn' | 'bad'

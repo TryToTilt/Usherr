@@ -132,9 +132,9 @@ func (s *Server) handleAlbumSearch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	blocked := s.blockedKeys()
+	blocked := s.searchSkipKeys()
 	sources := s.sourcesFor("")
-	outcomes := indexers.SearchAll(r.Context(), instances, albumQuery(artist, album), musicCategories)
+	outcomes := indexers.SearchAll(indexers.AsManual(r.Context()), instances, albumQuery(artist, album), musicCategories)
 	for _, res := range indexers.MergeResults(outcomes) {
 		rel := music.ParseRelease(res.Title)
 		p := musicReleasePayload{
@@ -202,7 +202,7 @@ func (s *Server) handleAlbumSearchNow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if s.huntAlbum(r.Context(), artist, album, profile, instances, s.blockedKeys(), true) {
+	if s.huntAlbum(r.Context(), artist, album, profile, instances, s.searchSkipKeys(), true) {
 		writeJSON(w, http.StatusOK, searchNowResponse{Grabbed: 1, Message: "Started a download. Follow it in Activity."})
 		return
 	}
@@ -381,7 +381,7 @@ func (s *Server) huntMusic(ctx context.Context, instances []indexers.Instance) {
 	s.music.huntOffset = start + n
 	s.music.mu.Unlock()
 
-	blocked := s.blockedKeys()
+	blocked := s.searchSkipKeys()
 	for i := 0; i < n; i++ {
 		if ctx.Err() != nil {
 			return
@@ -408,7 +408,7 @@ func (s *Server) searchArtistAlbums(artistID int64) {
 	if err != nil {
 		return
 	}
-	blocked := s.blockedKeys()
+	blocked := s.searchSkipKeys()
 	searched := 0
 	for _, wa := range wanted {
 		if wa.artist.ID != artistID {
@@ -465,7 +465,7 @@ func (s *Server) retryAlbum(albumID int64) {
 	if err != nil {
 		return
 	}
-	if !s.huntAlbum(context.Background(), artist, album, profile, instances, s.blockedKeys(), false) {
+	if !s.huntAlbum(context.Background(), artist, album, profile, instances, s.searchSkipKeys(), false) {
 		s.albumEvent(albumID, "retry", queue.LevelWarn, noOtherRelease)
 	}
 }
