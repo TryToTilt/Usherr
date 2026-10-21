@@ -1,6 +1,6 @@
 module github.com/rdborg/mediarium
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/anacrolix/log v0.17.1-0.20251118025802-918f1157b7bb
