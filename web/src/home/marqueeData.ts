@@ -2,6 +2,7 @@
 // small helpers every look shares.
 import { locale, t } from '../i18n'
 import type { CalendarEntry } from '../api'
+import type { Showtime } from './showtimes'
 
 export interface Playing {
   title: string
@@ -202,6 +203,7 @@ export interface Data {
   spotlights?: Spotlight[]
   media?: MediaItem[]
   themes?: Record<string, string>
+  showtimes?: Showtime[] // Usherr: films booked to start soon, for the countdown
 }
 
 export const hours = (min?: number) => (min ? `${Math.floor(min / 60)}h ${min % 60}m` : '')

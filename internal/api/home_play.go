@@ -29,6 +29,7 @@ func (s *Server) registerPlayRoutes(play routeGroup) {
 	// Stream now (home_streaming.go)
 	play.HandleFunc("GET /api/stream/status", s.handleStreamStatus)
 	play.HandleFunc("GET /api/stream/options", s.handleStreamOptions)
+	play.HandleFunc("GET /api/play/next", s.handlePlayNext) // Usherr: the next episode, for "Up next"
 	play.HandleFunc("POST /api/stream/start", s.handleStreamStart)
 	play.HandleFunc("GET /api/stream/{id}/video", s.handleStreamVideo)
 	play.HandleFunc("GET /api/stream/{id}/link", s.handleStreamLink)

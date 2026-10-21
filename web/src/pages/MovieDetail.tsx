@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useStreamed } from '../home/useHave' // Usherr
 import VoteButtons from '../home/VoteButtons' // home fork
 import StackButton from '../home/StackButton' // Usherr: your stack
+import ShowtimeButton from '../home/ShowtimeButton' // Usherr: Showtimes at home
 import { WhatsItLike } from '../home/AIGuides' // home fork
 import { StreamingOn } from '../home/Recipes' // home fork
 import { ScoresLine } from '../home/scores' // home fork
@@ -342,6 +343,7 @@ function MoviePage() {
               <WhatsItLike kind="movie" tmdbId={movie.tmdbId} title={movie.title} /> {/* home fork */}
               <VoteButtons kind="movie" refId={movie.tmdbId} meta={{ title: movie.title, year: movie.year, image: movie.posterUrl }} /> {/* home fork */}
               <StackButton item={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title, year: movie.year, posterUrl: movie.posterUrl }} /> {/* Usherr */}
+              <ShowtimeButton film={{ tmdbId: movie.tmdbId, title: movie.title, year: movie.year, posterUrl: movie.posterUrl }} /> {/* Usherr */}
               {admin && ((movie.status === 'downloaded' && movie.filePath) || movie.status === 'missing') && (
                 <button className="btn-with-icon" onClick={() => void rescan()} disabled={rescanning} title={movie.filePath ? t('Looks at the file on your disk again: if it was deleted by hand the movie is wanted again, and a renamed file is found.') : t("Looks in the movie's folder for a video file you put there by hand and adds it to the movie.")}>
                   <Icon name="folder" size={16} /> {rescanning ? t('Checking…') : t('Rescan files')}
@@ -370,6 +372,7 @@ function MoviePage() {
               <WhatsItLike kind="movie" tmdbId={movie.tmdbId} title={movie.title} /> {/* home fork */}
               <VoteButtons kind="movie" refId={movie.tmdbId} meta={{ title: movie.title, year: movie.year, image: movie.posterUrl }} /> {/* home fork */}
               <StackButton item={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title, year: movie.year, posterUrl: movie.posterUrl }} /> {/* Usherr */}
+              <ShowtimeButton film={{ tmdbId: movie.tmdbId, title: movie.title, year: movie.year, posterUrl: movie.posterUrl }} /> {/* Usherr */}
             </>
           )
         }

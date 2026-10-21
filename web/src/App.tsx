@@ -22,6 +22,7 @@ const BookshelfApp = lazy(() => import('./bookshelf/BookshelfApp'))
 const Marquee = lazy(() => import('./home/Marquee')) // Usherr: the lobby display
 const MarqueeRemote = lazy(() => import('./home/MarqueeRemote')) // Usherr: the Marquee's phone remote
 const MarqueeHub = lazy(() => import('./home/MarqueeHub')) // Usherr: the Marquee's own page
+const ShowtimePage = lazy(() => import('./home/ShowtimePage')) // Usherr: Showtimes at home
 
 // The main pages are fetched as they are opened, not with the first load, so the
 // page that opens first is ready sooner (the rest is a big part of the program).
@@ -217,6 +218,7 @@ function Gate() {
         <Route path="/you" element={<You />} /> {/* home fork: your taste, votes and more */}
         <Route path="/marquee/remote" element={<AdminOnly><MarqueeRemote /></AdminOnly>} /> {/* Usherr */}
         <Route path="/marquee/manage" element={<AdminOnly><MarqueeHub /></AdminOnly>} /> {/* Usherr */}
+        <Route path="/showtime" element={<ShowtimePage />} /> {/* Usherr: Showtimes at home */}
         <Route path="/you/diary" element={<You tab="diary" />} /> {/* home fork */}
         <Route path="/you/wrapped" element={<You tab="wrapped" />} /> {/* home fork */}
         <Route path="/queue" element={<Queue />} />

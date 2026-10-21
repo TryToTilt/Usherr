@@ -23,10 +23,40 @@
   Only a picture the browser can't show at all
   (an old XviD, or HDR on a screen without it) is converted, at its own
   size. A smaller picture only comes from a quality you pick.
+- **Up next**: near the end of an episode (its last 15 seconds, or when it
+  ends) a card offers the next one and plays it after a 10-second countdown:
+  your file when you have it, otherwise a stream at this device's quality.
+  **Not now** closes it; *Play the next episode by itself* (kept on each
+  device) turns the countdown off, leaving the button. Only episodes that
+  have aired are offered; Live TV keeps to its own schedule.
 - **Audio & subtitles** in the player picks the language, for files and
   streams alike (a stream offers its sound tracks; its subtitles aren't read,
   since that means reading the whole film). The language you pick is
   remembered, and a release with several (MULTi) starts in it.
+
+## Showtimes at home
+
+Book a film for a time, like a cinema: **Showtime** on a film's page (or on
+its poster in your stack) asks when, how many minutes of pre-show the Marquee
+runs first, and where the film plays.
+
+- **Starts:** a date and time, or **right after** another booking, for a
+  double feature (ten minutes after the first film ends).
+- **Pre-show on the Marquee first:** at showtime minus these minutes, the
+  pre-show starts on every Marquee screen that's on, by itself.
+- **The film plays:**
+  - **On the Showtime screen:** open the **Showtime** page (`/showtime`) in
+    the browser on the TV and leave it there. It counts down and starts the
+    film at showtime: your file, or a stream. Press **Ready** once when you
+    open it, so the browser lets it start with sound.
+  - **On the TV:** the film opens there (Play on TV) at showtime.
+  - **I'll start it myself:** for watching in Jellyfin, Stremio or Nuvio.
+    The Marquee still counts down and runs the pre-show.
+
+Until then, the Marquee shows a band over whatever it's showing, for example
+"Showtime 8:00 PM · Dune: Part Two · in 12 min". The **Showtime** page
+lists every booking, to move 15 minutes either way or cancel (your own, or
+any for an administrator); the Marquee's page links to it.
 
 ## On the TV
 

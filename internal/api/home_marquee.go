@@ -71,7 +71,8 @@ type marqueePayload struct {
 	Coming     []calendarEntryPayload `json:"coming"`
 	Theatre    string                 `json:"theatre,omitempty"`
 	Settings   marqueeSettings        `json:"settings"`
-	TVNow      []marqueeTV            `json:"tvNow"` // Usherr: what the Live TV channels have on
+	TVNow      []marqueeTV            `json:"tvNow"`     // Usherr: what the Live TV channels have on
+	Showtimes  []showtime             `json:"showtimes"` // Usherr: films booked to start soon, for the countdown
 	// Usherr (phase 3).
 	Tonight    []marqueeTonight   `json:"tonight"`
 	Spotlights []marqueeSpotlight `json:"spotlights"`
@@ -203,7 +204,7 @@ func (s *Server) marqueeFeature(ctx context.Context, tmdbID int, reason string) 
 // GET /api/home/marquee
 func (s *Server) handleMarquee(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	out := marqueePayload{NowPlaying: []marqueePlaying{}, Features: []marqueeFeature{}, Arrivals: []dashRecent{}, Theaters: []marqueeFeature{}, Coming: []calendarEntryPayload{}, TVNow: []marqueeTV{},
+	out := marqueePayload{NowPlaying: []marqueePlaying{}, Features: []marqueeFeature{}, Arrivals: []dashRecent{}, Theaters: []marqueeFeature{}, Coming: []calendarEntryPayload{}, TVNow: []marqueeTV{}, Showtimes: []showtime{},
 		Tonight: []marqueeTonight{}, Spotlights: []marqueeSpotlight{}, Media: []marqueeMediaItem{}, Themes: map[string]string{}}
 	out.Theatre, _ = s.Settings.Get(keyCinemaTheatre)
 	tmdbOK := s.TMDB().HasAPIKey()
@@ -264,6 +265,7 @@ func (s *Server) handleMarquee(w http.ResponseWriter, r *http.Request) {
 	if !set.HideUsherr {
 		out.NowPlaying = append(out.NowPlaying, s.usherrNowShowing(ctx, out.NowPlaying, tmdbOK)...)
 	}
+	out.Showtimes = s.marqueeShowtimes(ctx) // Usherr: the countdown, with what's playing
 	if r.URL.Query().Get("only") == "playing" {
 		writeJSON(w, http.StatusOK, out)
 		return

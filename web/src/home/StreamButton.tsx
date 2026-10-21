@@ -238,6 +238,20 @@ function StreamSheet({ target, onKeep, onClose }: { target: StreamTarget; onKeep
   )
 }
 
+// streamEpisode streams an episode straight away, for "Up next": the best
+// release at this device's remembered quality, played in the player
+// (Usherr).
+export async function streamEpisode(tmdbId: number, season: number, episode: number, title: string) {
+  const status = await streamApi.status()
+  if (!status.ready) throw new Error(t('Streaming isn’t set up.'))
+  const quality = rememberedQuality(status.qualities ?? [])
+  const { options } = await streamApi.options({ kind: 'series', tmdbId, season, episode, quality })
+  if (!options.length) throw new Error(t('No stream found for {title}.', { title }))
+  const st = await streamApi.start({ option: options[0].id, title })
+  const about = { kind: 'tv' as const, tmdbId, season, episode }
+  playStream(st, title, undefined, { ...nextExtras(st, title, undefined, about), about })
+}
+
 // streamRelease plays one exact release from a release list; onKeep grabs it.
 export async function streamRelease(r: SearchResult, title: string, onKeep?: () => void) {
   const st = await streamApi.start({ downloadUrl: r.downloadUrl, releaseTitle: r.title, title })

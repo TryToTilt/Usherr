@@ -45,6 +45,7 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "rss-sync", Interval: s.releaseCheckInterval(), IntervalFunc: s.releaseCheckInterval, Run: s.heavy(s.rssSync)},
 		automation.Job{Name: "delayed-grabs", Interval: time.Minute, Run: s.delayedGrabsJob},                                // searches again when a held release has waited long enough
 		automation.Job{Name: "tv-reminders", Interval: time.Minute, Run: s.tvRemindJob},                                     // Usherr: Live TV reminders
+		automation.Job{Name: "showtimes", Interval: 15 * time.Second, InitialDelay: 5 * time.Second, Run: s.showtimeJob},    // Usherr: the pre-show and the film on time (soon after a restart, not the usual minute)
 		automation.Job{Name: "tv-warm", Interval: 3 * time.Hour, InitialDelay: 90 * time.Second, Run: s.heavy(s.tvWarmJob)}, // Usherr: streamed programs looked up before they are tuned
 		automation.Job{Name: "real-tv-refresh", Interval: 20 * time.Minute, Run: s.realTVRefreshJob},                        // Usherr: Real TV's day before, each night
 		automation.Job{Name: "download-line", Interval: downloadLineCheck, Run: func(context.Context) { s.kickDownloads() }},

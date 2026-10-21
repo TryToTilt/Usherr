@@ -127,6 +127,13 @@ code** in the corner can open the trailer or the film in Mediarium on a phone.
 
 ![The info panel and a QR code over a film](images/marquee-info.png)
 
+## Showtimes
+
+A film booked for a time ([Showtimes at home](watching.md#showtimes-at-home))
+shows on every screen as a band, "Showtime 8:00 PM · Dune · in 12 min", over
+whatever it's showing. When the pre-show minutes of the booking are left,
+the pre-show starts on every screen that's on, by itself.
+
 ## Your slides and the pre-show
 
 Under **Slides and pre-show**:

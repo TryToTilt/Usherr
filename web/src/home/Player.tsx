@@ -382,6 +382,20 @@ function savedSync(): number {
   }
 }
 
+// Usherr: "Up next" plays the next episode by itself unless this device
+// said not to.
+const AUTO_NEXT_KEY = 'usherr.player.autoNext'
+function autoNextSaved(): boolean {
+  try {
+    return localStorage.getItem(AUTO_NEXT_KEY) !== '0'
+  } catch {
+    return true
+  }
+}
+type NextEp = { tmdbId: number; season: number; episode: number; title?: string; show: string; episodeId?: number }
+const UP_NEXT_SECONDS = 10
+const nextLabel = (n: NextEp) => `${n.show} S${String(n.season).padStart(2, '0')}E${String(n.episode).padStart(2, '0')}${n.title ? ` · ${n.title}` : ''}`
+
 function PlayerView({ req, onClose, inline = false, muted = false }: { req: Request; onClose: () => void; inline?: boolean; muted?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [plan, setPlan] = useState<Plan | null>(null)
@@ -900,6 +914,107 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
       .then(() => setCopied(true))
       .catch(() => undefined)
   }
+  // Usherr: "Up next". Near the end of an episode (the last 15 seconds, or
+  // when it ends) a card offers the next one, counts down and plays it: the
+  // library's file when there is one, else a stream at this device's
+  // quality. Not for Live TV, which has its own schedule.
+  const about = req.about
+  const nextable =
+    !inline && !req.onEnded && !req.card && !req.direct && !req.live && (req.kind === 'episode' || (req.kind === 'stream' && about?.kind === 'tv' && !!about.season && !!about.episode))
+  const [nextEp, setNextEp] = useState<NextEp | null>(null)
+  const [upNext, setUpNext] = useState(false)
+  const [left, setLeft] = useState(UP_NEXT_SECONDS)
+  const [autoNext, setAutoNext] = useState(autoNextSaved)
+  const nextAsked = useRef(false)
+  const nextDismissed = useRef(false)
+  useEffect(() => {
+    nextAsked.current = false
+    nextDismissed.current = false
+    setNextEp(null)
+    setUpNext(false)
+    setLeft(UP_NEXT_SECONDS)
+  }, [req])
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !nextable || !plan) return
+    const ask = () => {
+      if (nextAsked.current) return
+      nextAsked.current = true
+      const q = req.kind === 'episode' ? `episodeId=${req.id}` : `tmdbId=${about?.tmdbId}&season=${about?.season}&episode=${about?.episode}`
+      fetch(`/api/play/next?${q}`, { credentials: 'include' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { next: NextEp | null } | null) => setNextEp(d?.next ?? null))
+        .catch(() => undefined)
+    }
+    const tick = () => {
+      // A copy converted here grows as it's made: its length isn't the
+      // episode's, so it waits for the real end ("ended") instead.
+      if (plan.converted) return
+      const dur = v.duration
+      if (!Number.isFinite(dur) || dur <= 0) return
+      if (v.currentTime / dur > 0.8) ask()
+      const rest = dur - v.currentTime
+      if (rest <= 15 && !nextDismissed.current) {
+        ask()
+        setUpNext(true)
+      }
+      else if (rest > 20) {
+        // Seeked back out of the end: the card waits for the end again.
+        setUpNext(false)
+        setLeft(UP_NEXT_SECONDS)
+      }
+    }
+    const ended = () => {
+      ask()
+      if (!nextDismissed.current) setUpNext(true)
+    }
+    v.addEventListener('timeupdate', tick)
+    v.addEventListener('ended', ended)
+    return () => {
+      v.removeEventListener('timeupdate', tick)
+      v.removeEventListener('ended', ended)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, req, nextable])
+  const playNext = () => {
+    const n = nextEp
+    if (!n) return
+    setUpNext(false)
+    nextDismissed.current = true
+    if (n.episodeId) {
+      playTitle('episode', n.episodeId, nextLabel(n))
+      return
+    }
+    setTvNote(t('Finding a stream for the next episode…'))
+    import('./StreamButton')
+      .then(({ streamEpisode }) => streamEpisode(n.tmdbId, n.season, n.episode, nextLabel(n)))
+      .catch((e: Error) => setTvNote(e.message))
+  }
+  // The countdown, while the card shows and the next episode is known.
+  useEffect(() => {
+    if (!upNext || !nextEp || !autoNext) return
+    if (left <= 0) {
+      playNext()
+      return
+    }
+    const id = window.setTimeout(() => setLeft((n) => n - 1), 1000)
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [upNext, nextEp, autoNext, left])
+  const dismissNext = () => {
+    nextDismissed.current = true
+    setUpNext(false)
+  }
+  const chooseAutoNext = (on: boolean) => {
+    setAutoNext(on)
+    setLeft(UP_NEXT_SECONDS)
+    try {
+      localStorage.setItem(AUTO_NEXT_KEY, on ? '1' : '0')
+    } catch {
+      // kept for this visit only
+    }
+  }
+
   if (inline)
     return (
       <div className="hp-inline">
@@ -967,9 +1082,28 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
                 : t("This video couldn't be played here. The file itself is fine: it plays in Jellyfin, VLC or mpv.")}
           </p>
         ) : (
-          <video ref={videoRef} controls autoPlay playsInline onEnded={() => req.onEnded?.()} onError={() => plan?.mode === 'direct' && !convertInstead() && !failOver() && setFailed(true)}>
-            {subSrc && <track key={subSrc} kind="subtitles" src={subSrc} srcLang={sub?.lang} label={sub?.lang ?? t('Subtitles')} default />}
-          </video>
+          <div className="hp-stage">
+            <video ref={videoRef} controls autoPlay playsInline onEnded={() => req.onEnded?.()} onError={() => plan?.mode === 'direct' && !convertInstead() && !failOver() && setFailed(true)}>
+              {subSrc && <track key={subSrc} kind="subtitles" src={subSrc} srcLang={sub?.lang} label={sub?.lang ?? t('Subtitles')} default />}
+            </video>
+            {upNext && nextEp && (
+              <div className="hp-upnext" role="dialog" aria-label={t('Up next')}>
+                <span className="hp-upnext-label">{t('Up next')}</span>
+                <strong>{nextLabel(nextEp)}</strong>
+                <div className="hp-upnext-btns">
+                  <button className="primary btn-sm btn-with-icon" onClick={playNext} autoFocus>
+                    <Icon name="play" size={14} /> {autoNext ? t('Play now ({n})', { n: Math.max(0, left) }) : t('Play now')}
+                  </button>
+                  <button className="btn-sm" onClick={dismissNext}>
+                    {t('Not now')}
+                  </button>
+                </div>
+                <label className="cx-check hp-upnext-auto">
+                  <input type="checkbox" checked={autoNext} onChange={(e) => chooseAutoNext(e.target.checked)} /> {t('Play the next episode by itself')}
+                </label>
+              </div>
+            )}
+          </div>
         )}
         {!plan && !error && <p className="hp-note">{t('Getting ready…')}</p>}
         {note && <p className="hp-note">{note}</p>}

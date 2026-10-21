@@ -43,6 +43,9 @@ export default function MarqueeHub() {
           <Link className="btn-sm btn-with-icon" to="/marquee/remote">
             <Icon name="play" size={14} /> {t('The phone remote')}
           </Link>
+          <Link className="btn-sm btn-with-icon" to="/showtime">
+            <Icon name="clock" size={14} /> {t('Showtimes')}
+          </Link>
         </div>
       </section>
       <nav className="seg mqh-tabs" aria-label={t('Marquee')}>

@@ -12,6 +12,7 @@ import { useToast } from '../components/Toast'
 import { t } from '../i18n'
 import { playTitle } from './Player'
 import { moveInStack, removeFromStack, stackPath, useStack, type StackItem } from './stack'
+import { ShowtimeDialog } from './ShowtimeButton'
 import StreamButton from './StreamButton'
 import { useStreamed } from './useHave'
 import { useVotes } from './useVotes'
@@ -24,6 +25,7 @@ export default function SideStack() {
   const stack = useStack()
   const [at, setAt] = useState(0)
   const [menu, setMenu] = useState(false)
+  const [booking, setBooking] = useState(false) // Usherr: Showtimes at home
   const [drag, setDrag] = useState(0)
   const start = useRef<{ x: number; y: number } | null>(null)
   const dx = useRef(0)
@@ -140,6 +142,11 @@ export default function SideStack() {
               <button role="menuitem" className="btn-sm btn-with-icon" onClick={() => navigate(stackPath(it))}>
                 <Icon name="open" size={14} /> {t('Its page')}
               </button>
+              {it.kind === 'movie' && (
+                <button role="menuitem" className="btn-sm btn-with-icon" onClick={() => setBooking(true)}>
+                  <Icon name="clock" size={14} /> {t('Showtime')}
+                </button>
+              )}
               {it.kind === 'movie' && !it.downloaded ? (
                 <StreamButton small target={{ kind: 'movie', tmdbId: it.tmdbId, title: it.title }} />
               ) : (
@@ -174,6 +181,7 @@ export default function SideStack() {
           </div>
         </>
       )}
+      {booking && it && <ShowtimeDialog film={{ tmdbId: it.tmdbId, title: it.title, year: it.year, posterUrl: it.posterUrl }} onClose={() => setBooking(false)} />}
     </section>
   )
 }

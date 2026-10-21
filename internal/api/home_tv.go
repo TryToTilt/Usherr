@@ -129,22 +129,30 @@ func (s *Server) handleStreamTVTitle(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
-	imdb, err := s.imdbFor(ctx, req.Kind, req.TMDBID)
+	name, err := s.openOnTV(ctx, req.Kind, req.TMDBID, req.Season, req.Episode)
 	if err != nil {
-		writeError(w, http.StatusBadGateway, err.Error())
-		return
-	}
-	link, err := stremioLink(req.Kind, imdb, req.Season, req.Episode)
-	if err != nil {
-		writeError(w, http.StatusBadGateway, err.Error())
-		return
-	}
-	addr, name := s.tvAddress()
-	if _, err := adb(ctx, addr, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", shellQuote(link), "com.stremio.one"); err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"tv": name, "message": "Opened in Stremio on the " + name + ". Press OK on the remote to play."})
+}
+
+// openOnTV opens a title in Stremio on the TV (the Play on TV button, and a
+// booked showtime); it answers the TV's name.
+func (s *Server) openOnTV(ctx context.Context, kind string, tmdbID, season, episode int) (string, error) {
+	imdb, err := s.imdbFor(ctx, kind, tmdbID)
+	if err != nil {
+		return "", err
+	}
+	link, err := stremioLink(kind, imdb, season, episode)
+	if err != nil {
+		return "", err
+	}
+	addr, name := s.tvAddress()
+	if _, err := adb(ctx, addr, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", shellQuote(link), "com.stremio.one"); err != nil {
+		return "", err
+	}
+	return name, nil
 }
 
 // POST /api/stream/{id}/tv: play a started stream on the TV, in VLC.

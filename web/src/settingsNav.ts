@@ -138,6 +138,7 @@ export function pageTitle(pathname: string, admin = true): string {
   if (pathname.startsWith('/discover')) return t('Discover')
   if (pathname.startsWith('/search')) return tc('noun', 'Search')
   if (pathname.startsWith('/title')) return t('Movie')
+  if (pathname === '/showtime') return t('Showtime') // Usherr: Showtimes at home
   if (pathname.startsWith('/show') || pathname.startsWith('/series')) return t('TV show')
   if (pathname.startsWith('/tv')) return t('Live TV') // home fork
   if (pathname.startsWith('/person/')) return t('Person') // home fork: from a cast photo

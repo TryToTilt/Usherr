@@ -453,6 +453,10 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/search/people` | any account | GET /api/home/search/people?q= |
 | GET | `/api/home/season-folder` | admin | GET/PUT /api/home/season-folder {"style":"plain"\|"padded"} |
 | PUT | `/api/home/season-folder` | admin | GET/PUT /api/home/season-folder {"style":"plain"\|"padded"} |
+| GET | `/api/home/showtimes` | any account | GET /api/home/showtimes: the showtimes from a few hours ago on, with the server's clock (a Showtime screen counts down by it). |
+| POST | `/api/home/showtimes` | any account | POST /api/home/showtimes: book a film for a time. |
+| DELETE | `/api/home/showtimes/{id}` | any account | DELETE /api/home/showtimes/{id}: cancel it. |
+| PUT | `/api/home/showtimes/{id}` | any account | PUT /api/home/showtimes/{id}: another time, pre-show or place. |
 | GET | `/api/home/stack` | any account | GET /api/home/stack (member): your stack, top first. |
 | POST | `/api/home/stack` | any account | POST /api/home/stack (member): put a title on top of your stack. |
 | PUT | `/api/home/stack/order` | any account | PUT /api/home/stack/order (member): {"order": ["movie:603", "tv:1396"]}, top first. |
@@ -780,6 +784,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | DELETE | `/api/play/hls/{token}` | signed in | DELETE /api/play/hls/{token}: stops the conversion. |
 | GET | `/api/play/hls/{token}/{rest...}` | signed in | GET /api/play/hls/{token}/{rest...}: relays Jellyfin's HLS playlists and segments for this stream only. |
 | GET | `/api/play/movie/{id}` | signed in | GET /api/play/movie/{id} |
+| GET | `/api/play/next` | signed in | GET /api/play/next?episodeId=N, or ?tmdbId=&season=&episode= for a streamed episode: the next one, or {"next": null}. |
 | POST | `/api/play/prepare` | signed in | POST /api/play/prepare {"kind":"movie","id":1,"caps":{...}} answers how to play: {"mode":"direct","url":...} or {"mode":"hls","url":...,"session":...}. |
 | GET | `/api/play/subs/{kind}/{id}` | signed in | GET /api/play/subs/{kind}/{id}?key=e3&shift=<seconds>: a text subtitle as WebVTT, its times moved back by shift (for a copy that starts part-way). |
 | GET | `/api/play/tracks/{kind}/{id}` | signed in | GET /api/play/tracks/{kind}/{id}: a title's sound tracks and subtitles. |
@@ -1215,4 +1220,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-810 routes.
+815 routes.

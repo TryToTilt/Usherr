@@ -14,6 +14,8 @@ import { applyPalette, markSrc } from '../palette'
 import { Board, ItemLook, itemsFor, Wall, wallItems, type Item } from './MarqueeLooks'
 import { FitLine, SceneFrame, Stage } from './marqueeParts'
 import { Badges, FormatBadges, InfoPanel, MediaSlide, PreShow, preShowHasSomething, QR, qrFor, SpotlightView, ThemeMusic, TonightView, trivia, TriviaView } from './MarqueeExtras'
+import { clockLabel, inLabel, type Showtime } from './showtimes'
+import './showtime.css'
 import './marqueeFonts'
 import './marquee.css'
 import './marqueeLook.css'
@@ -709,10 +711,26 @@ export default function Marquee() {
       <div className="mq-nudger" style={nudge.x || nudge.y ? { transform: `translate(${nudge.x}px, ${nudge.y}px)` } : undefined}>
         {body}
       </div>
+      {!preshow && <ShowtimeBand list={data.showtimes} now={clock.getTime()} />}
       {set.vintage && <div className="mq-fx mq-vintage" aria-hidden="true" />}
       {set.grain && <div className="mq-fx mq-grain" aria-hidden="true" />}
       <div className="mq-fx mq-shade" style={{ opacity: shade }} aria-hidden="true" />
       {theme && <ThemeMusic url={theme} volume={set.themeVolume} />}
+    </div>
+  )
+}
+
+// ShowtimeBand counts down to the next film booked for tonight (Showtimes at
+// home), over whatever the screen shows: "Showtime 8:00 PM · Dune · in 12 min".
+function ShowtimeBand({ list, now }: { list?: Showtime[]; now: number }) {
+  const next = (list ?? []).find((s) => s.state === 'booked' && s.atMs > now - 60_000)
+  if (!next) return null
+  const soon = next.atMs - now <= 10 * 60_000
+  return (
+    <div className={`mq-showtime-band${soon ? ' soon' : ''}`} role="status">
+      <b>{t('Showtime {time}', { time: clockLabel(next.atMs) })}</b>
+      <span>{next.title}</span>
+      <span>{inLabel(next.atMs, now)}</span>
     </div>
   )
 }
