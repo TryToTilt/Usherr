@@ -41,9 +41,11 @@ type Request = {
   onNext?: (at?: number) => Promise<void>
   tvTitle?: { kind: 'movie' | 'series'; tmdbId: number; season?: number; episode?: number }
   watchIn?: { tmdbId: number; kind: 'movie' | 'tv' }
+  channel?: string // Usherr: the Live TV channel it's on, for the Marquee
+  about?: { kind: 'movie' | 'tv'; tmdbId: number; season?: number; episode?: number } // Usherr: which title a stream is, for the Marquee
 }
 
-export type StreamExtras = Pick<Request, 'onNext' | 'tvTitle' | 'watchIn' | 'startAt'>
+export type StreamExtras = Pick<Request, 'onNext' | 'tvTitle' | 'watchIn' | 'startAt' | 'about'>
 
 let show: ((r: Request | null) => void) | null = null
 
@@ -183,7 +185,7 @@ function ChannelView({ channelId: firstId, name: firstName, onClose, inline = fa
         if (d.live) {
           setNow({
             key: `live-${channelId}`,
-            req: { kind: 'channel', id: channelId, title: d.program ? `${name} · ${d.program.title}` : name, subtitle: d.program?.subtitle, live: d.live },
+            req: { kind: 'channel', id: channelId, title: d.program ? `${name} · ${d.program.title}` : name, subtitle: d.program?.subtitle, live: d.live, channel: name },
           })
           return
         }
@@ -222,8 +224,8 @@ function ChannelView({ channelId: firstId, name: firstName, onClose, inline = fa
         setNow({
           key,
           req: d.stream
-            ? { kind: 'stream', id: 0, title: `${name} · ${p.title}`, subtitle: p.subtitle, stream: d.stream, startAt, onEnded }
-            : { kind: p.kind as PlayKind, id: p.itemId, title: `${name} · ${p.title}`, subtitle: p.subtitle, startAt, onEnded },
+            ? { kind: 'stream', id: 0, title: `${name} · ${p.title}`, subtitle: p.subtitle, stream: d.stream, startAt, onEnded, channel: name }
+            : { kind: p.kind as PlayKind, id: p.itemId, title: `${name} · ${p.title}`, subtitle: p.subtitle, startAt, onEnded, channel: name },
         })
       })
       .catch((e: Error) => setError(e.message))
@@ -493,6 +495,47 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
   useEffect(() => {
     if (videoRef.current) videoRef.current.muted = muted
   }, [muted, plan])
+  // Usherr: what's playing, told to the server every few seconds (and at
+  // once on pause and play) for the Marquee's "now showing"; it drops off
+  // when the player closes. A muted picture (Multiview) and the cards and
+  // breaks between Live TV shows aren't told.
+  const [nowKey] = useState(() => `p-${Math.random().toString(36).slice(2, 12)}-${Date.now().toString(36)}`)
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || muted || req.card || req.direct || !plan) return
+    const shift = plan.converted ? (plan.shift ?? 0) : 0
+    const tv = req.tvTitle
+    const about = req.about ?? (tv ? { kind: tv.kind === 'series' ? 'tv' : 'movie', tmdbId: tv.tmdbId, season: tv.season, episode: tv.episode } : req.watchIn)
+    const body = () => ({
+      key: nowKey,
+      kind: req.kind,
+      id: req.id,
+      title: req.title,
+      subtitle: req.subtitle,
+      channel: req.channel,
+      tmdbId: about?.tmdbId,
+      tvKind: about?.kind,
+      season: about && 'season' in about ? about.season : undefined,
+      episode: about && 'episode' in about ? about.episode : undefined,
+      streamId: req.stream?.id,
+      position: v.currentTime + shift,
+      duration: Number.isFinite(v.duration) ? v.duration + shift : 0,
+      paused: v.paused,
+    })
+    const send = () =>
+      void fetch('/api/home/playing', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body()) }).catch(() => undefined)
+    const first = window.setTimeout(send, 1500)
+    const tm = window.setInterval(send, 10000)
+    v.addEventListener('pause', send)
+    v.addEventListener('play', send)
+    return () => {
+      window.clearTimeout(first)
+      window.clearInterval(tm)
+      v.removeEventListener('pause', send)
+      v.removeEventListener('play', send)
+      void fetch(`/api/home/playing/${nowKey}`, { method: 'DELETE', credentials: 'include', keepalive: true }).catch(() => undefined)
+    }
+  }, [req, muted, plan, nowKey])
   // Usherr: a stream's sound on its own, beside the picture, converted by
   // Usherr and kept in step with it: when the browser plays the stream
   // silently (Dolby, Atmos, TrueHD or DTS in an MKV), and when another

@@ -46,7 +46,8 @@ type marqueeSettings struct {
 	TrailerSound bool           `json:"trailerSound"`
 	FromJellyfin bool           `json:"fromJellyfin"`
 	FromStream   bool           `json:"fromStreamNZB"`
-	Profiles     []string       `json:"profiles"` // StreamNZB profiles to show; empty is all
+	HideUsherr   bool           `json:"hideUsherr"` // Usherr: leave out what Usherr itself plays (off, so it's shown)
+	Profiles     []string       `json:"profiles"`   // StreamNZB profiles to show; empty is all
 	QuietOn      bool           `json:"quietOn"`
 	QuietFrom    string         `json:"quietFrom"` // "23:00"
 	QuietTo      string         `json:"quietTo"`   // "14:00"

@@ -131,6 +131,9 @@ export default function MarqueeForm({ m, profiles, change, name }: { m: MarqueeS
         <label className="cx-check">
           <input type="checkbox" checked={m.fromStreamNZB} onChange={(e) => change({ fromStreamNZB: e.target.checked })} /> {t('StreamNZB (Nuvio, Stremio)')}
         </label>
+        <label className="cx-check">
+          <input type="checkbox" checked={!m.hideUsherr} onChange={(e) => change({ hideUsherr: !e.target.checked })} /> {t('Usherr itself (its player, Live TV, the Stremio and Nuvio add-on)')}
+        </label>
       </div>
       {m.fromStreamNZB && profiles.length > 0 && (
         <div style={row}>

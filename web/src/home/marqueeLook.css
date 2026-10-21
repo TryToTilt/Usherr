@@ -84,7 +84,7 @@
 
 /* ---- Shared parts of the looks. ---- */
 .lk { position: relative; flex: 1; min-height: 0; overflow: hidden; color: var(--mq-fg); }
-.lk-sign { --mq-sign: calc(var(--u) * 8 * var(--mq-t)); margin: 0; font-family: var(--mq-display); font-size: var(--mq-sign); font-weight: 400; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mq-hi); text-shadow: 0 0 calc(var(--u) * 2) color-mix(in srgb, var(--mq-hi) 50%, transparent); line-height: 1.18; overflow: hidden; text-align: center; }
+.lk-sign { --mq-sign: calc(var(--u) * 8 * var(--mq-t)); margin: 0; font-family: var(--mq-display); font-size: var(--mq-sign); font-weight: 400; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mq-hi); text-shadow: 0 0 calc(var(--u) * 2) color-mix(in srgb, var(--mq-hi) 50%, transparent); line-height: 1.18; overflow: hidden; text-align: center; min-width: 0; max-width: 100%; }
 .lk-sign.two { --mq-sign: calc(var(--u) * 6.6 * var(--mq-t)); }
 .lk-title { margin: 0; font-family: var(--mq-display); font-size: calc(var(--u) * 7 * var(--mq-t)); font-weight: 400; line-height: 1.16; padding-bottom: 0.08em; color: var(--mq-fg); text-wrap: balance; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .lk-meta { margin: calc(var(--u) * 1.4) 0 0; font-size: calc(var(--u) * 3.6 * var(--mq-t)); color: color-mix(in srgb, var(--mq-fg) 75%, transparent); }
@@ -109,7 +109,7 @@
 .lk-clock { font-variant-numeric: tabular-nums; }
 
 /* ---- Cinema: the poster as big as it goes, a header and a footer band. ---- */
-.lk-cinema { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--mq-bg); }
+.lk-cinema { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); background: var(--mq-bg); }
 .lk-c-head { position: relative; z-index: 1; padding: calc(var(--u) * 4) calc(var(--u) * 5) calc(var(--u) * 2.5); }
 .lk-c-poster { position: relative; z-index: 1; padding: 0 calc(var(--u) * 3); }
 .lk-c-foot { position: relative; z-index: 1; padding: calc(var(--u) * 3) calc(var(--u) * 6) calc(var(--u) * 5); text-align: center; display: grid; justify-items: center; gap: calc(var(--u) * 0.4); }
@@ -117,7 +117,7 @@
 .lk-cinema.no-foot .lk-c-poster { padding-bottom: calc(var(--u) * 4); }
 
 /* ---- Posterr: a coloured banner, the poster, the title banner. ---- */
-.lk-posterr { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--mq-bg); }
+.lk-posterr { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); background: var(--mq-bg); }
 .lk-p-banner { position: relative; z-index: 1; padding: calc(var(--u) * 2.4) calc(var(--u) * 3); background: var(--mq-accent); color: var(--mq-bg); text-align: center; box-shadow: 0 calc(var(--u) * 0.8) calc(var(--u) * 3) rgba(0, 0, 0, 0.5); }
 .lk-p-banner .lk-sign { color: inherit; text-shadow: none; --mq-sign: calc(var(--u) * 8.5 * var(--mq-t)); letter-spacing: 0.14em; }
 .lk-p-poster { padding: calc(var(--u) * 3); }
@@ -207,7 +207,10 @@
   .kb, .mq-grain, .lk-frame .bl, .fr-neon, .mqx-layer.in, .mqx-layer.out, .lk-tile .new, .lk-tile .old { animation: none !important; }
 }
 
-/* Fixed rows, so a look without a header or footer keeps the poster in place. */
+/* Fixed rows, so a look without a header or footer keeps the poster in place.
+   The one column is the screen's width: a long sign ("Feature presentation" on
+   a portrait screen) shrinks to fit instead of widening it and pushing the
+   trailer off to the side. */
 .lk-c-head, .lk-p-banner { grid-row: 1; }
 .lk-c-poster, .lk-p-poster { grid-row: 2; }
 .lk-c-foot, .lk-p-foot { grid-row: 3; }

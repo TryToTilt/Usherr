@@ -109,6 +109,7 @@ export interface MarqueeSettings {
   trailerSound: boolean
   fromJellyfin: boolean
   fromStreamNZB: boolean
+  hideUsherr?: boolean
   profiles: string[]
   quietOn: boolean
   quietFrom: string

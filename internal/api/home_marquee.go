@@ -227,6 +227,11 @@ func (s *Server) handleMarquee(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// Usherr: and what Usherr itself plays: its player in the browser
+	// (library files, Stream now, Live TV) and the Stremio and Nuvio add-on.
+	if !set.HideUsherr {
+		out.NowPlaying = append(out.NowPlaying, s.usherrNowShowing(ctx, out.NowPlaying, tmdbOK)...)
+	}
 	if r.URL.Query().Get("only") == "playing" {
 		writeJSON(w, http.StatusOK, out)
 		return

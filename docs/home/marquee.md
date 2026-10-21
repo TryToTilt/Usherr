@@ -74,9 +74,13 @@ dim at night.
 The scenes, in the order you set, each for as long as you set; a scene with
 nothing to show is skipped.
 
-- **Now showing**: what's playing on Jellyfin or Emby (and StreamNZB), with
-  its progress and badges for the picture and sound (4K, HDR10, Dolby Vision,
-  Dolby Atmos, DTS:X).
+- **Now showing**: what's playing, wherever it plays: Jellyfin or Emby,
+  StreamNZB (Nuvio, Stremio), and Usherr itself: its player in the browser
+  (library files, Stream now, Live TV, labelled with the channel) and its
+  Stremio and Nuvio add-on. Each shows with its progress and badges for the
+  picture and sound (4K, HDR10, Dolby Vision, Dolby Atmos, DTS:X). It shows
+  up within half a minute of starting and leaves when the player closes.
+  *Now showing comes from* on the Look and scenes tab turns each source off.
 - **New on the server**, **In theaters now**, **Coming soon**: one film at a
   time, and as poster lists; **Trailer**: the film's trailer.
 - **Coming up**: the week ahead; **On Live TV**: what each channel has on.

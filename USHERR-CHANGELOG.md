@@ -5,6 +5,14 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+**New**
+- **The Marquee shows what's playing, wherever it plays**: Usherr's own player in the browser (library files, Stream now, Live TV with its channel) and its Stremio and Nuvio add-on now count, next to Jellyfin, Emby and StreamNZB, with progress and the picture's badges. *Usherr itself* under *Now showing comes from* turns it off.
+
+**Fixed**
+- A long sign such as *Feature presentation* fits a portrait Marquee screen in the Cinema and Posterr looks, and the trailer and title under it stay centred instead of being pushed off to one side.
+- A stream played from a title's page shows that title's poster and details on the Marquee; a stream started from a list of releases is looked up by its name.
+- The Marquee in Home Assistant could be left showing a screen's old look after a new one was chosen there.
+
 ## [2.0.0] - 2026-10-20
 
 Built on **Mediarium 3.2.16**.

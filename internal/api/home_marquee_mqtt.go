@@ -77,6 +77,10 @@ type marqueeBridge struct {
 	err       string
 	since     time.Time
 	announced map[string]bool // screens Home Assistant was told about
+	// sending is held while a screen's state is read and sent, so a state
+	// read before a change can't go out after the one read after it (Home
+	// Assistant would be left showing the old look).
+	sending sync.Mutex
 }
 
 func (b *marqueeBridge) setState(state, err string) {
@@ -276,6 +280,8 @@ func (s *Server) marqueeMQTTForget(sc marqueeScreen) {
 }
 
 func (s *Server) marqueeMQTTAnnounceAll(ctx context.Context) {
+	s.marqueeMQTT.sending.Lock()
+	defer s.marqueeMQTT.sending.Unlock()
 	list, err := s.marqueeScreens(ctx)
 	if err != nil {
 		return
@@ -320,6 +326,8 @@ func (s *Server) marqueeMQTTState(ctx context.Context, id string) {
 	if !on {
 		return
 	}
+	s.marqueeMQTT.sending.Lock()
+	defer s.marqueeMQTT.sending.Unlock()
 	list, err := s.marqueeScreens(ctx)
 	if err != nil {
 		return

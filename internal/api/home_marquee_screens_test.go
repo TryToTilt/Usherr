@@ -149,3 +149,47 @@ func TestMarqueeScreenOrder(t *testing.T) {
 		t.Fatalf("an empty order: %d", st)
 	}
 }
+
+// What Usherr's own player plays is on the Marquee too, until it closes;
+// NSFW videos never are, and the Marquee can leave Usherr out.
+func TestMarqueeShowsUsherrsPlayer(t *testing.T) {
+	_, base, admin := loginNewServer(t)
+	playing := func() []any {
+		t.Helper()
+		return getJSON[map[string]any](t, admin, base+"/api/home/marquee?only=playing")["nowPlaying"].([]any)
+	}
+	if st, _ := doJSONStatus(t, admin, http.MethodPost, base+"/api/home/playing", map[string]any{
+		"key": "player-test-1", "kind": "stream", "title": "Channel 4 · Night Court", "channel": "Channel 4", "position": 600, "duration": 1800,
+	}); st != http.StatusNoContent {
+		t.Fatalf("playing: %d", st)
+	}
+	doJSONStatus(t, admin, http.MethodPost, base+"/api/home/playing", map[string]any{"key": "player-test-2", "kind": "video", "id": 1, "title": "Private"})
+	list := playing()
+	if len(list) != 1 {
+		t.Fatalf("now playing: %v", list)
+	}
+	p := list[0].(map[string]any)
+	if p["title"] != "Night Court" || p["device"] != "Live TV · Channel 4" || p["progress"].(float64) < 0.33 || p["progress"].(float64) > 0.34 {
+		t.Fatalf("what's on: %v", p)
+	}
+
+	// Left out when the Marquee says so.
+	set := getJSON[map[string]any](t, admin, base+"/api/home/marquee/settings")["settings"].(map[string]any)
+	set["hideUsherr"] = true
+	if st, body := doJSONStatus(t, admin, http.MethodPut, base+"/api/home/marquee/settings", set); st != http.StatusOK {
+		t.Fatalf("settings: %d %v", st, body)
+	}
+	if list := playing(); len(list) != 0 {
+		t.Fatalf("hidden: %v", list)
+	}
+	set["hideUsherr"] = false
+	doJSONStatus(t, admin, http.MethodPut, base+"/api/home/marquee/settings", set)
+
+	// The player closes: it's gone.
+	if st, _ := doJSONStatus(t, admin, http.MethodDelete, base+"/api/home/playing/player-test-1", nil); st != http.StatusNoContent {
+		t.Fatalf("stop: %d", st)
+	}
+	if list := playing(); len(list) != 0 {
+		t.Fatalf("after closing: %v", list)
+	}
+}

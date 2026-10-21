@@ -433,6 +433,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/home/news/settings` | admin | PUT /api/home/news/settings {on, sources, dailyBudget}: only what's sent changes. |
 | POST | `/api/home/news/test` | admin | POST /api/home/news/test {url}: does a feed answer, and with what? |
 | GET | `/api/home/person/{id}` | any account | GET /api/home/person/{id}: someone's page: who they are, and the films and shows they're best known for (directed, wrote, or starred in). |
+| POST | `/api/home/playing` | any account | POST /api/home/playing: Usherr's player says what it plays now. |
+| DELETE | `/api/home/playing/{key}` | any account | DELETE /api/home/playing/{key}: the player closed. |
 | GET | `/api/home/providers` | any account | GET /api/home/providers: the services of the country, with the ones you pay for. |
 | POST | `/api/home/quiet` | admin | POST /api/home/quiet {"minutes":120,"when":"now"\|"finish"} holds every heavy task for a while; {"minutes":0} ends it. |
 | GET | `/api/home/ready-rows` | any account | GET /api/home/ready-rows: the ready-made rows you've hidden. |
@@ -1195,4 +1197,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-795 routes.
+797 routes.

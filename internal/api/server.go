@@ -533,6 +533,8 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/home/ai/test", s.handleTestAI)                           // home fork
 	member.HandleFunc("GET /api/home/news", s.handleNews)                                // home fork: entertainment news
 	member.HandleFunc("GET /api/home/cinema", s.handleCinema)                            // Usherr: films in cinemas
+	member.HandleFunc("POST /api/home/playing", s.handleNowPlaying)                      // Usherr: what Usherr's player plays, for the Marquee
+	member.HandleFunc("DELETE /api/home/playing/{key}", s.handleNowPlayingStop)          // Usherr
 	member.HandleFunc("GET /api/home/stack", s.handleGetStack)                           // Usherr: your stack
 	member.HandleFunc("POST /api/home/stack", s.handleAddStack)                          // Usherr
 	member.HandleFunc("PUT /api/home/stack/order", s.handleOrderStack)                   // Usherr

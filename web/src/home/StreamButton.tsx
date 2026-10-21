@@ -101,7 +101,7 @@ function StreamSheet({ target, onKeep, onClose }: { target: StreamTarget; onKeep
         const d = await r.json().catch(() => null)
         if (!r.ok) throw new Error(d?.error ?? t("Couldn't start it (error {status}).", { status: r.status }))
         onClose()
-        playStream(d, target.title, onKeep)
+        playStream(d, target.title, onKeep, { about: aboutOf(target) })
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setStarting(''))
@@ -140,7 +140,7 @@ function StreamSheet({ target, onKeep, onClose }: { target: StreamTarget; onKeep
       .start({ option: o.id, title: target.title })
       .then((st) => {
         onClose()
-        playStream(st, target.title, onKeep, nextExtras(st, target.title, onKeep))
+        playStream(st, target.title, onKeep, { ...nextExtras(st, target.title, onKeep, aboutOf(target)), about: aboutOf(target) })
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setStarting(''))
@@ -244,14 +244,17 @@ export async function streamRelease(r: SearchResult, title: string, onKeep?: () 
   playStream(st, title, onKeep, nextExtras(st, title, onKeep))
 }
 
+// Usherr: which title a stream is, for the Marquee's poster.
+const aboutOf = (tg: StreamTarget): StreamExtras['about'] => ({ kind: tg.kind === 'movie' ? 'movie' : 'tv', tmdbId: tg.tmdbId, season: tg.season, episode: tg.episode })
+
 // Usherr's own engine keeps the other releases in line: "Try another release"
 // (and a release that breaks part-way) plays the next one from where it was.
-function nextExtras(st: StreamStart, title: string, onKeep?: () => void): StreamExtras | undefined {
+function nextExtras(st: StreamStart, title: string, onKeep?: () => void, about?: StreamExtras['about']): StreamExtras | undefined {
   if (!st.canNext) return undefined
   return {
     onNext: async (at) => {
       const n = await streamApi.next(st.id)
-      playStream(n, title, onKeep, { ...nextExtras(n, title, onKeep), startAt: at && at > 1 ? at : undefined })
+      playStream(n, title, onKeep, { ...nextExtras(n, title, onKeep, about), startAt: at && at > 1 ? at : undefined, about })
     },
   }
 }

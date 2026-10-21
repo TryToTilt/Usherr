@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -35,6 +36,7 @@ import (
 	"github.com/rdborg/mediarium/internal/auth"
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/metadata"
+	"github.com/rdborg/mediarium/internal/parser"
 	"github.com/rdborg/mediarium/internal/qr"
 )
 
@@ -546,7 +548,8 @@ type addonCand struct {
 	alts    []indexers.Result
 	userID  int64
 	at      time.Time
-	session string // the engine's session, once opened
+	session string        // the engine's session, once opened
+	what    usherrPlaying // Usherr: what it is, for the Marquee
 }
 
 var (
@@ -625,6 +628,11 @@ func (s *Server) handleAddonStream(w http.ResponseWriter, r *http.Request) {
 	// Then what the streaming engine finds, best first.
 	if s.ownProblem() == "" {
 		if tmdb, err := s.addonTMDB(ctx, ref); err == nil {
+			// Usherr: what it is, for the Marquee while an app plays it.
+			what := usherrPlaying{userID: u.ID, kind: "movie", tmdbID: tmdb}
+			if ref.Kind == "series" {
+				what = usherrPlaying{userID: u.ID, kind: "episode", showID: tmdb, season: ref.Season, episode: ref.Episode}
+			}
 			if q, err := s.ownTitleQuery(ctx, ref.Kind, tmdb, ref.Season, ref.Episode, "4K"); err == nil {
 				if list, err := s.ownCandidates(ctx, q); err == nil {
 					if len(list) > addonStreams {
@@ -634,7 +642,12 @@ func (s *Server) handleAddonStream(w http.ResponseWriter, r *http.Request) {
 						rest := append(append([]indexers.Result(nil), list[i+1:]...), list[:i]...)
 						token := randomID("ao_")
 						addonCandMu.Lock()
-						addonCands[token] = &addonCand{res: res, alts: rest, userID: u.ID, at: time.Now()}
+						seen := what
+						seen.release = res.Title
+						if seen.kind == "episode" {
+							seen.series = parser.Parse(res.Title).Title
+						}
+						addonCands[token] = &addonCand{res: res, alts: rest, userID: u.ID, at: time.Now(), what: seen}
 						addonCandMu.Unlock()
 						pic := "Usenet"
 						if h := heightOf(res.Title); h > 0 {
@@ -694,7 +707,16 @@ func (s *Server) handleAddonPlay(w http.ResponseWriter, r *http.Request) {
 		c.session = op.token
 	}
 	token := c.session
+	what := c.what
 	c.mu.Unlock()
+	// Usherr: on the Marquee while the app reads it.
+	ustreamMu.Lock()
+	var size int64
+	if sess, ok := ustreamSessions[token]; ok {
+		size = sess.file.Size
+	}
+	ustreamMu.Unlock()
+	addonPlaying(r.PathValue("token"), what, rangeStart(r), size)
 	addonCORS(w)
 	s.serveUStream(w, r, token)
 }
@@ -715,6 +737,17 @@ func (s *Server) handleAddonFile(w http.ResponseWriter, r *http.Request) {
 	if err != nil || file == "" {
 		http.NotFound(w, r)
 		return
+	}
+	// Usherr: on the Marquee while the app reads it.
+	if u, ok := s.addonUser(r); ok {
+		what := usherrPlaying{userID: u.ID}
+		if s.usherrPlayingFromLibrary(kind, id, &what) {
+			var size int64
+			if fi, err := os.Stat(file); err == nil {
+				size = fi.Size()
+			}
+			addonPlaying(kind+"-"+strconv.FormatInt(id, 10)+"-"+strconv.FormatInt(u.ID, 10), what, rangeStart(r), size)
+		}
 	}
 	addonCORS(w)
 	serveLibraryVideo(w, r, file, s.libraryRoots())
