@@ -143,7 +143,9 @@ func (s *Server) stopItem(item queue.Item, deleteFiles bool) error {
 	if item.Status != queue.StatusQueued && item.Status != queue.StatusDownloading && item.Status != queue.StatusImporting && item.Status != queue.StatusPaused {
 		return finished
 	}
+	ref, inClient := s.clientRefFor(item) // before the folder with its hash can go
 	if s.pipelines.interrupt(item.ID, true, deleteFiles, stopWait) {
+		s.removeFromClient(ref, inClient, false)
 		return nil
 	}
 	// Only while it has not finished: a download that completed a moment ago
@@ -155,6 +157,7 @@ func (s *Server) stopItem(item queue.Item, deleteFiles bool) error {
 	if !stopped {
 		return finished
 	}
+	s.removeFromClient(ref, inClient, false)
 	s.torrents.stopQueue(item.ID)
 	s.releaseTitleClaims(item)
 	if deleteFiles {
@@ -167,6 +170,8 @@ func (s *Server) stopItem(item queue.Item, deleteFiles bool) error {
 // partial files and removes it from the list. It does not wait for the
 // pipeline to finish: it sets the final state itself.
 func (s *Server) discardItem(item queue.Item) {
+	ref, inClient := s.clientRefFor(item)
+	defer s.removeFromClient(ref, inClient, false)
 	if !s.pipelines.interrupt(item.ID, true, true, stopWait) {
 		s.torrents.stopQueue(item.ID)
 	}
@@ -807,7 +812,7 @@ func (s *Server) tidyOrphans() tidyResult {
 // are put right.
 func (s *Server) recoverAtStartup() {
 	s.restoreVPN() // the VPN that was on comes back on its own; torrents wait for it
-	paused, err := s.QueueRepo.RecoverInterrupted()
+	paused, wasRunning, err := s.QueueRepo.RecoverInterruptedItems()
 	if err != nil {
 		slog.Warn("queue: pause interrupted downloads", "err", err)
 	}
@@ -822,6 +827,14 @@ func (s *Server) recoverAtStartup() {
 	tidy := s.tidyOrphans()
 	if paused > 0 || tidy.any() {
 		slog.Info("queue: start-up check", "pausedDownloads", paused, "moviesFixed", tidy.Movies, "episodesFixed", tidy.Episodes, "albumsFixed", tidy.Albums, "booksFixed", tidy.Books, "upgradesRemoved", tidy.Upgrades)
+	}
+	// What was downloading carries on by itself, a few seconds apart, unless
+	// that is switched off or this is safe mode (see resume_interrupted.go).
+	if s.resumeInterruptedOn() && !s.cfg.PauseAutomation {
+		if len(wasRunning) > 0 {
+			s.startResumeInterrupted(wasRunning)
+			paused -= int64(len(wasRunning))
+		}
 	}
 	paused -= s.pausedVideoDownloads() // videos hook (home fork): video downloads aren't counted in shared activity
 	if paused > 0 {

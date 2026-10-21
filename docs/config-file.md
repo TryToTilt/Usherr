@@ -47,8 +47,9 @@ indexers:
     baseUrl: https://indexer.example.com
     apiKey: ${NZB_KEY}
     protocol: usenet
-    priority: 1          # 1 preferred, 2 normal, 3 last resort
+    priority: 10         # 1 to 50, lower is tried first (25 = default)
     requestsPerDay: 25   # most requests a day (0 = none set)
+    minSeeders: 5        # torrent indexers: skip releases with fewer seeders (0 = off, up to 1000)
 
 qualityProfiles:
   - name: Any HD
@@ -104,7 +105,7 @@ debrid:
 
 Write a password or a key as `${NAME}`. It is replaced with the environment variable `NAME` when the file is applied, so the secret never has to be in the file or in git. `${NAME:-fallback}` uses `fallback` when `NAME` isn't set. A `${NAME}` with no value and no fallback stops the command before anything is changed.
 
-These are the values Mediarium accepts but never shows back: in `settings` `tmdbApiKey`, `openSubtitlesApiKey`, `openSubtitlesUsername`, `openSubtitlesPassword`, `subdlApiKey` and `traktClientId`; `password` in `downloadClient` and `proxy`; `apiKey` in `debrid`; and in the lists the `password` of a Usenet server, the `apiKey` of an indexer (and the passwords of a site's `settings`) and the `token` of a media server. Because they can't be compared, they are sent again every time you apply.
+These are the values Mediarium accepts but never shows back: in `settings` `tmdbApiKey`, `openSubtitlesApiKey`, `openSubtitlesUsername`, `openSubtitlesPassword`, `subdlApiKey`, `traktClientId` and `simklClientId`; `password` in `downloadClient` and `proxy`; `apiKey` in `debrid`; and in the lists the `password` of a Usenet server, the `apiKey` of an indexer (and the passwords of a site's `settings`) and the `token` of a media server. Because they can't be compared, they are sent again every time you apply.
 
 ## See what would change, then apply
 

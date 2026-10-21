@@ -298,7 +298,7 @@ func (e *controlEnv) workDirFor(id int64) string { return e.server.TestWorkDirFo
 // waitFor polls until cond is true.
 func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(60 * time.Second)
 	for time.Now().Before(deadline) {
 		if cond() {
 			return
@@ -414,7 +414,13 @@ func TestStopTable(t *testing.T) {
 			if b, err := os.ReadFile(sentinel); err != nil || string(b) != "precious" {
 				t.Fatal("stopping a download must not touch the library")
 			}
-			entries, _ := os.ReadDir(e.movies)
+			var entries []string
+			all, _ := os.ReadDir(e.movies)
+			for _, en := range all {
+				if en.Name() != ".mediarium-root" { // the folder's own marker is not an import
+					entries = append(entries, en.Name())
+				}
+			}
 			if len(entries) != 1 {
 				t.Fatalf("nothing should have been imported: %v", entries)
 			}

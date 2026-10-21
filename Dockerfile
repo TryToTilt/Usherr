@@ -57,16 +57,17 @@ ARG VERSION=
 # source: the app then asks each user for their own. They end up inside the
 # binary (as with Radarr/Sonarr), so treat them as identifiers, not secrets.
 #   docker build --build-arg TMDB_API_KEY=... --build-arg OPENSUBTITLES_API_KEY=... \
-#                --build-arg TRAKT_CLIENT_ID=... .
+#                --build-arg TRAKT_CLIENT_ID=... --build-arg SIMKL_CLIENT_ID=... .
 ARG TMDB_API_KEY=
 ARG OPENSUBTITLES_API_KEY=
 ARG TRAKT_CLIENT_ID=
+ARG SIMKL_CLIENT_ID=
 RUN set -e; \
     v="${VERSION}"; \
     if [ -z "$v" ] || [ "$v" = "dev" ]; then v="$(tr -d ' \r\n' < VERSION)"; fi; \
     echo "Building Mediarium version $v"; \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -trimpath -ldflags="-s -w -X main.version=${v} -X main.defaultTMDBAPIKey=${TMDB_API_KEY} -X main.defaultOpenSubtitlesAPIKey=${OPENSUBTITLES_API_KEY} -X main.defaultTraktClientID=${TRAKT_CLIENT_ID}" -o /out/app ./cmd/app
+    go build -trimpath -ldflags="-s -w -X main.version=${v} -X main.defaultTMDBAPIKey=${TMDB_API_KEY} -X main.defaultOpenSubtitlesAPIKey=${OPENSUBTITLES_API_KEY} -X main.defaultTraktClientID=${TRAKT_CLIENT_ID} -X main.defaultSimklClientID=${SIMKL_CLIENT_ID}" -o /out/app ./cmd/app
 
 # ---- "Full" image: Mediarium with the Cloudflare helper built in ----
 # Build it with `--target full`. The plain build (no --target) ends at the

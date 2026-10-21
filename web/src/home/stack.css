@@ -1,0 +1,30 @@
+/* Usherr: your Stack in the sidebar, under Settings: the front ticket, with
+   the next two peeking out behind it, fanned like a stack on a table. */
+.side-stack { margin: 14px 4px 10px; padding: 12px 10px 10px; border-radius: 16px; border: 1px solid var(--border); background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
+.ss-head { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; color: var(--text-dim); font-size: 0.82rem; }
+.ss-title { font-weight: 700; color: var(--text); }
+.ss-count { margin-left: auto; font-variant-numeric: tabular-nums; }
+.ss-empty { display: grid; justify-items: center; gap: 8px; margin: 4px 0 2px; padding: 16px 10px; border: 1px dashed var(--border); border-radius: 12px; text-align: center; font-size: 0.78rem; line-height: 1.4; color: var(--text-dim); }
+
+.ss-deck { position: relative; width: min(100%, 168px); margin: 0 auto; padding-right: 14px; touch-action: pan-y; user-select: none; outline: none; }
+.ss-deck:focus-visible { box-shadow: 0 0 0 2px var(--accent); border-radius: 12px; }
+.ss-front { position: relative; z-index: 3; transition: transform 0.18s ease; animation: ss-in 0.28s ease; }
+.ss-front .pcard { width: 100%; }
+@keyframes ss-in { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
+.ss-behind { position: absolute; top: 6px; left: 0; width: calc(100% - 14px); aspect-ratio: 2 / 3; border-radius: 12px; overflow: hidden; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35); transform-origin: 50% 100%; }
+.ss-behind img { width: 100%; height: 100%; object-fit: cover; display: block; filter: brightness(0.75); }
+.ss-behind span { display: grid; place-items: center; height: 100%; padding: 8px; font-size: 0.75rem; text-align: center; color: var(--text-dim); }
+.ss-behind.b1 { z-index: 2; transform: translateX(8px) rotate(4deg); }
+.ss-behind.b2 { z-index: 1; transform: translateX(15px) rotate(8deg); opacity: 0.85; }
+
+.ss-menu { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 10px; }
+.ss-nav { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-top: 10px; }
+.ss-tools { display: flex; gap: 4px; }
+.ss-nav .icon-btn { width: 30px; height: 30px; }
+.ss-play { color: var(--accent); }
+
+/* A card's main action keeps its words on one line (it wrapped one letter a
+   line on a narrow card, such as "Watch (streams)" in the Library). */
+.pcard-actions .icon-btn.primary-act { min-width: 0; flex-shrink: 1; }
+.pcard-actions .icon-btn.primary-act span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pcard-art-btn { padding: 0; border: 0; background: none; cursor: pointer; }

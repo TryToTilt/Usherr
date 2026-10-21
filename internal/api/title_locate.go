@@ -317,7 +317,7 @@ func (s *Server) rereadSeriesFolder(sr library.Series, dir string, today time.Ti
 	for _, e := range eps {
 		byNumber[[2]int{e.Season, e.Episode}] = e
 	}
-	place := library.ImportPlacer(eps, sr.SeriesType == library.SeriesAnime, nil)
+	place := library.ImportPlacer(eps, sr.SeriesType == library.SeriesAnime, s.importMaps(sr), importFilesOf(files))
 	var attached []string
 	rep.NotPlaced = len(skipped)
 

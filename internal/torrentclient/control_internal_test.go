@@ -371,7 +371,12 @@ func TestSwitchingPortMappingOffWhileLookingLeavesItOff(t *testing.T) {
 	}
 	m.Stop()
 	close(release)
-	time.Sleep(300 * time.Millisecond)
+	// Give the mapper time to wind down (it takes longer on a loaded machine),
+	// then check the router is still empty after it has.
+	for end := time.Now().Add(20 * time.Second); m.Status().State != MapOff && time.Now().Before(end); {
+		time.Sleep(10 * time.Millisecond)
+	}
+	time.Sleep(100 * time.Millisecond)
 	if st := m.Status().State; st != MapOff {
 		t.Fatalf("a mapper that was switched off says %q", st)
 	}

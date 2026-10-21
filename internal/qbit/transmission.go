@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -180,7 +181,20 @@ func (c *TransmissionClient) Add(ctx context.Context, o AddOptions) error {
 	if len(labels) > 0 {
 		args["labels"] = labels
 	}
-	return c.call(ctx, "torrent-add", args, nil)
+	if err := c.call(ctx, "torrent-add", args, nil); err != nil {
+		return err
+	}
+	// Transmission has a ratio limit per torrent but no total seeding time
+	// (its idle limit is something else), so only the ratio is passed on.
+	if o.Share.Ratio > 0 && o.Hash != "" {
+		err := c.call(ctx, "torrent-set", map[string]any{
+			"ids": []string{o.Hash}, "seedRatioLimit": o.Share.Ratio, "seedRatioMode": 1,
+		}, nil)
+		if err != nil {
+			slog.Debug("download client: couldn't set the share ratio", "err", err)
+		}
+	}
+	return nil
 }
 
 var tmFields = []string{

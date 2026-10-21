@@ -12,13 +12,22 @@ import (
 	"github.com/rdborg/mediarium/internal/subtitles"
 )
 
+// subtitleSearchPayload is the answer to a subtitle search: the results, best
+// fit first, and what each source was asked and said (shown when it is empty).
+type subtitleSearchPayload struct {
+	Results     []subtitleResultPayload `json:"results"`
+	Diagnostics []subtitles.Diagnostic  `json:"diagnostics"`
+}
+
 type subtitleResultPayload struct {
-	FileID   int     `json:"fileId"`
-	Source   string  `json:"source,omitempty"` // "subdl"; empty for OpenSubtitles
-	Link     string  `json:"link,omitempty"`   // SubDL's download path
-	Language string  `json:"language"`
-	Release  string  `json:"release"`
-	Rating   float64 `json:"rating"`
+	FileID int    `json:"fileId"`
+	Source string `json:"source,omitempty"` // "subdl"; empty for OpenSubtitles
+	// SourceName is the add-on's own name, for results from an add-on.
+	SourceName string  `json:"sourceName,omitempty"`
+	Link       string  `json:"link,omitempty"` // SubDL's download path
+	Language   string  `json:"language"`
+	Release    string  `json:"release"`
+	Rating     float64 `json:"rating"`
 	// Score is how well the subtitle fits the video file's release (higher
 	// is better); results are returned best-first.
 	Score float64 `json:"score"`
@@ -117,9 +126,10 @@ func (s *Server) searchSubtitles(w http.ResponseWriter, r *http.Request, kind st
 	if forcedOnly {
 		q.Forced = true
 	}
-	results, err := s.findSubtitles(r.Context(), q, true)
+	ctx, diag := subtitles.WithDiagnostics(r.Context())
+	results, err := s.findSubtitles(ctx, q, true)
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "Couldn't search for subtitles: "+err.Error())
+		writeError(w, http.StatusBadGateway, fmt.Sprintf("Couldn't search for subtitles: %s", err.Error()))
 		return
 	}
 	if forcedOnly {
@@ -132,12 +142,16 @@ func (s *Server) searchSubtitles(w http.ResponseWriter, r *http.Request, kind st
 	out := make([]subtitleResultPayload, len(results))
 	for i, res := range results {
 		out[i] = subtitleResultPayload{
-			FileID: res.FileID, Source: res.Source, Link: res.Link, Language: res.Language, Release: res.Release, Rating: res.Rating,
-			Score: subtitles.Score(res, videoName), HashMatch: res.HashMatch, Variant: string(res.Variant()),
+			FileID: res.FileID, Source: res.Source, SourceName: res.SourceName, Link: res.Link, Language: res.Language, Release: res.Release, Rating: res.Rating,
+			Score: subtitles.ScoreFor(res, videoName, it.hints()), HashMatch: res.HashMatch, Variant: string(res.Variant()),
 		}
 	}
 	sortSubtitleResults(out)
-	writeJSON(w, http.StatusOK, out)
+	lines := diag.List()
+	if lines == nil {
+		lines = []subtitles.Diagnostic{}
+	}
+	writeJSON(w, http.StatusOK, subtitleSearchPayload{Results: out, Diagnostics: lines})
 }
 
 type downloadSubtitleRequest struct {
@@ -209,7 +223,7 @@ func (s *Server) downloadSubtitle(w http.ResponseWriter, r *http.Request, kind s
 	// A source switched off is never asked, not even to hand over a subtitle an
 	// earlier search listed.
 	if on, name := s.sourceOnFor(req.Source); !on {
-		writeError(w, http.StatusConflict, name+" switched off, so that subtitle can't be downloaded. Switch it on in Settings > Info, lists and subtitles > Subtitles, or search again.")
+		writeError(w, http.StatusConflict, fmt.Sprintf("%s switched off, so that subtitle can't be downloaded. Switch it on in Settings > Info, lists and subtitles > Subtitles, or search again.", name))
 		return
 	}
 	path, err := s.writeSubtitle(r.Context(), it, req.Language, subtitlePick{fileID: req.FileID, source: req.Source, link: req.Link, chosen: true, videoHash: videoHash(it.filePath), variant: variant})
@@ -218,7 +232,7 @@ func (s *Server) downloadSubtitle(w http.ResponseWriter, r *http.Request, kind s
 		writeError(w, http.StatusTooManyRequests, err.Error())
 		return
 	case err != nil:
-		writeError(w, http.StatusBadGateway, "Couldn't download the subtitle: "+err.Error())
+		writeError(w, http.StatusBadGateway, fmt.Sprintf("Couldn't download the subtitle: %s", err.Error()))
 		return
 	}
 	// The file name only: any account may download a subtitle, and the folder

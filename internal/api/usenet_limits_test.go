@@ -93,8 +93,16 @@ func TestConnectionTestSaysPlainlyWhenTheProviderHasTooManyConnections(t *testin
 // follows the server as it is added, edited and removed.
 func TestServerChangesReachTheDownloaderAtOnce(t *testing.T) {
 	_, base, client := newServerWithDB(t)
-	host, port := refusingNNTP(t, false, "502 Too many connections.")
+	_, port := refusingNNTP(t, false, "502 Too many connections.")
+	// The downloader's gates are process-wide and keyed by host and port, and
+	// the system hands a closed test's port out again. Every other test uses
+	// 127.0.0.1, so a name of our own keeps a gate that one of them left behind
+	// from being mistaken for this one's. The gate is let go when we are done.
+	host := "localhost"
 	key := host + ":" + strconv.Itoa(port)
+	t.Cleanup(func() {
+		download.RetireServer(download.ClientConfig{Host: host, Port: port, Username: "ryan"})
+	})
 	state := func() (download.ServerState, bool) {
 		for _, st := range download.ServerStates() {
 			if st.Host == key {

@@ -5,9 +5,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from '../components/Icon'
-import { playStream } from './Player'
+import { playStream, type StreamExtras } from './Player'
 import type { SearchResult } from '../api'
-import { browserTrouble, rememberQuality, rememberWhere, rememberedQuality, rememberedWhere, streamApi, streamingOn, type StreamOption } from './streamApi'
+import { browserTrouble, rememberQuality, rememberWhere, rememberedQuality, rememberedWhere, streamApi, streamingOn, type StreamOption, type StreamStart } from './streamApi'
 import './stream.css'
 import { t } from '../i18n'
 
@@ -140,7 +140,7 @@ function StreamSheet({ target, onKeep, onClose }: { target: StreamTarget; onKeep
       .start({ option: o.id, title: target.title })
       .then((st) => {
         onClose()
-        playStream(st, target.title, onKeep)
+        playStream(st, target.title, onKeep, nextExtras(st, target.title, onKeep))
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setStarting(''))
@@ -241,7 +241,19 @@ function StreamSheet({ target, onKeep, onClose }: { target: StreamTarget; onKeep
 // streamRelease plays one exact release from a release list; onKeep grabs it.
 export async function streamRelease(r: SearchResult, title: string, onKeep?: () => void) {
   const st = await streamApi.start({ downloadUrl: r.downloadUrl, releaseTitle: r.title, title })
-  playStream(st, title, onKeep)
+  playStream(st, title, onKeep, nextExtras(st, title, onKeep))
+}
+
+// Usherr's own engine keeps the other releases in line: "Try another release"
+// (and a release that breaks part-way) plays the next one from where it was.
+function nextExtras(st: StreamStart, title: string, onKeep?: () => void): StreamExtras | undefined {
+  if (!st.canNext) return undefined
+  return {
+    onNext: async (at) => {
+      const n = await streamApi.next(st.id)
+      playStream(n, title, onKeep, { ...nextExtras(n, title, onKeep), startAt: at && at > 1 ? at : undefined })
+    },
+  }
 }
 
 // optionLabel names a stream: StreamNZB calls them "StreamNZB" plus the
@@ -249,6 +261,7 @@ export async function streamRelease(r: SearchResult, title: string, onKeep?: () 
 function optionLabel(o: StreamOption, i: number): string {
   if (i === 0) return t('Best match')
   if (/next release/i.test(o.name)) return t('Next release (if the first one stalls)')
+  if (o.name === 'Usherr') return t('Option {n}', { n: i + 1 })
   const parts = o.name
     .split(/\r?\n/)
     .map((x) => x.trim())

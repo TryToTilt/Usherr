@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/rdborg/mediarium/internal/auth"
+	"github.com/rdborg/mediarium/internal/books"
 	"github.com/rdborg/mediarium/internal/httpsec"
+	"github.com/rdborg/mediarium/internal/opds"
 )
 
 // E-reader access: the OPDS catalogue (opds_api.go) and Kobo sync
@@ -36,6 +38,19 @@ type ereaderRuntime struct {
 	// lastPrune is when old covers were last cleared out (unix seconds).
 	lastPrune atomic.Int64
 
+	// feeds holds the catalogue pages already built, and the ebook list is
+	// kept for the Kobo sync and for building them. Both are thrown away when
+	// the book list's change marker moves (ereader_cache.go).
+	feeds      *opds.Cache
+	listMu     sync.Mutex
+	listVer    int64
+	listBooks  []books.Book
+	listLoaded bool
+	// listBuilds and feedBuilds count the times the database was read for the
+	// list and a page was built, so tests can see a cache hit.
+	listBuilds atomic.Int64
+	feedBuilds atomic.Int64
+
 	storeMu   sync.RWMutex
 	storeBase string // the Kobo store, replaced in tests
 	storeHTTP *http.Client
@@ -54,6 +69,7 @@ func (s *Server) ereaderState() *ereaderRuntime {
 	rt.once.Do(func() {
 		rt.failIP = auth.NewLoginLimiter(ereaderIPAttempts, ereaderWindow)
 		rt.failUser = auth.NewLoginLimiter(ereaderUserAttempts, ereaderWindow)
+		rt.feeds = opds.NewCache(opdsCacheEntries, opdsCacheBytes)
 		rt.storeBase = defaultKoboStore
 		rt.storeHTTP = &http.Client{
 			Timeout: 25 * time.Second,

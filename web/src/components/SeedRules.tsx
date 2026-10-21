@@ -64,7 +64,7 @@ export default function SeedRules({ indexerId }: { indexerId: number }) {
 
   return (
     <details className="qdetails" onToggle={(e) => e.currentTarget.open && load()}>
-      <summary><TipLabel text={t('How long the built-in torrent client keeps sharing what it got from this tracker. Private trackers often ask for a minimum ratio or time.')} learnMore="downloads#seeding-rules-for-one-indexer">{t('Seeding rules')}</TipLabel></summary>
+      <summary><TipLabel text={t('How long a torrent from this tracker keeps sharing, in the built-in torrent client or in qBittorrent or Transmission. Private trackers often ask for a minimum ratio or time.')} learnMore="downloads#seeding-rules-for-one-indexer">{t('Seeding rules')}</TipLabel></summary>
       <div className="seed-rule">
         <label>
           <small>{t('Seed until ratio')}</small>
@@ -78,7 +78,7 @@ export default function SeedRules({ indexerId }: { indexerId: number }) {
           {t('Save')}
         </button>
       </div>
-      <small className="seed-rule">{t('Torrents from this indexer stop seeding at the first one reached. Leave a box empty to use the limit in Settings, or type 0 for no limit of that kind. It applies to torrents that start downloading from now on.')}</small>
+      <small className="seed-rule">{t('Torrents from this indexer stop seeding at the first one reached. Leave a box empty to use the limit in Settings, or type 0 for no limit of that kind. It applies to torrents that start downloading from now on. An external client gets these limits when the torrent is added (Transmission only the ratio). What it does when they are met, such as pausing or removing the torrent, is set in the client itself.')}</small>
     </details>
   )
 }

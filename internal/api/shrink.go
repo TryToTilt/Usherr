@@ -14,7 +14,6 @@ import (
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/organizer"
-	"github.com/rdborg/mediarium/internal/parser"
 	"github.com/rdborg/mediarium/internal/plainerror"
 	"github.com/rdborg/mediarium/internal/quality"
 )
@@ -45,7 +44,7 @@ func pickSmallerResult(results []indexers.Result, profile quality.Profile, curre
 		if !smallerEnough(res.SizeBytes, currentSize) {
 			continue
 		}
-		if tierKnown(string(currentTier)) && quality.Rank(quality.Classify(parser.Parse(res.Title))) > quality.Rank(currentTier) {
+		if tierKnown(string(currentTier)) && quality.Rank(quality.Classify(res.Parsed())) > quality.Rank(currentTier) {
 			continue
 		}
 		smaller = append(smaller, res)
@@ -99,7 +98,7 @@ func (s *Server) replaceWithSmaller(ctx context.Context, m library.Movie, instan
 	sources := s.sourcesFor(m.SourcePref)
 	m = s.movieWithAltTitles(ctx, m)
 	outcomes := s.searchMovieTitles(ctx, instances, m, nil)
-	found := s.limitMovieResults(ctx, m, profile, false, filterSources(matchingResults(dropBlocked(s.freshOnly(indexers.MergeResults(outcomes)), blocked), m), sources))
+	found := s.limitMovieResults(ctx, m, profile, false, filterSources(matchingResults(dropBlocked(s.autoCandidates(ctx, indexers.MergeResults(outcomes)), blocked), m), sources))
 	best := pickSmallerResult(found, profile, quality.Tier(m.Quality), size, m.Year)
 	if best == nil {
 		return false, "Nothing smaller that the quality profile accepts was found. The file you have stays.", nil

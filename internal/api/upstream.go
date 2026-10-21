@@ -7,6 +7,7 @@ import (
 
 	"github.com/rdborg/mediarium/internal/metadata"
 	"github.com/rdborg/mediarium/internal/problems"
+	"github.com/rdborg/mediarium/internal/simkl"
 	"github.com/rdborg/mediarium/internal/trakt"
 )
 
@@ -24,6 +25,9 @@ func writeUpstreamError(w http.ResponseWriter, doing string, err error) {
 		return
 	case errors.Is(err, trakt.ErrInvalidClientID):
 		writeError(w, http.StatusBadGateway, "Trakt rejected the client ID. Check it in Settings.")
+		return
+	case errors.Is(err, simkl.ErrInvalidClientID):
+		writeError(w, http.StatusBadGateway, "Simkl rejected the client ID. Check it in Settings.")
 		return
 	}
 	slog.Warn("outside data service request failed", "while", doing, "err", err)

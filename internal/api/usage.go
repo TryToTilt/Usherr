@@ -8,6 +8,7 @@ import (
 
 	"github.com/rdborg/mediarium/internal/metadata"
 	"github.com/rdborg/mediarium/internal/settings"
+	"github.com/rdborg/mediarium/internal/simkl"
 	"github.com/rdborg/mediarium/internal/subtitles"
 	"github.com/rdborg/mediarium/internal/trakt"
 	"github.com/rdborg/mediarium/internal/usage"
@@ -17,6 +18,7 @@ import (
 const (
 	serviceTMDB          = "tmdb"
 	serviceTrakt         = "trakt"
+	serviceSimkl         = "simkl"
 	serviceOpenSubtitles = "opensubtitles"
 )
 
@@ -29,6 +31,10 @@ func (s *Server) instrumentTMDB(c *metadata.Client) {
 
 func (s *Server) instrumentTrakt(c *trakt.Client) {
 	c.WrapTransport(s.Usage.Wrap(serviceTrakt, usage.OnTooManyRequests))
+}
+
+func (s *Server) instrumentSimkl(c *simkl.Client) {
+	c.WrapTransport(s.Usage.Wrap(serviceSimkl, usage.OnTooManyRequests))
 }
 
 func (s *Server) instrumentSubtitles(c *subtitles.Client) {
@@ -54,6 +60,7 @@ type serviceKeys struct {
 func (s *Server) serviceKeyStates() []serviceKeys {
 	states := []serviceKeys{
 		{id: serviceTrakt, label: "Trakt", settingKey: settings.KeyTraktClientID, sharedKey: s.builtin.TraktClientID != ""},
+		{id: serviceSimkl, label: "Simkl", settingKey: settings.KeySimklClientID, sharedKey: s.builtin.SimklClientID != ""},
 		{id: serviceOpenSubtitles, label: "OpenSubtitles", settingKey: settings.KeyOpenSubtitlesAPIKey, sharedKey: s.builtin.OpenSubtitles != ""},
 		{id: serviceTMDB, label: "TMDB", settingKey: settings.KeyTMDBAPIKey, sharedKey: s.builtin.TMDB != ""},
 	}

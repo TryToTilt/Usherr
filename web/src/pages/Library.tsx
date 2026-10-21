@@ -29,12 +29,13 @@ import Icon from '../components/Icon'
 import type { GlyphKind } from '../components/KindGlyph'
 import MoveToFolderDialog from '../components/MoveToFolderDialog'
 import PosterCard, { PosterFallback, type CardAction } from '../components/PosterCard'
+import { stackAction, useStack } from '../home/stack' // Usherr: your stack
 import StarterPicks from '../components/StarterPicks'
 import { WindowedBody, WindowedGrid } from '../components/Windowed'
 import { sortProfiles } from '../components/qualityBlurb'
 import { detailsState, movieState, progressFor, seriesState, type ItemState } from '../components/state'
 import { useToast } from '../components/Toast'
-import { formatBytes } from '../format'
+import { formatBytes, withNameTag } from '../format'
 import { useConfirm } from '../components/ConfirmProvider'
 import { useLive } from '../useLive'
 import { chosenOf, count, failureLines, nameList, selectAllKeys, selectionText, selectRange, toggleKey } from '../librarySelection'
@@ -44,6 +45,7 @@ import HelpLink from '../components/HelpLink'
 import { useUrlState } from '../useUrlState'
 import { plural, t, tx, st } from '../i18n'
 import { compareTitles } from '../titleSort'
+import { looseIncludes } from '../looseText'
 
 type Kind = 'movie' | 'tv'
 type View = 'grid' | 'list' | 'shelves' // shelves: home fork
@@ -58,6 +60,7 @@ interface Item {
   id: number
   tmdbId: number
   title: string
+  tag?: string // tells a show from another of the same name ("UK")
   year: number
   posterUrl?: string
   monitored: boolean
@@ -156,7 +159,7 @@ function fromMovie(m: Movie, queue: QueueItem[]): Item {
 function fromSeries(s: Series, queue: QueueItem[]): Item {
   const status: Item['status'] = s.episodeCount > 0 && s.downloadedCount === s.episodeCount ? 'downloaded' : s.downloadedCount > 0 ? 'partial' : 'missing'
   return {
-    key: `tv-${s.id}`, kind: 'tv', id: s.id, tmdbId: s.tmdbId, title: s.title, year: s.year, posterUrl: s.posterUrl,
+    key: `tv-${s.id}`, kind: 'tv', id: s.id, tmdbId: s.tmdbId, title: s.title, tag: s.nameTag, year: s.year, posterUrl: s.posterUrl,
     monitored: s.monitored, profileId: s.profileId ?? 0, status, have: s.downloadedCount, total: s.episodeCount,
     state: detailsState(s) ?? seriesState(s, queue), live: progressFor(queue, (q) => q.seriesId === s.id), genres: s.genres ?? [], tags: s.tags ?? [],
     gettingDetails: !!s.detailsState,
@@ -204,6 +207,7 @@ export default function Library() {
   // Searching and monitoring need the "manage" permission; a viewer only looks.
   const canManage = can(me, 'manage')
   const canPlay = can(me, 'play') // play hook (home fork)
+  const stack = useStack() // Usherr
   const comicsOn = useComicsOn(admin) // library hook (home fork)
   const nsfwOn = useNsfwOn(admin) // library hook (home fork)
   // The tab and the filters live in the address, so Back from a title brings the list back as it was.
@@ -387,7 +391,7 @@ export default function Library() {
     const list = items.filter(
       (i) =>
         test(i) &&
-        (!needle || i.title.toLowerCase().includes(needle)) &&
+        (!needle || looseIncludes(i.title, needle)) &&
         (!genre || i.genres.includes(genre)) &&
         (!tag || i.tags.some((t) => t.toLowerCase() === tag.toLowerCase())) &&
         (!decade || (i.year >= Number(decade) && i.year < Number(decade) + 10)) &&
@@ -491,7 +495,9 @@ export default function Library() {
     await run(() => (i.kind === 'movie' ? api.deleteMovie(i.id, files) : api.deleteSeries(i.id, files)), files ? t('Removed {title} and its files.', { title: i.title }) : t('Removed {title}.', { title: i.title }))
   }
 
-  const actionsFor = (i: Item): CardAction[] =>
+  const onStackOf = (i: Item): CardAction[] => (i.kind === 'movie' || i.kind === 'tv' ? [stackAction(stack, { kind: i.kind, tmdbId: i.tmdbId, title: i.title, year: i.year, posterUrl: i.posterUrl }, (e) => toast.error(e instanceof Error ? e.message : String(e)))] : []) // Usherr: your stack
+  const actionsFor = (i: Item): CardAction[] => [...actionsOf(i), ...onStackOf(i)]
+  const actionsOf = (i: Item): CardAction[] =>
     i.streamedId
       ? [
           // home fork: a streamed title: watch it, or get it for good.
@@ -763,7 +769,7 @@ export default function Library() {
       key={i.key}
       to={openPath(i)}
       poster={i.posterUrl}
-      title={i.title}
+      title={withNameTag(i.title, i.tag, i.year)}
       meta={[
         i.year || null,
         i.streamedId ? (i.kind === 'movie' ? i.quality || t('streams') : t('{n} episodes, streams', { n: i.total })) : i.kind === 'movie' ? i.quality : i.gettingDetails ? null : t('{have}/{total} episodes', { have: i.have, total: i.total }),
@@ -1070,7 +1076,7 @@ export default function Library() {
                   <Link to={openPath(i)} className="lib-title" onClick={selecting ? (e) => { e.preventDefault(); pick(i.key, e.shiftKey) } : undefined}>
                     <span className="lib-thumb">{i.posterUrl ? <img src={i.posterUrl} alt="" loading="lazy" /> : <PosterFallback />}</span>
                     <span>
-                      <strong>{i.title}</strong>
+                      <strong>{withNameTag(i.title, i.tag, i.year)}</strong>
                       <small>
                         {i.year || '—'}
                         {i.monitored ? '' : ` · ${t('unmonitored')}`}

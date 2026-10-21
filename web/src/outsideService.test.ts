@@ -7,6 +7,7 @@ test('reads that wait on an outside service are named', () => {
     ['/discover/trending', 'The movie database (TMDB)'],
     ['/discover/list?kind=movie&list=similar', 'The movie database (TMDB)'],
     ['/discover/import-list?url=x', 'Trakt'],
+    ['/settings/simkl/pin/AB12C', 'Simkl'],
     ['/tmdb/movies/603', 'The movie database (TMDB)'],
     ['/music/discover?list=popular', 'MusicBrainz'],
     ['/music/albums/4/cover', 'The Cover Art Archive'],

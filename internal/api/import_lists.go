@@ -16,11 +16,12 @@ import (
 
 	"github.com/rdborg/mediarium/internal/importlists"
 	"github.com/rdborg/mediarium/internal/library"
+	"github.com/rdborg/mediarium/internal/simkl"
 	"github.com/rdborg/mediarium/internal/trakt"
 )
 
 // Import lists (Settings > Info, lists and subtitles > Import lists): lists on
-// Trakt, TMDB, IMDb, MDBList and Letterboxd that are read on a schedule, adding
+// Trakt, TMDB, IMDb, MDBList, Simkl and Letterboxd that are read on a schedule, adding
 // what is on them to the library with the profile, folder, monitoring and tags
 // chosen for the list. Nothing is ever removed when a title leaves a list.
 // This file is the list of lists (storage and the routes); import_lists_run.go
@@ -40,6 +41,7 @@ const (
 	listIMDB           = "imdb"
 	listMDBList        = "mdblist"
 	listLetterboxd     = "letterboxd"
+	listSimkl          = "simkl"
 )
 
 // listSource describes a source for the page that adds lists.
@@ -60,6 +62,7 @@ func listSources() []listSource {
 		{listTMDBChart, "TMDB trending, popular, top rated or upcoming", "both", "TMDB's own charts, narrowed by genre or language if you like."},
 		{listIMDB, "IMDb list", "both", "An IMDb list or watchlist exported as a CSV file. IMDb doesn't let programs download lists, so you export the file in your browser and upload it here."},
 		{listMDBList, "MDBList list", "both", "A public list on mdblist.com. Needs your own MDBList API key."},
+		{listSimkl, "Simkl list", "both", "Your own Plan to Watch, Watching or Completed list on simkl.com, movies, shows and anime. Needs your Simkl account connected."},
 		{listLetterboxd, "Letterboxd list", "movie", "A Letterboxd list or watchlist exported as a CSV file. Letterboxd doesn't let programs read its pages, so you export the file in your browser and upload it here. Movies only."},
 	}
 }
@@ -82,6 +85,7 @@ type listConfig struct {
 	Genre    int    `json:"genre,omitempty"`    // TMDB charts: a TMDB genre id
 	Language string `json:"language,omitempty"` // TMDB charts: original language, like "ko"
 	Csv      string `json:"csv,omitempty"`      // IMDb and Letterboxd: the exported file's text
+	Status   string `json:"status,omitempty"`   // Simkl: which of the account's lists to read, like "plantowatch"
 }
 
 // importList is one list as it is stored and as the page sees it. Csv and the
@@ -447,6 +451,15 @@ func (s *Server) checkImportListInput(in importListInput, cur *importList) (impo
 			}
 		}
 		cfg = listConfig{URL: cfg.URL, Csv: cfg.Csv}
+	case listSimkl:
+		cfg.Status = strings.TrimSpace(cfg.Status)
+		if cfg.Status == "" {
+			cfg.Status = simkl.StatusPlanToWatch
+		}
+		if !simkl.ValidStatus(cfg.Status) {
+			return l, "Choose which Simkl list to read: Plan to watch, Watching, Completed, On hold or Dropped."
+		}
+		cfg = listConfig{Status: cfg.Status}
 	case listMDBList:
 		if _, _, err := importlists.ParseMDBListAddress(cfg.URL); err != nil {
 			return l, err.Error() + "."

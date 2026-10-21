@@ -311,7 +311,8 @@ var accentFold = func() map[rune]string {
 var umlautSpelled = map[rune]string{'ä': "ae", 'ö': "oe", 'ü': "ue"}
 
 func titleKeyWith(s string, spelled map[rune]string) string {
-	s = strings.ReplaceAll(strings.ToLower(s), "&", " and ")
+	// "&amp;" is what a name copied from a web page carries for "&".
+	s = strings.ReplaceAll(strings.ReplaceAll(strings.ToLower(s), "&amp;", "&"), "&", " and ")
 	var b strings.Builder
 	for _, r := range s {
 		if rep, ok := spelled[r]; ok {

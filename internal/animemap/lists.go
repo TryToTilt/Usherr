@@ -337,7 +337,12 @@ func entriesOf(cands []listEntry) []Entry {
 		case c.OffsetTVDB >= 0 && c.SeasonTVDB == c.SeasonTMDB:
 			off = c.OffsetTVDB
 		}
-		out = append(out, Entry{AniDB: c.AniDB, AniList: c.AniList, MAL: c.MAL, Type: c.Type, Season: c.SeasonTMDB, Offset: off})
+		e := Entry{AniDB: c.AniDB, AniList: c.AniList, MAL: c.MAL, Type: c.Type, Season: c.SeasonTMDB, Offset: off}
+		if c.SeasonTVDB > 0 {
+			e.TVDBSeason = c.SeasonTVDB
+			e.TVDBOffset = max(c.OffsetTVDB, 0)
+		}
+		out = append(out, e)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Season != out[j].Season {

@@ -80,6 +80,19 @@ type queueItemPayload struct {
 	// waiting download does not start (the disk is nearly full), or that a
 	// failed release is held back from searches for now.
 	Note string `json:"note,omitempty"`
+	// Unpack is how far the unpacking of an archive has come, while a download
+	// is being unpacked: the page shows it instead of a bar stuck at 100%.
+	Unpack *queueUnpack `json:"unpack,omitempty"`
+}
+
+// queueUnpack is the progress of unpacking one download. Index is the archive
+// being unpacked out of Count; DoneBytes and TotalBytes are those of that
+// archive (TotalBytes is 0 when it is not known).
+type queueUnpack struct {
+	DoneBytes  int64 `json:"doneBytes"`
+	TotalBytes int64 `json:"totalBytes"`
+	Index      int   `json:"index"`
+	Count      int   `json:"count"`
 }
 
 // queueRank orders the statuses on the Activity page: what is being worked
@@ -189,7 +202,7 @@ func (s *Server) handleListQueue(w http.ResponseWriter, r *http.Request) {
 		p := queueItemPayload{
 			ID: it.ID, MovieID: it.MovieID, SeriesID: it.SeriesID, AlbumID: it.AlbumID, BookID: it.BookID, BookFormat: it.BookFormat, Title: title, Subtitle: subtitle, PosterURL: poster,
 			ReleaseTitle: it.ReleaseTitle, Protocol: string(it.Protocol), SizeBytes: it.SizeBytes, Status: string(it.Status),
-			ProgressPct: it.ProgressPct, Error: plainerror.Text(it.Error), AddedAt: it.AddedAt, CompletedAt: it.CompletedAt, DestPath: it.DestPath,
+			ProgressPct: it.ProgressPct, Error: memberText(r, plainerror.Text(it.Error)), AddedAt: it.AddedAt, CompletedAt: it.CompletedAt, DestPath: fileLabel(r, it.DestPath),
 			Interrupted: it.Interrupted, Pending: s.pipelines.pending(it.ID), QueuePosition: positions[it.ID],
 		}
 		// home fork: what the release is (resolution, audio, language…)
@@ -202,6 +215,14 @@ func (s *Server) handleListQueue(w http.ResponseWriter, r *http.Request) {
 		}
 		if it.Protocol == queue.ProtocolTorrent {
 			p.Category = categories[it.ID]
+		}
+		if it.Status == queue.StatusImporting {
+			if st, ok := s.unpacking.get(it.ID); ok {
+				p.Unpack = &queueUnpack{DoneBytes: st.Done, TotalBytes: st.Total, Index: st.Index, Count: st.Count}
+				if st.Total > 0 {
+					p.ProgressPct = st.Percent() // the stored 100% only says the download is in
+				}
+			}
 		}
 		if it.Protocol == queue.ProtocolTorrent && it.Status == queue.StatusDownloading {
 			if peers, seeds, ok := s.torrents.swarm(it.ID); ok {
@@ -285,9 +306,11 @@ func (s *Server) removeQueueEntry(item queue.Item, deleteFiles, controlLocked bo
 	// files can be deleted underneath it.
 	s.torrents.stopQueue(item.ID)
 	work := s.workDirFor(item.ID) // before the row goes: a torrent may be filed in a category folder
+	ref, inClient := s.clientRefFor(item)
 	if err := s.QueueRepo.Delete(item.ID); err != nil {
 		return err
 	}
+	s.removeFromClient(ref, inClient, false)
 	if deleteFiles {
 		s.removeWorkDir(work)
 	}
@@ -344,7 +367,7 @@ func (s *Server) handleRetryQueueItem(w http.ResponseWriter, r *http.Request) {
 	if reuse {
 		// Moved now, not when the new item starts: while it waits in line the
 		// files belong to it, so a restart or the daily clean-up can't lose them.
-		reuse = s.moveKeptDownload(keptDir, s.workDirFor(newID))
+		reuse = s.moveKeptDownload(keptDir, newID)
 	}
 	release()
 	message := "Retrying, downloading again: " + item.ReleaseTitle
@@ -486,12 +509,16 @@ func (s *Server) dropBlocklistedItem(item queue.Item) {
 		return // resumed in the meantime: never delete a running download's row
 	}
 	work := s.workDirFor(item.ID) // before the row goes: a torrent may be filed in a category folder
+	// The release is being thrown away, so its torrent goes even when it had
+	// finished downloading (an item that was imported never gets here).
+	ref, inClient := s.clientRefFor(item)
 	if item.Status == queue.StatusPaused || item.Status == queue.StatusConflict {
 		_ = s.QueueRepo.SetStatus(item.ID, queue.StatusStopped, "")
 		s.releaseTitleClaims(item)
 	}
 	s.torrents.stopQueue(item.ID)
 	_ = s.QueueRepo.Delete(item.ID)
+	s.removeFromClient(ref, inClient, true)
 	s.removeWorkDir(work)
 }
 

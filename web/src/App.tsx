@@ -20,6 +20,8 @@ import { SETTINGS_REDIRECTS } from './settingsNav'
 import MusicPopout from './components/MusicPopout'
 const BookshelfApp = lazy(() => import('./bookshelf/BookshelfApp'))
 const Marquee = lazy(() => import('./home/Marquee')) // Usherr: the lobby display
+const MarqueeRemote = lazy(() => import('./home/MarqueeRemote')) // Usherr: the Marquee's phone remote
+const MarqueeHub = lazy(() => import('./home/MarqueeHub')) // Usherr: the Marquee's own page
 
 // The main pages are fetched as they are opened, not with the first load, so the
 // page that opens first is ready sooner (the rest is a big part of the program).
@@ -36,7 +38,6 @@ const Upcoming = page(() => import('./pages/Upcoming'))
 const Discover = page(() => import('./pages/Discover'))
 const DiscoverAll = page(() => import('./pages/DiscoverAll'))
 const Complete = page(() => import('./home/Complete')) // home fork: complete your library
-const PersonPage = page(() => import('./home/PersonPage')) // home fork: a person's films and shows
 const You = page(() => import('./home/You')) // home fork: your taste, votes and more
 const Library = page(() => import('./pages/Library'))
 const MovieDetail = page(() => import('./pages/MovieDetail'))
@@ -49,6 +50,7 @@ const MusicRelease = page(() => import('./pages/MusicRelease'))
 const Search = page(() => import('./pages/Search'))
 const SeriesDetail = page(() => import('./pages/SeriesDetail'))
 const ShowDetail = page(() => import('./pages/ShowDetail'))
+const Person = page(() => import('./pages/Person')) // Usherr: with Follow (home/FollowButton)
 
 // Fetches the pages above one after another once the browser has nothing else to do.
 function fetchPagesWhenIdle() {
@@ -194,7 +196,7 @@ function Gate() {
         <Route path="/discover" element={<Discover />} />
         <Route path="/discover/all" element={<DiscoverAll />} />
         <Route path="/discover/complete" element={<Complete />} />
-        <Route path="/person/:id" element={<PersonPage />} />
+        <Route path="/person/:id" element={<Person />} />
         <Route path="/discover/music" element={<MusicDiscoverAll />} />
         <Route path="/library" element={<Library />} />
         <Route path="/import" element={<AdminOnly fallback="/library"><ImportLibrary /></AdminOnly>} />
@@ -213,6 +215,8 @@ function Gate() {
         <Route path="/calendar" element={<Upcoming tab="calendar" />} />
         <Route path="/following" element={<Upcoming tab="following" />} /> {/* home fork */}
         <Route path="/you" element={<You />} /> {/* home fork: your taste, votes and more */}
+        <Route path="/marquee/remote" element={<AdminOnly><MarqueeRemote /></AdminOnly>} /> {/* Usherr */}
+        <Route path="/marquee/manage" element={<AdminOnly><MarqueeHub /></AdminOnly>} /> {/* Usherr */}
         <Route path="/you/diary" element={<You tab="diary" />} /> {/* home fork */}
         <Route path="/you/wrapped" element={<You tab="wrapped" />} /> {/* home fork */}
         <Route path="/queue" element={<Queue />} />

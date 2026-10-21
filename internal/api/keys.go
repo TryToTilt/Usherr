@@ -11,6 +11,7 @@ import (
 	"github.com/rdborg/mediarium/internal/metadata"
 	"github.com/rdborg/mediarium/internal/plainerror"
 	"github.com/rdborg/mediarium/internal/settings"
+	"github.com/rdborg/mediarium/internal/simkl"
 	"github.com/rdborg/mediarium/internal/subtitles"
 	"github.com/rdborg/mediarium/internal/trakt"
 )
@@ -24,6 +25,7 @@ type BuiltinKeys struct {
 	TMDB          string
 	OpenSubtitles string
 	TraktClientID string
+	SimklClientID string
 }
 
 // optionalKey reads an optional API key at start-up. A key that cannot be read
@@ -53,6 +55,11 @@ func (s *Server) SetBuiltinKeys(k BuiltinKeys) {
 		s.traktMu.Lock()
 		s.trakt.SetClientID(k.TraktClientID)
 		s.traktMu.Unlock()
+	}
+	if k.SimklClientID != "" && !s.Simkl().HasClientID() {
+		s.simklMu.Lock()
+		s.simkl.SetClientID(k.SimklClientID)
+		s.simklMu.Unlock()
 	}
 	s.rebuildSubtitles()
 }
@@ -88,18 +95,13 @@ func (s *Server) usingOwnKey(settingKey string) bool {
 // SetOpenSubtitlesAccount stores the optional OpenSubtitles.com login.
 // Empty values clear it.
 func (s *Server) SetOpenSubtitlesAccount(username, password string) error {
-	if err := s.Settings.Set(settings.KeyOpenSubtitlesUsername, username, false); err != nil {
-		return err
-	}
-	if err := s.Settings.Set(settings.KeyOpenSubtitlesPassword, password, true); err != nil {
-		return err
-	}
-	s.rebuildSubtitles()
-	return nil
+	t := &settingsSave{}
+	s.stageOpenSubtitlesAccount(t, username, password, false)
+	return s.commitSettings(t)
 }
 
 type testServiceRequest struct {
-	Service  string `json:"service"` // tmdb | opensubtitles | subdl | wizdom | trakt
+	Service  string `json:"service"` // tmdb | opensubtitles | subdl | wizdom | trakt | simkl
 	Key      string `json:"key"`     // blank = test the key currently in use
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -192,8 +194,22 @@ func (s *Server) handleTestService(w http.ResponseWriter, r *http.Request) {
 		default:
 			writeJSON(w, http.StatusOK, connTestResult{Message: plainerror.Message(err)})
 		}
+	case "simkl":
+		client := s.Simkl()
+		if req.Key != "" {
+			client = client.WithClientID(req.Key)
+		}
+		// Asking for a sign-in code proves the Client ID works and changes nothing.
+		switch _, err := client.StartPIN(ctx); {
+		case err == nil:
+			writeJSON(w, http.StatusOK, connTestResult{OK: true, Message: "Simkl accepted the client ID."})
+		case errors.Is(err, simkl.ErrNoClientID):
+			writeJSON(w, http.StatusOK, connTestResult{Message: "Enter a Simkl client ID first."})
+		default:
+			writeJSON(w, http.StatusOK, connTestResult{Message: plainerror.Message(err)})
+		}
 	default:
-		writeError(w, http.StatusBadRequest, `Choose which service to test: "tmdb", "opensubtitles", "subdl", "wizdom" or "trakt".`)
+		writeError(w, http.StatusBadRequest, `Choose which service to test: "tmdb", "opensubtitles", "subdl", "wizdom", "trakt" or "simkl".`)
 	}
 }
 

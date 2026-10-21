@@ -32,11 +32,13 @@ It is built on **[Mediarium](https://github.com/rdborg/Mediarium) by rdborg**, a
 - **Wrapped**: your year in watching.
 
 **Watching**
-- **Streaming**: play from Usenet without downloading first, through StreamNZB, and a streamed library that sits next to your files in Jellyfin. **Streams for you** can add films that fit someone's taste, a few a week, with nothing downloaded.
-- **Live TV**: channels built from your library, in the media server's own guide.
+- **Your stack**: the films and shows you want to watch next, as a stack of tickets in the menu to swipe through, reorder and play straight from.
+- **Streaming**: play from Usenet without downloading first, with Usherr's own engine or StreamNZB, and a streamed library that sits next to your files in Jellyfin. **Streams for you** can add films that fit someone's taste, a few a week, with nothing downloaded.
+- **Live TV**: channels built from your library and streams, programmed like a network, with Real TV (a real network's day, as it aired), guide looks of their own, and the channels in Jellyfin, Plex and IPTV apps.
+- **The Marquee**: a lobby display for a tablet or a screen by the TV in seven looks, with what's playing, trailers, tonight on Live TV, your own slides and a cinema pre-show, steered from your phone, Home Assistant or the API.
 - **Comics**: follow series and story arcs from ComicVine, find issues on your indexers and read them in a page-turning reader.
 
-**And more**: a news feed, critic scores, "complete your library", schedules and quiet hours for heavy work, a guided setup with an in-app manual, and a cinema look of its own.
+**And more**: what's in theaters near you with showtimes and your ticket service, a news feed, critic scores, "complete your library", schedules and quiet hours for heavy work, a guided setup with an in-app manual, and a cinema look of its own.
 
 ## Install
 

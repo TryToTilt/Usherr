@@ -4,6 +4,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -36,6 +37,7 @@ import (
 	"github.com/rdborg/mediarium/internal/queue"
 	"github.com/rdborg/mediarium/internal/requests"
 	"github.com/rdborg/mediarium/internal/settings"
+	"github.com/rdborg/mediarium/internal/simkl"
 	"github.com/rdborg/mediarium/internal/subtitles"
 	"github.com/rdborg/mediarium/internal/torrentopts"
 	"github.com/rdborg/mediarium/internal/trakt"
@@ -44,9 +46,12 @@ import (
 )
 
 type Server struct {
-	streamPause streamPauseState  // pause while someone is watching (stream_pause.go)
-	libStats    libraryStatsCache // the Statistics page's answer, kept for a few minutes (stats_library.go)
-	appFrames   atomic.Value      // []string: the origins of add-ons shown in a frame, kept in memory so the security headers never wait for the database (app_links.go)
+	resumeStop  context.CancelFunc // ends the resume of interrupted downloads (resume_interrupted.go)
+	streamPause streamPauseState   // pause while someone is watching (stream_pause.go)
+	libStats    libraryStatsCache  // the Statistics page's answer, kept for a few minutes (stats_library.go)
+	marqueeLive marqueeHub         // Usherr: the Marquee screens' live streams (home_marquee_screens.go)
+	marqueeMQTT marqueeBridge      // Usherr: the Marquee in Home Assistant (home_marquee_mqtt.go)
+	appFrames   atomic.Value       // []string: the origins of add-ons shown in a frame, kept in memory so the security headers never wait for the database (app_links.go)
 	cfg         config.Config
 	db          *sql.DB // for backups (VACUUM INTO); repos hold their own handles
 
@@ -111,6 +116,10 @@ type Server struct {
 	traktMu sync.RWMutex
 	trakt   *trakt.Client
 
+	simklMu   sync.RWMutex
+	simkl     *simkl.Client
+	simklPins *mediaservers.Pending[string] // Simkl sign-in codes handed out and not yet entered (simkl_connect.go)
+
 	proxyTestAddr string // where a proxy test connects to (tests point it elsewhere)
 
 	trashMu sync.Mutex
@@ -147,6 +156,7 @@ type Server struct {
 	grabMu sync.Mutex     // makes "is this already being downloaded?" and "queue it" one step (see grab_claim.go)
 	bg     sync.WaitGroup // download pipelines and automatic retries still running (see grab_claim.go)
 
+	unpacking    unpackTracker     // how far the running unpacks have come, for the Activity page (unpack_progress.go)
 	pipelines    pipelineRegistry  // running download pipelines, so removing a title can cancel its downloads
 	dispatch     *queue.Dispatcher // the download line: starts the next waiting download when a place is free (dispatch.go)
 	bulk         bulkState         // whether a batch search from the Library page is running (handlers_bulk.go)
@@ -193,6 +203,7 @@ func New(db *sql.DB, cfg config.Config, box *crypto.Box, defaultTMDBAPIKey, vers
 	}
 	subsKey := optionalKey(settingsStore, settings.KeyOpenSubtitlesAPIKey)
 	traktClientID := optionalKey(settingsStore, settings.KeyTraktClientID)
+	simklClientID := optionalKey(settingsStore, settings.KeySimklClientID)
 
 	tracker, err := usage.NewTracker(db)
 	if err != nil {
@@ -225,6 +236,8 @@ func New(db *sql.DB, cfg config.Config, box *crypto.Box, defaultTMDBAPIKey, vers
 		addons:            subtitles.NewAddonClient(),
 		wizdom:            subtitles.NewWizdom(),
 		trakt:             trakt.New(traktClientID),
+		simkl:             simkl.New(simklClientID),
+		simklPins:         &mediaservers.Pending[string]{TTL: simklPinTTL},
 		// "A handful of attempts per IP/window" — 5 tries per 15
 		// minutes blunts brute-force without punishing a genuine typo.
 		LoginLimiter: auth.NewLoginLimiter(5, 15*time.Minute),
@@ -243,6 +256,7 @@ func New(db *sql.DB, cfg config.Config, box *crypto.Box, defaultTMDBAPIKey, vers
 	s.applyVPNRoutes()
 	s.setupPush()
 	s.instrumentTrakt(s.trakt)
+	s.instrumentSimkl(s.simkl)
 	s.Monitor = s.newMonitor()
 	s.MediaServers = mediaservers.NewRepo(db, box)
 	s.mediaClient = mediaservers.NewClient(version)
@@ -302,13 +316,9 @@ func (s *Server) TMDB() *metadata.Client {
 
 // SetTMDBAPIKey updates both the persisted setting and the live client.
 func (s *Server) SetTMDBAPIKey(key string) error {
-	if err := s.Settings.Set(settings.KeyTMDBAPIKey, key, true); err != nil {
-		return err
-	}
-	s.tmdbMu.Lock()
-	s.tmdb.SetAPIKey(key)
-	s.tmdbMu.Unlock()
-	return nil
+	t := &settingsSave{}
+	s.stageTMDBAPIKey(t, key)
+	return s.commitSettings(t)
 }
 
 // Subtitles returns the current OpenSubtitles client, safe to call
@@ -331,20 +341,16 @@ func (s *Server) SubDL() *subtitles.SubDL {
 
 // SetSubDLAPIKey saves the SubDL key ("" removes it) and applies it.
 func (s *Server) SetSubDLAPIKey(key string) error {
-	if err := s.Settings.Set(settings.KeySubDLAPIKey, key, true); err != nil {
-		return err
-	}
-	s.rebuildSubtitles()
-	return nil
+	t := &settingsSave{}
+	s.stageSubDLAPIKey(t, key)
+	return s.commitSettings(t)
 }
 
 // SetOpenSubtitlesAPIKey updates both the persisted setting and the live client.
 func (s *Server) SetOpenSubtitlesAPIKey(key string) error {
-	if err := s.Settings.Set(settings.KeyOpenSubtitlesAPIKey, key, true); err != nil {
-		return err
-	}
-	s.rebuildSubtitles()
-	return nil
+	t := &settingsSave{}
+	s.stageOpenSubtitlesAPIKey(t, key)
+	return s.commitSettings(t)
 }
 
 // Trakt returns the current Trakt client, safe to call concurrently with
@@ -355,20 +361,21 @@ func (s *Server) Trakt() *trakt.Client {
 	return s.trakt
 }
 
+// Simkl returns the current Simkl client, safe to call concurrently with a
+// change of the Client ID.
+func (s *Server) Simkl() *simkl.Client {
+	s.simklMu.RLock()
+	defer s.simklMu.RUnlock()
+	return s.simkl
+}
+
 // SetTraktClientID updates both the persisted setting and the live client. An
 // empty id clears the person's own client ID and puts the built-in one (if this
 // release ships one) back in use.
 func (s *Server) SetTraktClientID(id string) error {
-	if err := s.Settings.Set(settings.KeyTraktClientID, id, true); err != nil {
-		return err
-	}
-	if id == "" {
-		id = s.builtin.TraktClientID
-	}
-	s.traktMu.Lock()
-	s.trakt.SetClientID(id)
-	s.traktMu.Unlock()
-	return nil
+	t := &settingsSave{}
+	s.stageTraktClientID(t, id)
+	return s.commitSettings(t)
 }
 
 // Routes builds the full handler: public onboarding/auth endpoints, then
@@ -391,6 +398,7 @@ func (s *Server) Routes() http.Handler {
 	// Calendar apps read the feed without signing in; the secret address is the key.
 	public.HandleFunc("GET /api/calendar/feed/{file}", s.handleCalendarFeed)
 	s.registerTVFeedRoutes(public)   // Mediarium TV feeds for Jellyfin (home fork)
+	s.registerUStreamRoutes(public)  // Usherr: its own Usenet streams
 	s.registerTVHDHRRoutes(public)   // Usherr: the same channels as an HDHomeRun tuner, for Plex
 	s.registerTVLiveRoutes(public)   // Mediarium TV live channel relay (home fork)
 	s.registerTVLogoRoutes(public)   // Mediarium TV channel logos for Jellyfin (home fork)
@@ -407,6 +415,8 @@ func (s *Server) Routes() http.Handler {
 	// E-readers: the OPDS catalogue and Kobo sync sign in their own way (ereader_auth.go).
 	s.opdsRoutes(root)
 	s.koboRoutes(root)
+	// The Stremio and Nuvio add-on signs in with the key in its address (home_addon.go).
+	s.addonRoutes(root)
 	root.HandleFunc("GET /robots.txt", robotsTxt)
 	root.Handle("/", frontendHandlerBase(s.cfg.URLBase))
 	return withBodyDeadline(s.harden(withURLBase(s.cfg.URLBase, root)))
@@ -518,14 +528,24 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("POST /api/home/ai/ask", s.handleAIAsk)
 	member.HandleFunc("POST /api/home/calendar/ask", s.handleCalendarAsk) // Usherr
 
-	admin.HandleFunc("GET /api/home/ai", s.handleGetAI)                // home fork
-	admin.HandleFunc("PUT /api/home/ai", s.handlePutAI)                // home fork
-	admin.HandleFunc("POST /api/home/ai/test", s.handleTestAI)         // home fork
-	member.HandleFunc("GET /api/home/news", s.handleNews)              // home fork: entertainment news
-	member.HandleFunc("GET /api/home/cinema", s.handleCinema)          // Usherr: films in cinemas
-	member.HandleFunc("GET /api/home/marquee", s.handleMarquee)        // Usherr: the lobby display
-	member.HandleFunc("GET /api/home/moods", s.handleMoods)            // home fork: Library shelves by mood
-	member.HandleFunc("GET /api/home/book-genres", s.handleBookGenres) // home fork: Library shelves by genre
+	admin.HandleFunc("GET /api/home/ai", s.handleGetAI)                                  // home fork
+	admin.HandleFunc("PUT /api/home/ai", s.handlePutAI)                                  // home fork
+	admin.HandleFunc("POST /api/home/ai/test", s.handleTestAI)                           // home fork
+	member.HandleFunc("GET /api/home/news", s.handleNews)                                // home fork: entertainment news
+	member.HandleFunc("GET /api/home/cinema", s.handleCinema)                            // Usherr: films in cinemas
+	member.HandleFunc("GET /api/home/stack", s.handleGetStack)                           // Usherr: your stack
+	member.HandleFunc("POST /api/home/stack", s.handleAddStack)                          // Usherr
+	member.HandleFunc("PUT /api/home/stack/order", s.handleOrderStack)                   // Usherr
+	member.HandleFunc("DELETE /api/home/stack/{kind}/{tmdbId}", s.handleRemoveStack)     // Usherr
+	member.HandleFunc("GET /api/home/link-logo/{name}", s.handleLinkLogo)                // Usherr: a site's logo on its links
+	member.HandleFunc("GET /api/home/marquee", s.handleMarquee)                          // Usherr: the lobby display
+	member.HandleFunc("GET /api/home/marquee/events", s.handleMarqueeEvents)             // Usherr: a screen's live stream
+	member.HandleFunc("POST /api/home/marquee/showing", s.handleMarqueeShowing)          // Usherr: what a screen shows
+	member.HandleFunc("GET /api/home/marquee/qr", s.handleMarqueeQR)                     // Usherr: a link as a QR code
+	member.HandleFunc("GET /api/home/marquee/theme/{kind}/{id}", s.handleMarqueeTheme)   // Usherr: theme music
+	member.HandleFunc("GET /api/home/marquee/media/{id}/file", s.handleMarqueeMediaFile) // Usherr: your slides and pre-show
+	member.HandleFunc("GET /api/home/moods", s.handleMoods)                              // home fork: Library shelves by mood
+	member.HandleFunc("GET /api/home/book-genres", s.handleBookGenres)                   // home fork: Library shelves by genre
 
 	// home fork: Discover recipes and the services each person pays for
 	member.HandleFunc("GET /api/home/recipes", s.handleListRecipes)
@@ -579,21 +599,39 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("PUT /api/home/mdblist", s.handlePutMDBList)
 	admin.HandleFunc("PUT /api/home/autostream/household", s.handleAutostreamHousehold) // home fork: Streams for you
 	admin.HandleFunc("POST /api/home/mdblist/test", s.handleTestMDBList)
-	admin.HandleFunc("GET /api/home/news/settings", s.handleGetNewsSettings)       // home fork
-	admin.HandleFunc("GET /api/home/cinema/settings", s.handleGetCinemaSettings)   // Usherr
-	admin.HandleFunc("GET /api/home/marquee/settings", s.handleGetMarqueeSettings) // Usherr
-	admin.HandleFunc("GET /api/home/folders/{kind}", s.handleGetExtraFolder)       // Usherr: anime, comics, NSFW
-	admin.HandleFunc("PUT /api/home/folders/{kind}", s.handlePutExtraFolder)       // Usherr
-	admin.HandleFunc("PUT /api/home/marquee/settings", s.handlePutMarqueeSettings) // Usherr
-	admin.HandleFunc("PUT /api/home/cinema/settings", s.handlePutCinemaSettings)   // Usherr
-	admin.HandleFunc("PUT /api/home/news/settings", s.handlePutNewsSettings)       // home fork
-	admin.HandleFunc("POST /api/home/news/test", s.handleTestNewsSource)           // home fork
-	admin.HandleFunc("POST /api/home/news/refresh", s.handleRefreshNews)           // home fork
+	admin.HandleFunc("GET /api/home/news/settings", s.handleGetNewsSettings)                // home fork
+	admin.HandleFunc("GET /api/home/cinema/settings", s.handleGetCinemaSettings)            // Usherr
+	admin.HandleFunc("PUT /api/home/link-logo/{name}", s.handlePutLinkLogo)                 // Usherr: your own picture for a link's button
+	admin.HandleFunc("DELETE /api/home/link-logo/{name}", s.handleDeleteLinkLogo)           // Usherr
+	admin.HandleFunc("GET /api/home/marquee/settings", s.handleGetMarqueeSettings)          // Usherr
+	admin.HandleFunc("GET /api/home/folders/{kind}", s.handleGetExtraFolder)                // Usherr: anime, comics, NSFW
+	admin.HandleFunc("PUT /api/home/folders/{kind}", s.handlePutExtraFolder)                // Usherr
+	admin.HandleFunc("PUT /api/home/marquee/settings", s.handlePutMarqueeSettings)          // Usherr
+	admin.HandleFunc("GET /api/home/marquee/screens", s.handleMarqueeScreens)               // Usherr: the phone remote
+	admin.HandleFunc("PUT /api/home/marquee/screens/order", s.handleMarqueeScreenOrder)     // Usherr: the order on the Screens tab
+	admin.HandleFunc("PUT /api/home/marquee/screens/{id}", s.handlePutMarqueeScreen)        // Usherr
+	admin.HandleFunc("DELETE /api/home/marquee/screens/{id}", s.handleDeleteMarqueeScreen)  // Usherr
+	admin.HandleFunc("POST /api/home/marquee/screens/{id}/look", s.handleMarqueeLook)       // Usherr: a screen by id, name or "all"
+	admin.HandleFunc("GET /api/home/marquee/screens/{id}/poster", s.handleMarqueePoster)    // Usherr: the poster on a screen now
+	admin.HandleFunc("GET /api/home/marquee/mqtt", s.handleGetMarqueeMQTT)                  // Usherr: Home Assistant
+	admin.HandleFunc("PUT /api/home/marquee/mqtt", s.handlePutMarqueeMQTT)                  // Usherr
+	admin.HandleFunc("POST /api/home/marquee/mqtt/test", s.handleTestMarqueeMQTT)           // Usherr
+	admin.HandleFunc("POST /api/home/marquee/screens/{id}/command", s.handleMarqueeCommand) // Usherr
+	admin.HandleFunc("GET /api/home/marquee/media", s.handleMarqueeMedia)                   // Usherr
+	admin.HandleFunc("POST /api/home/marquee/media", s.handleMarqueeMediaUpload)            // Usherr
+	admin.HandleFunc("POST /api/home/marquee/media/page", s.handleMarqueeMediaPage)         // Usherr
+	admin.HandleFunc("PUT /api/home/marquee/media/{id}", s.handlePutMarqueeMedia)           // Usherr
+	admin.HandleFunc("DELETE /api/home/marquee/media/{id}", s.handleDeleteMarqueeMedia)     // Usherr
+	admin.HandleFunc("PUT /api/home/cinema/settings", s.handlePutCinemaSettings)            // Usherr
+	admin.HandleFunc("PUT /api/home/news/settings", s.handlePutNewsSettings)                // home fork
+	admin.HandleFunc("POST /api/home/news/test", s.handleTestNewsSource)                    // home fork
+	admin.HandleFunc("POST /api/home/news/refresh", s.handleRefreshNews)                    // home fork
 	member.HandleFunc("GET /api/tv/search", s.handleSearchTV)
 	member.HandleFunc("GET /api/tmdb/search", s.handleTMDBSearch)
 	member.HandleFunc("GET /api/tmdb/movies/{tmdbId}", s.handleTMDBMovieDetail)
 	member.HandleFunc("GET /api/tmdb/movies/{tmdbId}/similar", s.handleTMDBSimilarMovies)
 	member.HandleFunc("GET /api/tmdb/tv/{tmdbId}", s.handleTMDBTVDetail)
+	member.HandleFunc("GET /api/tmdb/people/{personId}", s.handleTMDBPerson)
 	releases.HandleFunc("GET /api/search", s.handleSearch)
 	releases.HandleFunc("POST /api/search/grab", s.handleSearchGrab)
 	// The add dialog lists the profiles to choose from.
@@ -626,6 +664,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	manage.HandleFunc("POST /api/series/{id}/search-now", s.handleSeriesSearchNow)
 	releases.HandleFunc("POST /api/series/{id}/grab", s.handleGrabSeries)
 	manage.HandleFunc("PUT /api/series/{id}/monitored", s.handleSetSeriesMonitored)
+	manage.HandleFunc("POST /api/series/{id}/monitor-mode", s.handleSetSeriesMonitorMode)
 	manage.HandleFunc("PUT /api/series/{id}/type", s.handleSetSeriesType)
 	member.HandleFunc("GET /api/series/{id}/numbering", s.handleSeriesNumbering)
 	manage.HandleFunc("POST /api/series/{id}/numbering/refresh", s.handleRefreshSeriesNumbering)
@@ -824,6 +863,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("PUT /api/series/{id}/sources", s.handleSetSeriesSources)
 	admin.HandleFunc("PUT /api/series/{id}/profile", s.handleSetSeriesProfile)
 	admin.HandleFunc("PUT /api/series/{id}/no-upgrade", s.handleSetSeriesNoUpgrade)
+	admin.HandleFunc("PUT /api/series/{id}/season-pack", s.handleSetSeriesSeasonPack)
 	admin.HandleFunc("PUT /api/library/bulk/monitored", s.handleBulkMonitored)
 	admin.HandleFunc("PUT /api/library/bulk/no-upgrade", s.handleBulkNoUpgrade)
 	admin.HandleFunc("PUT /api/library/bulk/profile", s.handleBulkProfile)
@@ -889,6 +929,11 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/custom-formats", s.handleImportCustomFormats)
 	admin.HandleFunc("PUT /api/custom-formats/{id}", s.handleRenameCustomFormat)
 	admin.HandleFunc("DELETE /api/custom-formats/{id}", s.handleDeleteCustomFormat)
+	admin.HandleFunc("POST /api/custom-formats/assign", s.handleAssignCustomFormats)
+	admin.HandleFunc("POST /api/custom-formats/default-scores", s.handleTrashDefaultScores)
+	admin.HandleFunc("GET /api/custom-formats/trash-update", s.handleTrashUpdatePreview)
+	admin.HandleFunc("POST /api/custom-formats/trash-update", s.handleTrashUpdate)
+	admin.HandleFunc("GET /api/custom-formats/trash-update/status", s.handleTrashUpdateStatus)
 	admin.HandleFunc("GET /api/trash-guides/{app}", s.handleTrashList)
 	admin.HandleFunc("POST /api/trash-guides/{app}/formats", s.handleTrashImportFormats)
 	admin.HandleFunc("POST /api/trash-guides/{app}/profiles", s.handleTrashImportProfile)
@@ -1002,6 +1047,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/auth/ldap/test", s.handleTestLDAP)
 	admin.HandleFunc("GET /api/auth/proxy-signin", s.handleGetProxySignIn)
 	admin.HandleFunc("PUT /api/auth/proxy-signin", s.handlePutProxySignIn)
+	s.registerIdleSignOut(admin) // GET and PUT /api/auth/idle-signout
 	admin.HandleFunc("DELETE /api/users/{id}/two-step", s.handleUserTwoStepOff)
 	member.HandleFunc("GET /api/auth/two-step", s.handleTwoStepStatus)
 	member.HandleFunc("POST /api/auth/two-step/setup", s.handleTwoStepSetup)
@@ -1034,6 +1080,10 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/watched/cleanup/run", s.handleLibraryCleanupRun)
 	admin.HandleFunc("GET /api/settings/hardcover", s.handleGetHardcover)
 	admin.HandleFunc("PUT /api/settings/hardcover", s.handlePutHardcover)
+	admin.HandleFunc("GET /api/settings/simkl", s.handleGetSimkl)
+	admin.HandleFunc("DELETE /api/settings/simkl", s.handleDisconnectSimkl)
+	admin.HandleFunc("POST /api/settings/simkl/pin", s.handleStartSimklPin)
+	admin.HandleFunc("GET /api/settings/simkl/pin/{code}", s.handlePollSimklPin)
 	admin.HandleFunc("POST /api/system/restart", s.handleRestart)
 	admin.HandleFunc("POST /api/system/shutdown", s.handleShutdown)
 	admin.HandleFunc("GET /api/flaresolverr/status", s.handleFlareSolverrStatus)

@@ -362,7 +362,8 @@ func TestIRCAnnounceNeverGrabsWhatIsNotWanted(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, _ = e.server.MovieRepo.Add(library.Movie{TMDBID: 3, Title: "Dated Film", Year: 2003, Monitored: true})
-	_, _ = e.server.MovieRepo.Add(library.Movie{TMDBID: 4, Title: "Future Film", Year: 2090, Monitored: true, ReleaseDate: "2090-01-01"})
+	nextYear := time.Now().Year() + 1 // a release year further ahead than that is read as part of the title
+	_, _ = e.server.MovieRepo.Add(library.Movie{TMDBID: 4, Title: "Future Film", Year: nextYear, Monitored: true, ReleaseDate: fmt.Sprintf("%d-12-31", nextYear)})
 	conn := e.connect(t, nil)
 
 	cases := []struct{ release, reason string }{
@@ -370,7 +371,7 @@ func TestIRCAnnounceNeverGrabsWhatIsNotWanted(t *testing.T) {
 		{"Finished.Film.2002.1080p.BluRay.x264-GRP", "already at the quality"},
 		{"Dated.Film.2010.1080p.BluRay.x264-GRP", "No movie in your library"},
 		{"Dated.Film.2003.480p.DVDRip.XviD-GRP", "quality profile"},
-		{"Future.Film.2090.1080p.BluRay.x264-GRP", "isn't released yet"},
+		{fmt.Sprintf("Future.Film.%d.1080p.BluRay.x264-GRP", nextYear), "isn't released yet"},
 	}
 	for i, tc := range cases {
 		e.irc.say("AnnounceBot", "#announce", movieLine(tc.release, 10+i, "8 GB"))

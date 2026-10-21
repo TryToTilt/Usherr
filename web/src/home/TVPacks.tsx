@@ -76,6 +76,7 @@ export function AIBuildButton({ onPick }: { onPick: (d: Draft) => void }) {
   const aiOn = useAIOn()
   const [open, setOpen] = useState(false)
   const [prompt, setPrompt] = useState('')
+  const [streaming, setStreaming] = useState<'library' | 'mix' | 'stream'>('mix') // Usherr
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const box = useRef<HTMLDivElement>(null)
@@ -84,7 +85,7 @@ export function AIBuildButton({ onPick }: { onPick: (d: Draft) => void }) {
     if (!prompt.trim()) return
     setBusy(true)
     setError('')
-    askAI<Draft>('/api/tv/ai-build', { prompt })
+    askAI<Draft>('/api/tv/ai-build', { prompt, streaming })
       .then((d) => {
         setOpen(false)
         onPick(d)
@@ -112,6 +113,19 @@ export function AIBuildButton({ onPick }: { onPick: (d: Draft) => void }) {
                 {[t('A 1995 TGIF channel'), t('Horror for October nights'), t('Saturday-morning cartoons from the ’80s'), t('A cosy British mystery channel')].map((ex) => (
                   <button key={ex} type="button" className="room-chip" onClick={() => setPrompt(ex)}>
                     {ex}
+                  </button>
+                ))}
+              </div>
+              <div className="seg" role="group" aria-label={t('Streamed shows')}>
+                {(
+                  [
+                    ['library', t('My library only')],
+                    ['mix', t('Library + streamed')],
+                    ['stream', t('Mostly streamed')],
+                  ] as const
+                ).map(([k, label]) => (
+                  <button key={k} type="button" className={streaming === k ? 'active' : ''} aria-pressed={streaming === k} onClick={() => setStreaming(k)}>
+                    {label}
                   </button>
                 ))}
               </div>

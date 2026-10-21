@@ -36,6 +36,7 @@ import WhatsNew from './WhatsNew'
 import { t, tc } from '../i18n'
 import { useGuideShortcut } from '../guide/shortcut.ts'
 import AmbientBackdrop from './AmbientBackdrop'
+import SideStack from '../home/SideStack' // Usherr: your stack, under Settings
 
 const NAV: { to: string; label: string; icon: IconName; sec: SectionKey; end?: boolean }[] = [
   { to: '/', label: t('Dashboard'), icon: 'grid', sec: 'dashboard', end: true },
@@ -43,6 +44,7 @@ const NAV: { to: string; label: string; icon: IconName; sec: SectionKey; end?: b
   { to: '/library', label: t('Library'), icon: 'film', sec: 'library' },
   { to: '/calendar', label: t('Upcoming'), icon: 'calendar', sec: 'calendar' },
   { to: '/tv', label: t('Live TV'), icon: 'tv', sec: 'live' }, // Mediarium TV (home fork): the one kind of media outside the Library
+  { to: '/marquee/manage', label: t('Marquee'), icon: 'monitor', sec: 'live' }, // Usherr: the lobby display (administrators)
   { to: '/queue', label: t('Activity'), icon: 'activity', sec: 'activity' },
   { to: '/settings/media', label: t('Settings'), icon: 'sliders', sec: 'settings' },
 ]
@@ -63,7 +65,7 @@ const LIBRARY_LINE: Record<LibraryTab, { label: string; glyph: 'movie' | 'tv' | 
 // Where Back goes from a detail page that was opened directly; undefined
 // for pages that aren't a single title.
 function backFallback(path: string): string | undefined {
-  if (path.startsWith('/title/') || path.startsWith('/show/')) return '/discover'
+  if (path.startsWith('/title/') || path.startsWith('/show/') || path.startsWith('/person/')) return '/discover'
   if (path.startsWith('/series/')) return '/library?kind=tv'
   if (path.startsWith('/book/') || path.startsWith('/books/work/')) return '/library?kind=ebook'
   if (path.startsWith('/music/artist/') || path.startsWith('/music/album/')) return '/library?kind=music'
@@ -186,7 +188,7 @@ function Shell() {
   const admin = isAdmin(user)
   // Members only have their own profile and About under Settings.
   const settingsGroups = settingsGroupsFor(admin, user?.role === 'viewer')
-  const nav = NAV.map((n) => (n.sec === 'settings' ? { ...n, to: settingsGroups[0].pages[0].to } : n))
+  const nav = NAV.filter((n) => admin || n.to !== '/marquee/manage').map((n) => (n.sec === 'settings' ? { ...n, to: settingsGroups[0].pages[0].to } : n)) // Usherr: the Marquee is for administrators
   const { on: moduleOn } = useModules()
   const ebooksOn = moduleOn('ebooks')
   const audiobooksOn = moduleOn('audiobooks')
@@ -235,6 +237,12 @@ function Shell() {
   }, [currentGroup, location.pathname])
 
   const inSettings = location.pathname.startsWith('/settings')
+  // Usherr: Settings folds up like the Library's kinds (open on a settings page,
+  // folded elsewhere, a press opens or folds it), leaving room for the Stack.
+  const [settingsOpen, setSettingsOpen] = useState(inSettings)
+  useEffect(() => {
+    setSettingsOpen(inSettings)
+  }, [inSettings, location.pathname])
   // Usherr: what the top bar's AI expects, from the page: the kind on Discover and the Library, Comics on its pages.
   const omniPage: OmniPage = (() => {
     if (location.pathname.startsWith('/comics')) return 'comics'
@@ -396,17 +404,23 @@ function Shell() {
                   if (libraryOpen || menuOpen) e.preventDefault()
                   setLibraryOpen(!libraryOpen)
                 }
-              : undefined
+              : n.sec === 'settings'
+                ? (e) => {
+                    // Usherr: the same for Settings.
+                    if (settingsOpen || menuOpen) e.preventDefault()
+                    setSettingsOpen(!settingsOpen)
+                  }
+                : undefined
           }
-          aria-expanded={n.sec === 'library' ? libraryOpen : undefined}
+          aria-expanded={n.sec === 'library' ? libraryOpen : n.sec === 'settings' ? settingsOpen : undefined}
           className={({ isActive }) => (n.sec === 'settings' ? (inSettings ? 'active parent-open' : '') : n.sec === 'library' ? (isActive || inLibraryPages || libraryLines.some((l) => l.active) ? 'active parent-open' : '') : isActive || (n.sec === 'calendar' && inUpcoming) ? 'active' : '')}>
             <span className="nav-ico">
               <Icon name={n.icon} size={17} />
             </span>
             <span className="nav-label">{n.label}</span>
             {n.to === '/queue' && active > 0 && <span className="nav-count">{active}</span>}
-            {n.sec === 'library' && (
-              <span className="nav-chev" style={{ transform: libraryOpen ? 'rotate(90deg)' : 'none' }}>
+            {(n.sec === 'library' || n.sec === 'settings') && (
+              <span className="nav-chev" style={{ transform: (n.sec === 'library' ? libraryOpen : settingsOpen) ? 'rotate(90deg)' : 'none' }}>
                 <Icon name="open" size={14} />
               </span>
             )}
@@ -428,7 +442,7 @@ function Shell() {
           )}
           </Fragment>
         ))}
-        {(
+        {settingsOpen && (
         <div className="subnav" style={{ ['--nc' as string]: 'var(--c-settings)' }}>
           {settingsGroups.map((g) => {
             const current = g.pages.some((p) => inPage(location.pathname, p.to))
@@ -499,6 +513,7 @@ function Shell() {
           })}
         </div>
         )}
+        <SideStack />
         <SideTools ebooksOn={ebooksOn} audiobooksOn={audiobooksOn} musicOn={musicOn} homes={homes} apps={apps} showSupport={admin && showSupport} variant="side">
           <ThemeToggle />
         </SideTools>

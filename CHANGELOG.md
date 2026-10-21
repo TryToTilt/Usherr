@@ -8,6 +8,258 @@ under [Unreleased]. How releases are cut: [docs/RELEASING.md](docs/RELEASING.md)
 
 ## [Unreleased]
 
+## [3.2.16] - 2026-10-20
+
+In short: Usenet downloads with a split 7z archive are unpacked.
+
+### Fixed
+
+- Usenet downloads where the video is inside a 7z archive cut into pieces (`name.7z.001`, `.002`, ...) are now unpacked. Before, only a plain `.7z` was recognised, so these ended as "No video in a download". Reported by xrandallx1 on GitHub (#92) and u/troelsdk on Reddit.
+
+## [3.2.15] - 2026-10-20
+
+In short: multi-language releases rank better when you list several languages, and the TRaSH update tells you what it did.
+
+### Fixed
+
+- A German release with `DL` after the source (`German.BDRip.DL`) is now read as dual language, the same as `German.DL.AC3`, so both rank the same. Reported by mirisbowring on GitHub, #91.
+- Formats imported from the TRaSH tab, or added with "Add to profiles...", now show up in a profile's edit form that is already open, instead of leaving it out of date (and saving it would drop the new scores). The form picks up the new scores and keeps anything you typed. Reported by Bayharbourbutcher1 on GitHub, #87.
+
+### Changed
+
+- When you list several audio languages (for example German, English), a multi-language release that has the first one now ranks above a plain release in that language, because it also carries the others. With one language nothing changes. Reported by mirisbowring on GitHub, #91.
+
+### Added
+
+- "Update from TRaSH" now leaves a result on the Custom formats card ("Checked the TRaSH Guides: 3 formats updated, 12 already up to date, 2 profile scores changed", or nothing to update). The same line goes to Activity and the server log, for the automatic check too. Suggested by Bayharbourbutcher1 on GitHub, #87.
+- Under the "Keep TRaSH formats up to date" switch the card shows when the guides were last checked and about when the next check is, and you can choose every day or every week. Suggested by Bayharbourbutcher1 on GitHub, #87.
+
+## [3.2.14] - 2026-10-19
+
+In short: the search list says why a release was not the best match.
+
+### Changed
+- The details row under a release in interactive search now says why a release that was not rejected was not the best match: your preferred language, a higher quality, a cached release, a higher score (with the matched terms and formats of both releases), a torrent with no seeders, or, between two equal releases, the indexer's priority, the protocol or the seeders. Thanks to mirisbowring on GitHub, #91.
+- The details row also lists the preferred terms a release matched, with their scores, next to the custom formats. Thanks to mirisbowring on GitHub, #91.
+
+## [3.2.13] - 2026-10-19
+
+In short: subtitle results get a Fit even when your video file's name says nothing about its release.
+
+### Changed
+- In the subtitle list, Fit now also compares each result with the name of the release that was downloaded for the video (Mediarium remembers it) and with the stored quality, and takes the best score, so a movie that came from a YTS release can match a YTS subtitle even though the file is named `Title (Year).mp4`. Rating stays empty for SubDL, which sends none. The same comparison is used when Mediarium picks a subtitle by itself (asked for by SanketBaraiya on GitHub, #83).
+
+## [3.2.12] - 2026-10-19
+
+In short: the address of a site on your own network could not be edited yet.
+
+### Fixed
+- The address of a site on your own network (BitMagnet, for example) stayed a fixed choice of its two listed links, with no Address field when editing. The site list your server had saved came from an older version and didn't say which sites run on your network; it is worked out when the list is read now, so the field is there without pressing Update list (reported by userkbmsr-png on GitHub, #90).
+
+## [3.2.11] - 2026-10-19
+
+In short: see why a release got its score, and use your own address for a site on your network.
+
+### Added
+- A site from the list that runs on your own network, such as BitMagnet (Local DHT), can now be pointed at your own server. When you add it (or edit it later) there is an Address field filled in with the example address, and you can type something like http://192.168.1.10:3333. Test then asks that server, and a refused connection on a 127.0.0.1 address now explains that inside Docker 127.0.0.1 is the Mediarium container itself. Sites on the public internet keep to the addresses in their definition. Thanks to userkbmsr-png on GitHub, #90.
+- The search list can now say why a release got its score. A small arrow after the score opens a row under the release with each matched custom format and its score in the chosen profile, the total, the profile's minimum score and the score upgrades stop at, and every reason an automatic search would skip it (quality or language not taken, size outside the limits, score under the minimum, blocklisted, too few seeders, a file you already have that is as good). It works by touch and keyboard, no hovering. "Show why" above the list opens all of them, and your choice is remembered. Asked for by Bayharbourbutcher1 on GitHub, #87.
+
+## [3.2.10] - 2026-10-19
+
+In short: SubDL subtitles that were found but still thrown away, and a cropped arrow on the indexer card.
+
+### Fixed
+- SubDL subtitles were still thrown away as having "no usable download link": SubDL's link carries more after the file name (a query or a fragment), which Mediarium counted as an invalid path. Only the path is used now, and the Details line says when there was more after it (reported by SanketBaraiya on GitHub, #83).
+- The little arrow that opens the reason of a failed test on an indexer card was cropped. It has room now (SanketBaraiya on GitHub, #80).
+
+## [3.2.9] - 2026-10-19
+
+In short: a minimum number of seeders per torrent indexer, and tidier indexer cards.
+
+### Changed
+- The indexer cards in a row are the same height with the buttons at the bottom, and each card shows its test result and limits in at most two short lines with the full text on hover (a failure opens its reason when you tap it). Nothing is hidden: a passed test older than a day is just shown dimmer. Asked for by SanketBaraiya on GitHub, #80.
+
+### Added
+- A **Minimum seeders** box on every torrent indexer card. Releases from that indexer with fewer seeders than the number are skipped by the automatic searches, the check for new releases, upgrades and season packs, so downloads stall less often. 0 turns it off (the default). Releases your debrid service already has cached, and releases that don't say how many seeders they have, are never skipped. In a search by hand every release is still listed; the ones under the minimum get a "Below minimum seeders" label and you can still grab them. Also in the settings file (`minSeeders`) and the API, and a minimum set in Prowlarr comes along when you import. Thanks to Bayharbourbutcher1 on GitHub, #88.
+
+## [3.2.8] - 2026-10-19
+
+In short: custom formats from the TRaSH Guides are easier to score, add and keep up to date.
+
+### Added
+- Custom formats added from the TRaSH Guides are now scored with TRaSH's default score in your default profile unless you choose "Don't score them", and the list shows the score each format will get before you press Add. Thanks to Bayharbourbutcher1 on GitHub (#87).
+- You can tick several custom formats and add them to one or more profiles in one go (with TRaSH's score for each, or one score you type), and the profile edit form has an "Add formats" button for the same. Thanks to Bayharbourbutcher1 on GitHub (#87).
+- New "Keep TRaSH formats up to date" switch (off by default) and an "Update from TRaSH" button that shows what would change first. Conditions of TRaSH formats follow the guides, and a profile's score follows only while you haven't changed it yourself. Thanks to Bayharbourbutcher1 on GitHub (#87).
+- In the release list of a manual search, the release an automatic search would take is marked "Best match" and put first, followed by the others from the highest custom format score down. Automatic searches already took the highest score within the same quality. Thanks to Bayharbourbutcher1 on GitHub (#87).
+
+## [3.2.7] - 2026-10-19
+
+In short: a fix for tools like Maintainerr that act on a season, SubDL subtitles that were found but thrown away, and the indexer card icon.
+
+### Fixed
+- The Sonarr-compatible episode list ignored `seasonNumber`, so a tool that asked for one season (Maintainerr, for example) got every season of the show and could act on episodes that were never meant, such as unmonitoring season 7 because of a rule about season 1. It now answers with only the season asked for (also `episodeIds` and `episodeFileId`). If your episodes were unmonitored like this, open the show and choose which episodes to monitor again (reported by u/troelsdk on Reddit).
+- SubDL subtitles were found and then all thrown away as having "no usable download link" because Mediarium only knew one shape of SubDL's download path. Any plain path under /subtitle/ is accepted now, and when a link is still turned down the Details line shows what it looked like (reported by SanketBaraiya on GitHub, #83).
+- The icon on an indexer card (the magnet or server symbol) sat in the top-left corner of a square box with sharp corners. It is now a rounded tile with the symbol centred (SanketBaraiya on GitHub, #80).
+
+## [3.2.6] - 2026-10-19
+
+In short: a tidier Indexers & Search page, and a way to see why a subtitle search finds nothing.
+- Every section of the Indexers & Search page is one full-width card, and your indexers sit in up to three columns, with no card overlapping another at any width.
+- When a subtitle search finds nothing, a Details line shows what each site was asked and what it answered, and SubDL is asked in more forgiving ways.
+
+### Fixed
+- On Settings > Indexers & Search the "Your indexers" card no longer overlaps the "Add an indexer" card at medium widths. Every section is one full-width card, stacked (reported by SanketBaraiya on GitHub, #80).
+- SubDL lookups are more forgiving: if every lookup finds nothing it is repeated with fewer filters, the language is accepted in any spelling, full download links are accepted, and hearing-impaired results are ranked lower instead of dropped (SanketBaraiya on GitHub, #83).
+
+### Changed
+- The indexer list is a grid of up to three columns (two on medium screens, one on a phone). On a wide screen the add card shows the search and filters beside the list of sites (SanketBaraiya on GitHub, #80).
+- When a subtitle search finds nothing, a collapsed Details line under the result lists, for each site and lookup, what was asked and what came back (never keys). The search answer of the movie and episode subtitle endpoints is now an object with `results` and `diagnostics` instead of a bare list.
+
+## [3.2.5] - 2026-10-19
+
+In short: release dates for your own country, and the Indexers & Search page fixed.
+- A new setting picks the country for a movie's release dates, and a date is never taken from some other country any more.
+- The Add an indexer card no longer slides over the sections below it when you scroll.
+
+### Added
+- **Country for release dates** under Settings > Info, lists and subtitles. Pick your own country (India, say, while reading in English); left on "Same as the info language" it works as before. Asked for by SanketBaraiya on GitHub, #82.
+
+### Changed
+- A movie's cinema and digital dates now come from your country, then from the US (shown with "(US)"), and otherwise say "Not announced". They are never taken from some other country any more, so no more stray (BR) or (IN). The calendar follows the same rule and re-reads its saved dates when you change the country (SanketBaraiya on GitHub, #82).
+
+### Fixed
+- On Settings > Indexers & Search the "Add an indexer" card no longer sticks to the screen or scrolls inside itself, so it can't slide over "Cloudflare sites" and "IRC announce" any more. The page scrolls as one again (reported by SanketBaraiya on GitHub, #80).
+
+## [3.2.4] - 2026-10-19
+
+In short: fixes for outside torrent clients, from your reports.
+- An indexer's seeding rules now reach qBittorrent (they never did), and the Category box stays empty when you clear it.
+- Stopping or removing a download also removes the torrent Mediarium sent to qBittorrent or Transmission, unless it has finished (a switch in the download client card).
+
+### Added
+- **When I stop or remove a download, remove it from the client too** in the download client card (on by default). Stopping a download, removing it from the list, removing its movie or show, or pressing Blocklist & search again now also removes the torrent Mediarium sent, with what it downloaded, from qBittorrent or Transmission. A finished torrent, an imported download and a torrent that was in the client before Mediarium sent it are left alone (Blocklist & search again also removes a finished one). If the client is down or has lost the torrent, the download is removed from Mediarium anyway. Asked for by Bayharbourbutcher1 on GitHub, #85.
+
+### Fixed
+- The Category field in the download client card no longer refills with "mediarium" after you clear it. If you fill in a category for some kinds and leave the main one empty, the other kinds are now added with no category (the `mediarium-qN` tag still lets Mediarium find its torrents). Only when everything is empty is "mediarium" used. Reported by Bayharbourbutcher1 on GitHub, #79.
+- An indexer's seeding rules never reached the download client. Mediarium didn't remember which indexer a release came from, so only the global limit was ever sent. It now records the indexer when a release is grabbed (from a search, the feed check or a scheduled search) and sends that indexer's ratio and time to qBittorrent when the torrent is added. Reported by Bayharbourbutcher1 on GitHub, #79.
+
+## [3.2.3] - 2026-10-18
+
+In short: release dates on the movie page, and fixes for second copies and for subtitles.
+- A movie's page shows when it is in cinemas and when it comes out digitally, and the calendar shows both days.
+- A release that may not replace your file is no longer imported next to it under another name (this left second copies with TRaSH-style names).
+- The subtitle search asks each site by TMDB id, IMDb id and title, reads more pages, and shows an error instead of "No subtitles found".
+
+### Fixed
+- A release that is not allowed to replace the file you have is no longer imported next to it when its file name differs (for example with TRaSH-style names). Before, a worse release, or any release for a title set to keep its file, landed beside the good file and became the one Mediarium pointed at, leaving two copies. It is now turned away with "Kept the file you already have." (reported by dxtrlws on GitHub, #84)
+- A file whose quality is not stored is now read from its name, including bracketed names like `[Bluray-1080p]` and `[Remux-2160p]`; a file whose quality cannot be told is never counted as worse than a new release.
+- When a new version replaces a file under another name, the old file goes to the recycle bin (when it is on) together with the subtitles and other files named after it, instead of being deleted and leaving them behind. Choosing "Overwrite" on a parked "Ask me each time" conflict now also removes the old file that had another name.
+- Searching for subtitles could say "no subtitles" for well-known titles that OpenSubtitles and SubDL do have. Both sites are now asked by TMDB id first, then by IMDb id, then by title and year, and up to three pages of results are read. A site that fails to answer is now shown as an error instead of "No subtitles found", and a failed search is no longer remembered for days (reported by SanketBaraiya on GitHub, #83).
+- Subtitle results from an add-on show the add-on's own name in the From column, and Rating and Fit are left empty when there is nothing to base them on, instead of a dash or 0.
+
+### Added
+- A movie's page now shows when it is in cinemas and when it comes out digitally (with how long until then when it is still ahead), for your country, and the calendar shows a monitored movie on both days, marked Cinema and Digital. The calendar learns the digital dates a few movies at a time in the background, so right after the update it shows only the cinema dates. Thanks to SanketBaraiya on GitHub, #82.
+
+## [3.2.2] - 2026-10-18
+
+In short: a tidier indexer page and a round of fixes from a full check of the 3.2 changes.
+- The indexer list is sorted by priority, in two columns, and the Add card stays in view.
+- The problem report form tells you when a newer version is out, and an indexer error that an update fixed says so.
+- Members no longer see server folder paths, a disconnected library folder is better protected, and settings save all or nothing.
+- Fixes for rescan, same-name shows, season packs and resuming downloads after a restart.
+
+### Changed
+- The indexer list is sorted by priority (lowest number first) and shown as compact cards in two columns, the Add card stays in view while you scroll, and a filter box appears when you have more than eight indexers. Asked for by SanketBaraiya on GitHub, #80.
+
+### Added
+- The problem report form tells you when a newer version is out (it says which version you are on and which is newest, and that many problems are fixed by updating) before you send it, and says to leave an email or GitHub name if you would like an answer.
+- An indexer that shows a known error from an older version says which version fixed it and to update and press Try again.
+
+### Fixed
+- Shows with the same name: a show you are searching for (monitored) now always gets the releases without a country tag before one you are not searching for. The American-first rule only decides between shows that are all monitored (or all unmonitored).
+- Rescan files on a show: when the show's folder also holds files of other shows, a file is only given to this show when the title in its name is the show's. Files named for another show stay where they are and are listed as not matched.
+- Rescan files on a show: a smaller file for two episodes that you added by hand is no longer dropped as a copy of a bigger file that an episode already has.
+- Season packs: a season that keeps finding no pack is searched for six times (once a week) and then left alone until an episode is added to it, you change the season pack setting, or 60 days have passed.
+- Pause while streaming: the list of paused downloads can no longer lose entries when the restart resume and the stream check change it at the same time.
+- Settings > Downloading: the download client card keeps what you typed when it reloads because another card changed, and says so when its settings can't be loaded.
+- Members no longer see server folder paths in the downloads list (failed-import messages, conflict paths) or the second-copies folder.
+- Imports into a library folder that sits inside another library folder are now checked against that inner folder's own marker.
+- Season packs and the resume-interrupted option are now saved together with the rest of a settings update, so a failed save no longer leaves them half-changed.
+- When a restart interrupted downloads that could not carry on by themselves, Activity now says so and that they stay paused.
+- A settings file that names an indexer priority with an old word ("preferred", "normal", "last resort") or a number in quotes no longer shows a change on every check.
+- Simkl connect: the "waiting for the code" wait is no longer cut short when the client ID box changes, and it stops if you leave the page.
+- Person page: moving from one person to another can no longer show the previous person's details.
+- Settings > Indexers: a leftover filter word can no longer hide a short indexer list.
+
+## [3.2.1] - 2026-10-18
+
+In short: new indexers and lists, and fixes for what you reported after 3.2.0.
+- Indexer priority is a number from 1 to 50 like Prowlarr, Knaben is a built-in site, and Simkl lists can be imported (Simkl is new and has not been tried with a real account yet).
+- Anime numbered by TheTVDB seasons (One Piece, Jujutsu Kaisen) is placed on the right episodes, and Mazepa is selectable again.
+- The e-reader catalogue loads much faster on big libraries.
+- Better on a desktop with wide fonts, and a few more fixes below.
+
+### Added
+- **Simkl lists**: import your own Simkl lists (Plan to watch, Watching, Completed, On hold, Dropped; movies, shows and anime). Connect your Simkl account with a short code at simkl.com/pin under Settings > Info, lists and subtitles > Import lists, then add a Simkl list. An idea from nexus4004 on GitHub, through the idea form.
+- **Knaben** is a built-in torrent site now: add it from Settings > Indexers & Search > Torrent > Pick a site from the list. It's public, needs no login, and works with the VPN switch like the other sites. Asked for by SanketBaraiya on GitHub, #73.
+- **Indexer priority is a number from 1 to 50** (like Prowlarr; lower is tried first, 25 by default) instead of Preferred, Normal and Last resort. Existing indexers keep their order (Preferred became 10, Normal 25, Last resort 40), the Prowlarr import carries its numbers over, and the settings file and the API still accept the three old words. Thanks to SanketBaraiya on GitHub, #80.
+
+### Fixed
+- A title with a `+` or a `%` in it (`C++ Primer`) is no longer changed when Sonarr or Radarr style tools look it up through Mediarium: the search term was decoded twice.
+- Names with `&` are handled better: a folder named with an HTML-escaped `&amp;` still matches its title, a search for a title like `Law & Order` no longer misses releases because of the `&`, and the Library, Wanted and Bookshelf search boxes treat `&` and "and" as the same and ignore accents (reported by franciscojnneto on GitHub, #81; if folders with `&` still don't show up for you, send me one example).
+- Anime files named by TheTVDB season (One Piece) were placed three episodes too late because TheTVDB starts the season earlier than the movie database does. Placement now checks the episode titles in the file names, and places a file by its title when the title matches exactly one episode. The import note lists the files that were left out (reported by SanketBaraiya on GitHub, #69).
+- A site marked "Not supported yet" in the site list is checked again after an update, so one that an update made possible (like Mazepa) no longer stays grey until you press Update list (reported by Apostol6 on GitHub, #16).
+- The e-reader catalogue (OPDS) and the Kobo sync no longer load and sort the whole book list for every request. Built pages are kept in memory and rebuilt only when a book is added, removed or changed; saving a reading place does not count. Pages also carry an ETag, so an app that sends If-None-Match gets a 304.
+- On a phone, long button labels and hints in Settings (Russian, German, French, Polish) now wrap instead of pushing the page wider than the screen.
+
+## [3.2.0] - 2026-10-18
+
+In short: a feature release, built mostly from your reports and ideas.
+- Click an actor, director or writer to see their page, and add their other work from there.
+- Big downloads unpack much faster (a 75 GB movie took hours on an Unraid share), with progress shown in Activity.
+- New options: a temporary download folder on a fast disk, a category per kind of download and seeding limits for qBittorrent and Transmission, prefer season packs, only watch episodes that haven't aired yet, and resume downloads after a restart.
+- Anime named by TheTVDB seasons (One Piece, Jujutsu Kaisen) is placed on the right episodes, and YTS, The Pirate Bay, nekoBT and Mazepa work again.
+- Safer: an unmounted library drive is never written into, settings save all or nothing, and `app reset-key` helps when the key file is lost.
+- Better on a phone and in long languages, with about fifty more server messages translated.
+
+### Added
+- **Shows with the same name are kept apart** (Shameless US and UK, The Office, Top Gear, Doctor Who 1963 and 2005): Mediarium now remembers the country each show comes from. A release tagged `US`, `UK`, `AU` and so on (`Shameless.UK.S02E03`, `Shameless (US) S01E01`) only goes to a show from that country, and when two shows share a name, a release without a tag goes to the American one (or the one you added first), not to both. Lists, search results and the import review show "Shameless (UK)" when two shows have the same name, and a folder called `Shameless (UK)` is matched to the UK show when you import a library. The country is read on the next refresh of each show.
+- **Sign out browsers that sit unused** (optional): Settings > Account & Access > Security has a new choice for administrators, 1 to 7 days. A browser not used for that long is signed out and the sign-in page says why. Off by default. API keys, calendar feeds and e-reader passwords are not affected.
+- `app reset-key`: for when `secret.key` is lost. It lists every saved password and key that can't be read, asks you to type yes (or `--yes`), keeps a copy of the database and the old key, clears only those (the things they belong to are switched off or removed until you enter them again), makes a new `secret.key` when there is none that works, and prints what has to be entered again. It never prints a secret. The startup message for a missing `secret.key` now points to it.
+- **Resume after a restart**: downloads that were running when Mediarium stopped (an update, a restart, a crash) now carry on by themselves, a few seconds apart, once the VPN is up. Anything you paused stays paused. The switch is under Settings > Downloading > Download rules and is on by default.
+- **Prefer season packs** (an idea from nexus4004 on GitHub, through the idea form): an optional switch under Settings > Quality > Automation, and a choice on each show. Once a season has ended, Mediarium looks for the season pack and takes it only if its quality is the same or better than the episodes you have; until then episodes are grabbed one by one as before. Off by default.
+- **Temporary download folder** (an idea from mirisbowring on GitHub, #76): an optional setting under Settings > Downloading > Download rules that keeps the half-finished download, repair and unpack work on another disk (a fast cache drive, for example), while the finished files still go to your library. Empty by default, so nothing changes. A download keeps the folder it started in if you change the setting later. If the folders are on different drives the file is copied across and checked.
+- **Rescan files** on a show now also looks in the show's folder and adds video files you put there by hand to the right episodes (season and episode, the number from the first episode for anime, or the air date for daily shows). Nothing is moved, renamed or downloaded, and the message says how many it found. Files it can't match are listed by name instead of guessed. The button now shows on shows that have no files yet too.
+- A new show added by an import whose files are named by air date (talk shows, news) now switches itself to the Daily numbering type. A show already in your library, or one whose type you set yourself, keeps its type.
+- A show that is already in your library can now be switched to **Only episodes that haven't aired yet** (or all, or none) on its page, with a count of what stops being monitored first. Nothing is deleted. Thanks to Bayharbourbutcher1 on GitHub, #77.
+- An outside download client (qBittorrent, Transmission) can now get a category of its own for movies, shows, music and books, next to the single category. An empty one uses the single category as before. Thanks to Bayharbourbutcher1 on GitHub, #79.
+- The seeding limits (global, or the per-indexer seeding rules) are now sent to an external torrent client when a torrent is added, so qBittorrent seeds for the time or ratio you set instead of you setting it by hand. Transmission gets the ratio only (it has no total seeding time). What the client does at the limit (pause, stop, remove) is set in the client itself. Thanks to Bayharbourbutcher1 on GitHub, #79.
+- **People pages** (asked for by franciscojnneto on GitHub, discussion #72): cast, directors, writers and show creators on a movie or show page are now links to a person page with their photo, biography and the movies and TV shows they worked on, which you can add to your library like any Discover title.
+
+### Fixed
+- Anime files that Sonarr names by TheTVDB season and episode (`One Piece - S22E41 - Title.mkv`, Jujutsu Kaisen's seasons 1 to 3) are now placed on the right episodes when you import an existing library, move from Sonarr or import by hand, even when the name has no absolute number; the import note says how many were placed this way. Reported by SanketBaraiya on GitHub, #69.
+- YTS and The Pirate Bay (and other sites that save a suggested API address with the form) were refused again after 3.1.3 with "the site definition wants to connect to ...". The address a site suggests itself is no longer taken for a login, so they work again (reported by SanketBaraiya on GitHub, #73).
+- A library folder on a network drive that isn't connected is no longer written into. Before it imports, moves or renames anything under a library folder, Mediarium checks the folder is there, and a folder that was known to be the real one (it keeps a small hidden `.mediarium-root` file) but has lost that file is treated as a disconnected drive: the import fails with a plain message, nothing lands on the machine's own disk, and the dashboard's Health list names the folder. A folder that never got the file keeps working as before.
+- Saving settings is now all or nothing: every value is checked first and then stored together in one database transaction, keys and passwords included. A save that is refused or fails part way no longer leaves half the changes behind.
+- Members no longer see where the server keeps the library: the folder choice in the Add dialog lists the folders by name (movies, kids) instead of by path, and a title's folder is shown the same way. Administrators still see the full paths.
+- A saved Usenet password, VPN key, media server token or notification password that can't be read (a `secret.key` that doesn't belong to the database) no longer makes its whole list fail or quietly turn into an empty value. The one that can't be read is marked on its Settings page and named on Health, it isn't used, everything else keeps working, and saving something else never overwrites it with an empty value. The log names them at start (never their values).
+- A blank OpenSubtitles password next to an unchanged user name keeps the saved one exactly as stored, even when it can't be read.
+- Regular new-release checks (RSS) no longer use up an indexer's daily request limit before your searches: they take about a third of it, and the indexer card says how often it checks.
+- Releases whose title contains a number that looks like a year (Blade Runner 2049, 1917, 2012, Wonder Woman 1984 with its release year) are read with the right title and year, and a year in an episode title (an Olympics special from 2012) no longer confuses the show's name or year.
+- Searches read each release name once instead of many times, which saves work on big runs.
+- Mazepa and other sites whose definition cleans titles with many filters are no longer refused as "not supported yet" (reported by Apostol6 on GitHub, #16).
+- Many more messages from the server (cloud backups, directory and single sign-on, subtitles, add-ons, indexers, importing, moving files, restart and update notes) are now translated.
+- On a phone, the Size limits table in Settings > Quality fits the screen, and the release name hint in Add a download by hand is no longer cut off.
+- What's new now names the version you are running and lists the changes of 3.1.2 and 3.1.3.
+- The calendar's month arrows, the theme button in the menu and the Browse more links are bigger to tap on a phone.
+- On a phone, the episode list of a show no longer lets the whole page slide sideways.
+- Long button labels (Russian, German, Polish, French) now wrap inside the settings cards instead of running off the screen or widening the page.
+- The message about the one-time setup code on the sign-up page is now translated.
+- The avatar button in the header is big enough to tap comfortably on a phone.
+- Unpacking a big RAR download is much faster on network shares and on file systems that run in a separate program, such as Unraid user shares (a 75 GB movie took hours there; reported by mirisbowring on GitHub, #76). The Activity page now shows how much has been unpacked, and pausing or stopping a download also stops its unpacking.
+- Indexers that answer with a normal RSS feed, like nekoBT, no longer fail with "XML syntax error ... unexpected end element </link>". The feed's link elements were read as HTML and broke the parse (reported by SanketBaraiya on GitHub, #73).
+- A request whose body was cut off or refused before it was fully sent (for example an oversized program update) was only answered after the upload time limit ran out, and the connection stayed open. It is now answered at once and the connection is closed.
+
 ## [3.1.3] - 2026-10-17
 
 In short: a big round of fixes from a full review and from testing Mediarium with real libraries.

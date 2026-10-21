@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -33,7 +34,7 @@ var Lists = []ListSection{
 	},
 	{
 		Name: "indexers", Path: "/api/indexers", Partial: true,
-		Fields:  []string{"name", "kind", "definitionId", "baseUrl", "apiKey", "protocol", "enabled", "settings", "priority", "requestsPerDay"},
+		Fields:  []string{"name", "kind", "definitionId", "baseUrl", "apiKey", "protocol", "enabled", "settings", "priority", "requestsPerDay", "minSeeders"},
 		Secrets: []string{"apiKey"},
 	},
 	{
@@ -225,7 +226,7 @@ func planLists(ctx context.Context, c *Client, f File) ([]listResult, []string, 
 }
 
 // diffItem lists what differs between one item and what the file wants.
-func diffItem(ls ListSection, label string, have, want map[string]any) ([]Change, map[string]any, *float64) {
+func diffItem(ls ListSection, label string, have, want map[string]any) ([]Change, map[string]any, any) {
 	var changes []Change
 	body := map[string]any{}
 	if !ls.Partial {
@@ -235,7 +236,7 @@ func diffItem(ls ListSection, label string, have, want map[string]any) ([]Change
 			}
 		}
 	}
-	var prio *float64
+	var prio any
 	keys := make([]string, 0, len(want))
 	for k := range want {
 		keys = append(keys, k)
@@ -281,14 +282,11 @@ func diffItem(ls ListSection, label string, have, want map[string]any) ([]Change
 				body["settings"] = sub
 			}
 		case ls.Name == "indexers" && k == "priority":
-			if !same(have[k], w) {
+			if !same(have[k], priorityNumber(w)) {
 				changes = append(changes, Change{Section: label, Key: k, Have: show(have[k]), Want: show(w)})
-				if f, ok := w.(int); ok {
-					v := float64(f)
-					prio = &v
-				} else if f, ok := w.(float64); ok {
-					prio = &f
-				}
+				// A number from 1 to 50, or one of the old words; the server
+				// checks it.
+				prio = w
 			}
 		default:
 			if hv, shown := have[k]; !shown || !same(hv, w) {
@@ -298,6 +296,30 @@ func diffItem(ls ListSection, label string, have, want map[string]any) ([]Change
 		}
 	}
 	return changes, body, prio
+}
+
+// priorityNumber turns an indexer priority as a file may write it (one of the
+// old words, or a number in quotes) into the number the server stores, so a
+// file that says "preferred" is not a change for an indexer already at 10.
+// Anything else comes back as it is; the server checks it.
+func priorityNumber(v any) any {
+	s, ok := v.(string)
+	if !ok {
+		return v
+	}
+	s = strings.ToLower(strings.TrimSpace(s))
+	switch strings.NewReplacer("_", " ", "-", " ").Replace(s) {
+	case "preferred":
+		return 10
+	case "normal":
+		return 25
+	case "last resort", "last", "lastresort":
+		return 40
+	}
+	if n, err := strconv.Atoi(s); err == nil {
+		return n
+	}
+	return v
 }
 
 // fixed reports whether k is a value an existing item can't have changed:
@@ -439,7 +461,7 @@ func createAction(ls ListSection, item map[string]any) func(context.Context, *Cl
 	}
 }
 
-func updateAction(ls ListSection, have, body map[string]any, prio *float64) func(context.Context, *Client) error {
+func updateAction(ls ListSection, have, body map[string]any, prio any) func(context.Context, *Client) error {
 	return func(ctx context.Context, c *Client) error {
 		id, ok := idOf(have)
 		if !ok {
@@ -456,7 +478,7 @@ func updateAction(ls ListSection, have, body map[string]any, prio *float64) func
 			}
 		}
 		if prio != nil {
-			if _, err := c.do(ctx, http.MethodPut, fmt.Sprintf("%s/%d/priority", ls.Path, id), map[string]any{"priority": *prio}); err != nil {
+			if _, err := c.do(ctx, http.MethodPut, fmt.Sprintf("%s/%d/priority", ls.Path, id), map[string]any{"priority": prio}); err != nil {
 				return fmt.Errorf("set the priority of %v: %w", have["name"], err)
 			}
 		}

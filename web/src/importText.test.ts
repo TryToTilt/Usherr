@@ -29,3 +29,15 @@ test('the import notes and the Change folder message are translated as whole sen
   assert.equal(st('Found 18 of 18 episodes in /tv/Detectorists - complete.'), '18 von 18 Folgen in /tv/Detectorists - complete gefunden.')
   setCatalogue('en', {})
 })
+
+test('an import note of two sentences is translated sentence by sentence', () => {
+  setCatalogue('de', {
+    'Placed {0} episodes by the TheTVDB season numbers.': '{0} Folgen nach den Staffelnummern von TheTVDB eingeordnet.',
+    "Left out {0} episodes that the movie database doesn't list for this show.": '{0} Folgen ausgelassen, die die Filmdatenbank für diese Serie nicht kennt.',
+  })
+  assert.equal(
+    st("Placed 55 episodes by the TheTVDB season numbers.\nLeft out 3 episodes that the movie database doesn't list for this show."),
+    '55 Folgen nach den Staffelnummern von TheTVDB eingeordnet. 3 Folgen ausgelassen, die die Filmdatenbank für diese Serie nicht kennt.',
+  )
+  setCatalogue('en', {})
+})

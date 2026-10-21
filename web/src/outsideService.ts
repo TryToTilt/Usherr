@@ -8,6 +8,7 @@ import { t } from './i18n.ts'
 
 const RULES: [RegExp, string][] = [
   [/^\/discover\/import-list/, 'Trakt'],
+  [/^\/settings\/simkl\/pin/, 'Simkl'],
   [/^\/(discover|tmdb|tv\/search)(\/|$|\?)/, t('The movie database (TMDB)')],
   [/^\/movies\/\d+\/similar/, t('The movie database (TMDB)')],
   [/^\/music\/(discover|search|covers)/, 'MusicBrainz'],

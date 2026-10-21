@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rdborg/mediarium/internal/download"
+	"github.com/rdborg/mediarium/internal/fsinfo"
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/organizer"
 	"github.com/rdborg/mediarium/internal/store"
@@ -77,6 +78,12 @@ func (s *Server) collectHealth() []healthItem {
 			"", "")
 	}
 
+	// With the wrong key every secret is unreadable, which the item above says
+	// once; otherwise each one that can't be read is named.
+	if !keyMismatch {
+		items = append(items, s.unreadableSecretItems()...)
+	}
+
 	instances, listErr := s.IndexerRepo.List()
 	torrentsOn := s.torrentReleasesOn()
 	var usenetIndexers, torrentIndexers, unreadable int
@@ -127,7 +134,7 @@ func (s *Server) collectHealth() []healthItem {
 		}
 	}
 
-	servers, _ := s.ClientRepo.List()
+	servers, _ := s.ClientRepo.ListAll() // a server with an unreadable password is named on its own Health item
 	if usenetIndexers > 0 && len(servers) == 0 {
 		addHealth("no-usenet-server", "warn", "No Usenet provider added",
 			"Your Usenet indexer finds releases but there's nowhere to download them from. Add your provider's news server.",
@@ -225,6 +232,11 @@ func (s *Server) collectHealth() []healthItem {
 			"Trakt refused requests because the built-in key is shared and busy. Importing Trakt lists fails until it clears. A free personal Trakt key avoids this.",
 			"Use my own key", "/settings/lists")
 	}
+	if s.usingSharedKey(serviceSimkl) && s.Usage.Stats(serviceSimkl).LimitHits >= 1 {
+		addHealth("simkl-limit", "warn", "The shared Simkl key is at its limit",
+			"Simkl refused requests because the built-in key is shared and busy. Reading Simkl lists fails until it clears. A free personal Simkl key avoids this.",
+			"Use my own key", "/settings/lists")
+	}
 	if s.subtitlesEnabled() && s.useOpenSubtitles() && s.usingSharedKey(serviceOpenSubtitles) {
 		if s.Usage.Stats(serviceOpenSubtitles).LimitHits >= 1 {
 			addHealth("opensubtitles-limit", "warn", "The shared OpenSubtitles key is at its limit",
@@ -235,6 +247,15 @@ func (s *Server) collectHealth() []healthItem {
 				fmt.Sprintf("%d of %d subtitle downloads used today. After that they wait until tomorrow. A free personal OpenSubtitles key gives you your own allowance.", st.Used, st.Limit),
 				"Use my own key", "/settings/subtitles")
 		}
+	}
+
+	// Simkl lists need the account connected; say so only when a list is waiting for it.
+	var simklLists int
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM import_lists WHERE source = ? AND enabled = 1`, listSimkl).Scan(&simklLists)
+	if st := s.simklState(); simklLists > 0 && (!st.Connected || !st.HasClientID) && !st.Unreadable {
+		addHealth("simkl-off", "warn", "Simkl isn't connected",
+			"A Simkl list is set up but no Simkl account is connected, so it can't be read. Connect your account to start it again.",
+			"Connect Simkl", "/settings/lists")
 	}
 
 	if !s.Trakt().HasClientID() {
@@ -311,6 +332,15 @@ func (s *Server) collectHealth() []healthItem {
 					"Downloads and imports fail when it runs out of space.",
 					"See folders", "/settings/media")
 			}
+		}
+	}
+	// A library folder that has lost its marker file is most likely a drive that
+	// isn't connected. Imports into it wait, so nothing lands on the machine's own disk.
+	for i, root := range s.writableRoots() {
+		if p := s.libraryRootProblem(root); p != nil && p.gone {
+			addHealth("library-root-gone-"+strconv.Itoa(i), "error", fmt.Sprintf("The library folder %s looks disconnected", root),
+				fmt.Sprintf("It has lost its %s file, which usually means its drive isn't connected. Nothing is imported or moved into it until it's back, so no files end up on the wrong disk. If the folder is the right one, add an empty file with that name to it.", fsinfo.RootMarker),
+				"See folders", "/settings/media")
 		}
 	}
 	// One whole heading per folder, so the screen can show it in the

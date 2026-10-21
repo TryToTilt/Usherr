@@ -6,13 +6,14 @@ import { t, tx } from '../i18n'
 import { FieldError, FormProblem, useValidation } from '../useValidation'
 import { apiKey as apiKeyCheck, firstError, required as requiredCheck } from '../validate'
 
-export type KeyService = 'tmdb' | 'opensubtitles' | 'subdl' | 'trakt'
+export type KeyService = 'tmdb' | 'opensubtitles' | 'subdl' | 'trakt' | 'simkl'
 
-const FIELD: Record<KeyService, 'tmdbApiKey' | 'openSubtitlesApiKey' | 'subdlApiKey' | 'traktClientId'> = {
+const FIELD: Record<KeyService, 'tmdbApiKey' | 'openSubtitlesApiKey' | 'subdlApiKey' | 'traktClientId' | 'simklClientId'> = {
   tmdb: 'tmdbApiKey',
   opensubtitles: 'openSubtitlesApiKey',
   subdl: 'subdlApiKey',
   trakt: 'traktClientId',
+  simkl: 'simklClientId',
 }
 
 // One card per third-party service Mediarium can use: what it is, what stops

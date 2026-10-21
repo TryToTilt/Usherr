@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -30,7 +31,7 @@ func (s *Server) handleAddCustomDefinition(w http.ResponseWriter, r *http.Reques
 		if list, lerr := s.IndexerRepo.List(); lerr == nil {
 			for _, inst := range list {
 				if inst.Kind == indexers.KindCardigann && inst.DefinitionID == def.ID {
-					writeError(w, http.StatusConflict, "The indexer "+inst.Name+" already uses a definition with this id. Remove that indexer first, then add the file.")
+					writeError(w, http.StatusConflict, fmt.Sprintf("The indexer %s already uses a definition with this id. Remove that indexer first, then add the file.", inst.Name))
 					return
 				}
 			}
@@ -38,7 +39,7 @@ func (s *Server) handleAddCustomDefinition(w http.ResponseWriter, r *http.Reques
 	}
 	sum, err := s.Definitions.AddCustom([]byte(req.Content))
 	if errors.Is(err, indexers.ErrBadCustomDefinition) {
-		writeError(w, http.StatusBadRequest, "This file can't be used: "+problemText(err, indexers.ErrBadCustomDefinition))
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("This file can't be used: %s", problemText(err, indexers.ErrBadCustomDefinition)))
 		return
 	}
 	if err != nil {
@@ -68,7 +69,7 @@ func (s *Server) handleRemoveCustomDefinition(w http.ResponseWriter, r *http.Req
 		}
 	}
 	if len(using) > 0 {
-		writeError(w, http.StatusConflict, "Remove the indexer that uses this file first: "+strings.Join(using, ", ")+".")
+		writeError(w, http.StatusConflict, fmt.Sprintf("Remove the indexer that uses this file first: %s.", strings.Join(using, ", ")))
 		return
 	}
 	err = s.Definitions.RemoveCustom(id)

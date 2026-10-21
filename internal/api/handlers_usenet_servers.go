@@ -30,6 +30,10 @@ type usenetServerPayload struct {
 	Connections int    `json:"connections"`
 	Priority    int    `json:"priority"`
 	Enabled     bool   `json:"enabled"`
+	// SecretError is set when the saved password can't be read (a secret.key
+	// that doesn't belong to this database). The server isn't used until a
+	// password is entered again.
+	SecretError string `json:"secretError,omitempty"`
 }
 
 const (
@@ -42,11 +46,21 @@ const (
 )
 
 func toUsenetServerPayload(sc download.StoredClient) usenetServerPayload {
-	return usenetServerPayload{
+	p := usenetServerPayload{
 		ID: sc.ID, Name: sc.Name, Host: sc.Config.Host, Port: sc.Config.Port, UseSSL: sc.Config.UseSSL,
 		Username: sc.Config.Username, HasPassword: sc.Config.Password != "", Connections: sc.Config.Connections,
 		Priority: sc.Priority, Enabled: sc.Enabled,
 	}
+	if sc.SecretUnreadable {
+		p.SecretError = usenetSecretError(sc.Name)
+	}
+	return p
+}
+
+// usenetSecretError is what a Usenet server whose saved password can't be
+// read is told.
+func usenetSecretError(name string) string {
+	return fmt.Sprintf("Mediarium can't read the saved password of %s, so it isn't used. Enter the password again.", name)
 }
 
 // validate normalises a request into a StoredClient, or returns a message
@@ -153,7 +167,7 @@ func (s *Server) handleUpdateUsenetServer(w http.ResponseWriter, r *http.Request
 		return
 	}
 	req.ID = id
-	if req.Password == "" && stored.Config.Password != "" && addrMoved(stored.Config.Host, req.Host) {
+	if req.Password == "" && (stored.Config.Password != "" || stored.SecretUnreadable) && addrMoved(stored.Config.Host, req.Host) {
 		writeError(w, http.StatusBadRequest, retypeSecretMessage("password"))
 		return
 	}
@@ -241,6 +255,10 @@ func (s *Server) handleTestUsenetServerConfig(w http.ResponseWriter, r *http.Req
 	password := req.Password
 	if password == "" && req.ID != 0 {
 		if stored, err := s.ClientRepo.Get(req.ID); err == nil {
+			if stored.SecretUnreadable {
+				writeJSON(w, http.StatusOK, connTestResult{Message: usenetSecretError(stored.Name)})
+				return
+			}
 			if addrMoved(stored.Config.Host, req.Host) {
 				writeJSON(w, http.StatusOK, connTestResult{Message: retypeSecretMessage("password")})
 				return
@@ -265,6 +283,10 @@ func (s *Server) handleTestUsenetServer(w http.ResponseWriter, r *http.Request) 
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if sc.SecretUnreadable {
+		writeJSON(w, http.StatusOK, connTestResult{Message: usenetSecretError(sc.Name)})
 		return
 	}
 	writeJSON(w, http.StatusOK, testNNTP(sc.Config.Host, sc.Config.Port, sc.Config.UseSSL, sc.Config.Username, sc.Config.Password))
@@ -384,6 +406,10 @@ func (s *Server) handleProbeUsenetServer(w http.ResponseWriter, r *http.Request)
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if sc.SecretUnreadable {
+		writeJSON(w, http.StatusOK, probeResultPayload{Message: usenetSecretError(sc.Name)})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)

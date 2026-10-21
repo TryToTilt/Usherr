@@ -843,7 +843,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
             {t('All optional, and each can wait. Set up the ones you want now, or later under Settings > Extras. Live TV, playing on a TV, comics and news are there too, and Settings > General > Setup checklist shows what is ready.')}{' '}
             <HelpLink topic="home-setup" />
           </p>
-          <ExtrasSettings only={['address', 'streaming', 'ai', 'scores']} />
+          <ExtrasSettings only={['address', 'streaming', 'ai', 'scores', 'cinema', 'marquee']} />
           <div className="wizard-nav">
             {backButton}
             <button className="primary" onClick={() => setStep(S.done)}>

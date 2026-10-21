@@ -85,3 +85,24 @@ export const TRAKT_COPY: ServiceCopy = {
   fieldLabel: t('Trakt client ID'),
   placeholder: t('Client ID'),
 }
+
+export const SIMKL_COPY: ServiceCopy = {
+  title: t('Simkl (your own lists)'),
+  required: false,
+  blurb: t('Simkl keeps your Plan to Watch, Watching and Completed lists for movies, shows and anime. Give Mediarium a free Client ID, connect your account, and it can add what is on those lists.'),
+  without: t("you can't import your Simkl lists."),
+  steps: [
+    tx("Sign in or sign up at {link} (it's free).", { link: link('https://simkl.com', 'simkl.com') }),
+    tx('Open the {link} and press {create}.', {
+      link: link('https://simkl.com/settings/developer/', t('Simkl developer settings')),
+      create: <strong>New Application</strong>,
+    }),
+    tx('Name it "Mediarium". If it asks for a {redirect}, enter {uri}. Then save it.', {
+      redirect: <strong>Redirect URI</strong>,
+      uri: <code>urn:ietf:wg:oauth:2.0:oob</code>,
+    }),
+    tx('Copy the {clientId} (not the secret) and paste it below.', { clientId: <strong>Client ID</strong> }),
+  ],
+  fieldLabel: t('Simkl client ID'),
+  placeholder: t('Client ID'),
+}

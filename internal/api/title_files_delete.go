@@ -44,7 +44,7 @@ func (s *Server) handleDeleteMovieFile(w http.ResponseWriter, r *http.Request) {
 	}
 	n, trashed, err := s.discardFileWithSidecars(s.fileRoot(s.movieRootFor(m), m.FilePath), m.FilePath, movieLabel(m))
 	if err != nil {
-		writeError(w, http.StatusConflict, "Couldn't delete the file: "+err.Error())
+		writeError(w, http.StatusConflict, fmt.Sprintf("Couldn't delete the file: %s", err.Error()))
 		return
 	}
 	if err := s.MovieRepo.ClearMovieFile(id); err != nil {

@@ -153,6 +153,7 @@ jobs:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           OPENSUBTITLES_API_KEY: ${{ secrets.OPENSUBTITLES_API_KEY }}
           TRAKT_CLIENT_ID: ${{ secrets.TRAKT_CLIENT_ID }}
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
         run: |
           set -euo pipefail
           name="mediarium_${VERSION}_${GOOS}_${GOARCH}"
@@ -162,7 +163,7 @@ jobs:
           exe="mediarium"
 
           go build -trimpath \
-            -ldflags "-s -w -X main.version=${VERSION} -X main.defaultTMDBAPIKey=${TMDB_API_KEY} -X main.defaultOpenSubtitlesAPIKey=${OPENSUBTITLES_API_KEY} -X main.defaultTraktClientID=${TRAKT_CLIENT_ID}" \
+            -ldflags "-s -w -X main.version=${VERSION} -X main.defaultTMDBAPIKey=${TMDB_API_KEY} -X main.defaultOpenSubtitlesAPIKey=${OPENSUBTITLES_API_KEY} -X main.defaultTraktClientID=${TRAKT_CLIENT_ID} -X main.defaultSimklClientID=${SIMKL_CLIENT_ID}" \
             -o "${out}/${exe}" ./cmd/app
 
           cp LICENSE "${out}/LICENSE"
@@ -355,6 +356,7 @@ jobs:
             TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}
             OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }}
             TRAKT_CLIENT_ID=${{ secrets.TRAKT_CLIENT_ID }}
+            SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -407,6 +409,7 @@ jobs:
             TMDB_API_KEY=${{ secrets.TMDB_API_KEY }}
             OPENSUBTITLES_API_KEY=${{ secrets.OPENSUBTITLES_API_KEY }}
             TRAKT_CLIENT_ID=${{ secrets.TRAKT_CLIENT_ID }}
+            SIMKL_CLIENT_ID=${{ secrets.SIMKL_CLIENT_ID }}
           cache-from: type=gha,scope=full
           cache-to: type=gha,scope=full,mode=max
 

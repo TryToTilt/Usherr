@@ -1167,7 +1167,7 @@ func (s *Server) retryComicDownload(w http.ResponseWriter, item queue.Item) bool
 		return true
 	}
 	if reuse {
-		s.moveKeptDownload(keptDir, s.workDirFor(newID))
+		s.moveKeptDownload(keptDir, newID)
 	}
 	release()
 	message := "Retrying, downloading again: " + item.ReleaseTitle

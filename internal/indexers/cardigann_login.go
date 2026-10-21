@@ -424,10 +424,26 @@ const maxXMLDepth = 512
 // parseXMLDoc reads an XML reply (e.g. an RSS/Torznab feed) into the same
 // node tree HTML pages use, so the CSS selectors work on it. Element names
 // keep their local part (torznab:attr becomes attr).
+//
+// A real feed is read as XML first: RSS has <link>text</link>, which the HTML
+// rules for void elements would close at once and then choke on the closing
+// tag. Only when that fails is it read again with the HTML rules, for a page
+// that is HTML pretending to be XML.
 func parseXMLDoc(body []byte) (*html.Node, error) {
+	doc, err := parseXMLWith(body, nil)
+	if err == nil {
+		return doc, nil
+	}
+	if doc, err2 := parseXMLWith(body, xml.HTMLAutoClose); err2 == nil {
+		return doc, nil
+	}
+	return nil, err
+}
+
+func parseXMLWith(body []byte, autoClose []string) (*html.Node, error) {
 	dec := xml.NewDecoder(bytes.NewReader(body))
 	dec.Strict = false
-	dec.AutoClose = xml.HTMLAutoClose
+	dec.AutoClose = autoClose
 	dec.Entity = xml.HTMLEntity
 	dec.CharsetReader = func(label string, in io.Reader) (io.Reader, error) {
 		return charset.NewReaderLabel(label, in)

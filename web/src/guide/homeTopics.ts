@@ -34,6 +34,27 @@ export const HOME_TOPICS: TopicDef[] = [
     sources: [{ file: 'home/watching.md' }],
   },
   {
+    id: 'home-livetv',
+    title: 'Live TV',
+    summary: 'Channels from your library, streams and free live channels; packs and the AI builder; scheduling like a network; Real TV; Jellyfin, Plex and IPTV apps.',
+    group: HOME_GROUP,
+    sources: [{ file: 'home/live-tv.md' }],
+  },
+  {
+    id: 'home-ai',
+    title: 'The AI',
+    summary: 'Ollama, Claude or another server; the Ask bar and every AI feature; the models and what they cost.',
+    group: HOME_GROUP,
+    sources: [{ file: 'home/ai.md' }],
+  },
+  {
+    id: 'home-marquee',
+    title: 'The Marquee',
+    summary: 'The lobby display for a tablet or a screen by the TV: screens and the phone remote, seven looks, what it shows, your slides and pre-show, theme music, Home Assistant and the API.',
+    group: HOME_GROUP,
+    sources: [{ file: 'home/marquee.md' }],
+  },
+  {
     id: 'home-troubleshooting',
     title: 'When something goes wrong',
     summary: 'Docker stopped after a Windows update, slow streams, the AI, Jellyfin not showing new titles.',

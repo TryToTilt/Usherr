@@ -13,6 +13,14 @@ export function timeAgo(iso: string | undefined): string {
   return new Date(then).toLocaleDateString(locale())
 }
 
+// A title with what tells it from another show of the same name: "Shameless (UK)".
+// The tag comes from the server and is only there when two titles share a name. A tag
+// that is the year is left out when the screen shows the year next to the title anyway.
+export function withNameTag(title: string, tag?: string, year?: number): string {
+  if (!tag || (year && tag === String(year))) return title
+  return `${title} (${tag})`
+}
+
 export function formatBytes(bytes: number): string {
   if (!bytes) return '—'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']

@@ -259,7 +259,11 @@ func mapSpecial(rel parser.Release, showTitle string, episodes []library.Episode
 
 // parseFor parses a release name for series (mapped when it is anime or daily).
 func parseFor(mapper func(parser.Release) parser.Release, title string) parser.Release {
-	rel := parser.Parse(title)
+	return mapped(mapper, parser.Parse(title))
+}
+
+// mapped is a parsed release as the series' mapper reads it (anime or daily).
+func mapped(mapper func(parser.Release) parser.Release, rel parser.Release) parser.Release {
 	if mapper != nil {
 		rel = mapper(rel)
 	}

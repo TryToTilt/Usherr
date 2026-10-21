@@ -56,6 +56,13 @@ func TestHuntLeavesNoUpgradeMoviesAlone(t *testing.T) {
 			} else {
 				server.TestRSSSync(context.Background())
 			}
+			if tc.wantGrabs > 0 {
+				// Expected grabs are waited for; the none-expected case below can
+				// only be shown by waiting a little and seeing nothing arrive.
+				waitFor(t, "the expected downloads to be queued", func() bool {
+					return len(getJSON[[]map[string]any](t, client, httpSrv.URL+"/api/queue")) >= tc.wantGrabs
+				})
+			}
 			time.Sleep(200 * time.Millisecond)
 			if q := getJSON[[]map[string]any](t, client, httpSrv.URL+"/api/queue"); len(q) != tc.wantGrabs {
 				t.Fatalf("queued %d downloads, want %d: %+v", len(q), tc.wantGrabs, q)

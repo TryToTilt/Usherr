@@ -97,22 +97,4 @@ func (c *Client) PersonFilms(ctx context.Context, id int) (directed []Movie, act
 }
 
 // Person is someone's TMDB page: who they are, for the person page.
-type Person struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	Biography   string `json:"biography"`
-	Birthday    string `json:"birthday"`
-	Deathday    string `json:"deathday"`
-	Place       string `json:"place_of_birth"`
-	Known       string `json:"known_for_department"`
-	ProfilePath string `json:"profile_path"`
-}
-
-// GetPerson reads a person's TMDB page.
-func (c *Client) GetPerson(ctx context.Context, id int) (*Person, error) {
-	var p Person
-	if err := c.get(ctx, "/person/"+strconv.Itoa(id), nil, &p); err != nil {
-		return nil, err
-	}
-	return &p, nil
-}
+// A person's page reads GetPerson (people.go, from upstream).

@@ -10,19 +10,39 @@ import (
 )
 
 type castPayload struct {
-	ID         int    `json:"id,omitempty"` // home fork: the person page
+	// ID is the person's TMDB id, which opens their page; 0 when TMDB gave none.
+	ID         int    `json:"id,omitempty"`
 	Name       string `json:"name"`
 	Character  string `json:"character"`
 	ProfileURL string `json:"profileUrl,omitempty"`
 }
 
-// detailCastCount is how many billed actors the detail pages show.
-const detailCastCount = 12
+// crewPayload is a director, writer or creator of a title.
+type crewPayload struct {
+	ID         int    `json:"id,omitempty"`
+	Name       string `json:"name"`
+	Job        string `json:"job"` // "Director", "Writer" or "Creator"
+	ProfileURL string `json:"profileUrl,omitempty"`
+}
+
+// detailCastCount is how many billed actors the detail pages send; the page
+// shows the first dozen and the rest behind "Show all".
+const detailCastCount = 30
 
 func castPayloads(cast []metadata.CastMember) []castPayload {
 	out := make([]castPayload, len(cast))
 	for i, c := range cast {
 		out[i] = castPayload{ID: c.ID, Name: c.Name, Character: c.Character, ProfileURL: metadata.ProfileURL(c.ProfilePath)}
+	}
+	return out
+}
+
+func crewPayloads(groups ...[]metadata.CrewMember) []crewPayload {
+	out := []crewPayload{}
+	for _, g := range groups {
+		for _, c := range g {
+			out = append(out, crewPayload{ID: c.ID, Name: c.Name, Job: c.Job, ProfileURL: metadata.ProfileURL(c.ProfilePath)})
+		}
 	}
 	return out
 }
@@ -45,20 +65,24 @@ type movieDetailPayload struct {
 
 	// From TMDB. ReleaseStatus is TMDB's own status ("Released", "In
 	// Production"...), kept apart from Status above, the library state.
-	Genres        []string           `json:"genres"`
-	Rating        float64            `json:"rating"`
-	VoteCount     int                `json:"voteCount"`
-	Runtime       int                `json:"runtime,omitempty"` // minutes
-	Tagline       string             `json:"tagline,omitempty"`
-	Certification string             `json:"certification,omitempty"`
-	ReleaseDate   string             `json:"releaseDate,omitempty"`
-	ReleaseStatus string             `json:"releaseStatus,omitempty"`
-	Language      string             `json:"language,omitempty"`
-	Homepage      string             `json:"homepage,omitempty"`
-	IMDBID        string             `json:"imdbId,omitempty"`
-	Directors     []string           `json:"directors"`
-	Cast          []castPayload      `json:"cast"`
-	Trailers      []metadata.Trailer `json:"trailers"`
+	Genres        []string `json:"genres"`
+	Rating        float64  `json:"rating"`
+	VoteCount     int      `json:"voteCount"`
+	Runtime       int      `json:"runtime,omitempty"` // minutes
+	Tagline       string   `json:"tagline,omitempty"`
+	Certification string   `json:"certification,omitempty"`
+	ReleaseDate   string   `json:"releaseDate,omitempty"`
+	// ReleaseDates are the cinema and digital dates in the person's country
+	// (the one of the info language), with a fallback when it lists none.
+	ReleaseDates  metadata.MovieReleaseDates `json:"releaseDates"`
+	ReleaseStatus string                     `json:"releaseStatus,omitempty"`
+	Language      string                     `json:"language,omitempty"`
+	Homepage      string                     `json:"homepage,omitempty"`
+	IMDBID        string                     `json:"imdbId,omitempty"`
+	Directors     []string                   `json:"directors"`
+	Crew          []crewPayload              `json:"crew"` // directors and writers, with ids
+	Cast          []castPayload              `json:"cast"`
+	Trailers      []metadata.Trailer         `json:"trailers"`
 	// Collection is the series of films this one is part of, when it is.
 	Collection *collectionRef `json:"collection,omitempty"`
 }
@@ -88,9 +112,10 @@ func (s *Server) handleTMDBMovieDetail(w http.ResponseWriter, r *http.Request) {
 		Overview: tmdbMovie.Overview, PosterURL: metadata.PosterURL(tmdbMovie.PosterPath), BackdropURL: metadata.BackdropURL(tmdbMovie.BackdropPath),
 		Genres: s.displayTMDB().MovieGenres(r.Context(), tmdbMovie.Movie), Rating: metadata.RoundRating(tmdbMovie.VoteAverage),
 		VoteCount: tmdbMovie.VoteCount, Runtime: tmdbMovie.Runtime, Tagline: tmdbMovie.Tagline,
-		Certification: tmdbMovie.Certification(), ReleaseDate: tmdbMovie.ReleaseDate, ReleaseStatus: tmdbMovie.Status,
+		Certification: tmdbMovie.Certification(), ReleaseDate: tmdbMovie.ReleaseDate, ReleaseDates: tmdbMovie.ReleaseDatesFor(s.releaseRegion()), ReleaseStatus: tmdbMovie.Status,
 		Language: tmdbMovie.OriginalLanguage, Homepage: tmdbMovie.Homepage, IMDBID: tmdbMovie.IMDBID,
 		Directors: tmdbMovie.Directors(),
+		Crew:      crewPayloads(tmdbMovie.DirectorCrew(), tmdbMovie.WriterCrew()),
 		Cast:      castPayloads(tmdbMovie.Cast(detailCastCount)), Trailers: tmdbMovie.Trailers(),
 		Collection: collectionRefOf(tmdbMovie.BelongsToCollection),
 	}
@@ -161,6 +186,7 @@ type tvDetailPayload struct {
 	Homepage      string             `json:"homepage,omitempty"`
 	IMDBID        string             `json:"imdbId,omitempty"`
 	Creators      []string           `json:"creators"`
+	Crew          []crewPayload      `json:"crew"` // the creators, with ids
 	SeasonList    []seasonPayload    `json:"seasonList"`
 	Cast          []castPayload      `json:"cast"`
 	Trailers      []metadata.Trailer `json:"trailers"`
@@ -215,7 +241,7 @@ func (s *Server) handleTMDBTVDetail(w http.ResponseWriter, r *http.Request) {
 		ContentRating: show.ContentRating(), Genres: s.displayTMDB().ShowGenres(r.Context(), show.Show),
 		Rating: metadata.RoundRating(show.VoteAverage), VoteCount: show.VoteCount,
 		ReleaseStatus: show.Status, Tagline: show.Tagline, Language: show.OriginalLanguage, Homepage: show.Homepage,
-		IMDBID: show.ExternalIDs.IMDBID, Creators: show.Creators(), SeasonList: seasonPayloads(show.Seasons),
+		IMDBID: show.ExternalIDs.IMDBID, Creators: show.Creators(), Crew: crewPayloads(show.CreatorCrew()), SeasonList: seasonPayloads(show.Seasons),
 		Cast: castPayloads(show.Cast(detailCastCount)), Trailers: show.Trailers(),
 	}
 

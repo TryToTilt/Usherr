@@ -1,7 +1,8 @@
-import { Suspense, lazy, useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState, type ReactNode } from 'react'
 import { useStreamed } from '../home/useHave' // Usherr
 import { describeState } from '../components/state' // Usherr
 import VoteButtons from '../home/VoteButtons' // home fork
+import StackButton from '../home/StackButton' // Usherr: your stack
 import { SkipGuide, WhatsItLike } from '../home/AIGuides' // home fork
 import { StreamingOn } from '../home/Recipes' // home fork
 import { ScoresLine } from '../home/scores' // home fork
@@ -9,7 +10,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import AddDialog from '../components/AddDialog'
 import Icon from '../components/Icon'
 import TitleHero from '../components/TitleHero'
-import { CastCard, SeasonsCard, titleLinks } from '../components/TitlePreview'
+import { CastCard, PeopleLinks, SeasonsCard, titleLinks } from '../components/TitlePreview'
+import { crewWith } from '../people'
 import { api, type TVDetail } from '../api'
 import { useDocumentTitle } from '../documentTitle'
 import { t } from '../i18n'
@@ -50,14 +52,15 @@ export default function ShowDetail() {
   if (error) return <p className="error-text">{error}</p>
   if (!show) return <div className="skeleton" style={{ height: 380, borderRadius: 22 }} />
 
+  const creators = crewWith(show.crew, 'Creator')
   const facts = [
-    show.creators?.length ? { label: show.creators.length > 1 ? t('Creators') : t('Creator'), value: show.creators.join(', ') } : null,
+    creators.length ? { label: creators.length > 1 ? t('Creators') : t('Creator'), value: <PeopleLinks people={creators} /> } : null,
     show.firstAirDate ? { label: t('First aired'), value: show.firstAirDate } : null,
     show.seasons ? { label: t('Seasons'), value: String(show.seasons) } : null,
     show.episodes ? { label: t('Episodes'), value: String(show.episodes) } : null,
     show.networks?.length ? { label: t('Network'), value: show.networks.join(', ') } : null,
     show.releaseStatus ? { label: t('Status'), value: showStatusLabel(undefined, show.releaseStatus) ?? show.releaseStatus } : null, // home fork: in words
-  ].filter(Boolean) as { label: string; value: string }[]
+  ].filter(Boolean) as { label: string; value: ReactNode }[]
 
   return (
     <div>
@@ -81,6 +84,7 @@ export default function ShowDetail() {
             <CatchUp tmdbId={show.tmdbId} /> {/* home fork */}
             <WhatsItLike kind="tv" tmdbId={show.tmdbId} title={show.title} /> {/* home fork */}
             <VoteButtons kind="tv" refId={show.tmdbId} meta={{ title: show.title, year: show.year, image: show.posterUrl }} /> {/* home fork */}
+            <StackButton item={{ kind: 'tv', tmdbId: show.tmdbId, title: show.title, year: show.year, posterUrl: show.posterUrl }} /> {/* Usherr */}
             <SkipGuide tmdbId={show.tmdbId} title={show.title} /> {/* home fork */}
           </>
         }

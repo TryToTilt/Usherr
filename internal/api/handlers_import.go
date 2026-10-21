@@ -41,6 +41,9 @@ type importCandidatePayload struct {
 	Year       int    `json:"year"`
 	PosterURL  string `json:"posterUrl,omitempty"`
 	PosterPath string `json:"-"`
+	// NameTag tells this candidate from another of the same name in the list
+	// ("US", "UK" or the year); "" when no other candidate has its name.
+	NameTag string `json:"nameTag,omitempty"`
 }
 
 type importItemPayload struct {
@@ -255,6 +258,7 @@ func (s *Server) runImportScan(job *importJob) {
 			for c, cand := range cands {
 				payload[c] = importCandidatePayload{TMDBID: cand.TMDBID, Title: cand.Title, Year: cand.Year, PosterURL: metadata.PosterURL(cand.PosterPath), PosterPath: cand.PosterPath}
 			}
+			tagImportCandidates(payload, cands)
 			job.mu.Lock()
 			items[i].Match, items[i].Candidates, items[i].InLibrary = status, payload, inLibrary
 			if matchErr != nil {
@@ -313,7 +317,7 @@ func (s *Server) matchGroup(ctx context.Context, kind libimport.Kind, g libimpor
 			return libimport.MatchUnmatched, nil, err
 		}
 		for _, sh := range shows {
-			cands = append(cands, libimport.Candidate{TMDBID: sh.TMDBID, Title: sh.Name, Year: sh.Year(), PosterPath: sh.PosterPath, OriginalTitle: sh.OriginalName, Adult: sh.Adult})
+			cands = append(cands, libimport.Candidate{TMDBID: sh.TMDBID, Title: sh.Name, Year: sh.Year(), PosterPath: sh.PosterPath, OriginalTitle: sh.OriginalName, Adult: sh.Adult, Countries: sh.OriginCountry})
 		}
 	}
 	status, ordered := libimport.Decide(g.Title, g.Year, cands)
@@ -409,6 +413,14 @@ func (s *Server) handleTMDBSearch(w http.ResponseWriter, r *http.Request) {
 		newestFirst(shows, query, func(sh metadata.Show) string { return sh.Name }, func(sh metadata.Show) int { return sh.Year() })
 		for _, sh := range shows {
 			out = append(out, importCandidatePayload{TMDBID: sh.TMDBID, Title: sh.Name, Year: sh.Year(), PosterURL: metadata.PosterURL(sh.PosterPath)})
+		}
+		items := make([]nameItem, len(shows))
+		for i, sh := range shows {
+			items[i] = nameItem{id: int64(sh.TMDBID), title: sh.Name, year: sh.Year(), country: countryName(sh.OriginCountry)}
+		}
+		tags := nameTagsFor(items)
+		for i := range out {
+			out[i].NameTag = tags[int64(out[i].TMDBID)]
 		}
 	default:
 		movies, err := s.TMDB().SearchMovies(r.Context(), query)

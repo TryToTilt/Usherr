@@ -11,7 +11,10 @@ package api
 
 import (
 	"context"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -22,13 +25,15 @@ import (
 )
 
 const (
-	keyCinemaOn      = "home.cinema.on"      // "0" hides the cinema rows and calendar openings
-	keyCinemaRegion  = "home.cinema.region"  // the country whose cinemas count, as TMDB's two-letter code (default "US")
-	keyCinemaZip     = "home.cinema.zip"     // the household's ZIP or postcode, for "where else is it playing"
-	keyCinemaTheatre = "home.cinema.theatre" // the theater the household goes to, by name
-	keyCinemaAMCKey  = "home.cinema.amc_key" // the household's own AMC vendor key (kept encrypted), for showtimes
-	cinemaPages      = 2                     // pages of TMDB's lists (20 films each)
-	cinemaCacheFor   = 6 * time.Hour
+	keyCinemaOn         = "home.cinema.on"          // "0" hides the cinema rows and calendar openings
+	keyCinemaRegion     = "home.cinema.region"      // the country whose cinemas count, as TMDB's two-letter code (default "US")
+	keyCinemaZip        = "home.cinema.zip"         // the household's ZIP or postcode, for "where else is it playing"
+	keyCinemaTheatre    = "home.cinema.theatre"     // the theater the household goes to, by name
+	keyCinemaAMCKey     = "home.cinema.amc_key"     // the household's own AMC vendor key (kept encrypted), for showtimes
+	keyCinemaTickets    = "home.cinema.tickets"     // Usherr: where Tickets goes: see cinemaTicketServices ("" is Fandango in the US)
+	keyCinemaTicketsURL = "home.cinema.tickets_url" // Usherr: a link of your own, with {title} and {zip}, for "custom"
+	cinemaPages         = 2                         // pages of TMDB's lists (20 films each)
+	cinemaCacheFor      = 6 * time.Hour
 )
 
 var (
@@ -119,6 +124,8 @@ func (s *Server) handleCinema(w http.ResponseWriter, r *http.Request) {
 	zip, _ := s.Settings.Get(keyCinemaZip)
 	theatre, _ := s.Settings.Get(keyCinemaTheatre)
 	out := map[string]any{"on": s.cinemaOn(), "region": s.cinemaRegion(), "zip": zip, "theatre": theatre, "source": "tmdb", "results": []browseItem{}}
+	out["logos"] = s.linkLogos()
+	out["tickets"], out["ticketsUrl"] = s.cinemaTickets()
 	if !s.cinemaOn() {
 		writeJSON(w, http.StatusOK, out)
 		return
@@ -134,18 +141,21 @@ func (s *Server) handleGetCinemaSettings(w http.ResponseWriter, r *http.Request)
 	zip, _ := s.Settings.Get(keyCinemaZip)
 	theatre, _ := s.Settings.Get(keyCinemaTheatre)
 	key, _ := s.Settings.Get(keyCinemaAMCKey)
-	writeJSON(w, http.StatusOK, map[string]any{"on": s.cinemaOn(), "region": s.cinemaRegion(), "zip": zip, "theatre": theatre, "hasAmcKey": key != ""})
+	tickets, ticketsURL := s.cinemaTickets()
+	writeJSON(w, http.StatusOK, map[string]any{"on": s.cinemaOn(), "region": s.cinemaRegion(), "zip": zip, "theatre": theatre, "hasAmcKey": key != "", "logos": s.linkLogos(), "tickets": tickets, "ticketsUrl": ticketsURL})
 }
 
 // PUT /api/home/cinema/settings {on, region, zip, theatre, amcKey} (admin):
 // only what's sent changes; an empty amcKey removes the key.
 func (s *Server) handlePutCinemaSettings(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		On      *bool   `json:"on"`
-		Region  *string `json:"region"`
-		Zip     *string `json:"zip"`
-		Theatre *string `json:"theatre"`
-		AMCKey  *string `json:"amcKey"`
+		On         *bool   `json:"on"`
+		Region     *string `json:"region"`
+		Zip        *string `json:"zip"`
+		Theatre    *string `json:"theatre"`
+		AMCKey     *string `json:"amcKey"`
+		Tickets    *string `json:"tickets"`    // Usherr
+		TicketsURL *string `json:"ticketsUrl"` // Usherr
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "That request couldn't be read.")
@@ -166,6 +176,22 @@ func (s *Server) handlePutCinemaSettings(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		_ = s.Settings.Set(keyCinemaZip, v, false)
+	}
+	if req.Tickets != nil {
+		v := strings.TrimSpace(*req.Tickets)
+		if !cinemaTicketServices[v] {
+			writeError(w, http.StatusBadRequest, "That isn't a ticket service Usherr knows.")
+			return
+		}
+		_ = s.Settings.Set(keyCinemaTickets, v, false)
+	}
+	if req.TicketsURL != nil {
+		v := strings.TrimSpace(*req.TicketsURL)
+		if v != "" && (len(v) > 300 || !(strings.HasPrefix(v, "https://") || strings.HasPrefix(v, "http://")) || strings.ContainsAny(v, " \t\r\n\"'<>")) {
+			writeError(w, http.StatusBadRequest, "Give the full address, starting with https://, with {title} where the film's name goes.")
+			return
+		}
+		_ = s.Settings.Set(keyCinemaTicketsURL, v, false)
 	}
 	if req.Theatre != nil {
 		v := strings.TrimSpace(*req.Theatre)
@@ -220,4 +246,133 @@ func (s *Server) cinemaCalendarEntries(ctx context.Context) []calendarEntryPaylo
 		add(m, "In theaters")
 	}
 	return out
+}
+
+// Usherr: a picture of the household's own on each ticket service's button
+// (its logo, say), uploaded in Settings > Extras > In theaters and kept in
+// the config folder (link-logos/fandango.png and so on). Nothing is shipped: without
+// it the app draws a plain button with the service's name.
+var linkLogoTypes = map[string]string{".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg"}
+
+// linkLogos says which services have a picture of the household's own.
+func (s *Server) linkLogos() map[string]bool {
+	out := map[string]bool{}
+	for name := range cinemaTicketServices {
+		if name != "" && name != "off" && s.linkLogoFile(name) != "" {
+			out[name] = true
+		}
+	}
+	return out
+}
+
+func (s *Server) linkLogoFile(name string) string {
+	if name == "" || name == "off" || !cinemaTicketServices[name] {
+		return ""
+	}
+	for ext := range linkLogoTypes {
+		p := filepath.Join(s.cfg.ConfigDir, "link-logos", name+ext)
+		if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() && st.Size() < 2<<20 {
+			return p
+		}
+	}
+	return ""
+}
+
+// GET /api/home/link-logo/{name} (member): that logo, when there is one.
+func (s *Server) handleLinkLogo(w http.ResponseWriter, r *http.Request) {
+	p := s.linkLogoFile(r.PathValue("name"))
+	if p == "" {
+		http.NotFound(w, r)
+		return
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", linkLogoTypes[filepath.Ext(p)])
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	http.ServeContent(w, r, "", st.ModTime(), f)
+}
+
+// PUT /api/home/link-logo/{name} (admin, multipart "file"): a picture of the
+// household's own for that link's button (PNG, JPG or WebP, 2 MB at most).
+func (s *Server) handlePutLinkLogo(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" || name == "off" || !cinemaTicketServices[name] {
+		http.NotFound(w, r)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 2<<20+64<<10)
+	f, _, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Choose a picture of 2 MB or less.")
+		return
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, 2<<20+1))
+	if err != nil || len(data) > 2<<20 {
+		writeError(w, http.StatusBadRequest, "Choose a picture of 2 MB or less.")
+		return
+	}
+	ext := ""
+	switch http.DetectContentType(data) {
+	case "image/png":
+		ext = ".png"
+	case "image/jpeg":
+		ext = ".jpg"
+	case "image/webp":
+		ext = ".webp"
+	default:
+		writeError(w, http.StatusBadRequest, "That isn't a PNG, JPG or WebP picture.")
+		return
+	}
+	dir := filepath.Join(s.cfg.ConfigDir, "link-logos")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		writeError(w, http.StatusInternalServerError, "The picture couldn't be saved.")
+		return
+	}
+	s.removeLinkLogo(name)
+	if err := os.WriteFile(filepath.Join(dir, name+ext), data, 0o644); err != nil {
+		writeError(w, http.StatusInternalServerError, "The picture couldn't be saved.")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// DELETE /api/home/link-logo/{name} (admin): back to the plain button.
+func (s *Server) handleDeleteLinkLogo(w http.ResponseWriter, r *http.Request) {
+	if name := r.PathValue("name"); name == "" || name == "off" || !cinemaTicketServices[name] {
+		http.NotFound(w, r)
+		return
+	}
+	s.removeLinkLogo(r.PathValue("name"))
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) removeLinkLogo(name string) {
+	for ext := range linkLogoTypes {
+		_ = os.Remove(filepath.Join(s.cfg.ConfigDir, "link-logos", name+ext))
+	}
+}
+
+// The ticket services Tickets can open ("custom" is a link of your own, "off"
+// shows none). Each one's address is built in the app (cinema.ts).
+var cinemaTicketServices = map[string]bool{"": true, "fandango": true, "atom": true, "cinemark": true, "moviefone": true, "showtimes": true, "custom": true, "off": true}
+
+// cinemaTickets is the ticket service chosen, and the custom link.
+func (s *Server) cinemaTickets() (string, string) {
+	v, _ := s.Settings.Get(keyCinemaTickets)
+	u, _ := s.Settings.Get(keyCinemaTicketsURL)
+	if !cinemaTicketServices[v] {
+		v = ""
+	}
+	return v, u
 }

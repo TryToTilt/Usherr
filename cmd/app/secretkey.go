@@ -21,7 +21,7 @@ func loadSecretKey(db *sql.DB, path string) (*crypto.Box, error) {
 			return nil, fmt.Errorf("check the database for stored secrets: %w", err)
 		}
 		if used {
-			return nil, fmt.Errorf("app.db has saved passwords and keys but there is no secret.key in %s: put your old secret.key back in that folder, or if it is gone for good, move app.db away to start again", filepath.Dir(path))
+			return nil, fmt.Errorf("app.db has saved passwords and keys but there is no secret.key in %s: put your old secret.key back in that folder, or if it is gone for good, run 'app reset-key' to clear the saved passwords and keys that can no longer be read and enter them again, or move app.db away to start again", filepath.Dir(path))
 		}
 	}
 	return crypto.LoadOrCreateKey(path)

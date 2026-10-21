@@ -106,7 +106,8 @@ func (s *Server) handleCreateAdmin(w http.ResponseWriter, r *http.Request) {
 		if !s.setupCodeMatches(req.SetupCode) {
 			s.LoginLimiter.RecordFailure(ipKey)
 			slog.Warn("auth: first-run sign-up refused, the setup code was missing or wrong", "ip", ip)
-			writeError(w, http.StatusForbidden, setupCodeMessage)
+			// One whole sentence in one literal, so the screen can translate it.
+			writeError(w, http.StatusForbidden, "This Mediarium has no account yet, and it can't tell that you are on the home network, so it needs its one-time setup code. You'll find it in the Mediarium log (for example, run: docker logs mediarium). Look for \"setup code\".")
 			return
 		}
 	}

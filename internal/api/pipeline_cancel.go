@@ -28,6 +28,9 @@ type pipelineRegistry struct {
 // it at most and is left behind after that; the program is exiting anyway.
 func (s *Server) Shutdown(wait time.Duration) {
 	deadline := time.Now().Add(wait)
+	if s.resumeStop != nil {
+		s.resumeStop()
+	}
 	// Nothing new starts, and a download that ends while the rest wind down
 	// does not look for the next one in a database that is about to close.
 	if s.dispatch != nil {

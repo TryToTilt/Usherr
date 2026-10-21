@@ -57,7 +57,8 @@ function Strip({ id, children }: { id: string; children: ReactNode }) {
 }
 
 export default function ComicWeekView({ admin }: { admin: boolean }) {
-  const canPull = admin || can(useAuth().user, 'comics') // home fork: or the comics switch
+  const { user } = useAuth()
+  const canPull = admin || can(user, 'comics') // home fork: or the comics switch
   const [date, setDate] = useState('')
   const [week, setWeek] = useState<ComicWeek | null>(null)
   const [error, setError] = useState('')

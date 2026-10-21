@@ -871,17 +871,22 @@ func (s *cgSession) sendsCredentials() bool {
 		return true
 	}
 	for _, st := range s.def.Settings {
-		if strings.TrimSpace(s.settings[st.Name]) == "" {
+		v := strings.TrimSpace(s.settings[st.Name])
+		if v == "" {
 			continue
 		}
 		if SecretSetting(st.Type, st.Name) {
 			return true
 		}
+		// A value that is just what the definition itself suggests (the API
+		// address YTS and The Pirate Bay save with the form) is not something
+		// the person typed in, so it cannot be a sign-in.
+		if d := strings.TrimSpace(st.Default); d != "" && v == d && !credentialSettingName(st.Name) {
+			continue
+		}
 		n := strings.ToLower(st.Name)
-		for _, c := range credentialNames {
-			if n == c {
-				return true
-			}
+		if credentialSettingName(st.Name) {
+			return true
 		}
 		// Any other filled-in text or password setting is taken for a credential
 		// too (a session id, a hash, an "auth" value), apart from the few that
@@ -904,12 +909,23 @@ func (s *cgSession) sendsCredentials() bool {
 	return false
 }
 
+// credentialSettingName reports whether a setting is named like a sign-in.
+func credentialSettingName(name string) bool {
+	n := strings.ToLower(name)
+	for _, c := range credentialNames {
+		if n == c {
+			return true
+		}
+	}
+	return false
+}
+
 // plainSettings are text settings that are preferences, not sign-ins.
 var plainSettings = map[string]bool{
 	"useragent": true, "user-agent": true, "user_agent": true,
 	"language": true, "lang": true, "sort": true, "sortby": true, "sort_by": true,
 	"order": true, "orderby": true, "order_by": true, "category": true, "categories": true,
-	"cat": true, "sitelink": true,
+	"cat": true, "sitelink": true, "apiurl": true, "api_url": true, "uploader": true,
 }
 
 // credentialHeader reports whether a header the definition adds can carry a

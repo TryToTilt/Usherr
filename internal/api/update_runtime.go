@@ -131,7 +131,7 @@ func (s *Server) allowPushEnabled() bool { return s.settingOn(settings.KeyUpdate
 // autoRestartEnabled is the "restart when stuck" switch (on by default).
 func (s *Server) autoRestartEnabled() bool { return s.settingOn(settings.KeyAutoRestartStuck, true) }
 
-func setBool(st *settings.Store, key string, on bool) error {
+func setBool(st settingSetter, key string, on bool) error {
 	v := "0"
 	if on {
 		v = "1"

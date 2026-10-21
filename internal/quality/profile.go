@@ -215,10 +215,19 @@ func (p Profile) Chain() []Profile {
 // AcceptsTitle reports whether a release title passes both this profile's
 // quality allow-list and its release restrictions.
 func (p Profile) AcceptsTitle(title string) bool {
-	if ok, _ := p.TitleAllowed(title); !ok {
+	l := lazyFor(title)
+	if ok, _ := p.titleAllowed(l); !ok {
 		return false
 	}
-	return p.Accepts(parser.Parse(title))
+	return p.Accepts(l.get())
+}
+
+// AcceptsTitleRel is AcceptsTitle for a title that is already parsed.
+func (p Profile) AcceptsTitleRel(title string, rel parser.Release) bool {
+	if ok, _ := p.titleAllowed(knownRel(title, rel)); !ok {
+		return false
+	}
+	return p.Accepts(rel)
 }
 
 // AcceptedBy returns the first profile in the chain (this profile, then its
@@ -278,10 +287,20 @@ func containsTerm(normalizedTitle, term string) bool {
 // TitleAllowed applies the profile's release restrictions to a release
 // title, returning the reason when it is not allowed.
 func (p Profile) TitleAllowed(title string) (bool, string) {
-	if ok, why := p.formatRestrictions(title); !ok {
+	return p.titleAllowed(lazyFor(title))
+}
+
+// TitleAllowedRel is TitleAllowed for a title that is already parsed.
+func (p Profile) TitleAllowedRel(title string, rel parser.Release) (bool, string) {
+	return p.titleAllowed(knownRel(title, rel))
+}
+
+func (p Profile) titleAllowed(l *lazyRel) (bool, string) {
+	title := l.title
+	if ok, why := p.formatRestrictions(l); !ok {
 		return false, why
 	}
-	if why := p.skipBadReason(title); why != "" {
+	if why := p.skipBadReason(l); why != "" {
 		return false, why
 	}
 	norm := normalizeForMatch(title)
@@ -313,6 +332,20 @@ func (p Profile) Score(title string) int {
 		}
 	}
 	return total
+}
+
+// PreferredHits are the preferred terms the title matches, in the order the
+// profile lists them, each with its score. Score adds them up (next to the
+// custom formats), so this is where a release's score comes from.
+func (p Profile) PreferredHits(title string) []Preferred {
+	norm := normalizeForMatch(title)
+	var hits []Preferred
+	for _, pr := range p.Preferred {
+		if containsTerm(norm, pr.Term) {
+			hits = append(hits, pr)
+		}
+	}
+	return hits
 }
 
 // AllowsTier reports whether a quality tier is in this profile's allow-list.

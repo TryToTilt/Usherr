@@ -425,18 +425,6 @@ func (f flushWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-func sleepCtx(ctx context.Context, d time.Duration) bool {
-	if d <= 0 {
-		return ctx.Err() == nil
-	}
-	select {
-	case <-ctx.Done():
-		return false
-	case <-time.After(d):
-		return true
-	}
-}
-
 // ---- Jellyfin ----
 
 // GET /api/tv/tuner: the feed addresses (admin), for setting up an IPTV app

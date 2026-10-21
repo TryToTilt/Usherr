@@ -64,7 +64,7 @@ func (s *Server) handleMigratePreview(w http.ResponseWriter, r *http.Request) {
 	pv, err := s.migrator.Preview(r.Context(), req)
 	if err != nil {
 		slog.Error("migrate: preview", "err", err)
-		writeError(w, http.StatusInternalServerError, "Couldn't read Mediarium's own library: "+err.Error())
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("Couldn't read Mediarium's own library: %s", err.Error()))
 		return
 	}
 	writeJSON(w, http.StatusOK, pv)

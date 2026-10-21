@@ -92,14 +92,22 @@ func queueKind(it queue.Item) string {
 // workDirFor is the working folder of queue item id: directly in the working
 // folder, or inside its category's folder when the built-in torrent client
 // filed it under one.
+//
+// A download that already has a folder keeps using it, wherever that is (the
+// downloads folder or a temporary download folder, now or earlier); one that
+// has not started goes where new downloads go (see newWorkRoot).
 func (s *Server) workDirFor(id int64) string {
-	root := s.downloadsIncompleteDir()
-	if s.TorrentOpts != nil {
-		if o, ok, _ := s.TorrentOpts.Get(id); ok && o.Subfolder != "" {
-			return filepath.Join(root, o.Subfolder, fmt.Sprintf("queue-%d", id))
-		}
+	if d, ok := s.existingWorkDir(id); ok {
+		return d
 	}
-	return filepath.Join(root, fmt.Sprintf("queue-%d", id))
+	return s.workDirIn(s.newWorkRoot(), id)
+}
+
+// defaultWorkDirFor is workDirFor for a download that must stay in the
+// downloads folder (an external client's links, which are never worked on in the
+// temporary folder).
+func (s *Server) defaultWorkDirFor(id int64) string {
+	return s.workDirIn(s.downloadsIncompleteDir(), id)
 }
 
 // categoryFolders lists the folders inside the working folder that hold
@@ -161,8 +169,13 @@ func (s *Server) assignTorrentDir(queueID int64) string {
 		return s.workDirFor(queueID)
 	}
 	name, sub := "", ""
-	plain := filepath.Join(s.downloadsIncompleteDir(), fmt.Sprintf("queue-%d", queueID))
-	if !fileExists(plain) { // files an earlier version left stay where they are
+	plainExists := false
+	for _, root := range s.workRoots() {
+		if fileExists(filepath.Join(root, fmt.Sprintf("queue-%d", queueID))) {
+			plainExists = true
+		}
+	}
+	if !plainExists { // files an earlier version left stay where they are
 		if item, err := s.QueueRepo.Get(queueID); err == nil {
 			if cat, ok := s.torrentCategoryConfig().For(queueKind(item)); ok {
 				name, sub = cat.Name, cat.Subfolder
@@ -175,14 +188,60 @@ func (s *Server) assignTorrentDir(queueID int64) string {
 	return s.workDirFor(queueID)
 }
 
+// indexerOfRelease says which indexer gave the release at url: the one a recent
+// search remembers, or else the one whose address the URL starts with (a
+// Torznab or Prowlarr address up to its /api). The second way still works after
+// a restart. A magnet link carries no address, so only the first can name it.
+func (s *Server) indexerOfRelease(url string) (int64, bool) {
+	if s.IndexerRepo == nil || url == "" {
+		return 0, false
+	}
+	if id, ok := s.IndexerRepo.Tracker().SourceOf(url); ok {
+		// The indexer may have been removed since that search.
+		if _, err := s.IndexerRepo.Get(id); err == nil {
+			return id, true
+		}
+	}
+	list, err := s.IndexerRepo.List()
+	if err != nil {
+		return 0, false
+	}
+	var best int64
+	bestLen, tie := 0, false
+	for _, inst := range list {
+		base := strings.TrimSuffix(strings.TrimRight(strings.TrimSpace(inst.BaseURL), "/"), "/api")
+		if base == "" || !strings.HasPrefix(url, base+"/") {
+			continue
+		}
+		switch {
+		case len(base) > bestLen:
+			best, bestLen, tie = inst.ID, len(base), false
+		case len(base) == bestLen:
+			tie = true
+		}
+	}
+	if bestLen == 0 || tie {
+		return 0, false
+	}
+	return best, true
+}
+
 // torrentSeedGoal is when a finished torrent stops seeding: the global limits,
 // except where the indexer it came from has rules of its own.
 func (s *Server) torrentSeedGoal(queueID int64) torrentclient.SeedGoal {
 	ratio, hours := s.torrentSeedRatioLimit(), s.torrentSeedTimeLimit().Hours()
 	if s.TorrentOpts != nil {
-		if item, err := s.QueueRepo.Get(queueID); err == nil && item.IndexerID.Valid {
-			if rule, err := s.TorrentOpts.SeedRule(item.IndexerID.Int64); err == nil {
-				ratio, hours = rule.Goal(ratio, hours)
+		if item, err := s.QueueRepo.Get(queueID); err == nil {
+			// Items queued before the indexer was remembered have none: work it
+			// out from the release's address.
+			id, ok := item.IndexerID.Int64, item.IndexerID.Valid
+			if !ok {
+				id, ok = s.indexerOfRelease(item.NZBURL)
+			}
+			if ok {
+				if rule, err := s.TorrentOpts.SeedRule(id); err == nil {
+					ratio, hours = rule.Goal(ratio, hours)
+				}
 			}
 		}
 	}
@@ -325,7 +384,7 @@ func (s *Server) handlePutTorrentOptions(w http.ResponseWriter, r *http.Request)
 		}
 		var err error
 		if cats, err = cats.Validate(); err != nil {
-			writeError(w, http.StatusBadRequest, "Categories: "+err.Error()+".")
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("Categories: %s.", err.Error()))
 			return
 		}
 	}

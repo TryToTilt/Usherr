@@ -127,6 +127,26 @@ func (c *Client) BrowseTV(ctx context.Context, f BrowseFilter) (*ShowPage, error
 	return c.showPage(ctx, "/discover/tv", q)
 }
 
+// FindShowByTVDB looks a TheTVDB series id up on TMDB and gives the show's
+// TMDB id, or 0 when TMDB doesn't know it.
+func (c *Client) FindShowByTVDB(ctx context.Context, tvdbID int) (int, error) {
+	if tvdbID <= 0 {
+		return 0, fmt.Errorf("find by tvdb id: %d is not a TheTVDB id", tvdbID)
+	}
+	var resp struct {
+		TVResults []struct {
+			ID int `json:"id"`
+		} `json:"tv_results"`
+	}
+	if err := c.get(ctx, "/find/"+strconv.Itoa(tvdbID), url.Values{"external_source": {"tvdb_id"}}, &resp); err != nil {
+		return 0, err
+	}
+	if len(resp.TVResults) > 0 {
+		return resp.TVResults[0].ID, nil
+	}
+	return 0, nil
+}
+
 // FindByIMDB looks an IMDb id (like tt0133093) up on TMDB. It gives the
 // movie's and the show's TMDB id; whichever TMDB doesn't know is 0.
 func (c *Client) FindByIMDB(ctx context.Context, imdbID string) (movieID, showID int, err error) {

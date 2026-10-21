@@ -244,7 +244,7 @@ func (s *Server) handleAddArtist(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	} else if ok {
-		writeError(w, http.StatusConflict, existing.Name+" is already in your library")
+		writeError(w, http.StatusConflict, fmt.Sprintf("%s is already in your library", existing.Name))
 		return
 	}
 
@@ -542,8 +542,10 @@ func (s *Server) removeAlbumDownloads(albumIDs map[int64]bool, title string) err
 		if running || isActiveStatus(it.Status) {
 			cancelled++
 		}
+		ref, inClient := s.clientRefFor(it)
 		s.removeWorkDir(s.workDirFor(it.ID))
 		_ = s.QueueRepo.Delete(it.ID)
+		s.removeFromClient(ref, inClient, false)
 	}
 	if cancelled > 0 {
 		_ = s.QueueRepo.LogActivity(0, "removed", fmt.Sprintf("Cancelled %s of %s and removed their files from the downloads folder", plural(cancelled, "download"), title))

@@ -41,6 +41,11 @@ func TestEbookSearchAddGrabImport(t *testing.T) {
 	server.TestSetOpenLibrary(newFakeOpenLibrary(t).URL)
 	root := t.TempDir()
 	ebooks, audiobooks := filepath.Join(root, "ebooks"), filepath.Join(root, "audiobooks")
+	for _, d := range []string{ebooks, audiobooks} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	postJSONMethod[map[string]any](t, client, http.MethodPut, base+"/api/modules", map[string]any{"ebooks": true}, http.StatusOK)
 	postJSONMethod[map[string]any](t, client, http.MethodPut, base+"/api/settings", map[string]any{"ebooksPath": ebooks, "audiobooksPath": audiobooks}, http.StatusOK)
 
@@ -123,6 +128,9 @@ func TestImportBooksAlreadyOnDisk(t *testing.T) {
 	server, base, client := loginNewServer(t)
 	server.TestSetOpenLibrary(newFakeOpenLibrary(t).URL)
 	ebooks := filepath.Join(t.TempDir(), "ebooks")
+	if err := os.MkdirAll(ebooks, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	postJSONMethod[map[string]any](t, client, http.MethodPut, base+"/api/modules", map[string]any{"ebooks": true}, http.StatusOK)
 	postJSONMethod[map[string]any](t, client, http.MethodPut, base+"/api/settings", map[string]any{"ebooksPath": ebooks}, http.StatusOK)
 	hobbit := filepath.Join(ebooks, "J.R.R. Tolkien", "The Hobbit (1937)", "The Hobbit - J.R.R. Tolkien.epub")

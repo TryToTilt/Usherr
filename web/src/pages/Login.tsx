@@ -13,6 +13,7 @@ import { FieldError, FormProblem, useValidation } from '../useValidation'
 import { LANGUAGES, chooseLanguage, currentLanguage, plural, t, tx, type Lang } from '../i18n'
 import { withBase } from '../base'
 import { takeRestored } from '../restoreNotice'
+import { signedOutForIdle } from '../sessionEnd'
 
 // Reads the problem code from the address and takes it out again, so a reload doesn't show it twice.
 function takeSignInError(): string {
@@ -34,6 +35,7 @@ export default function Login() {
   const [methods, setMethods] = useState<SignInMethods>({ local: true, oidc: null, ldap: false, passkeys: false })
   const [problemCode] = useState(takeSignInError)
   const [restored] = useState(() => takeRestored())
+  const [idle] = useState(() => signedOutForIdle()) // the server ended the session for sitting unused
   useEffect(() => {
     api.signInMethods().then(setMethods).catch(() => undefined)
   }, [])
@@ -113,6 +115,7 @@ export default function Login() {
         </div>
         <p className="auth-sub">{t('Sign in to continue')}</p>
         {restored && !error && <p className="auth-done" role="status">{t('The backup was restored. Sign in again.')}</p>}
+        {idle && !restored && !error && <p className="auth-done" role="status">{t('You were signed out because of inactivity.')}</p>}
         {error && <p className="error-text">{error}</p>}
         {!error && problemCode && <p className="error-text">{signInProblem(problemCode, methods.oidc?.name ?? t('single sign-on'))}</p>}
         {showForm && (

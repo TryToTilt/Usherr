@@ -3,7 +3,7 @@
 // and the static between channels.
 import { useSyncExternalStore } from 'react'
 
-export type GuideStyle = 'modern' | 'prevue' | 'cable' | 'listings' | 'nowon'
+export type GuideStyle = 'modern' | 'rounded' | 'prevue' | 'cable' | 'listings' | 'nowon'
 
 export interface TVPrefs {
   style: GuideStyle

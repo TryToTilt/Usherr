@@ -252,9 +252,9 @@ func judgeSearchLimited(results []indexers.Result, blocked map[string]bool, sour
 		}
 		if upgradeFrom != "" {
 			switch {
-			case !profile.AcceptsTitle(res.Title):
+			case !profile.AcceptsTitleRel(res.Title, res.Parsed()):
 				v.reject(qualityReason(profile, res.Title))
-			case !profile.IsUpgradeOver(upgradeFrom, upgradeRelease, res.Title):
+			case !profile.IsUpgradeOverRel(upgradeFrom, upgradeRelease, res.Title, res.Parsed()):
 				v.reject("not an upgrade over " + string(upgradeFrom))
 			default:
 				accept(res)
@@ -311,7 +311,7 @@ func (s *Server) noteMovieSearch(ctx context.Context, mode limitMode, m library.
 		return // every indexer was paused or out of searches: nothing was searched, so there is nothing to note
 	}
 	keep := func(res indexers.Result) (bool, string) {
-		rel := parser.Parse(res.Title)
+		rel := res.Parsed()
 		if !sameTitle(rel.Title, m.Title) && matchingAltTitle(rel.Title, m.AltTitles) == "" {
 			return false, "other films"
 		}
@@ -321,6 +321,7 @@ func (s *Server) noteMovieSearch(ctx context.Context, mode limitMode, m library.
 		return true, ""
 	}
 	fresh, expired := s.freshResults(indexers.MergeResults(outcomes))
+	fresh, thin := s.keepSeeded(ctx, fresh)
 	sizeWhy := s.movieSizeRejections(ctx, m, profile)
 	limit := func(res indexers.Result) string {
 		if len(sizeWhy(res.Title, res.SizeBytes)) > 0 {
@@ -335,6 +336,7 @@ func (s *Server) noteMovieSearch(ctx context.Context, mode limitMode, m library.
 	}
 	v := judgeSearchLimited(fresh, blocked, sources, profile, keep, upgradeFrom, m.ReleaseTitle, limit)
 	v.addExpired(expired, s.retentionDays())
+	v.addThin(thin)
 	v.failedIndexers = failedIndexers(outcomes)
 	what := "Searched"
 	if upgradeFrom != "" {
@@ -362,9 +364,10 @@ func (s *Server) noteTVSearch(ctx context.Context, force bool, series library.Se
 	}
 	mapper := s.releaseMapper(series)
 	keep := func(res indexers.Result) (bool, string) {
-		rel := parseFor(mapper, res.Title)
+		parsed := res.Parsed()
+		rel := mapped(mapper, parsed)
 		switch {
-		case !matchesShowFor(res.Title, series, season):
+		case !matchesShowForRel(parsed, series, season):
 			return false, "for another show"
 		case !coversTarget(rel, season, episode), episode > 0 && len(rel.Episodes) == 0:
 			if episode > 0 {
@@ -376,6 +379,7 @@ func (s *Server) noteTVSearch(ctx context.Context, force bool, series library.Se
 	}
 	profile := s.profileForSeries(profiles, series)
 	fresh, expired := s.freshResults(indexers.MergeResults(outcomes))
+	fresh, thin := s.keepSeeded(ctx, fresh)
 	sizeWhy := s.tvSizeRejections(ctx, series, profile)
 	limit := func(res indexers.Result) string {
 		if len(sizeWhy(res.Title, res.SizeBytes)) > 0 {
@@ -390,6 +394,7 @@ func (s *Server) noteTVSearch(ctx context.Context, force bool, series library.Se
 	}
 	v := judgeSearchLimited(fresh, s.searchSkipKeys(), s.sourcesFor(series.SourcePref), profile, keep, "", "", limit)
 	v.addExpired(expired, s.retentionDays())
+	v.addThin(thin)
 	v.failedIndexers = failedIndexers(outcomes)
 	what := fmt.Sprintf("Searched for season %d", season)
 	if episode > 0 {

@@ -35,17 +35,9 @@ func (s *Server) torrentsEnabled() bool {
 // every running torrent client down (downloads in flight fail with
 // errTorrentsDisabled; seeding stops).
 func (s *Server) setTorrentsEnabled(enabled bool) error {
-	value := "1"
-	if !enabled {
-		value = "0"
-	}
-	if err := s.Settings.Set(settings.KeyTorrentEnabled, value, false); err != nil {
-		return err
-	}
-	if !enabled {
-		s.torrents.stopAll()
-	}
-	return nil
+	t := &settingsSave{}
+	s.stageTorrentsEnabled(t, enabled)
+	return s.commitSettings(t)
 }
 
 // searchableIndexers is the indexer list searches and automation use: with

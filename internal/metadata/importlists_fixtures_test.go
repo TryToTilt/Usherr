@@ -82,6 +82,31 @@ func TestFindByIMDB(t *testing.T) {
 	}
 }
 
+func TestFindShowByTVDB(t *testing.T) {
+	var gotPath, gotSource string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotSource = r.URL.Path, r.URL.Query().Get("external_source")
+		if r.URL.Path == "/find/371980" {
+			_, _ = w.Write([]byte(`{"movie_results":[],"tv_results":[{"id":95396}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"movie_results":[],"tv_results":[]}`))
+	}))
+	defer srv.Close()
+	c := metadata.NewWithBaseURL("fixture-key", srv.URL)
+
+	id, err := c.FindShowByTVDB(context.Background(), 371980)
+	if err != nil || id != 95396 || gotPath != "/find/371980" || gotSource != "tvdb_id" {
+		t.Fatalf("known: %d %v (%s %s)", id, err, gotPath, gotSource)
+	}
+	if id, err := c.FindShowByTVDB(context.Background(), 12); err != nil || id != 0 {
+		t.Fatalf("unknown: %d %v", id, err)
+	}
+	if _, err := c.FindShowByTVDB(context.Background(), 0); err == nil {
+		t.Error("id 0 was accepted")
+	}
+}
+
 func TestBrowseFilterAndTopRated(t *testing.T) {
 	var queries []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

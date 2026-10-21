@@ -498,7 +498,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	out.Setup.VPN = s.VPNManager.Status().Connected
 	out.Setup.Torrents = torrentSource && s.torrentReleasesOn()
-	if list, err := s.MediaServers.List(); err == nil {
+	if list, err := s.MediaServers.ListAll(); err == nil {
 		out.Setup.MediaServers = len(list)
 	}
 

@@ -1,6 +1,6 @@
 # Import lists
 
-An import list is a list somewhere else (on Trakt, TMDB, IMDb, MDBList or Letterboxd) that Mediarium reads on a schedule. Whatever is new on it is added to your library, with the quality profile, folder, monitoring and tags you chose for that list. It is the same idea as Lists in Radarr and Sonarr.
+An import list is a list somewhere else (on Trakt, TMDB, IMDb, MDBList, Simkl or Letterboxd) that Mediarium reads on a schedule. Whatever is new on it is added to your library, with the quality profile, folder, monitoring and tags you chose for that list. It is the same idea as Lists in Radarr and Sonarr.
 
 You find it under **Settings > Info, lists and subtitles > Import lists**. It is for administrators. Nothing is added until you add a list yourself.
 
@@ -52,6 +52,17 @@ You can also give an address that serves the CSV (a file on your own server, say
 
 Needs your own MDBList API key (you make one at mdblist.com/preferences, free). Paste a list address like `https://mdblist.com/lists/name/list-name`. The key is kept encrypted, is only sent to MDBList and is never shown again. MDBList's own daily limit for your key applies; a list is read in one or a few requests.
 
+### Simkl (your own lists)
+
+A Simkl list belongs to an account, so this is the one source that needs you to sign in. It takes two steps, both in the **Simkl** card at the bottom of this page:
+
+1. **A Client ID.** The official build has one built in. Otherwise make a free one: sign in at simkl.com, open the developer settings, press **New Application**, name it Mediarium and copy the **Client ID** (not the secret). Paste it in the card. A personal Client ID also avoids the limit of a shared one.
+2. **Connect your account.** Press **Connect my Simkl account**. Mediarium shows a short code; open `simkl.com/pin`, enter the code and approve. Mediarium never sees your Simkl password. It keeps the access token it gets back encrypted and never shows it again. **Disconnect** forgets it.
+
+Then add a **Simkl list** and choose which of your lists to read: **Plan to watch**, **Watching**, **Completed**, **On hold** or **Dropped**. Movies, shows and anime on that list are read together; an anime film counts as a movie and any other anime as a show. Titles are found by their TMDB number, or by their IMDb or TheTVDB number when Simkl has no TMDB one, and by name and year as a last resort. Like every other list, it adds new titles only and never removes anything, and it uses the monitoring, folder, tags and limits you set on the list.
+
+If the saved sign-in can no longer be read (the key file `secret.key` does not belong to this database), the card says so and Health lists it. Connect again and the lists carry on. If Simkl stops accepting the sign-in, the list says so in its result and the same applies.
+
 ### Letterboxd (a CSV file)
 
 Letterboxd does not let programs read its pages (it shows them a check meant for people), so, as with IMDb, you export the file yourself: your watchlist from **Settings > Import & Export** on letterboxd.com, or a single list exported as CSV, and upload it. Letterboxd files do not carry TMDB numbers, so Mediarium finds each movie by its name and year. A title is only taken when the name matches and the year is within one year; a few titles may not be found, and the list's result says how many. Movies only.
@@ -67,6 +78,7 @@ The result under the list says why, in words. The usual ones:
 - *Add your TMDB API key first*: every list needs it to find and add titles.
 - *That Trakt list or profile is private*: make it public on Trakt.
 - *MDBList doesn't accept that API key*: copy the key again.
+- *Connect your Simkl account first*, or *Simkl no longer accepts the saved sign-in*: connect the account again in the Simkl card.
 - *That site only lets people in with a browser*: the address you gave is guarded. Export the file in your browser and upload it.
 - *TMDB has no public list with that number*: check the number. Lists made on the TMDB website recently may not be readable by programs.
 
@@ -77,6 +89,7 @@ The list is tried again at its next read.
 Everything below is for administrators.
 
 - `GET /api/import-lists` returns `{"lists": [...], "sources": [...], "plexWatchlists": [...]}`. A list never returns its file or its key: `hasCsv` and `hasKey` say they are set.
-- `POST /api/import-lists` and `PUT /api/import-lists/{id}` take `name`, `source` (`trakt-list`, `trakt-watchlist`, `trakt-chart`, `tmdb-list`, `tmdb-chart`, `imdb`, `mdblist`, `letterboxd`), `media` (`movie`, `tv`, `both`), `config` (`url`, `chart`, `count`, `genre`, `language`, `csv`), `key` (MDBList; empty keeps the saved one), `enabled`, `intervalHours` (1 to 168), `profileId` (0 = default), `movieRoot`, `tvRoot`, `monitored`, `searchNow`, `tags`, `minRating`, `minYear`, `maxPerRun` (1 to 100) and `startFresh`. A new list is read at once.
+- `POST /api/import-lists` and `PUT /api/import-lists/{id}` take `name`, `source` (`trakt-list`, `trakt-watchlist`, `trakt-chart`, `tmdb-list`, `tmdb-chart`, `imdb`, `mdblist`, `simkl`, `letterboxd`), `media` (`movie`, `tv`, `both`), `config` (`url`, `chart`, `count`, `genre`, `language`, `csv`, `status` for Simkl: `plantowatch`, `watching`, `completed`, `hold` or `dropped`), `key` (MDBList; empty keeps the saved one), `enabled`, `intervalHours` (1 to 168), `profileId` (0 = default), `movieRoot`, `tvRoot`, `monitored`, `searchNow`, `tags`, `minRating`, `minYear`, `maxPerRun` (1 to 100) and `startFresh`. A new list is read at once.
 - `PUT /api/import-lists/{id}/enabled`, `DELETE /api/import-lists/{id}`, `POST /api/import-lists/{id}/run` (answers `202`; the list shows `running` while it is read), `POST /api/import-lists/{id}/forget`, `POST /api/import-lists/preview` (the same body as create, plus an optional `id`) and `POST /api/import-lists/plex/{userId}/run`.
+- The Simkl account (administrators): `GET /api/settings/simkl` returns `{"connected", "unreadable", "hasClientId"}` and never the token. `POST /api/settings/simkl/pin` starts the sign-in and returns the `code`, the address to enter it at, `expiresIn` and `interval` in seconds. `GET /api/settings/simkl/pin/{code}` answers `{"done": false}` while the code waits, `{"done": true, "status": {...}}` once it was entered and `410` when it expired or was never handed out. `DELETE /api/settings/simkl` disconnects. The Client ID is the `simklClientId` setting.
 - Tables: `import_lists` and `import_list_items` (what each list has handled: added, in-library, existing, excluded, filtered, no-match or failed).

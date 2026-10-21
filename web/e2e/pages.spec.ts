@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { expectNoErrors, watchErrors } from './helpers'
+import { expectNoErrors, narrow, openNav, watchErrors } from './helpers'
 
 // Every main page opens without an error on a new, empty install.
 const PAGES: [string, RegExp][] = [
@@ -64,14 +64,23 @@ for (const [from, to] of MOVED) {
   })
 }
 
-test('the Settings entry always lists its groups, and one group is open at a time', async ({ page }) => {
+test('the Settings entry lists its groups once opened, and one group is open at a time', async ({ page }) => {
   await page.goto('/')
+  await openNav(page)
   const nav = page.getByRole('navigation', { name: 'Main' })
+  // Usherr: Settings folds away (to make room for your stack) until it's
+  // opened; in a phone's or tablet's menu pressing it only unfolds it.
+  const settings = nav.getByRole('link', { name: /^Settings/ }).first()
+  await expect(nav.getByRole('button', { name: /Downloading/ })).toHaveCount(0)
+  await settings.click()
+  await expect(settings).toHaveAttribute('aria-expanded', 'true')
   const library = nav.getByRole('button', { name: /^Library$/ }).last()
   const downloading = nav.getByRole('button', { name: /Downloading/ })
   await expect(library).toBeVisible()
   await library.click()
   await expect(library).toHaveAttribute('aria-expanded', 'true')
+  // a tap on a group also opens its first page, which closes the drawer on a phone
+  await openNav(page)
   await downloading.click()
   await expect(downloading).toHaveAttribute('aria-expanded', 'true')
   await expect(library).toHaveAttribute('aria-expanded', 'false')
@@ -79,10 +88,13 @@ test('the Settings entry always lists its groups, and one group is open at a tim
 
 test('the Library entry lists its kinds, and each one opens the Library on that tab', async ({ page }) => {
   await page.goto('/')
+  await openNav(page)
   const nav = page.getByRole('navigation', { name: 'Main' })
-  // Usherr: the kinds fold up under Library until it's opened.
+  // Usherr: the kinds fold up under Library until it's opened. On a wide
+  // screen pressing Library also opens the Library; in a phone's or tablet's
+  // menu it only unfolds the kinds, so the menu stays open.
   await nav.getByRole('link', { name: /^Library/ }).first().click()
-  await expect(page).toHaveURL(/\/library/)
+  if (!narrow(page)) await expect(page).toHaveURL(/\/library/)
   const movies = nav.getByRole('link', { name: 'Movies', exact: true })
   const shows = nav.getByRole('link', { name: 'TV shows', exact: true })
   await expect(movies).toBeVisible()
@@ -90,6 +102,7 @@ test('the Library entry lists its kinds, and each one opens the Library on that 
   await expect(page).toHaveURL(/\/library\?kind=tv$/)
   await expect(shows).toHaveAttribute('aria-current', 'page')
   await expect(movies).not.toHaveAttribute('aria-current', 'page')
+  await openNav(page)
   await movies.click()
   await expect(page).toHaveURL(/\/library\?kind=movie$/)
   await expect(movies).toHaveAttribute('aria-current', 'page')

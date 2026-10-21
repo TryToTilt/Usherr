@@ -150,7 +150,7 @@ a.news-title:hover { text-decoration: underline; }
 }
 
 /* Shelves (home fork): rows of posters that scroll sideways */
-.shelves { display: grid; gap: 18px; }
+.shelves { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); } /* the column is the page width; long poster rows scroll inside it */
 .shelf-head { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px; }
 .shelf-head h2 { margin: 0; font-size: 1.1rem; }
 .shelf-head .rail-more { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; background: none; border: 0; cursor: pointer; }
@@ -522,3 +522,6 @@ a.score-chip:hover { border-color: var(--accent, #2dd4bf); }
   .diary .diary-bar .diary-buttons { width: auto; }
   .diary .diary-bar .diary-buttons button { flex: none; }
 }
+/* a long label (Russian "Недавно добавленные") shortens with "…" on a phone instead of pushing the page wider */
+.shelves-bar .dropdown { min-width: 0; max-width: 100%; }
+.shelves-bar .dropdown-btn { max-width: 100%; }

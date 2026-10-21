@@ -379,3 +379,120 @@ func TestSettingsReadersDefaultToTodaysBehaviour(t *testing.T) {
 		t.Fatal("there are no categories until some are made")
 	}
 }
+
+func TestClientShareLimitsFollowTheIndexersRule(t *testing.T) {
+	s, _ := optionsServer(t)
+	inst, err := s.IndexerRepo.Create(indexers.Instance{Name: "Private", BaseURL: "https://t.example", Protocol: indexers.ProtocolTorrent, Kind: indexers.KindTorznab, Enabled: true}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, _ := s.MovieRepo.Add(library.Movie{TMDBID: 1, Title: "Film", Year: 2026})
+	id, _ := s.QueueRepo.Enqueue(queue.Item{MovieID: m.ID, IndexerID: sql.NullInt64{Int64: inst.ID, Valid: true}, ReleaseTitle: "A", Protocol: queue.ProtocolTorrent})
+	if err := s.Settings.Set(settings.KeyTorrentSeedRatioLimit, "2", false); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.clientShareLimits(id); got.Ratio != 2 || got.Time != 0 || !got.Set() {
+		t.Fatalf("global limits = %+v", got)
+	}
+	hours := 24.0
+	if err := s.TorrentOpts.SetSeedRule(inst.ID, torrentopts.SeedRule{Hours: &hours}); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.clientShareLimits(id); got.Ratio != 2 || got.Time != 24*time.Hour {
+		t.Fatalf("rule hours over the global ratio = %+v", got)
+	}
+	if err := s.Settings.Set(settings.KeyTorrentSeedRatioLimit, "0", false); err != nil {
+		t.Fatal(err)
+	}
+	zero := 0.0
+	if err := s.TorrentOpts.SetSeedRule(inst.ID, torrentopts.SeedRule{Hours: &zero}); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.clientShareLimits(id); got.Set() {
+		t.Fatalf("no limits at all must send nothing: %+v", got)
+	}
+}
+
+func TestIndexerOfReleaseByAddress(t *testing.T) {
+	s, _ := optionsServer(t)
+	mk := func(name, base string) int64 {
+		inst, err := s.IndexerRepo.Create(indexers.Instance{Name: name, BaseURL: base, Protocol: indexers.ProtocolTorrent, Kind: indexers.KindTorznab, Enabled: true}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return inst.ID
+	}
+	plain := mk("Plain", "https://tracker.example/api")
+	one := mk("Prowlarr one", "http://prowlarr:9696/1/")
+	two := mk("Prowlarr two", "http://prowlarr:9696/2")
+	mk("Twin a", "https://twin.example")
+	mk("Twin b", "https://twin.example/")
+	cases := []struct {
+		name, url string
+		want      int64
+		ok        bool
+	}{
+		{"an address under the indexer's own", "https://tracker.example/download/12.torrent", plain, true},
+		{"prowlarr number one", "http://prowlarr:9696/1/download?link=x", one, true},
+		{"prowlarr number two", "http://prowlarr:9696/2/download?link=x", two, true},
+		{"not a prefix of a longer name", "https://tracker.example.org/x", 0, false},
+		{"a magnet link has no address", "magnet:?xt=urn:btih:abc", 0, false},
+		{"two indexers at the same address: not guessed", "https://twin.example/dl/1", 0, false},
+		{"unknown", "https://elsewhere.example/dl/1", 0, false},
+		{"empty", "", 0, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := s.indexerOfRelease(tc.url)
+			if got != tc.want || ok != tc.ok {
+				t.Errorf("indexerOfRelease(%q) = %d, %v; want %d, %v", tc.url, got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+	// What a recent search remembered wins, and a removed indexer is not used.
+	s.IndexerRepo.Tracker().RecordSearch(two, []indexers.Result{{DownloadURL: "magnet:?xt=urn:btih:def"}}, nil)
+	if got, ok := s.indexerOfRelease("magnet:?xt=urn:btih:def"); !ok || got != two {
+		t.Errorf("remembered release = %d, %v", got, ok)
+	}
+	if err := s.IndexerRepo.Delete(two); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.indexerOfRelease("magnet:?xt=urn:btih:def"); ok {
+		t.Error("a removed indexer was named")
+	}
+}
+
+// A queue item added before the indexer was remembered still follows the rule of
+// the indexer its address belongs to.
+func TestSeedGoalFindsTheIndexerOfAnOlderItem(t *testing.T) {
+	s, db := optionsServer(t)
+	inst, err := s.IndexerRepo.Create(indexers.Instance{Name: "Private", BaseURL: "https://t.example/api", Protocol: indexers.ProtocolTorrent, Kind: indexers.KindTorznab, Enabled: true}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hours := 2.0
+	if err := s.TorrentOpts.SetSeedRule(inst.ID, torrentopts.SeedRule{Hours: &hours}); err != nil {
+		t.Fatal(err)
+	}
+	m, _ := s.MovieRepo.Add(library.Movie{TMDBID: 1, Title: "Film", Year: 2026})
+	id, err := s.QueueRepo.Enqueue(queue.Item{MovieID: m.ID, ReleaseTitle: "A", NZBURL: "https://t.example/dl/1.torrent", Protocol: queue.ProtocolTorrent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`UPDATE download_queue SET indexer_id = NULL WHERE id = ?`, id); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.clientShareLimits(id); got.Time != 2*time.Hour {
+		t.Fatalf("limits = %+v, want 2 hours", got)
+	}
+	// And a new item is stored with its indexer.
+	s.QueueRepo.SetIndexerOf(s.indexerOfRelease)
+	id2, err := s.QueueRepo.Enqueue(queue.Item{MovieID: m.ID, ReleaseTitle: "B", NZBURL: "https://t.example/dl/2.torrent", Protocol: queue.ProtocolTorrent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	it, err := s.QueueRepo.Get(id2)
+	if err != nil || !it.IndexerID.Valid || it.IndexerID.Int64 != inst.ID {
+		t.Fatalf("stored indexer = %+v, %v", it.IndexerID, err)
+	}
+}

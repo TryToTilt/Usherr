@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -89,7 +90,21 @@ func (s *Server) handleGetFilePermissions(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, s.filePermissionsPayload())
 }
 
-const worldWritableMessage = "That lets every user on this machine change or delete the files (the last digit is 2, 3, 6 or 7). Tick \"I understand\" to save it anyway. 664 and 775 are the usual choice when a group needs to write."
+// worldWritableError and badModeError are whole sentences for the file mode
+// and the folder mode, so that each is one string to translate.
+func worldWritableError(dir bool, mode string) string {
+	if dir {
+		return fmt.Sprintf("The folder mode %s is world-writable. That lets every user on this machine change or delete the files (the last digit is 2, 3, 6 or 7). Tick \"I understand\" to save it anyway. 664 and 775 are the usual choice when a group needs to write.", mode)
+	}
+	return fmt.Sprintf("The file mode %s is world-writable. That lets every user on this machine change or delete the files (the last digit is 2, 3, 6 or 7). Tick \"I understand\" to save it anyway. 664 and 775 are the usual choice when a group needs to write.", mode)
+}
+
+func badModeError(dir bool, detail string) string {
+	if dir {
+		return fmt.Sprintf("The folder mode isn't valid: %s.", detail)
+	}
+	return fmt.Sprintf("The file mode isn't valid: %s.", detail)
+}
 
 // handlePutFilePermissions is PUT /api/settings/file-permissions. Both modes
 // are checked before either is saved. An empty value goes back to the default.
@@ -100,14 +115,14 @@ func (s *Server) handlePutFilePermissions(w http.ResponseWriter, r *http.Request
 		return
 	}
 	type change struct {
-		key, what string
-		dir       bool
-		in        *string
-		out       string
+		key string
+		dir bool
+		in  *string
+		out string
 	}
 	changes := []*change{
-		{key: settings.KeyFileMode, what: "file", in: req.FileMode},
-		{key: settings.KeyFolderMode, what: "folder", dir: true, in: req.FolderMode},
+		{key: settings.KeyFileMode, in: req.FileMode},
+		{key: settings.KeyFolderMode, dir: true, in: req.FolderMode},
 	}
 	for _, c := range changes {
 		if c.in == nil {
@@ -118,13 +133,13 @@ func (s *Server) handlePutFilePermissions(w http.ResponseWriter, r *http.Request
 			var world bool
 			world, err = fileperms.Check(mode, c.dir)
 			if err == nil && world && !req.ConfirmWorldWritable {
-				writeError(w, http.StatusBadRequest, "The "+c.what+" mode "+fileperms.Format(mode)+" is world-writable. "+worldWritableMessage)
+				writeError(w, http.StatusBadRequest, worldWritableError(c.dir, fileperms.Format(mode)))
 				return
 			}
 		}
 		if err != nil {
 			if errors.Is(err, fileperms.ErrBadMode) {
-				writeError(w, http.StatusBadRequest, "The "+c.what+" mode isn't valid: "+strings.TrimPrefix(err.Error(), fileperms.ErrBadMode.Error()+": ")+".")
+				writeError(w, http.StatusBadRequest, badModeError(c.dir, strings.TrimPrefix(err.Error(), fileperms.ErrBadMode.Error()+": ")))
 				return
 			}
 			writeError(w, http.StatusInternalServerError, err.Error())

@@ -167,8 +167,9 @@ type enabledRequest struct {
 	Enabled bool `json:"enabled"`
 }
 
-// handleSetIndexerPriority sets how much an indexer is preferred: 1
-// preferred, 2 normal, 3 last resort.
+// handleSetIndexerPriority sets how much an indexer is preferred: a number
+// from 1 to 50, lower first. The old words (preferred, normal, last resort)
+// are still accepted.
 func (s *Server) handleSetIndexerPriority(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -176,17 +177,18 @@ func (s *Server) handleSetIndexerPriority(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var req struct {
-		Priority int `json:"priority"`
+		Priority any `json:"priority"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "Couldn't read that request. Reload the page and try again.")
 		return
 	}
-	if req.Priority < indexers.PriorityPreferred || req.Priority > indexers.PriorityLast {
-		writeError(w, http.StatusBadRequest, "Choose 1 (preferred), 2 (normal) or 3 (last resort).")
+	priority, ok := indexers.ParsePriority(req.Priority)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "The priority must be a whole number from 1 to 50.")
 		return
 	}
-	if err := s.IndexerRepo.SetPriority(id, req.Priority); errors.Is(err, sql.ErrNoRows) {
+	if err := s.IndexerRepo.SetPriority(id, priority); errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "That indexer no longer exists.")
 		return
 	} else if err != nil {

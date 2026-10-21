@@ -101,6 +101,9 @@ func (s *Server) handleSystemStats(w http.ResponseWriter, r *http.Request) {
 		{"Movies", s.moviesRoot()},
 		{"TV", s.tvRoot()},
 	}
+	if b := s.tempBase(); b != "" {
+		folders = append(folders, folder{"Temporary downloads", b})
+	}
 	for _, f := range s.movieFolders()[min(1, len(s.movieFolders())):] {
 		folders = append(folders, folder{"Movies (more)", f})
 	}

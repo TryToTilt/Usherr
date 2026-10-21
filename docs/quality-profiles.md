@@ -67,6 +67,10 @@ The presets are ordinary profiles. Edit, rename or delete them (except the curre
 
 A profile needs a name of up to 60 characters, at least one accepted quality, and a cutoff that is one of the accepted qualities. Each restriction box takes at most 50 terms of up to 60 characters, and a term can't contain `|`. A preferred term is written as `term = score` with a whole-number score between -10,000 and 10,000. The page points these out as you type and the server refuses the same mistakes.
 
+### How preferred terms add up
+
+Every preferred term a release name contains adds its score, so the order of the lines doesn't matter. With `x265-FuN = 100` and `x265 = 50`, a release named `...x265-FuN` matches both terms and scores 150, and one named `...x265.AAC-2BA` matches only the second and scores 50, whichever line comes first. The score is only compared after two things that come before it: the language you prefer and the quality. A release that fits your language better, or sits in a higher quality, wins whatever its score, and a torrent with no seeders is left for last. The details row of a release in interactive search tells you which of these decided (see below).
+
 ## Anime release groups
 
 For anime, the release group often matters more than the source. The same episode comes out from several groups within hours, and they differ in how fast they are, how they encode and which languages they keep. A profile's **preferred terms** are the way to say which you like: a release whose name contains the term gets its score added, and between releases of the same quality the higher score wins. Group names in square brackets work as they are, so `SubsPlease` matches `[SubsPlease] Show - 05 (1080p)`.
@@ -131,12 +135,25 @@ When a torrent indexer says a release has no seeders, Mediarium only picks it wh
 
 **Quiet for a while** is under the numbers: **1 hour**, **4 hours** or **Until morning** (8:00 in your browser's time) holds the heavy background work, the searches, library and show refreshes, the subtitle sweep, picture fetching, list and watchlist checks, so a small server isn't busy while a film plays or a game is running. A search that comes due during the quiet time isn't lost: it waits and runs when the quiet time is over. Downloads that are running or waiting, imports, backups and anything you start yourself carry on. **Back to normal** ends it. It's kept in `automation.quiet_until` (a restart doesn't end it early); scripts use `GET` and `PUT /api/automation/quiet` (`{"minutes": 60}`, `0` to end it, 4320 at most).
 
-Two more switches, both off at first, decide what happens to monitoring once something is in:
+Two switches, both off at first, decide what happens to monitoring once something is in:
 
 - **Stop monitoring a movie once it's downloaded** (`library.unmonitor_downloaded`, or `unmonitorDownloaded`). The movie is no longer searched for, not even for a better version, so a file you delete isn't fetched again. Switch monitoring back on from the movie's page.
 - **Stop monitoring a show once it has ended and every episode is in** (`library.unmonitor_finished_shows`, or `unmonitorFinished`). A show TMDB lists as ended or cancelled stops being monitored when every monitored episode (specials aside) is downloaded. It's checked when the show's details are refreshed, which happens daily, and straight after each import. A show that's still running stays monitored, so new episodes keep coming.
 
 Activity notes each title that stops being monitored this way.
+
+### Season packs once a season has ended
+
+While a season is still airing, its episodes are fetched one by one as they come out. **Prefer season packs once a season has ended** (`library.season_packs`, or `seasonPacks`; off at first) changes what happens after the finale. Once every episode of a season has aired, and the last one aired at least two days ago, the hunt looks for a season pack of that season before it goes back to single episodes. It does this when:
+
+- some of the season's monitored episodes are still missing, or
+- the episodes you have are below the profile's cutoff and better versions are switched on, so a better pack would be an upgrade.
+
+A pack is only taken when it is the same quality or better than the episodes already there. A pack that is worse than the best file you have for the season is never taken, and a pack never replaces a better file with a worse one. Everything else works as for any search: the blocklist, the indexer limits, the size limits, the audio language rules and a profile that never downloads season packs all still apply. If the pack fills the missing episodes and is better than the files you had, the old files are replaced the way any upgrade replaces them, after the new ones are in place.
+
+A season is left alone when one of its episodes is downloading already (that may be the pack itself), when a season pack was taken for it before, or when it was searched for less than a week ago. A search that finds no pack is remembered, and the season is looked at again a week later. After six searches in a row that found nothing, the season is left alone until an episode is added to it, you change the season pack setting (in Settings or on the show), or 60 days have passed since the last search. Meanwhile the missing episodes are fetched one by one as usual. Activity notes each search with "Season 2 has ended: looking for a season pack".
+
+A show can choose for itself under **Season packs** on its page: **Default** follows the switch above, **Prefer packs once a season has ended** or **Episode by episode** decides for that show. Searches you start by hand, and the RSS check, never wait for or look for a pack this way.
 
 ## Wait for a better protocol
 
@@ -155,7 +172,11 @@ Scripts: `GET` and `PUT /api/search/delay` with `{"preferredProtocol": "usenet",
 
 **Settings > Library > Quality > Audio language** lists the languages you want to hear, best first (`quality.language`, or `qualityLanguage` in `PUT /api/settings`: names separated by commas, such as `Spanish,English`). English is the starting value. It applies to every profile. The switch under the list, **Only take releases in these languages**, is `quality.language_only` (`qualityLanguageOnly` in `GET` and `PUT /api/settings`, `true` or `false`, off by default; the settings file has it too).
 
-With more than one language, a release is taken when it suits any of them, and one that suits an earlier language is chosen over one that only suits a later language. A release with two or more audio tracks counts when one of its languages is on your list. Add **Original language of the title** to the list and Mediarium puts each film's or show's own language there (Japanese for an anime, Korean for a Korean drama), as TMDB lists it. A title whose original language TMDB doesn't give just uses the other languages on your list.
+With more than one language, a release is taken when it suits any of them, and one that suits an earlier language is chosen over one that only suits a later language. A release with two or more audio tracks counts when one of its languages is on your list.
+
+How a release with several audio languages ranks depends on how many languages you listed. With **one** language, a release that names only that language is preferred over a multi-language one (`MULTi`, `DUAL` or `DL`). With **several** languages, such as `German,English`, a multi-language release that has the first language is preferred over a plain release in that language, because it also carries the others, which you said you want. A German scene release tagged `DL` (dual language), such as `German.DL.1080p` or `German.BDRip.DL`, counts as German plus the original language, wherever `DL` sits in the name. `WEB-DL` is a source, not a language tag. When Mediarium explains why another release won, it says "The best match names your languages better." in this case.
+
+Add **Original language of the title** to the list and Mediarium puts each film's or show's own language there (Japanese for an anime, Korean for a Korean drama), as TMDB lists it. A title whose original language TMDB doesn't give just uses the other languages on your list.
 Mediarium reads the language tags in a release name (`ITA`, `ITALIAN`, `GER`, `GERMAN`, `FR`, `FRENCH`, `TRUEFRENCH`, `VFF`, `ESP`, `SPANISH`, `RUS`, `ENG`, `HRV` and `CROATIAN`, `SRB` and `SERBIAN`, `BOSNIAN`, `SLOVENIAN`, `BUL` and `BULGARIAN`, `MULTi`, `DUAL`, `German.DL` and more). Tags are only read after the title, so a film called "The Italian Job" isn't taken for an Italian release. A release with no language tag is taken to be English. Subtitle tags such as `VOSTFR` and `SUBBED` don't change the audio language.
 
 | The release is | With English wanted, automatic search and RSS |
@@ -226,7 +247,7 @@ A custom format spots something in a release name: HDR, Dolby Vision, a codec, a
 
 What the score does:
 
-- Between releases of the same quality, the higher score wins. Preferred terms still count and are added to it.
+- Between releases of the same quality, the higher score wins. Preferred terms still count and are added to it. The order is the same in automatic searches and when Mediarium picks a release for an upgrade: first the language, then the quality (a higher quality always beats a higher score), then the score, and only then the usual tie-breaks (Usenet before torrents, a cached torrent, more seeders).
 - A release scoring below the profile's **Minimum score** is skipped. With the TRaSH scores, a big negative score (often -10000) keeps a release out completely.
 - With **Keep looking for better versions** on, a file whose release scores below the profile's **Upgrade until score** is replaced by a release of the same or better quality that scores higher. 0 means scores never cause an upgrade. Mediarium remembers the release each file came from from this version on. A file imported earlier has no known release, so it's never replaced for its score alone.
 
@@ -239,12 +260,30 @@ The **Custom formats** card then has four tabs:
 - **Your formats** lists what you have, whether each is for movies or TV, how many conditions it has and which profiles score it. **Rename** and **Delete** are here. Deleting a format also takes its score out of every profile.
 - **From the TRaSH Guides** reads the guides' formats and ready-made profiles from GitHub (kept for six hours). Pick **Movies (Radarr)** or **TV (Sonarr)**. Then either:
   - **Create profile** on a ready-made profile. This makes a new quality profile with its qualities, cutoff, formats, scores, minimum score and upgrade-until score. A name you already use gets "(2)" added. Your own profiles are never changed.
-  - Tick formats and press **Add**. Choose a profile under **Give them TRaSH's default score in** to score them there at the same time.
+  - Tick formats and press **Add**. Under **Give them TRaSH's default score in** the profile your movies (or, for TV, your shows) use by default is already chosen, so the formats arrive with the score the guides give them. Every format shows that score in the list; a format you already have that scores 0 (or something else) in the chosen profile although the guides score it is marked with the profile's score (for example "0 in 1080p"). Choose **Don't score them** to add the formats without a score: they then count in no profile until you give them one. A format the guides give no score (0) is added without one.
   Importing a format again updates it. Qualities Mediarium doesn't have (Raw-HD, BR-DISK) are left out, and WEBRip and WEBDL count as one quality.
 - **Paste JSON** takes one format or a list, as the **Export** button of a Radarr or Sonarr custom format, their API or a TRaSH file writes it. A format with the same name replaces the one you have.
 - **Test a release** shows which formats a release name matches, its quality and, with a profile chosen, its score and whether that profile would take it.
 
-Then open a profile with **Edit** and set the scores under **Custom format scores**. Interactive search shows each release's score in a **Score** column, with the formats it matched when you hover.
+Then open a profile with **Edit** and set the scores under **Custom format scores**. Interactive search shows each release's score in a **Score** column, with a small arrow after it. The arrow opens a details row under the release (it works with the keyboard and by touch, no hovering): each format and each preferred term the release matched with the score your profile gives it (+100, -50), the total, the profile's minimum score and the score upgrades stop at, and in plain words every reason an automatic search would skip the release or rank it lower: a quality or language the profile doesn't take, a size outside the limits, a score under the minimum, a release already blocklisted, fewer seeders than the indexer's minimum, or a file you already have that is as good. A release that nothing speaks against but that wasn't taken also gets **Why it was not the best match**, which names the step that decided: your preferred language, a higher quality (for example Bluray-1080p against WEBDL-1080p), a cached release your settings put first, a higher score (with the matched terms and formats of both releases, for example "350 against 150"), a torrent with no seeders, or, between two equal releases, the indexer's priority, the protocol, a cached copy or the number of seeders. **Show why** above the list opens the details of every release at once, and Mediarium remembers that choice in your browser. You can still grab any release by hand. In the API, a release of the interactive search (`GET /api/movies/{id}/search`, `/api/series/{id}/search`) carries `formatScore`, `formats` (a list of `{name, score}`), `terms` (the preferred terms it matched, a list of `{term, score}`), `minScore`, `upgradeUntil` and `reasons` (a list of `{kind, text}`; the kind `notBest` is the explanation of why another release was the best match, not a reason to skip this one). When the title's profile scores formats, the list starts with the **Best match** (the release an automatic search would take from this list, not one the list marks as skipped) and then goes by score, highest first; the other columns can be clicked to sort as before, and a third click on a column goes back to this order.
+
+### Giving many formats a score at once
+
+- **In the Custom formats card**, tick formats in **Your formats** (the box in the header ticks all), press **Add to profiles...**, tick one or more profiles and choose **TRaSH's score for each** or **The same score for all** with a score you type. A score the profile already has for one of these formats is replaced; 0 takes the format out of the profile. Formats that came from the guides get the score the guides give them now (read from GitHub, or the last one Mediarium saw if GitHub can't be reached). A format the guides give no score is left alone and named afterwards.
+- **On a profile's edit form**, under **Custom format scores**, **Add formats** opens a list of the formats the profile doesn't score yet. Tick some, choose TRaSH's score or one typed score, and they appear in the form with their scores. Nothing is saved until you press **Save profile**.
+
+Scores given from the Custom formats card (an import into a profile, or **Add to profiles...**) are saved straight away and show up in the profile's form, also when the form is already open: it picks up the new scores and keeps anything you typed in it.
+
+### Keeping the TRaSH formats up to date
+
+The TRaSH Guides change now and then: a pattern is fixed, a new release group is added, a score moves. Mediarium remembers which formats came from the guides (through the TRaSH tab or an earlier import) and what score the guides gave them. At the top of the Custom formats card:
+
+- **Update from TRaSH** reads the guides and first shows what would change ("3 formats changed: ..."), with the profiles whose score would follow. Press **Update** to apply it.
+- **Keep TRaSH formats up to date** (off by default) does the same by itself. Next to the switch, **Check** lets you choose **Every day** (the default) or **Every week**. It reads GitHub once per period; if that fails it tries again a few hours later. It only exists when you have formats from the guides.
+
+Every check, from the button or from the switch, leaves a result in three places: a box on the card ("Checked the TRaSH Guides: 3 formats updated, 12 already up to date, 2 profile scores changed", or "nothing to update"), a line in Activity, and a line in the server log (so `docker logs` shows it too). Under the switch the card says when the guides were **last checked** and, while the switch is on, about when the **next check** is due. If GitHub can't be reached, the box says so.
+
+What an update changes: the conditions of the formats that came from the guides, and a profile's score for such a format **only when that score is still the one TRaSH gave last time**. A score you changed yourself stays as you set it. Formats you pasted or made yourself are never touched, and neither is a format's name. A format the guides no longer list stays as it is. A profile made with **Create profile** from a TRaSH profile that uses a score set other than the default keeps its own scores, because they aren't the default ones. Formats that were added before Mediarium remembered TRaSH's score get their conditions updated but no score is changed for them until the guides change a score again.
 
 A language condition set to **Original** (Radarr's and Sonarr's "Original", used by several TRaSH formats) means the language the film or show was made in, as TMDB lists it. It matches a release in that language, and its "not" form (negate) matches a release in another one. When TMDB doesn't give the original language, neither form matches. Conditions Mediarium understands: release title, release group, edition, source, resolution, quality modifier, language, release type (single episode, multi-episode, season pack) and size. Indexer flags (such as freeleech) aren't passed on by the indexers, so a condition on them never matches, and the format says so.
 
@@ -259,9 +298,13 @@ A language condition set to **Original** (Radarr's and Sonarr's "Original", used
 | `POST /api/custom-formats/test` | `{title, profileId}` tests a release name. |
 | `GET /api/trash-guides/{app}` | The TRaSH formats and profiles for `radarr` or `sonarr`. |
 | `POST /api/trash-guides/{app}/formats` | `{trashIds, profileId}` imports formats, scored in the profile when one is given. |
+| `POST /api/custom-formats/assign` | `{formatIds, profileIds, mode, score}` gives formats a score in several profiles. `mode` is `trash` (each format's TRaSH score) or `score` (the typed `score` for all; 0 removes the format from the profile). Answers `{profiles, scored, unscored}`. |
+| `POST /api/custom-formats/default-scores` | `{formatIds}` answers the TRaSH score of each format the guides score. |
+| `GET /api/custom-formats/trash-update` | Lists what an update from the guides would change, without changing anything. |
+| `POST /api/custom-formats/trash-update` | Updates the formats that came from the guides and answers what changed. |
 | `POST /api/trash-guides/{app}/profiles` | `{trashId}` creates a profile from a TRaSH one. |
 
-In `POST /api/quality-profiles` and `PUT /api/quality-profiles/{id}` the scores are `formatScores` (a list of `{formatId, score}`), with `minFormatScore`, `cutoffFormatScore` and `noSeasonPacks`. An update that leaves any of them out keeps the saved value. Search results carry `formatScore` and `formats` when the title's profile scores formats.
+In `POST /api/quality-profiles` and `PUT /api/quality-profiles/{id}` the scores are `formatScores` (a list of `{formatId, score}`), with `minFormatScore`, `cutoffFormatScore` and `noSeasonPacks`. An update that leaves any of them out keeps the saved value. Search results carry `formatScore` and `formats` when the title's profile scores formats, and `best: true` on the one release an automatic search would take. The automatic update is `trashFormatsAuto` in `PUT /api/settings` (`formats.trash_auto_update`), and how often it runs is `trashFormatsEveryDays`, 1 (every day) or 7 (every week), stored as `formats.trash_every_days`. `GET /api/custom-formats/trash-update/status` answers `{last, next}`: what the last check found and about when the next one is due.
 
 ## Music profiles
 

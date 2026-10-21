@@ -318,9 +318,10 @@ function VPNSection() {
                   <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
                     {providerName(c.provider)} · {c.endpoint}
                   </div>
+                  {c.secretError && <div className="error-text" style={{ fontSize: '0.85rem' }}>{st(c.secretError)}</div>}
                 </div>
                 <div style={{ whiteSpace: 'nowrap' }}>
-                  <button onClick={() => activate(c.id)} disabled={busy !== null || (c.active && !!status?.connected)}>
+                  <button onClick={() => activate(c.id)} disabled={busy !== null || !!c.secretError || (c.active && !!status?.connected)}>
                     {busy === c.id ? t('Connecting…') : c.active && !status?.connected ? t('Reconnect') : t('Activate')}
                   </button>{' '}
                   <button onClick={() => void remove(c)}>{t('Remove')}</button>

@@ -65,3 +65,31 @@ func PlaceByAirDate(files []ImportFile, episodes []Episode) []ImportFile {
 	}
 	return out
 }
+
+// A show whose files are named by air date is a daily show. LooksDaily says
+// so for the files an import found: at least dailyMinFiles of them, and at
+// least dailyShare percent of all, are named by a date and carry no season and
+// episode, and either the movie database also calls the show a daily one
+// (tmdbDaily: a talk show or the news) or none of the files has a season and
+// episode number to go by. Call it before PlaceByAirDate, which gives the
+// dated files their season and episode.
+const (
+	dailyMinFiles = 3
+	dailyShare    = 60
+)
+
+func LooksDaily(files []ImportFile, tmdbDaily bool) bool {
+	dated, numbered := 0, 0
+	for _, f := range files {
+		switch {
+		case f.AirDate != "" && len(f.Episodes) == 0:
+			dated++
+		case len(f.Episodes) > 0:
+			numbered++
+		}
+	}
+	if dated < dailyMinFiles || dated*100 < dailyShare*len(files) {
+		return false
+	}
+	return tmdbDaily || numbered == 0
+}

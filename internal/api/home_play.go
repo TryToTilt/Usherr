@@ -21,6 +21,9 @@ func (s *Server) registerPlayRoutes(play routeGroup) {
 	play.HandleFunc("GET /api/play/movie/{id}", s.handlePlayMovie)
 	play.HandleFunc("GET /api/play/episode/{id}", s.handlePlayEpisode)
 	play.HandleFunc("POST /api/play/prepare", s.handlePlayPrepare)
+	play.HandleFunc("GET /api/play/convert/{kind}/{id}", s.handlePlayConvert) // Usherr: converted here
+	play.HandleFunc("GET /api/play/tracks/{kind}/{id}", s.handlePlayTracks)   // Usherr: sound and subtitles
+	play.HandleFunc("GET /api/play/subs/{kind}/{id}", s.handlePlaySubs)
 	play.HandleFunc("GET /api/play/hls/{token}/{rest...}", s.handlePlayHLS)
 	play.HandleFunc("DELETE /api/play/hls/{token}", s.handleStopHLS)
 	// Stream now (home_streaming.go)
@@ -30,6 +33,9 @@ func (s *Server) registerPlayRoutes(play routeGroup) {
 	play.HandleFunc("GET /api/stream/{id}/video", s.handleStreamVideo)
 	play.HandleFunc("GET /api/stream/{id}/link", s.handleStreamLink)
 	play.HandleFunc("POST /api/stream/{id}/stop", s.handleStreamStop)
+	play.HandleFunc("POST /api/stream/{id}/next", s.handleStreamNext) // Usherr: another release
+	play.HandleFunc("GET /api/addon", s.handleGetAddon)               // Usherr: the Stremio and Nuvio add-on
+	play.HandleFunc("POST /api/addon/regenerate", s.handleRegenerateAddon)
 	play.HandleFunc("POST /api/stream/tv", s.handleStreamTVTitle)
 	play.HandleFunc("POST /api/stream/{id}/tv", s.handleStreamTV)
 }

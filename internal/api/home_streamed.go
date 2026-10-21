@@ -460,22 +460,48 @@ func (s *Server) streamedSourceFor(ctx context.Context, id int64, quality string
 	if err != nil {
 		return nil, err
 	}
-	c, err := s.streamNZB()
-	if err != nil {
-		return nil, err
-	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 90*time.Second)
+	// Usherr: the engine chosen in Settings > Extras goes first; the other
+	// is tried when it finds nothing.
+	c, cerr := s.streamNZB()
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 150*time.Second)
 	defer cancel()
-	p, serr := s.searchedSource(ctx, c, f, quality, skip)
-	if p == nil && len(skip) == 0 {
+	var p *streamedPlay
+	var serr error
+	byNZB := func() {
+		if p == nil && c != nil {
+			var e error
+			if p, e = s.searchedSource(ctx, c, f, quality, skip); e != nil && serr == nil {
+				serr = e
+			}
+		}
+	}
+	byOwn := func() {
+		if p == nil && s.ownProblem() == "" {
+			var e error
+			if p, e = s.ownSearchedSource(ctx, f, quality, skip); e != nil && serr == nil {
+				serr = e
+			}
+		}
+	}
+	if s.streamEngine() == engineUsherr {
+		byOwn()
+		byNZB()
+	} else {
+		byNZB()
+		byOwn()
+	}
+	if p == nil && len(skip) == 0 && c != nil {
 		p = s.savedSource(ctx, c, f)
 	}
 	if p == nil {
 		if serr == nil {
+			serr = cerr
+		}
+		if serr == nil {
 			serr = errors.New("nothing playable to stream for this right now")
 		}
 		if len(skip) > 0 {
-			serr = errors.New("StreamNZB has no other release that plays right now")
+			serr = errors.New("There is no other release that plays right now")
 		}
 		return nil, serr
 	}
@@ -883,9 +909,8 @@ func (s *Server) handleStreamedWatch(w http.ResponseWriter, r *http.Request) {
 	ss := &streamSession{id: randomID("str_"), userID: requestUserID(r), last: time.Now(), title: title,
 		target: p.target, lanURL: p.homeURL, streamFor: "release", release: p.release}
 	s.readyNextEpisode(id)
-	if c, err := s.streamNZB(); err == nil {
-		streams.sweep(c)
-	}
+	c, _ := s.streamNZB()
+	streams.sweep(c) // Usherr: c is nil without StreamNZB; own streams are swept too
 	streams.mu.Lock()
 	streams.sessions[ss.id] = ss
 	streams.mu.Unlock()

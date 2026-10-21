@@ -13,7 +13,7 @@ import { FieldError, FormProblem, useValidation, type Validation } from '../../u
 import { firstError, folderPath, required, apiKey as apiKeyCheck, url as urlCheck } from '../../validate'
 import { useLive } from '../../useLive'
 import { useModules } from '../../ModulesContext'
-import { plural, t, tx } from '../../i18n'
+import { plural, t, tx, st } from '../../i18n'
 import TipLabel from '../../components/TipLabel'
 
 const KINDS: MediaServerKind[] = ['plex', 'jellyfin', 'emby', 'silo', 'webhook']
@@ -420,7 +420,9 @@ function ServerCard({ s, onChanged }: { s: MediaServer; onChanged: () => void })
             {!s.enabled && <span className="badge">{t('Off')}</span>}
           </div>
           <small className="indexer-url">{s.baseUrl}</small>
-          {s.lastError ? (
+          {s.secretError ? (
+            <small className="error-text">{st(s.secretError)}</small>
+          ) : s.lastError ? (
             <small className="error-text">{t('Last check failed: {error}', { error: s.lastError })}</small>
           ) : (
             s.lastCheckedAt && <small style={{ color: 'var(--text-dim)' }}>{t('Last checked {when}', { when: timeAgo(s.lastCheckedAt) })}</small>

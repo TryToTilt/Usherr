@@ -6,31 +6,43 @@
 .mq {
   --mq-t: 1;
   --mq-p: 1;
+  /* The theme (marqueeLook.css changes these): the Usherr look follows the app's palette. */
+  --mq-bg: var(--u-noir, #100509);
+  --mq-fg: var(--u-cream, #fff0d0);
+  --mq-accent: var(--u-gold, #c99a42);
+  --mq-hi: var(--u-champagne, #f6d783);
+  --mq-panel: var(--u-wine, #4b0d23);
+  --mq-glow: var(--u-burgundy, #6d1631);
+  --mq-bulb-core: #fff3c4;
+  --mq-display: Georgia, 'Times New Roman', 'Noto Serif', serif;
+  --mq-body: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mq-r: 1;
+  --mq-bulb: 1;
   position: fixed;
   inset: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: radial-gradient(120% 60% at 50% 0%, color-mix(in srgb, var(--u-burgundy) 35%, transparent), transparent 70%), var(--u-noir, #100509);
-  color: var(--u-cream, #fff0d0);
+  background: radial-gradient(120% 60% at 50% 0%, color-mix(in srgb, var(--mq-glow) 35%, transparent), transparent 70%), var(--mq-bg);
+  color: var(--mq-fg);
   cursor: none;
   user-select: none;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--mq-body);
 }
 .mq-top { display: flex; align-items: center; gap: 2vw; padding: 3vw 5vw 0; min-height: calc(7vw * var(--mq-t)); }
 .mq-mark { width: calc(7vw * var(--mq-t)); height: calc(7vw * var(--mq-t)); border-radius: 22%; }
-.mq-name { font-family: Georgia, 'Times New Roman', 'Noto Serif', serif; font-weight: 700; font-size: calc(5vw * var(--mq-t)); color: var(--u-champagne, #f6d783); }
-.mq-clock { margin-left: auto; font-size: calc(4.5vw * var(--mq-t)); color: color-mix(in srgb, var(--u-cream, #fff0d0) 70%, transparent); font-variant-numeric: tabular-nums; }
+.mq-name { font-family: var(--mq-display); font-weight: 700; font-size: calc(5vw * var(--mq-t)); color: var(--mq-hi); }
+.mq-clock { margin-left: auto; font-size: calc(4.5vw * var(--mq-t)); color: color-mix(in srgb, var(--mq-fg) 70%, transparent); font-variant-numeric: tabular-nums; }
 
 /* The marquee sign: one or two lines between two rows of bulbs. A line never
    wraps; it shrinks to fit (FitLine). */
-.mq-marquee { --mq-sign: calc(8.5vw * var(--mq-t)); margin: 3vw 4vw 2vw; padding: 2.4vw 3vw; border: 0.5vw solid var(--u-gold, #c99a42); border-radius: 2vw; background: color-mix(in srgb, var(--u-wine, #4b0d23) 70%, black); box-shadow: 0 0 4vw color-mix(in srgb, var(--u-gold, #c99a42) 25%, transparent), inset 0 0 3vw rgba(0, 0, 0, 0.6); text-align: center; }
+.mq-marquee { --mq-sign: calc(8.5vw * var(--mq-t)); margin: 3vw 4vw 2vw; padding: 2.4vw 3vw; border: 0.5vw solid var(--mq-accent); border-radius: calc(2vw * var(--mq-r)); background: color-mix(in srgb, var(--mq-panel) 70%, black); box-shadow: 0 0 4vw color-mix(in srgb, var(--mq-accent) 25%, transparent), inset 0 0 3vw rgba(0, 0, 0, 0.6); text-align: center; }
 .mq-marquee.alone { margin-top: 4vw; }
-.mq-marquee h1 { margin: 1vw 0; font-family: Georgia, 'Times New Roman', 'Noto Serif', serif; font-size: var(--mq-sign); letter-spacing: 0.06em; text-transform: uppercase; color: var(--u-champagne, #f6d783); text-shadow: 0 0 2vw color-mix(in srgb, var(--u-champagne, #f6d783) 50%, transparent); line-height: 1.2; overflow: hidden; }
+.mq-marquee h1 { margin: 1vw 0; font-family: var(--mq-display); font-size: var(--mq-sign); letter-spacing: 0.06em; text-transform: uppercase; color: var(--mq-hi); text-shadow: 0 0 2vw color-mix(in srgb, var(--mq-hi) 50%, transparent); line-height: 1.2; overflow: hidden; }
 .mq-marquee h1.two { --mq-sign: calc(7.2vw * var(--mq-t)); }
 .mq-line { display: block; width: max-content; max-width: none; margin: 0 auto; white-space: nowrap; font-size: var(--mq-sign); }
-.mq-bulbs { display: block; height: 1.6vw; background: radial-gradient(circle, #fff3c4 0 35%, #f6d783 45%, transparent 60%) 0 50% / 4vw 1.6vw repeat-x; animation: mq-chase 1.2s steps(2) infinite; opacity: 0.9; }
-@keyframes mq-chase { to { background-position: 4vw 50%; } }
+.mq-bulbs { display: block; height: calc(1.6vw * var(--mq-bulb)); background: radial-gradient(circle, var(--mq-bulb-core) 0 35%, var(--mq-hi) 45%, transparent 60%) 0 50% / calc(4vw * var(--mq-bulb)) calc(1.6vw * var(--mq-bulb)) repeat-x; animation: mq-chase 1.2s steps(2) infinite; opacity: 0.9; }
+@keyframes mq-chase { to { background-position: calc(4vw * var(--mq-bulb)) 50%; } }
 
 .mq-stage { flex: 1; position: relative; min-height: 0; container-type: size; }
 .mq-scroll { position: absolute; inset: 0; overflow: hidden; }
@@ -40,38 +52,38 @@
 
 /* One film, big. */
 .mq-backdrop { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: 0.18; filter: blur(1vw); mask-image: linear-gradient(transparent, black 30%, black 70%, transparent); }
-.mq-poster { position: relative; width: auto; height: calc(60cqh * var(--mq-p)); max-width: 86vw; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 2vw; box-shadow: 0 3vw 6vw rgba(0, 0, 0, 0.7), 0 0 0 0.3vw color-mix(in srgb, var(--u-gold, #c99a42) 60%, transparent); }
+.mq-poster { position: relative; width: auto; height: calc(60cqh * var(--mq-p)); max-width: 86vw; aspect-ratio: 2 / 3; object-fit: cover; border-radius: calc(2vw * var(--mq-r)); box-shadow: 0 3vw 6vw rgba(0, 0, 0, 0.7), 0 0 0 0.3vw color-mix(in srgb, var(--mq-accent) 60%, transparent); }
 .mq-poster.mq-small { height: calc(26cqh * var(--mq-p)); margin-top: 3vw; }
-.mq-blank { display: grid; place-items: center; padding: 4vw; text-align: center; font-size: calc(6vw * var(--mq-t)); background: var(--u-wine, #4b0d23); }
-.mq-title { position: relative; margin: 2.5cqh 0 0; font-family: Georgia, 'Times New Roman', 'Noto Serif', serif; font-size: calc(7.5vw * var(--mq-t)); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.28; padding-bottom: 0.15em; text-align: center; color: var(--u-cream, #fff0d0); text-wrap: balance; }
-.mq-tagline { position: relative; margin: 1cqh 0 0; font-size: calc(3.8vw * var(--mq-t)); line-height: 1.35; padding-bottom: 0.1em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-style: italic; text-align: center; color: color-mix(in srgb, var(--u-cream, #fff0d0) 80%, transparent); text-wrap: balance; }
+.mq-blank { display: grid; place-items: center; padding: 4vw; text-align: center; font-size: calc(6vw * var(--mq-t)); background: var(--mq-panel); }
+.mq-title { position: relative; margin: 2.5cqh 0 0; font-family: var(--mq-display); font-size: calc(7.5vw * var(--mq-t)); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.28; padding-bottom: 0.15em; text-align: center; color: var(--mq-fg); text-wrap: balance; }
+.mq-tagline { position: relative; margin: 1cqh 0 0; font-size: calc(3.8vw * var(--mq-t)); line-height: 1.35; padding-bottom: 0.1em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-style: italic; text-align: center; color: color-mix(in srgb, var(--mq-fg) 80%, transparent); text-wrap: balance; }
 .mq-meta { position: relative; margin: 1cqh 0 0; font-size: calc(4vw * var(--mq-t)); text-align: center; }
-.mq-dim { color: color-mix(in srgb, var(--u-cream, #fff0d0) 65%, transparent); }
-.mq-gold { color: var(--u-champagne, #f6d783); }
+.mq-dim { color: color-mix(in srgb, var(--mq-fg) 65%, transparent); }
+.mq-gold { color: var(--mq-hi); }
 .mq-center { margin-bottom: 2vw; }
-.mq-progress { width: min(86vw, calc(60cqh * var(--mq-p) * 2 / 3)); height: 1.4vw; margin-top: 3vw; border-radius: 1vw; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
-.mq-progress span { display: block; height: 100%; background: var(--u-champagne, #f6d783); }
+.mq-progress { width: min(86vw, calc(60cqh * var(--mq-p) * 2 / 3)); height: 1.4vw; margin-top: 3vw; border-radius: calc(1vw * var(--mq-r)); background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.mq-progress span { display: block; height: 100%; background: var(--mq-hi); }
 
 /* A trailer, with the film under it. */
-.mq-video { width: min(100%, calc(100% * var(--mq-p))); aspect-ratio: 16 / 9; border-radius: 2vw; overflow: hidden; background: black; box-shadow: 0 2vw 5vw rgba(0, 0, 0, 0.7); }
+.mq-video { width: min(100%, calc(100% * var(--mq-p))); aspect-ratio: 16 / 9; border-radius: calc(2vw * var(--mq-r)); overflow: hidden; background: black; box-shadow: 0 2vw 5vw rgba(0, 0, 0, 0.7); }
 .mq-video iframe { width: 100%; height: 100%; border: 0; pointer-events: none; }
 
 /* A grid of posters. */
 .mq-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 2.5cqh 5vw; width: 100%; }
 .mq-grid li { display: flex; flex-direction: column; align-items: center; min-width: 0; }
-.mq-grid img { aspect-ratio: 2 / 3; object-fit: cover; border-radius: 1.5vw; box-shadow: 0 1.5vw 3vw rgba(0, 0, 0, 0.6); height: calc(28cqh * var(--mq-p)); max-width: 42vw; width: auto; }
+.mq-grid img { aspect-ratio: 2 / 3; object-fit: cover; border-radius: calc(1.5vw * var(--mq-r)); box-shadow: 0 1.5vw 3vw rgba(0, 0, 0, 0.6); height: calc(28cqh * var(--mq-p)); max-width: 42vw; width: auto; }
 .mq-grid strong { margin-top: 1.4vw; font-size: calc(3.6vw * var(--mq-t)); text-align: center; line-height: 1.3; padding-bottom: 0.1em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.mq-grid span { font-size: calc(3vw * var(--mq-t)); color: color-mix(in srgb, var(--u-cream, #fff0d0) 65%, transparent); }
+.mq-grid span { font-size: calc(3vw * var(--mq-t)); color: color-mix(in srgb, var(--mq-fg) 65%, transparent); }
 
 /* The week ahead, as a large-print list. */
 .mq-coming { align-items: stretch; gap: 3vw; }
-.mq-coming h3 { margin: 0 0 1vw; font-family: Georgia, 'Times New Roman', 'Noto Serif', serif; font-size: calc(5.6vw * var(--mq-t)); line-height: 1.3; color: var(--u-champagne, #f6d783); border-bottom: 0.3vw solid color-mix(in srgb, var(--u-gold, #c99a42) 40%, transparent); padding-bottom: 0.6vw; }
+.mq-coming h3 { margin: 0 0 1vw; font-family: var(--mq-display); font-size: calc(5.6vw * var(--mq-t)); line-height: 1.3; color: var(--mq-hi); border-bottom: 0.3vw solid color-mix(in srgb, var(--mq-accent) 40%, transparent); padding-bottom: 0.6vw; }
 .mq-coming ul { list-style: none; margin: 0; padding: 0; }
 .mq-coming li { display: flex; align-items: center; gap: 3vw; font-size: calc(4.4vw * var(--mq-t)); line-height: 1.35; padding: 0.8vw 0; }
-.mq-slim { flex: none; width: calc(9vw * var(--mq-p)); aspect-ratio: 2 / 3; object-fit: cover; border-radius: 0.8vw; box-shadow: 0 0.6vw 1.4vw rgba(0, 0, 0, 0.6); }
-.mq-slim-blank { background: color-mix(in srgb, var(--u-wine, #4b0d23) 70%, black); }
+.mq-slim { flex: none; width: calc(9vw * var(--mq-p)); aspect-ratio: 2 / 3; object-fit: cover; border-radius: calc(0.8vw * var(--mq-r)); box-shadow: 0 0.6vw 1.4vw rgba(0, 0, 0, 0.6); }
+.mq-slim-blank { background: color-mix(in srgb, var(--mq-panel) 70%, black); }
 .mq-what { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mq-type { flex: none; font-size: calc(3.4vw * var(--mq-t)); color: color-mix(in srgb, var(--u-cream, #fff0d0) 65%, transparent); }
+.mq-type { flex: none; font-size: calc(3.4vw * var(--mq-t)); color: color-mix(in srgb, var(--mq-fg) 65%, transparent); }
 
 /* Quiet hours: a dim clock, or nothing at all. */
 .mq-quiet { display: grid; place-items: center; background: black; }
@@ -94,9 +106,12 @@
 .mq-tvnow ul { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(1.2vw * var(--mq-t, 1)); }
 .mq-tvnow li { display: grid; grid-template-columns: calc(7vw * var(--mq-t, 1)) 1fr auto; align-items: center; gap: calc(1.6vw * var(--mq-t, 1)); }
 .mq-tv-ch img { max-width: 100%; max-height: calc(4vw * var(--mq-t, 1)); object-fit: contain; }
-.mq-tv-ch b { font-size: calc(3vw * var(--mq-t, 1)); color: var(--mq-gold, #e8b04b); }
+.mq-tv-ch b { font-size: calc(3vw * var(--mq-t, 1)); color: var(--mq-hi); }
 .mq-tv-what { display: grid; gap: 4px; min-width: 0; }
 .mq-tv-what strong { font-size: calc(2.4vw * var(--mq-t, 1)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mq-tv-what small { font-size: calc(1.4vw * var(--mq-t, 1)); opacity: 0.75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mq-tv-bar { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
-.mq-tv-bar span { display: block; height: 100%; background: var(--mq-gold, #e8b04b); }
+.mq-tv-bar span { display: block; height: 100%; background: var(--mq-hi); }
+
+
+

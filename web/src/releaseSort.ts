@@ -26,6 +26,7 @@ export interface SortableRelease {
   source?: string
   seeders?: number
   formatScore?: number
+  best?: boolean
   language?: string
   publishDate?: string
 }
@@ -94,6 +95,20 @@ export function sortReleases<T extends SortableRelease>(list: T[], key: ReleaseS
     .map((x) => x.item)
 }
 
+// defaultOrder is how a list of releases starts, before a column is clicked:
+// the release automatic search would take first (the server marks it), then,
+// when the title's profile scores custom formats, the highest score first.
+// Equal rows keep the order the server sent them. Without scores and without a
+// marked release the list is left as it is.
+export function defaultOrder<T extends SortableRelease>(list: T[]): T[] {
+  const scored = list.some((r) => r.formatScore !== undefined)
+  if (!scored && !list.some((r) => r.best)) return list
+  return list
+    .map((item, i) => ({ item, i }))
+    .sort((x, y) => Number(!!y.item.best) - Number(!!x.item.best) || (scored ? (y.item.formatScore ?? 0) - (x.item.formatScore ?? 0) : 0) || x.i - y.i)
+    .map((x) => x.item)
+}
+
 export interface ReleaseFilter {
   text: string
   indexer: string // '' for any
@@ -129,8 +144,27 @@ export type SubtitleSortKey = 'release' | 'source' | 'rating' | 'fit'
 export interface SortableSubtitle {
   release: string
   source?: string
+  sourceName?: string // an add-on's own name
   rating: number
   score: number
+}
+
+// The site a subtitle comes from: its own name for an add-on. Empty when an
+// add-on result has no name, so the caller can show a translated fallback.
+export function subtitleSite(r: SortableSubtitle): string {
+  if (r.source === 'subdl') return 'SubDL'
+  if (r.source === 'addon') return r.sourceName ?? ''
+  return 'OpenSubtitles'
+}
+
+// Rating and fit are only written when the source gave something.
+export function subtitleRating(r: SortableSubtitle): string {
+  return r.rating > 0 ? String(r.rating) : ''
+}
+
+export function subtitleFit(r: SortableSubtitle): string {
+  const n = Math.round(r.score)
+  return n > 0 ? String(n) : ''
 }
 
 export const SUBTITLE_FIRST_DIRECTION: Record<SubtitleSortKey, SortDir> = { release: 1, source: 1, rating: -1, fit: -1 }
@@ -142,9 +176,9 @@ export function sortSubtitles<T extends SortableSubtitle>(list: T[], key: Subtit
       case 'release':
         return text(a.release, b.release)
       case 'source':
-        return text(a.source ?? '', b.source ?? '')
+        return text(subtitleSite(a), subtitleSite(b))
       case 'rating':
-        return (a.source ? 0 : a.rating) - (b.source ? 0 : b.rating)
+        return a.rating - b.rating
       case 'fit':
         return a.score - b.score
     }

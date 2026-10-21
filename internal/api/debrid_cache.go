@@ -249,6 +249,9 @@ func (s *Server) markCachedPayloads(ctx context.Context, rows []searchResultPayl
 	answers := s.cachedAnswers(ctx, hashes)
 	for i := range rows {
 		rows[i].Cached = answers[rows[i].hash]
+		if rows[i].Cached {
+			rows[i].BelowMinSeeders = false // a release the service has needs no seeders
+		}
 	}
 }
 

@@ -43,13 +43,16 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 	sched := automation.NewScheduler(
 		automation.Job{Name: "hunt", Interval: s.huntInterval(), IntervalFunc: s.huntInterval, Run: s.heavy(s.hunt)},
 		automation.Job{Name: "rss-sync", Interval: s.releaseCheckInterval(), IntervalFunc: s.releaseCheckInterval, Run: s.heavy(s.rssSync)},
-		automation.Job{Name: "delayed-grabs", Interval: time.Minute, Run: s.delayedGrabsJob}, // searches again when a held release has waited long enough
-		automation.Job{Name: "tv-reminders", Interval: time.Minute, Run: s.tvRemindJob},      // Usherr: Live TV reminders
+		automation.Job{Name: "delayed-grabs", Interval: time.Minute, Run: s.delayedGrabsJob},                                // searches again when a held release has waited long enough
+		automation.Job{Name: "tv-reminders", Interval: time.Minute, Run: s.tvRemindJob},                                     // Usherr: Live TV reminders
+		automation.Job{Name: "tv-warm", Interval: 3 * time.Hour, InitialDelay: 90 * time.Second, Run: s.heavy(s.tvWarmJob)}, // Usherr: streamed programs looked up before they are tuned
+		automation.Job{Name: "real-tv-refresh", Interval: 20 * time.Minute, Run: s.realTVRefreshJob},                        // Usherr: Real TV's day before, each night
 		automation.Job{Name: "download-line", Interval: downloadLineCheck, Run: func(context.Context) { s.kickDownloads() }},
 		automation.Job{Name: "series-refresh", Interval: seriesRefreshInterval, Run: s.heavy(s.refreshAllSeries)},
 		automation.Job{Name: "music-refresh", Interval: musicRefreshInterval, Run: s.heavy(s.refreshMusicArtists)},
 		automation.Job{Name: "subtitle-sweep", Interval: subtitleSweepInterval, Run: s.heavy(s.subtitleSweepJob)},
 		automation.Job{Name: "genre-backfill", Interval: genreBackfillInterval, Run: s.heavy(s.backfillGenres)},
+		automation.Job{Name: "country-backfill", Interval: countryBackfillInterval, Run: s.heavy(s.backfillCountries)},
 		automation.Job{Name: "collections", Interval: collectionsInterval, Run: s.heavy(s.collectionsJob)}, // finds the collection of each movie; adds new films of followed collections
 		automation.Job{Name: "title-names", Interval: titleNamesInterval, Run: s.heavy(s.titleNamesJob)},   // picks the other titles of each movie and show, when a language besides English is wanted
 		automation.Job{Name: "cleanup", Interval: cleanupCheckInterval, Run: s.cleanupJob},
@@ -58,6 +61,7 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "speed-limit", Interval: speedCheck, Run: s.speedJob},
 		automation.Job{Name: "quiet-hours", Interval: speedCheck, Run: s.quietHoursJob},
 		automation.Job{Name: "calendar-art", Interval: artworkEvery, Run: s.heavy(s.artworkJob)},                 // fetches the backdrops and logos of what is on the calendar
+		automation.Job{Name: "release-dates", Interval: releaseDatesEvery, Run: s.heavy(s.releaseDatesJob)},      // reads the digital release dates of the movies on the calendar
 		automation.Job{Name: "weekly-summary", Interval: digestCheck, Run: s.digestJob},                          // does nothing until a day is chosen
 		automation.Job{Name: "home-schedules", Interval: scheduleWaitPoll, Run: s.scheduleJob},                   // home fork: schedules
 		automation.Job{Name: "nsfw-find-warm", Interval: 5 * time.Hour, Run: s.heavy(s.warmDiscoverJob)},         // home fork: Find tab
@@ -74,6 +78,7 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "home-diary", Interval: diarySyncEvery, Run: s.heavy(s.diaryJob)},                   // home fork: the Diary, from the media server
 		automation.Job{Name: "home-autostream", Interval: autostreamEvery, Run: s.heavy(s.autostreamJob)},        // home fork: Streams for you
 		automation.Job{Name: "import-details", Interval: importDetailsInterval, Run: s.heavy(s.importDetailsJob)},
+		automation.Job{Name: "trash-formats", Interval: time.Hour, Run: s.heavy(s.trashFormatsJob)}, // does nothing until switched on; reads the guides once a day
 		automation.Job{Name: "episode-quality", Interval: 24 * time.Hour, Run: s.heavy(func(context.Context) { s.backfillEpisodeQuality() })},
 		automation.Job{Name: "import-added-dates", Interval: 24 * time.Hour, Run: s.heavy(func(context.Context) { s.backfillImportedAddedDates() })},
 		automation.Job{Name: "watched", Interval: watchedJobTick, Run: s.heavy(s.watchedJob)},                     // does nothing until switched on
@@ -247,13 +252,13 @@ func (s *Server) huntMovie(ctx context.Context, m library.Movie, instances []ind
 		var enough func([]indexers.Outcome) bool
 		if !force {
 			enough = func(o []indexers.Outcome) bool {
-				return pickBestResult(filterSources(matchingResults(dropBlocked(s.freshOnly(indexers.MergeResults(o)), blocked), m), sources), profile, m.Year) != nil
+				return pickBestResult(filterSources(matchingResults(dropBlocked(s.autoCandidates(ctx, indexers.MergeResults(o)), blocked), m), sources), profile, m.Year) != nil
 			}
 		}
 		outcomes := s.searchMovieTitles(ctx, instances, m, enough)
 		// A title search also returns other films with similar words; only
 		// releases of this movie may be grabbed.
-		best := pickBestResult(s.limitMovieResults(ctx, m, profile, !force, filterSources(matchingResults(dropBlocked(s.freshOnly(indexers.MergeResults(outcomes)), blocked), m), sources)), profile, m.Year)
+		best := pickBestResult(s.limitMovieResults(ctx, m, profile, !force, filterSources(matchingResults(dropBlocked(s.autoCandidates(ctx, indexers.MergeResults(outcomes)), blocked), m), sources)), profile, m.Year)
 		s.noteMovieSearch(ctx, noteMode(force), m, outcomes, blocked, sources, profile, best, "")
 		if best == nil {
 			return false
@@ -273,11 +278,11 @@ func (s *Server) huntMovie(ctx context.Context, m library.Movie, instances []ind
 		var enough func([]indexers.Outcome) bool
 		if !force {
 			enough = func(o []indexers.Outcome) bool {
-				return pickUpgradeResult(filterSources(matchingResults(dropBlocked(s.freshOnly(indexers.MergeResults(o)), blocked), m), sources), profile, currentTier, m.ReleaseTitle, m.Year) != nil
+				return pickUpgradeResult(filterSources(matchingResults(dropBlocked(s.autoCandidates(ctx, indexers.MergeResults(o)), blocked), m), sources), profile, currentTier, m.ReleaseTitle, m.Year) != nil
 			}
 		}
 		outcomes := s.searchMovieTitles(ctx, instances, m, enough)
-		best := pickUpgradeResult(s.limitMovieResults(ctx, m, profile, !force, filterSources(matchingResults(dropBlocked(s.freshOnly(indexers.MergeResults(outcomes)), blocked), m), sources)), profile, currentTier, m.ReleaseTitle, m.Year)
+		best := pickUpgradeResult(s.limitMovieResults(ctx, m, profile, !force, filterSources(matchingResults(dropBlocked(s.autoCandidates(ctx, indexers.MergeResults(outcomes)), blocked), m), sources)), profile, currentTier, m.ReleaseTitle, m.Year)
 		s.noteMovieSearch(ctx, noteMode(force), m, outcomes, blocked, sources, profile, best, currentTier)
 		if best == nil {
 			return false
@@ -343,6 +348,11 @@ func (s *Server) rssSync(ctx context.Context) {
 	if err != nil || len(instances) == 0 {
 		return
 	}
+	// An indexer with a daily limit is read only as often as a third of that
+	// limit allows, so the searches for specific titles still find requests left.
+	if instances = s.rssInstances(instances); len(instances) == 0 {
+		return
+	}
 	if s.tvEnabled() {
 		s.rssSyncTV(ctx, instances, profiles)
 	}
@@ -351,7 +361,7 @@ func (s *Server) rssSync(ctx context.Context) {
 	}
 
 	outcomes := indexers.SearchAll(ctx, instances, "", movieCategory)
-	results := dropBlocked(s.freshOnly(indexers.MergeResults(outcomes)), s.searchSkipKeys())
+	results := dropBlocked(s.autoCandidates(ctx, indexers.MergeResults(outcomes)), s.searchSkipKeys())
 
 	for _, m := range missing {
 		best := pickBestResult(s.limitMovieResults(ctx, m, s.profileForMovie(profiles, m), true, filterSources(matchingResults(results, m), s.sourcesFor(m.SourcePref))), s.profileForMovie(profiles, m), m.Year)
@@ -388,7 +398,7 @@ func (s *Server) rssSync(ctx context.Context) {
 func matchingResults(results []indexers.Result, m library.Movie) []indexers.Result {
 	var out []indexers.Result
 	for _, res := range results {
-		if matchesMovie(res.Title, m) {
+		if matchesMovieRel(res.Parsed(), m) {
 			out = append(out, res)
 		}
 	}
@@ -415,11 +425,11 @@ func pickBestFor(results []indexers.Result, profile quality.Profile, wantYear in
 	var best *indexers.Result
 	var bestKey pickKey
 	for i := range results {
-		release := parser.Parse(results[i].Title)
+		release := results[i].Parsed()
 		if !profile.Accepts(release) {
 			continue
 		}
-		if ok, _ := profile.TitleAllowed(results[i].Title); !ok {
+		if ok, _ := profile.TitleAllowedRel(results[i].Title, release); !ok {
 			continue
 		}
 		if wantYear != 0 && release.Year != 0 && release.Year != wantYear {
@@ -446,11 +456,11 @@ func pickUpgradeResult(results []indexers.Result, profile quality.Profile, curre
 	var best *indexers.Result
 	var bestKey pickKey
 	for i := range results {
-		release := parser.Parse(results[i].Title)
-		if !profile.IsUpgradeOver(currentTier, currentRelease, results[i].Title) {
+		release := results[i].Parsed()
+		if !profile.IsUpgradeOverRel(currentTier, currentRelease, results[i].Title, release) {
 			continue
 		}
-		if ok, _ := profile.TitleAllowed(results[i].Title); !ok {
+		if ok, _ := profile.TitleAllowedRel(results[i].Title, release); !ok {
 			continue
 		}
 		if wantYear != 0 && release.Year != 0 && release.Year != wantYear {
@@ -478,7 +488,11 @@ func pickUpgradeResult(results []indexers.Result, profile quality.Profile, curre
 // film added under its English one) is the movie too. The year rule is the
 // same for every title, and only this movie's own other titles are tried.
 func matchesMovie(releaseTitle string, movie library.Movie) bool {
-	release := parser.Parse(releaseTitle)
+	return matchesMovieRel(parser.Parse(releaseTitle), movie)
+}
+
+// matchesMovieRel is matchesMovie for a release that is already parsed.
+func matchesMovieRel(release parser.Release, movie library.Movie) bool {
 	if release.Year != 0 && movie.Year != 0 && release.Year != movie.Year {
 		return false
 	}

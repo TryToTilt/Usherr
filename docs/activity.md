@@ -90,7 +90,7 @@ What is recorded (`kind`):
 | `retry` | after a blocklisted release, why no other release was taken right away | `No other acceptable release; will try again at the next scheduled search` (warn) |
 | `retried` | **Retry** on a failed download, and whether it reused the files already downloaded | `Retrying from the files already downloaded: <release>` |
 | `removed` | a download was removed from the download list | |
-| `kept` | a download finished but the file already in your library was kept, because **If a file already exists** said so (or you pressed **Skip**). It is a decision, not a failure: the row says "Kept the file you already have." and no "failed" notification is sent | `The Film: a file is already at /movies/The Film (2001)/The Film (2001).mkv, so Mediarium kept it and did not import <release>.` |
+| `kept` | a download finished but the file already in your library was kept, because **If a file already exists** said so (or you pressed **Skip**), including when the new release would have had a different file name than the one you have. It is a decision, not a failure: the row says "Kept the file you already have." and no "failed" notification is sent | `The Film: a file is already at /movies/The Film (2001)/The Film (2001).mkv, so Mediarium kept it and did not import <release>.` |
 
 A search can skip a release for these reasons: `blocklisted`, a downloader the title doesn't use (`from torrent sites (this title uses Usenet only)`), `other films` (a different movie), `other years`, `for another show`, `not this episode`, `not a season pack`, a quality no profile in the title's chain accepts (its tier, such as `CAM/TeleSync`, or `unknown quality`), `excluded by the profile's release terms`, `in another language`, `older than your Usenet retention of <n> days`, and for upgrade searches `not an upgrade over <tier>`. Indexers that didn't answer are named too.
 
@@ -124,7 +124,7 @@ Administrators have a **Download clients** tab next to Queue. It is the one plac
 **Connected clients.** Inside the torrent card, under the built-in client, a section for each client you set up under **Settings > Downloading > Torrents > Use your own torrent client** (qBittorrent, RDT-Client or Decypharr) and for your **debrid** account (Real-Debrid or TorBox):
 
 - **Torrent client:** each torrent has its state in words (Downloading, Waiting for peers, Checking the files, Paused, Seeding, Finished, Problem), a progress bar, the speed down and up, the time left, how many seeds and peers are connected and how many the swarm has, the ratio, when it was added and its size. A torrent that has moved no data for 30 minutes says so ("No data for 2 h. It may be dead.").
-- **Added by Mediarium** shows the torrents Mediarium put in the client (its category, `mediarium` unless you changed it); **Everything in qBittorrent** shows all of them, yours too, marked with their own category.
+- **Added by Mediarium** shows the torrents Mediarium put in the client (its category, `mediarium` unless you changed it, or the category you set for that kind of download); **Everything in qBittorrent** shows all of them, yours too, marked with their own category.
 - **Buttons:** **Pause** and **Resume**, **Check the files again**, **Remove, keep the files** and **Remove and delete the files** (both ask first). On a torrent Mediarium added, **Give up and search again** stops that download, puts the release on the [blocklist](#when-a-release-turns-out-to-be-bad), removes the torrent and its files and looks for another release.
 - **Debrid:** the torrents on the account with their state, progress, speed and seeders, and a button to remove one.
 
@@ -143,6 +143,8 @@ The **Blocklist** tab (administrators) shows the newest 100 blocked releases, ne
 ## The calendar
 
 **Upcoming > Calendar** shows releases, episode air dates, album releases and book releases on their day. Movies and episodes start 30 days back, so a big library's old releases don't fill it (movies further ahead are all shown). Chips at the top show only movies, TV, music or books (when more than one is switched on), and **Not downloaded yet only** hides what you already have.
+
+A monitored movie with a digital release date on a different day from its cinema date is on the calendar twice, marked **Cinema** and **Digital**, so you can see when it can first be downloaded. Both dates are the ones of your country (see [Discover](./discover.md)). TMDB gives them one title at a time, so Mediarium reads them slowly in the background, a few every few minutes, and a movie gets its second marker once it has been read. In `GET /api/calendar` the two entries have `release` set to `cinema` or `digital`.
 
 The arrows next to the month go back and forward a month, and **Today** comes back to this one. **Posters** shows the month with a big poster in each day and the name in a frosted bubble over it; a day with more than one release has a **+n more** button that opens the whole day as a window of posters. **Backdrops** is the same, but each release is a wide still from the film or show with its logo over it. Mediarium fetches those from TMDB slowly in the background, a few every few minutes and only for what is on the calendar, so a title shows its poster until its picture has arrived (it can take a while the first time with a big calendar). **Month** shows the whole month as a grid, with a small poster for each release (titles show when there's room; point at a poster to read it). Today's square is lit. **Agenda** lists only the days that have something on, each with its date on a ticket stub and the releases as cards with their poster, episode code and status. Phones and narrow windows always show the agenda. The calendar remembers which view you picked.
 
@@ -181,7 +183,9 @@ Every download in progress, Usenet or torrent, has **Pause** and **Stop**. Only 
 | **Pause all** / **Resume all** | Do the same for every download at once. |
 | **Pick** (the small box on a download's picture) | Pick several downloads (in progress, failed or stopped), then use the bar that appears above the list: **To the front**, **Pause**, **Resume**, **Stop** or **Remove** for all of them, **Pick all**, **Pick paused**, or **Clear**. **Remove** takes the picked downloads off the list (a running one, or one waiting in line, is refused and named: pause or stop it first). One that can't be changed (pausing a download that's already paused, say) is named in the message, and the rest still go through. Picked downloads keep the order they're shown in when you send them to the front. |
 
-A download that's unpacking or importing pauses or stops when the current step ends. The row says **Pausing…** or **Stopping…** until then.
+A download that's importing pauses or stops when the current step ends. The row says **Pausing…** or **Stopping…** until then. One that's unpacking stops the unpacking at once: the file that was being written is removed, and unpacking starts over when you resume.
+
+While archives are being unpacked, the row says **Unpacking** and shows how much is done, for example `Unpacking: 31.2 GB of 75.0 GB`, with the speed and the time left. The bar and the percentage follow the unpacking too, instead of sitting at 100%. With more than one archive in the download the line names the one being unpacked (`Unpacking archive 2 of 3: ...`).
 
 ### After a restart
 
@@ -189,7 +193,16 @@ A paused download is still paused after Mediarium restarts, whatever the mode. T
 
 A download that was only **waiting in line** is still waiting after a restart, in the same order, and starts about a minute after Mediarium starts when a place is free. In safe mode it comes back paused instead, because safe mode starts nothing by itself.
 
-A download that was running when Mediarium stopped (an update, a crash, the NAS switching off) comes back as **Partly downloaded, stopped**, with the saved part kept. Press **Resume** to carry on, **Stop** to give up, or the remove button.
+A download that was running when Mediarium stopped (an update, a crash, the NAS switching off) comes back as **Partly downloaded, stopped**, with the saved part kept. By default the Usenet and built-in torrent downloads that were **downloading** then carry on by themselves: about 15 seconds after the start, one at a time, a few seconds apart, and only when there is a free place in the line. Their activity line says **Resumed after a restart**. Usenet carries on from the articles it already has, a torrent from its files (it checks what is there first).
+
+They stay stopped, and you press **Resume** yourself (or **Stop**, or the remove button), when:
+
+- **Resume interrupted downloads after a restart** is off (Settings > Downloading > Download rules);
+- Mediarium started in safe mode;
+- the download uses an outside download client or a debrid service, was unpacking or importing, or you had paused it;
+- it is a torrent and your VPN isn't up after 10 minutes (with the kill switch, or a VPN switched on). It waits for the VPN, it never goes out without it.
+
+With **Pause downloads while someone is watching** on, and someone watching, they are held with the other paused downloads and come back when nobody is.
 
 At every start Mediarium also fixes titles that got stuck. A movie, episode or album marked "downloading" with no download behind it goes back to downloaded (if its file is there) or missing. A movie or episode marked missing whose file is on disk is marked downloaded. A waiting download for a title that's downloaded and set to **Leave what I have alone** is removed.
 

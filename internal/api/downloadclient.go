@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/rdborg/mediarium/internal/queue"
 	"github.com/rdborg/mediarium/internal/settings"
 	"github.com/rdborg/mediarium/internal/subtitles"
+	"github.com/rdborg/mediarium/internal/torrentopts"
 )
 
 // Download client: torrent releases go to an external program that speaks
@@ -63,9 +65,11 @@ type downloadClientConfig struct {
 	Username          string
 	Password          string
 	Category          string
+	KindCategories    map[string]string // optional category per kind of download (torrentopts.Kind*)
 	RemotePath        string
 	LocalPath         string
 	RemoveAfterImport bool
+	RemoveOnStop      bool
 	LinkRoot          string
 }
 
@@ -76,23 +80,63 @@ func (s *Server) downloadClientConfig() downloadClientConfig {
 	}
 	remove, _ := s.Settings.GetBool(settings.KeyDownloadClientRemoveImport)
 	return downloadClientConfig{
-		Kind:              get(settings.KeyDownloadClientKind),
-		URL:               get(settings.KeyDownloadClientURL),
-		Username:          get(settings.KeyDownloadClientUsername),
-		Password:          get(settings.KeyDownloadClientPassword),
-		Category:          get(settings.KeyDownloadClientCategory),
+		Kind:     get(settings.KeyDownloadClientKind),
+		URL:      get(settings.KeyDownloadClientURL),
+		Username: get(settings.KeyDownloadClientUsername),
+		Password: get(settings.KeyDownloadClientPassword),
+		Category: get(settings.KeyDownloadClientCategory),
+		KindCategories: map[string]string{
+			torrentopts.KindMovie: get(settings.KeyDownloadClientCategoryMovies),
+			torrentopts.KindTV:    get(settings.KeyDownloadClientCategoryTV),
+			torrentopts.KindMusic: get(settings.KeyDownloadClientCategoryMusic),
+			torrentopts.KindBook:  get(settings.KeyDownloadClientCategoryBooks),
+		},
 		RemotePath:        get(settings.KeyDownloadClientRemotePath),
 		LocalPath:         get(settings.KeyDownloadClientLocalPath),
 		RemoveAfterImport: remove,
+		RemoveOnStop:      s.removeOnStopOn(),
 		LinkRoot:          get(settings.KeyDownloadClientLinkRoot),
 	}
 }
 
+// category is the main category. An empty one stays empty when the person gave
+// some kinds a category of their own: a kind without one then gets no category
+// at all. Only when nothing is set anywhere does the default apply.
 func (c downloadClientConfig) category() string {
-	if strings.TrimSpace(c.Category) == "" {
-		return defaultClientCategory
+	if v := strings.TrimSpace(c.Category); v != "" {
+		return v
 	}
-	return c.Category
+	for _, k := range torrentopts.Kinds {
+		if strings.TrimSpace(c.KindCategories[k]) != "" {
+			return ""
+		}
+	}
+	return defaultClientCategory
+}
+
+// categoryFor is the category a download of this kind is added with: the one
+// set for the kind, or the main category when that is empty (which may itself
+// mean none, see category).
+func (c downloadClientConfig) categoryFor(kind string) string {
+	if v := strings.TrimSpace(c.KindCategories[kind]); v != "" {
+		return v
+	}
+	return c.category()
+}
+
+// allCategories lists every category Mediarium may have used: the main one and
+// those of the kinds. Torrents in any of them are Mediarium's.
+func (c downloadClientConfig) allCategories() []string {
+	var out []string
+	if v := c.category(); v != "" {
+		out = append(out, v)
+	}
+	for _, k := range torrentopts.Kinds {
+		if v := strings.TrimSpace(c.KindCategories[k]); v != "" && !slices.Contains(out, v) {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // downloadClientOn reports whether torrent releases go to an external
@@ -260,12 +304,23 @@ func (s *Server) addToClient(ctx context.Context, c qbit.API, cfg downloadClient
 			return hash, true, nil
 		}
 	}
-	err = c.Add(ctx, qbit.AddOptions{Magnet: magnet, TorrentFile: data, Category: cfg.category(), Tag: clientTag(queueID)})
+	category := cfg.category()
+	if item, gerr := s.QueueRepo.Get(queueID); gerr == nil {
+		category = cfg.categoryFor(queueKind(item))
+	}
+	err = c.Add(ctx, qbit.AddOptions{Magnet: magnet, TorrentFile: data, Category: category, Tag: clientTag(queueID), Hash: hash, Share: s.clientShareLimits(queueID)})
 	if err != nil {
 		return "", false, s.downloadClientError(label, err)
 	}
 	s.queueEvent(queueID, "download", queue.LevelInfo, "Sent to "+label)
 	return hash, false, nil
+}
+
+// clientShareLimits is the seeding goal of a queue item as the client should
+// enforce it: the global limits or the indexer's own rule.
+func (s *Server) clientShareLimits(queueID int64) qbit.ShareLimits {
+	g := s.torrentSeedGoal(queueID)
+	return qbit.ShareLimits{Ratio: g.Ratio, Time: g.Time}
 }
 
 // clientDone lays out the finished torrent's files in the download's folder.
@@ -474,7 +529,13 @@ func (s *Server) clientFileBehind(link string) (string, error) {
 // external client's file goes through organizer.ImportClientFile, which
 // leaves the client's file where it is.
 func (s *Server) importDownloaded(src, dest string, policy organizer.ConflictPolicy, isBetter func() bool) (organizer.ImportResult, error) {
+	if err := s.checkLibraryRoot(dest); err != nil {
+		return organizer.ImportResult{}, err
+	}
 	if info, err := os.Lstat(src); err != nil || info.Mode()&fs.ModeSymlink == 0 {
+		if err := s.checkRoomToMove(src, dest); err != nil {
+			return organizer.ImportResult{}, err
+		}
 		return organizer.Import(src, dest, policy, isBetter)
 	}
 	clientFile, err := s.clientFileBehind(src)
@@ -607,9 +668,14 @@ type downloadClientPayload struct {
 	Username          string `json:"username"`
 	HasPassword       bool   `json:"hasPassword"`
 	Category          string `json:"category"`
+	CategoryMovies    string `json:"categoryMovies"`
+	CategoryTV        string `json:"categoryTv"`
+	CategoryMusic     string `json:"categoryMusic"`
+	CategoryBooks     string `json:"categoryBooks"`
 	RemotePath        string `json:"remotePath"`
 	LocalPath         string `json:"localPath"`
 	RemoveAfterImport bool   `json:"removeAfterImport"`
+	RemoveOnStop      bool   `json:"removeOnStop"`
 	LinkRoot          string `json:"linkRoot"`
 }
 
@@ -618,8 +684,9 @@ func (s *Server) handleGetDownloadClient(w http.ResponseWriter, r *http.Request)
 	c := s.downloadClientConfig()
 	writeJSON(w, http.StatusOK, downloadClientPayload{
 		Kind: c.Kind, URL: c.URL, Username: c.Username, HasPassword: c.Password != "",
-		Category: c.category(), RemotePath: c.RemotePath, LocalPath: c.LocalPath,
-		RemoveAfterImport: c.RemoveAfterImport, LinkRoot: c.LinkRoot,
+		Category: strings.TrimSpace(c.Category), CategoryMovies: c.KindCategories[torrentopts.KindMovie], CategoryTV: c.KindCategories[torrentopts.KindTV],
+		CategoryMusic: c.KindCategories[torrentopts.KindMusic], CategoryBooks: c.KindCategories[torrentopts.KindBook], RemotePath: c.RemotePath, LocalPath: c.LocalPath,
+		RemoveAfterImport: c.RemoveAfterImport, RemoveOnStop: c.RemoveOnStop, LinkRoot: c.LinkRoot,
 	})
 }
 
@@ -629,9 +696,14 @@ type downloadClientRequest struct {
 	Username          string `json:"username"`
 	Password          string `json:"password"` // blank keeps the saved one
 	Category          string `json:"category"`
+	CategoryMovies    string `json:"categoryMovies"`
+	CategoryTV        string `json:"categoryTv"`
+	CategoryMusic     string `json:"categoryMusic"`
+	CategoryBooks     string `json:"categoryBooks"`
 	RemotePath        string `json:"remotePath"`
 	LocalPath         string `json:"localPath"`
 	RemoveAfterImport bool   `json:"removeAfterImport"`
+	RemoveOnStop      *bool  `json:"removeOnStop"` // absent keeps the saved choice (on unless switched off)
 	LinkRoot          string `json:"linkRoot"`
 }
 
@@ -639,6 +711,10 @@ func (req *downloadClientRequest) trim() {
 	req.URL = strings.TrimSpace(req.URL)
 	req.Username = strings.TrimSpace(req.Username)
 	req.Category = strings.TrimSpace(req.Category)
+	req.CategoryMovies = strings.TrimSpace(req.CategoryMovies)
+	req.CategoryTV = strings.TrimSpace(req.CategoryTV)
+	req.CategoryMusic = strings.TrimSpace(req.CategoryMusic)
+	req.CategoryBooks = strings.TrimSpace(req.CategoryBooks)
 	req.RemotePath = strings.TrimSpace(req.RemotePath)
 	req.LocalPath = strings.TrimSpace(req.LocalPath)
 	req.LinkRoot = strings.TrimSpace(req.LinkRoot)
@@ -662,12 +738,28 @@ func (req downloadClientRequest) check() string {
 		checkNoControl(req.Password, "The password"),
 		checkMaxLen(req.Category, "The category", 100),
 		checkNoControl(req.Category, "The category"),
+		checkMaxLen(req.CategoryMovies, "The movies category", 100),
+		checkNoControl(req.CategoryMovies, "The movies category"),
+		checkMaxLen(req.CategoryTV, "The TV shows category", 100),
+		checkNoControl(req.CategoryTV, "The TV shows category"),
+		checkMaxLen(req.CategoryMusic, "The music category", 100),
+		checkNoControl(req.CategoryMusic, "The music category"),
+		checkMaxLen(req.CategoryBooks, "The books category", 100),
+		checkNoControl(req.CategoryBooks, "The books category"),
 	)
 	if msg != "" {
 		return msg
 	}
-	if c := req.Category; strings.Contains(c, `\`) || strings.HasPrefix(c, "/") || strings.HasSuffix(c, "/") || strings.Contains(c, "//") {
-		return `The category can't contain \ or //, or start or end with /.`
+	for _, c := range []struct{ msg, v string }{
+		{`The category can't contain \ or //, or start or end with /.`, req.Category},
+		{`The movies category can't contain \ or //, or start or end with /.`, req.CategoryMovies},
+		{`The TV shows category can't contain \ or //, or start or end with /.`, req.CategoryTV},
+		{`The music category can't contain \ or //, or start or end with /.`, req.CategoryMusic},
+		{`The books category can't contain \ or //, or start or end with /.`, req.CategoryBooks},
+	} {
+		if strings.Contains(c.v, `\`) || strings.HasPrefix(c.v, "/") || strings.HasSuffix(c.v, "/") || strings.Contains(c.v, "//") {
+			return c.msg
+		}
 	}
 	if (req.RemotePath == "") != (req.LocalPath == "") {
 		return "Fill in both folders of the path mapping, or leave both empty."
@@ -704,13 +796,22 @@ func (s *Server) handlePutDownloadClient(w http.ResponseWriter, r *http.Request)
 	if req.RemoveAfterImport {
 		remove = "1"
 	}
+	removeOnStop := boolSetting(old.RemoveOnStop)
+	if req.RemoveOnStop != nil {
+		removeOnStop = boolSetting(*req.RemoveOnStop)
+	}
 	save := []kv{
 		{settings.KeyDownloadClientURL, req.URL, false},
 		{settings.KeyDownloadClientUsername, req.Username, false},
 		{settings.KeyDownloadClientCategory, req.Category, false},
+		{settings.KeyDownloadClientCategoryMovies, req.CategoryMovies, false},
+		{settings.KeyDownloadClientCategoryTV, req.CategoryTV, false},
+		{settings.KeyDownloadClientCategoryMusic, req.CategoryMusic, false},
+		{settings.KeyDownloadClientCategoryBooks, req.CategoryBooks, false},
 		{settings.KeyDownloadClientRemotePath, req.RemotePath, false},
 		{settings.KeyDownloadClientLocalPath, req.LocalPath, false},
 		{settings.KeyDownloadClientRemoveImport, remove, false},
+		{settings.KeyDownloadClientRemoveOnStop, removeOnStop, false},
 		{settings.KeyDownloadClientLinkRoot, req.LinkRoot, false},
 	}
 	switch {

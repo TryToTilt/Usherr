@@ -222,6 +222,23 @@ func TestArrAPIForOverseerr(t *testing.T) {
 	if len(eps) != 3 || obj(eps[0])["airDateUtc"] != "2019-02-01T00:00:00Z" {
 		t.Fatalf("episodes: %v", eps)
 	}
+	// One season: only that season's episodes come back (Maintainerr acts on all of them).
+	for season, want := range map[int]int{1: 2, 2: 1, 9: 0} {
+		got := list(arrCall(t, "GET", fmt.Sprintf("%s/episode?seriesId=%v&seasonNumber=%d", sonarr, seriesID, season), key, nil, http.StatusOK))
+		if len(got) != want {
+			t.Fatalf("season %d: %d episodes, want %d: %v", season, len(got), want, got)
+		}
+		for _, e := range got {
+			if obj(e)["seasonNumber"] != float64(season) {
+				t.Fatalf("season %d answer holds %v", season, obj(e))
+			}
+		}
+	}
+	arrCall(t, "GET", fmt.Sprintf("%s/episode?seriesId=%v&seasonNumber=x", sonarr, seriesID), key, nil, http.StatusBadRequest)
+	one := obj(eps[0])["id"].(float64)
+	if got := list(arrCall(t, "GET", fmt.Sprintf("%s/episode?seriesId=%v&episodeIds=%v", sonarr, seriesID, one), key, nil, http.StatusOK)); len(got) != 1 || obj(got[0])["id"] != one {
+		t.Fatalf("episodeIds filter: %v", got)
+	}
 	if cmd := obj(arrCall(t, "POST", sonarr+"/command", key, map[string]any{"name": "SeriesSearch", "seriesId": seriesID}, http.StatusCreated)); cmd["status"] == nil {
 		t.Fatalf("command: %v", cmd)
 	}

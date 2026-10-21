@@ -23,6 +23,31 @@ export function sessionEnded(path: string, status: number, body: string): boolea
   }
 }
 
+// Why the session ended, when the server says. Only "idle" is told: the person was
+// signed out because the browser sat unused for the number of days an administrator
+// chose. The sign-in page then says so. It is kept until someone signs in again.
+let endReason = ''
+
+/** Notes the reason a 401 answer gives for the session ending. */
+export function noteEndReason(status: number, body: string) {
+  if (status !== 401) return
+  try {
+    if ((JSON.parse(body.trim()) as { reason?: string } | null)?.reason === 'idle') endReason = 'idle'
+  } catch {
+    // a plain "unauthorized": no reason given
+  }
+}
+
+/** True when the last time the session ended, it was for being idle. */
+export function signedOutForIdle(): boolean {
+  return endReason === 'idle'
+}
+
+/** Forgets the reason (someone signed in again). */
+export function clearEndReason() {
+  endReason = ''
+}
+
 const listeners = new Set<() => void>()
 
 /** Runs fn whenever a call finds the session has ended. Returns a function that stops it. */

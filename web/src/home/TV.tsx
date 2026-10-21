@@ -3,6 +3,7 @@
 // the right second. Admins make and edit channels here.
 import { MultiviewButton, OtherAppsButton } from './TVMulti' // Usherr
 import { AIBuildButton, PacksButton, type Draft } from './TVPacks' // Usherr
+import { RealTVButton } from './TVReplay' // Usherr
 import { GuideOptions, ListingsView, NowOnView, PrevueView } from './TVGuideStyles' // Usherr
 import { setTVPrefs, toggleIn, useTVPrefs } from './tvPrefs' // Usherr
 import TVScheduling, { type SchedulingRules } from './TVScheduling' // Usherr
@@ -166,6 +167,7 @@ export default function TV() {
             <OtherAppsButton />
             <PacksButton onPick={setEditing} />
             <AIBuildButton onPick={setEditing} />
+            <RealTVButton folder={guide?.channels.map((c) => c.channel.rules?.filler?.folder).find(Boolean)} onMade={load} />
             <button className="primary btn-with-icon" onClick={() => setEditing('new')}>
               <Icon name="plus" size={16} /> {t('New channel')}
             </button>
@@ -345,7 +347,7 @@ function ChannelEditor({ channel, draft, onClose, onSaved }: { channel: Channel 
     const tm = window.setTimeout(() => {
       api
         .discoverSearch(q, ac.signal)
-        .then((list) => setFound(list.filter((r) => r.kind === 'tv' && !r.inLibrary).slice(0, 6)))
+        .then((list) => setFound(list.filter((r) => r.kind === 'tv').slice(0, 6))) // Usherr: in the library or not, any show can stream
         .catch(() => undefined)
     }, 350)
     return () => {
@@ -486,7 +488,7 @@ function ChannelEditor({ channel, draft, onClose, onSaved }: { channel: Channel 
               .filter((r) => !streamed.some((s) => s.tmdbId === r.tmdbId))
               .map((r) => (
                 <li key={`tmdb-${r.tmdbId}`}>
-                  <label title={t('Not in your library: its episodes play through StreamNZB')}>
+                  <label title={t('Its episodes play through StreamNZB')}>
                     <input type="checkbox" checked={false} onChange={() => toggleStream(r)} />
                     {r.title} {r.year ? <span className="hint">({r.year})</span> : null} <span className="tv-tag">{t('stream')}</span>
                   </label>
@@ -755,7 +757,7 @@ function GuideGrid({ guide, sel, onPick, onChannel }: { guide: Guide; sel: Selec
   }, [from])
   const page = (minutes: number) => scroller.current?.scrollBy({ left: minutes * pxPerMin, behavior: 'smooth' })
   return (
-    <div className={`tvg${prefs.style === 'cable' ? ' tvg-cable' : ''}`}>
+    <div className={`tvg${prefs.style === 'cable' ? ' tvg-cable' : prefs.style === 'rounded' ? ' tvg-rounded' : ''}`}>
       <div className="tvg-names">
         <GuideClock />
         {guide.channels.map(({ channel }) => (

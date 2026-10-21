@@ -221,13 +221,15 @@ type Result struct {
 	HearingImpaired  bool
 	ForeignPartsOnly bool
 
-	Source   string   // where it comes from: SourceOpenSubtitles (empty) or SourceSubDL
-	Link     string   // SubDL's download path; OpenSubtitles uses FileID
-	Releases []string // other releases the subtitle is said to fit (SubDL)
+	Source     string   // where it comes from: SourceOpenSubtitles (empty) or SourceSubDL
+	SourceName string   // an add-on's own name, for results from one
+	Link       string   // SubDL's download path; OpenSubtitles uses FileID
+	Releases   []string // other releases the subtitle is said to fit (SubDL)
 }
 
 type searchResponse struct {
-	Data []struct {
+	TotalPages int `json:"total_pages"`
+	Data       []struct {
 		Attributes struct {
 			Language      string  `json:"language"`
 			Release       string  `json:"release"`
@@ -258,24 +260,88 @@ type Query struct {
 	Filename     string // the video's file name, for sources that match by it
 	FileSize     int64  // the video's size in bytes
 
+	// What a source can be asked with when it doesn't know the TMDB id: the
+	// IMDb id (of the series, for an episode), the title and the year.
+	IMDBID string
+	Title  string
+	Year   int
+
 	// Which kind of subtitle is wanted (see Profile.Apply). The zero values ask
 	// for what searches always asked for: anything.
 	Forced bool     // only a forced track (foreign parts only)
 	Full   FullMode // for a full subtitle: FullNormal or FullSDH narrow the search
 }
 
-// Find searches for subtitles matching q.
+// Find searches for subtitles matching q. OpenSubtitles doesn't know the TMDB
+// id of every title, so when that finds nothing the IMDb id and then the
+// title are tried, and the first lookup that finds something wins.
 func (c *Client) Find(ctx context.Context, q Query) ([]Result, error) {
-	v := url.Values{}
-	if q.Text != "" {
-		v.Set("query", q.Text)
+	type lookup struct {
+		kind, value string
+		v           url.Values
 	}
+	var lookups []lookup
+	ids := url.Values{}
 	if q.TMDBID != 0 {
-		v.Set("tmdb_id", strconv.Itoa(q.TMDBID))
+		ids.Set("tmdb_id", strconv.Itoa(q.TMDBID))
 	}
 	if q.ParentTMDBID != 0 {
-		v.Set("parent_tmdb_id", strconv.Itoa(q.ParentTMDBID))
+		ids.Set("parent_tmdb_id", strconv.Itoa(q.ParentTMDBID))
 	}
+	if len(ids) > 0 {
+		id := q.TMDBID
+		if id == 0 {
+			id = q.ParentTMDBID
+		}
+		lookups = append(lookups, lookup{"tmdb", strconv.Itoa(id), ids})
+	}
+	if q.IMDBID != "" {
+		v := url.Values{}
+		if q.ParentTMDBID != 0 {
+			v.Set("parent_imdb_id", q.IMDBID)
+		} else {
+			v.Set("imdb_id", q.IMDBID)
+		}
+		lookups = append(lookups, lookup{"imdb", q.IMDBID, v})
+	}
+	switch {
+	case q.Text != "":
+		lookups = append(lookups, lookup{"title", q.Text, url.Values{"query": {q.Text}}})
+	case q.Title != "":
+		v := url.Values{"query": {q.Title}}
+		value := q.Title
+		if q.Year > 0 && q.ParentTMDBID == 0 {
+			v.Set("year", strconv.Itoa(q.Year))
+			value += " (" + strconv.Itoa(q.Year) + ")"
+		}
+		lookups = append(lookups, lookup{"title", value, v})
+	}
+	if len(lookups) == 0 {
+		return nil, nil
+	}
+	var out []Result
+	for _, l := range lookups {
+		c.applyFilters(l.v, q)
+		res, err := c.searchPages(ctx, l.v)
+		line := Diagnostic{Source: "OpenSubtitles", Lookup: l.kind, Value: l.value, Count: len(res), Found: len(res)}
+		if err != nil {
+			line.Note, line.Detail = "error", err.Error()
+		}
+		Report(ctx, line)
+		if err != nil {
+			return nil, err
+		}
+		if len(res) > 0 {
+			return res, nil
+		}
+		out = res
+	}
+	return out, nil
+}
+
+// applyFilters adds what every lookup of q shares: season, episode, type,
+// language, hash and the hearing-impaired and forced flags.
+func (c *Client) applyFilters(v url.Values, q Query) {
 	if q.Season != 0 {
 		v.Set("season_number", strconv.Itoa(q.Season))
 	}
@@ -303,7 +369,35 @@ func (c *Client) Find(ctx context.Context, q Query) ([]Result, error) {
 	case q.Full == FullSDH:
 		v.Set("hearing_impaired", "only")
 	}
-	return c.search(ctx, v)
+}
+
+// maxSearchPages is how many pages of one search are read.
+const maxSearchPages = 3
+
+// searchPages reads up to maxSearchPages pages of one search.
+func (c *Client) searchPages(ctx context.Context, v url.Values) ([]Result, error) {
+	var out []Result
+	for page := 1; page <= maxSearchPages; page++ {
+		pv := url.Values{}
+		for k, vals := range v {
+			pv[k] = vals
+		}
+		if page > 1 {
+			pv.Set("page", strconv.Itoa(page))
+		}
+		res, pages, err := c.searchPage(ctx, pv)
+		if err != nil {
+			if page > 1 {
+				break // the first page worked: use it
+			}
+			return nil, err
+		}
+		out = append(out, res...)
+		if page >= pages {
+			break
+		}
+	}
+	return out, nil
 }
 
 // Search finds subtitles for a title, optionally scoped by IMDb id and
@@ -323,30 +417,36 @@ func (c *Client) Search(ctx context.Context, query, imdbID, language string) ([]
 }
 
 func (c *Client) search(ctx context.Context, q url.Values) ([]Result, error) {
+	out, _, err := c.searchPage(ctx, q)
+	return out, err
+}
+
+// searchPage reads one page and says how many pages the search has.
+func (c *Client) searchPage(ctx context.Context, q url.Values) ([]Result, int, error) {
 	if c.apiKey == "" {
-		return nil, ErrNoAPIKey
+		return nil, 0, ErrNoAPIKey
 	}
 
 	req, err := c.newRequest(ctx, http.MethodGet, "/subtitles?"+q.Encode(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("build search request: %w", err)
+		return nil, 0, fmt.Errorf("build search request: %w", err)
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("search subtitles: %w", err)
+		return nil, 0, fmt.Errorf("search subtitles: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return nil, ErrInvalidKey
+		return nil, 0, ErrInvalidKey
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("search subtitles: unexpected status %d", resp.StatusCode)
+		return nil, 0, fmt.Errorf("search subtitles: unexpected status %d", resp.StatusCode)
 	}
 
 	var parsed searchResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxAPIResponse)).Decode(&parsed); err != nil {
-		return nil, fmt.Errorf("decode search response: %w", err)
+		return nil, 0, fmt.Errorf("decode search response: %w", err)
 	}
 
 	var out []Result
@@ -365,7 +465,7 @@ func (c *Client) search(ctx context.Context, q url.Values) ([]Result, error) {
 			ForeignPartsOnly: d.Attributes.ForeignPartsOnly,
 		})
 	}
-	return out, nil
+	return out, parsed.TotalPages, nil
 }
 
 // DownloadInfo is what OpenSubtitles said about a download request: the link

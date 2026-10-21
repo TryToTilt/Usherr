@@ -11,6 +11,13 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 |---|---|---|---|
 | GET | `/api/activity` | any account |  |
 
+## addon
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/addon` | signed in | GET /api/addon[?base=]: the person's add-on address, made on first use. |
+| POST | `/api/addon/regenerate` | signed in | POST /api/addon/regenerate: a new key; the old address stops working. |
+
 ## apps
 
 | Method | Path | Access | What it does |
@@ -32,6 +39,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/auth/ereader/kobo/resync` | any account | POST /api/auth/ereader/kobo/resync: forgets what was sent to the Kobo, so the next sync sends every book again. |
 | DELETE | `/api/auth/ereader/opds` | any account | DELETE /api/auth/ereader/opds |
 | POST | `/api/auth/ereader/opds` | any account | POST /api/auth/ereader/opds: makes a new e-reader password. |
+| GET | `/api/auth/idle-signout` | admin |  |
+| PUT | `/api/auth/idle-signout` | admin |  |
 | GET | `/api/auth/ldap` | admin | GET /api/auth/ldap |
 | PUT | `/api/auth/ldap` | admin | PUT /api/auth/ldap saves the setup. |
 | POST | `/api/auth/ldap/test` | admin | POST /api/auth/ldap/test {config..., testUsername, testPassword}: connects with the details sent (not yet saved), finds the user and shows what was found. |
@@ -176,6 +185,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | Method | Path | Access | What it does |
 |---|---|---|---|
 | GET | `/api/comics` | any account |  |
+| POST | `/api/comics` | any account |  |
 | GET | `/api/comics/arcs` | any account |  |
 | POST | `/api/comics/arcs` | admin |  |
 | GET | `/api/comics/arcs/for-you` | any account |  |
@@ -197,6 +207,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/comics/issues/{id}/releases` | admin |  |
 | POST | `/api/comics/issues/{id}/search` | admin |  |
 | GET | `/api/comics/issues/{id}/search-log` | admin |  |
+| GET | `/api/comics/lookup` | any account |  |
 | GET | `/api/comics/reviews` | admin |  |
 | POST | `/api/comics/reviews/{id}/accept` | admin |  |
 | POST | `/api/comics/reviews/{id}/reject` | admin |  |
@@ -205,6 +216,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/comics/tools` | admin |  |
 | POST | `/api/comics/tools/run/{tool}` | admin |  |
 | GET | `/api/comics/week` | any account |  |
+| POST | `/api/comics/week/pull` | any account |  |
 | DELETE | `/api/comics/{id}` | admin |  |
 | GET | `/api/comics/{id}` | any account |  |
 | PUT | `/api/comics/{id}` | admin |  |
@@ -217,7 +229,12 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 |---|---|---|---|
 | GET | `/api/custom-formats` | any account |  |
 | POST | `/api/custom-formats` | admin | imports pasted JSON. |
+| POST | `/api/custom-formats/assign` | admin | gives the chosen formats a score in each of the chosen quality profiles: TRaSH's own score for each, or one score typed in. |
+| POST | `/api/custom-formats/default-scores` | admin | says what the TRaSH Guides score each of these formats, for the form that adds formats to a profile. |
 | POST | `/api/custom-formats/test` | any account | says which formats a release name matches. |
+| GET | `/api/custom-formats/trash-update` | admin | lists what an update from the guides would change. |
+| POST | `/api/custom-formats/trash-update` | admin | updates the formats that came from the guides. |
+| GET | `/api/custom-formats/trash-update/status` | admin | tells when the guides were last checked and when the next check is due. |
 | DELETE | `/api/custom-formats/{id}` | admin |  |
 | PUT | `/api/custom-formats/{id}` | admin |  |
 
@@ -379,9 +396,32 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/home/gaps/scan` | admin | POST /api/home/gaps/scan: scan now. |
 | GET | `/api/home/hardcover-match` | admin | GET /api/home/hardcover-match?title=&author=: what the import would find on Hardcover for a book on disk (for checking a match by hand). |
 | GET | `/api/home/have` | any account |  |
+| DELETE | `/api/home/link-logo/{name}` | admin | DELETE /api/home/link-logo/{name} (admin): back to the plain button. |
+| GET | `/api/home/link-logo/{name}` | any account | GET /api/home/link-logo/{name} (member): that logo, when there is one. |
+| PUT | `/api/home/link-logo/{name}` | admin | PUT /api/home/link-logo/{name} (admin, multipart "file"): a picture of the household's own for that link's button (PNG, JPG or WebP, 2 MB at most). |
 | GET | `/api/home/marquee` | any account | GET /api/home/marquee |
+| GET | `/api/home/marquee/events` | any account | GET /api/home/marquee/events?screen=ID (member): the screen's live stream. |
+| GET | `/api/home/marquee/media` | admin | GET /api/home/marquee/media (admin): every slide and pre-show piece. |
+| POST | `/api/home/marquee/media` | admin | POST /api/home/marquee/media (admin, multipart: place, title, seconds, then file): upload a picture or a video. |
+| POST | `/api/home/marquee/media/page` | admin | POST /api/home/marquee/media/page (admin): a web page or a slide of words. |
+| DELETE | `/api/home/marquee/media/{id}` | admin | DELETE /api/home/marquee/media/{id} (admin): remove one, and its file. |
+| PUT | `/api/home/marquee/media/{id}` | admin | PUT /api/home/marquee/media/{id} (admin): change one. |
+| GET | `/api/home/marquee/media/{id}/file` | any account | GET /api/home/marquee/media/{id}/file (member): a picture or a video, for the screens (a video can be read from any point). |
+| GET | `/api/home/marquee/mqtt` | admin | GET /api/home/marquee/mqtt (admin): the Home Assistant connection. |
+| PUT | `/api/home/marquee/mqtt` | admin | PUT /api/home/marquee/mqtt (admin): save it, and connect (or not). |
+| POST | `/api/home/marquee/mqtt/test` | admin | POST /api/home/marquee/mqtt/test (admin): try these settings once. |
+| GET | `/api/home/marquee/qr` | any account | GET /api/home/marquee/qr?text= (member): a QR code's rows ("0" and "1"), for a trailer's or a title's link on a screen. |
+| GET | `/api/home/marquee/screens` | admin | GET /api/home/marquee/screens (admin): every screen, with what it shows. |
+| PUT | `/api/home/marquee/screens/order` | admin | PUT /api/home/marquee/screens/order (admin) {"order": [ids]}: the screens in this order; screens not named keep their place after them. |
+| DELETE | `/api/home/marquee/screens/{id}` | admin | DELETE /api/home/marquee/screens/{id} (admin): forget a screen. |
+| PUT | `/api/home/marquee/screens/{id}` | admin | PUT /api/home/marquee/screens/{id} (admin): a new name, and/or settings of its own ("settings": null goes back to the shared ones). |
+| POST | `/api/home/marquee/screens/{id}/command` | admin | POST /api/home/marquee/screens/{id}/command (admin): a remote button, for a screen by id or name, or "all". |
+| POST | `/api/home/marquee/screens/{id}/look` | admin | POST /api/home/marquee/screens/{id}/look (admin): {"style": "cinema"}. |
+| GET | `/api/home/marquee/screens/{id}/poster` | admin | GET /api/home/marquee/screens/{id}/poster (admin): the picture on that screen now (a redirect to it), for a Home Assistant card or a Stream Deck. |
 | GET | `/api/home/marquee/settings` | admin | GET /api/home/marquee/settings (admin), with the StreamNZB profiles to choose from. |
 | PUT | `/api/home/marquee/settings` | admin | PUT /api/home/marquee/settings (admin): the whole settings value. |
+| POST | `/api/home/marquee/showing` | any account | POST /api/home/marquee/showing?screen=ID (member): what the screen shows now. |
+| GET | `/api/home/marquee/theme/{kind}/{id}` | any account | GET /api/home/marquee/theme/{kind}/{id} (member): a film's or show's theme music. |
 | GET | `/api/home/mdblist` | admin | GET /api/home/mdblist |
 | PUT | `/api/home/mdblist` | admin | PUT /api/home/mdblist {"key": "...", "removeKey": false} |
 | POST | `/api/home/mdblist/test` | admin | POST /api/home/mdblist/test: reads one well-known film's scores. |
@@ -411,6 +451,14 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/search/people` | any account | GET /api/home/search/people?q= |
 | GET | `/api/home/season-folder` | admin | GET/PUT /api/home/season-folder {"style":"plain"\|"padded"} |
 | PUT | `/api/home/season-folder` | admin | GET/PUT /api/home/season-folder {"style":"plain"\|"padded"} |
+| GET | `/api/home/stack` | any account | GET /api/home/stack (member): your stack, top first. |
+| POST | `/api/home/stack` | any account | POST /api/home/stack (member): put a title on top of your stack. |
+| PUT | `/api/home/stack/order` | any account | PUT /api/home/stack/order (member): {"order": ["movie:603", "tv:1396"]}, top first. |
+| DELETE | `/api/home/stack/{kind}/{tmdbId}` | any account | DELETE /api/home/stack/{kind}/{tmdbId} (member): take a title off your stack. |
+| GET | `/api/home/streaming` | admin | GET /api/home/streaming: the engine, what each can do, the profiles, and what streaming is using right now. |
+| PUT | `/api/home/streaming` | admin | PUT /api/home/streaming {engine, profiles}: only what is sent changes. |
+| POST | `/api/home/streaming/import` | admin | POST /api/home/streaming/import {config?, providers, indexers, profiles}: copies what was ticked. |
+| POST | `/api/home/streaming/import/preview` | admin | POST /api/home/streaming/import/preview {config?}: what StreamNZB has and what Usherr has of it already. |
 | GET | `/api/home/taste` | any account | GET /api/home/taste?kind=: your taste in short: whether there's enough to go on, what it's built from, and what you lean towards and away from. |
 | POST | `/api/home/taste/scores` | any account | POST /api/home/taste/scores {kind, ids}: your match for each title, for the Library's "For you", and which of them you've seen (a title you've watched is par... |
 | GET | `/api/home/taste/title` | any account | GET /api/home/taste/title?kind=&id=: your match for one title, and why. |
@@ -460,7 +508,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | DELETE | `/api/indexers/{id}` | admin |  |
 | PUT | `/api/indexers/{id}` | admin | edits a saved indexer. |
 | PUT | `/api/indexers/{id}/enabled` | admin |  |
-| PUT | `/api/indexers/{id}/priority` | admin | sets how much an indexer is preferred: 1 preferred, 2 normal, 3 last resort. |
+| PUT | `/api/indexers/{id}/priority` | admin | sets how much an indexer is preferred: a number from 1 to 50, lower first. |
 | POST | `/api/indexers/{id}/resume` | admin | is "Try again now": the indexer is asked by the next search, and its failures are forgotten. |
 | PUT | `/api/indexers/{id}/seed-rules` | admin |  |
 | POST | `/api/indexers/{id}/test` | admin | tests a saved indexer with its stored credentials. |
@@ -679,20 +727,37 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 
 | Method | Path | Access | What it does |
 |---|---|---|---|
+| GET | `/api/nsfw` | any account |  |
+| POST | `/api/nsfw` | any account |  |
+| GET | `/api/nsfw/browse` | any account |  |
 | POST | `/api/nsfw/bulk` | admin |  |
 | POST | `/api/nsfw/check` | admin |  |
+| GET | `/api/nsfw/discover` | any account |  |
+| GET | `/api/nsfw/enabled` | any account | GET /api/nsfw/enabled: whether the NSFW 18+ section is set up, for an account allowed to see it. |
 | POST | `/api/nsfw/fill-details` | admin |  |
+| GET | `/api/nsfw/image` | any account |  |
 | POST | `/api/nsfw/import/whisparr` | admin |  |
+| GET | `/api/nsfw/lookup` | any account |  |
+| GET | `/api/nsfw/performers` | any account |  |
+| POST | `/api/nsfw/performers` | any account |  |
+| DELETE | `/api/nsfw/performers/{id}` | any account |  |
 | GET | `/api/nsfw/schedule` | admin |  |
 | PUT | `/api/nsfw/schedule` | admin |  |
 | POST | `/api/nsfw/search-now` | admin |  |
 | GET | `/api/nsfw/search-status` | admin |  |
 | GET | `/api/nsfw/settings` | admin | GET /api/nsfw/settings |
 | PUT | `/api/nsfw/settings` | admin | PUT /api/nsfw/settings {"enabled":true,"path":"/data/nsfw","endpoint":"...","key":"..."}. |
+| GET | `/api/nsfw/studios` | any account |  |
+| POST | `/api/nsfw/studios` | any account |  |
+| DELETE | `/api/nsfw/studios/{id}` | any account |  |
+| GET | `/api/nsfw/tags` | any account |  |
 | DELETE | `/api/nsfw/{id}` | admin |  |
+| GET | `/api/nsfw/{id}` | any account |  |
 | POST | `/api/nsfw/{id}/grab` | admin |  |
 | GET | `/api/nsfw/{id}/releases` | admin |  |
 | POST | `/api/nsfw/{id}/search` | admin |  |
+| GET | `/api/nsfw/{id}/stream` | any account |  |
+| PUT | `/api/nsfw/{id}/wanted` | any account |  |
 
 ## onboarding
 
@@ -705,11 +770,14 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 
 | Method | Path | Access | What it does |
 |---|---|---|---|
+| GET | `/api/play/convert/{kind}/{id}` | signed in | GET /api/play/convert/{kind}/{id}?at=<seconds>: a title converted here for the browser, from at seconds in (for when Jellyfin can't convert it). |
 | GET | `/api/play/episode/{id}` | signed in | GET /api/play/episode/{id} |
 | DELETE | `/api/play/hls/{token}` | signed in | DELETE /api/play/hls/{token}: stops the conversion. |
 | GET | `/api/play/hls/{token}/{rest...}` | signed in | GET /api/play/hls/{token}/{rest...}: relays Jellyfin's HLS playlists and segments for this stream only. |
 | GET | `/api/play/movie/{id}` | signed in | GET /api/play/movie/{id} |
 | POST | `/api/play/prepare` | signed in | POST /api/play/prepare {"kind":"movie","id":1,"caps":{...}} answers how to play: {"mode":"direct","url":...} or {"mode":"hls","url":...,"session":...}. |
+| GET | `/api/play/subs/{kind}/{id}` | signed in | GET /api/play/subs/{kind}/{id}?key=e3&shift=<seconds>: a text subtitle as WebVTT, its times moved back by shift (for a copy that starts part-way). |
+| GET | `/api/play/tracks/{kind}/{id}` | signed in | GET /api/play/tracks/{kind}/{id}: a title's sound tracks and subtitles. |
 
 ## plex-watchlist
 
@@ -822,6 +890,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/series/{id}/files` | any account | lists the files in a show's folder on disk, season folders included; episode files carry their episode id. |
 | PUT | `/api/series/{id}/folder` | any account | is the same for a show. |
 | POST | `/api/series/{id}/grab` | any account | grabs a release for a series — a single episode, a multi-episode release, or a whole-season pack, decided by the release's own title. |
+| POST | `/api/series/{id}/monitor-mode` | any account | applies the add-time choice of which episodes to monitor (all, only the ones that have not aired yet, none) to a show that is already in the library. |
 | PUT | `/api/series/{id}/monitored` | any account |  |
 | PUT | `/api/series/{id}/no-upgrade` | admin |  |
 | GET | `/api/series/{id}/numbering` | any account | answers GET /api/series/{id}/numbering: the ids and links, and what the numbering services say about the show. |
@@ -831,6 +900,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/series/{id}/rescan` | admin | looks at every downloaded file of a show again. |
 | GET | `/api/series/{id}/search` | any account | is the interactive search for one season or one episode of a library show: queries every indexer, then keeps only releases that are actually for this show an... |
 | POST | `/api/series/{id}/search-now` | any account | searches for everything wanted in a series (or one season, or one episode) right now, even if unmonitored. |
+| PUT | `/api/series/{id}/season-pack` | admin | saves a show's own choice about season packs. |
 | DELETE | `/api/series/{id}/seasons/{season}/files` | admin | deletes the files of every downloaded episode of a season. |
 | PUT | `/api/series/{id}/seasons/{season}/monitored` | any account |  |
 | PUT | `/api/series/{id}/sources` | admin |  |
@@ -854,6 +924,10 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/settings/metadata-files` | admin |  |
 | GET | `/api/settings/naming-preview` | admin | shows a naming preset or custom format applied to a fixed sample release (kind=movie, the default, or kind=tv), so the page can display the exact file name w... |
 | GET | `/api/settings/naming-tokens` | admin | lists the tokens a custom format can use and the ready-made formats to start from, for the builder in Settings. |
+| DELETE | `/api/settings/simkl` | admin | DELETE /api/settings/simkl: forget the connected account. |
+| GET | `/api/settings/simkl` | admin | GET /api/settings/simkl |
+| POST | `/api/settings/simkl/pin` | admin | POST /api/settings/simkl/pin: start connecting an account. |
+| GET | `/api/settings/simkl/pin/{code}` | admin | GET /api/settings/simkl/pin/{code}: has the code been entered yet? |
 | POST | `/api/settings/test-service` | admin | checks a key for an outside service without saving it, so the setup wizard and Settings can say whether it works before the person moves on. |
 
 ## stats
@@ -874,7 +948,10 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/stream/tv` | signed in | POST /api/stream/tv {kind, tmdbId, season, episode}: open the title in Stremio on the TV. |
 | GET | `/api/stream/{id}/browser` | signed in | GET /api/stream/{id}/browser?at=<seconds>: a stream session's video converted for the browser, from at seconds in. |
 | GET | `/api/stream/{id}/link` | signed in | GET /api/stream/{id}/link: the play link for a device at home (the TV, or a player app on the home network). |
+| POST | `/api/stream/{id}/next` | signed in | POST /api/stream/{id}/next: Usherr's own engine plays the next release in line instead of this one (it broke, or the picture isn't right). |
+| GET | `/api/stream/{id}/sound` | signed in | GET /api/stream/{id}/sound?at=<seconds>&track=<index>&lang=<language>: a stream's sound on its own, from at seconds in: the track picked in the player, else ... |
 | POST | `/api/stream/{id}/stop` | signed in | POST /api/stream/{id}/stop ends a stream (the player closed). |
+| GET | `/api/stream/{id}/tracks` | signed in | GET /api/stream/{id}/tracks: a stream's sound tracks, for picking the language in the player. |
 | POST | `/api/stream/{id}/tv` | signed in | POST /api/stream/{id}/tv: play a started stream on the TV, in VLC. |
 | GET | `/api/stream/{id}/video` | signed in | GET /api/stream/{id}/video relays the video, passing range requests on so the player can seek. |
 
@@ -965,6 +1042,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 |---|---|---|---|
 | GET | `/api/tmdb/movies/{tmdbId}` | any account | gives everything the movie page shows from a TMDB id alone, so it works for titles whether or not they are in the library yet; library membership is looked u... |
 | GET | `/api/tmdb/movies/{tmdbId}/similar` | any account | lists movies like a given one from its TMDB id alone. |
+| GET | `/api/tmdb/people/{personId}` | any account | gives a person's page in one answer: who they are and every movie and show they are credited on, most popular first. |
 | GET | `/api/tmdb/search` | any account | is a plain TMDB title search for either kind, used by the import review to fix a wrong or missing automatic match. |
 | GET | `/api/tmdb/tv/{tmdbId}` | any account | gives everything the TV page shows from a TMDB id alone, plus library membership if the show has been added. |
 
@@ -1006,6 +1084,12 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/tv/jellyfin` | admin | POST /api/tv/jellyfin: add Mediarium TV to Jellyfin's Live TV (a tuner and a guide), once, and refresh Jellyfin's guide. |
 | POST | `/api/tv/remind` | signed in | POST /api/tv/remind {channelId, start} toggles a reminder; GET lists yours. |
 | GET | `/api/tv/reminders` | signed in |  |
+| POST | `/api/tv/replay` | admin | POST /api/tv/replay {zip, date, networks, check}: start building; GET /api/tv/replay/{id}: how far it got, and the plan when done. |
+| POST | `/api/tv/replay/create` | admin | POST /api/tv/replay/create {networks: [{network, callSign, number, slots}], folder}: a channel for each network. |
+| GET | `/api/tv/replay/lineup` | admin | GET /api/tv/replay/lineup?zip=&date=&lineup=: the channels of a lineup that have programs on that day. |
+| GET | `/api/tv/replay/providers` | admin | GET /api/tv/replay/providers?zip=: the lineups at a zip code. |
+| POST | `/api/tv/replay/refresh` | admin | POST /api/tv/replay/refresh: refresh the daily Real TV channels now, with yesterday (the nightly refresh, on demand). |
+| GET | `/api/tv/replay/{id}` | admin |  |
 | GET | `/api/tv/search` | any account | searches for shows by title, to find something to add. |
 | GET | `/api/tv/tuner` | admin | GET /api/tv/tuner: the feed addresses (admin), for setting up an IPTV app by hand. |
 
@@ -1070,6 +1154,12 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/users/{id}` | admin | changes another account's name, email or role, or sets a new password for it (which signs that account out everywhere). |
 | DELETE | `/api/users/{id}/two-step` | admin | DELETE /api/users/{id}/two-step: an administrator switches it off for someone who lost their phone and their recovery codes. |
 
+## ustream
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/ustream/{token}/{name}` | **public** | GET /api/ustream/{token}/{name}: the video, with seeking (Range). |
+
 ## version
 
 | Method | Path | Access | What it does |
@@ -1105,4 +1195,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-503 routes.
+795 routes.

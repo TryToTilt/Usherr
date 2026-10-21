@@ -1,14 +1,16 @@
 import { expect, test } from '@playwright/test'
-import { expectNoErrors, watchErrors } from './helpers'
+import { expectNoErrors, openNav, watchErrors } from './helpers'
 
 test('dark by default; the button switches to light and it sticks', async ({ page }) => {
   await page.goto('/')
   const root = page.locator('html')
   await expect(root).toHaveAttribute('data-theme', 'dark')
+  await openNav(page)
   await page.getByRole('button', { name: 'Theme: dark' }).click()
   await expect(root).toHaveAttribute('data-theme', 'light')
   await page.reload()
   await expect(root).toHaveAttribute('data-theme', 'light')
+  await openNav(page)
   await page.getByRole('button', { name: 'Theme: light' }).click()
   await expect(root).toHaveAttribute('data-theme', 'dark')
 })
@@ -18,8 +20,10 @@ test('switching to German and back', async ({ page }) => {
   await page.goto('/settings/general')
   await page.getByRole('combobox', { name: /language|sprache/i }).selectOption('de')
   await expect(page.locator('html')).toHaveAttribute('lang', 'de')
+  await openNav(page)
   await expect(page.getByRole('navigation', { name: 'Hauptmenü' }).getByText('Bibliothek').first()).toBeVisible()
   await page.getByRole('combobox', { name: /language|sprache/i }).selectOption('en')
+  await openNav(page)
   await expect(page.getByRole('navigation', { name: 'Main' }).getByText('Library').first()).toBeVisible()
   await expectNoErrors(errors)
 })

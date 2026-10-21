@@ -134,7 +134,7 @@ func (s *Server) handleRunImport(w http.ResponseWriter, r *http.Request) {
 	if job.phase != importReady {
 		phase := job.phase
 		job.mu.Unlock()
-		writeError(w, http.StatusConflict, "This scan isn't ready to import yet (it's "+phase+").")
+		writeError(w, http.StatusConflict, fmt.Sprintf("This scan isn't ready to import yet (it's %s).", phase))
 		return
 	}
 	byKey := map[string]int{}

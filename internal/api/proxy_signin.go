@@ -98,7 +98,7 @@ func (s *Server) signedIn(next http.Handler) http.Handler {
 			user = s.proxyUser(r)
 		}
 		if user == nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			signInRequired(w, err)
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(auth.WithUser(r.Context(), user)))

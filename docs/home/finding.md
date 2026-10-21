@@ -22,7 +22,9 @@ The first page you see.
   watch, and films and shows you have but haven't seen.
 - **Entertainment news**: short summaries of film, TV, music, book and comic
   news, with a link to each full story. A title a story mentions links to your
-  library, or can be added.
+  library, or can be added. On the Dashboard it is one line at the top: a
+  headline that changes every few seconds, or a ticker, or off (each person
+  picks, in **All news** or Settings › General).
 
 ![The Dashboard: Ask Mediarium anything, Tonight and Entertainment news](images/dashboard.png)
 
@@ -55,6 +57,27 @@ nobody else in the household sees them.
   work too: → likes, ← passes on it, space skips.
 
 ![Rate 20: one title at a time, Like, Not for me or Skip](images/rate.png)
+
+## Your stack
+
+The films and shows you've pulled out to watch next, kept as a stack of
+tickets in the menu, under **Settings**. It is your own, and it follows you to
+your phone.
+
+- **Stack** puts a title on top: the stack button on any poster card
+  (Discover, the Library) and on a title's page. Tap it again to take it off.
+  The stack holds up to 50.
+- Swipe the front ticket left or right to go through the stack, or use the
+  arrows under it (← and → work too, once the stack has focus).
+- Tap the poster for **Its page** or **Play now**. A film that isn't
+  downloaded offers **Stream** instead; a show opens its page so you can pick
+  the episode.
+- The buttons under the ticket move it up or down the stack, take it off, or
+  play it.
+- **Settings** folds away in the menu to make room; tap it to open its pages,
+  and the stack moves down.
+
+![Your stack in the menu: the front ticket, the next ones behind it](images/stack.png)
 
 ## For you
 

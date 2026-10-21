@@ -48,7 +48,10 @@ func (p *pageCache) get(key string) (any, bool) {
 	return e.value, true
 }
 
-func (p *pageCache) put(key string, value any) {
+func (p *pageCache) put(key string, value any) { p.putFor(key, value, pageCacheTTL) }
+
+// putFor is put with its own lifetime, for what changes more slowly than lists.
+func (p *pageCache) putFor(key string, value any, ttl time.Duration) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	now := p.clock()
@@ -73,5 +76,5 @@ func (p *pageCache) put(key string, value any) {
 			delete(p.entries, oldestKey)
 		}
 	}
-	p.entries[key] = pageCacheEntry{value: value, expires: now.Add(pageCacheTTL)}
+	p.entries[key] = pageCacheEntry{value: value, expires: now.Add(ttl)}
 }

@@ -76,6 +76,38 @@ it's your server's network address, not `localhost`.
 
 ![Mediarium's address on your network](images/extras-address.png)
 
+## Streaming engine (Usherr or StreamNZB)
+
+**Settings → Extras → Streaming engine** says which engine plays streams:
+**Stream now**, the streamed library (the Jellyfin pointer files) and streamed
+Live TV channels. If the chosen one finds nothing, the other is tried.
+
+- **Usherr** searches the indexers you already have, checks the release is on
+  your Usenet servers and reads the video from them as you watch. No separate
+  program: it needs a Usenet server and an indexer. It finds daily shows by
+  their air date (General Hospital, late night), reads inside stored RAR sets,
+  and keeps the other releases in line: if one stops part-way, the next plays
+  from where you were (or press **Try another release**).
+- **StreamNZB** is the separate program below. It is still fully supported:
+  an install that already has it connected keeps using it until you choose
+  otherwise, and a new install uses Usherr's engine and needs nothing else.
+
+**Coming from StreamNZB?** **Import from StreamNZB…** on the same card copies
+its Usenet providers, indexers and size limits. Choose its `config.json` (or
+map it into Usherr at `/streamnzb/config.json`, read only) and you see what is
+in it first: what Usherr already has is marked and left alone, and only what
+you tick is copied. Logins go into Usherr's own encrypted settings and are
+never shown on the page. Check the indexer addresses afterwards: they are
+copied as StreamNZB uses them, and Usherr may reach them at another address.
+
+The same card holds the **device qualities**: for 4K, 1080p and 720p, the most
+a release may weigh and words to leave out (AV1 is left out because TVs can't
+play it). A phone asks for 720p, the TV for 4K. Below it, **Right now** shows
+the speed, how many connections are in use on each Usenet server, what is
+streaming and how many searches each indexer has done today. Searches are
+remembered for a few minutes, so tuning the same title again doesn't ask the
+indexers again.
+
 ## Streaming (StreamNZB)
 
 **Optional.** [StreamNZB](https://github.com/Gaisberg/streamnzb) plays a
@@ -114,14 +146,19 @@ later download plays from disk instead.
 
 ## Live TV
 
-**Optional.** Scheduled channels made from your library (and from streams),
-with a programme guide. Watch them on the **Live TV** page, or add Mediarium
-as a tuner so the channels appear in Jellyfin's Live TV on every TV.
+**Optional.** Scheduled channels made from your library, from streams, from
+free live channels (Pluto, PBS) or from a real network's day (Real TV), with
+a programme guide. Watch them on the **Live TV** page, in Jellyfin, in Plex
+or in an IPTV app.
 
-- **Set it up:** make a channel on the **Live TV** page (**New channel**), then
-  **Add to Jellyfin's Live TV** on the card in Extras.
+- **Set it up:** make a channel on the **Live TV** page (**New channel**, a
+  **Channel pack**, or **Build with AI**), then **Add to Jellyfin** on the
+  Live TV card here.
 - **Check:** the channel plays on the Live TV page, and shows in Jellyfin's
   guide after its next refresh.
+
+See [Live TV](live-tv.md) for making channels, scheduling, Real TV, Plex and
+IPTV apps.
 
 ![The Live TV page with its guide](images/live-tv.png)
 
@@ -140,24 +177,56 @@ debugging to do it.
 
 ![The Play on TV card](images/extras-play-on-tv.png)
 
+## Stremio and Nuvio
+
+**Optional.** One add-on that works in both [Stremio](https://www.stremio.com)
+and Nuvio: Usherr's own catalogs and streams inside the apps, on a phone,
+a TV or a computer.
+
+- **What it gives them:**
+  - **Catalogs:** *Usherr Movies* and *Usherr TV* (your library and your streamed
+    titles; the apps' search finds them too), *Usherr Watchlist* (the titles you
+    gave a thumbs up) and *Usherr Live TV* (your channels).
+  - **Streams** for any film or episode the app shows, even one that isn't in
+    Usherr: first your library's own file, then the best releases Usherr's
+    streaming engine finds on your indexers (up to six, with picture size, file
+    size and indexer). A release opens when you pick it, and if it can't be read
+    the next one is tried.
+  - **Subtitles** from your library's files: the text subtitles in the file or
+    next to it.
+  - **Live TV:** a channel plays through the same address the tuner feed uses.
+- **Put it in:** **Settings → Extras → Stremio and Nuvio**. Check the address your
+  devices use for Usherr (your home network address, such as
+  `http://192.168.1.20:8264`, or your https address from outside), then copy the
+  link or scan the QR code. In Stremio: *Add-ons → Add add-on*, paste the link.
+  In Nuvio: add it under its add-ons or plugins with the same link. This is done
+  once in each app; with an https address the **Install in Stremio** button does
+  it in one tap.
+- **It is private:** the link has your own key in it, so the apps need no
+  sign-in, and each person has their own (watchlist and permissions are theirs).
+  **Make a new link** stops the old one working, for example if it was shared by
+  mistake.
+- **Streams from Usenet** need a Usenet server and an indexer set up (the same
+  ones downloads use). Without them the library, watchlist and Live TV still
+  work.
+
 ## AI
 
-**Optional.** AI Search on Discover (find a title from a description or a
-photo), *What should I watch tonight?*, *Catch me up*, *What's it like?*,
-mood playlists, news summaries and the family filter's estimates. The AI only
-suggests: every title is checked on TMDB, and nothing is added without you.
+**Optional.** The Ask bar (find a title from a description or a photo,
+*Tonight*, *Pick for the Room*, *Catch me up*, *What's it like?*, the skip
+guide, reading orders, playlists, why a download failed), news summaries,
+the family filter's estimates, and Live TV's AI channel builder and Real TV.
+The AI only suggests: every title is checked on TMDB, and nothing is added
+without you.
 
-- **Choose one:**
-  - **Ollama**, a model running on your own computer: free and private, needs a
-    graphics card for good speed. Install Ollama, then `ollama pull gemma3:4b`.
-    The address is usually `http://host.docker.internal:11434`. The first
-    answer after a while takes up to a minute while the model loads.
-  - **Claude**: knows films and shows much better and answers in seconds; needs
-    an API key from console.anthropic.com, paid by use (a few dollars a month
-    for a household).
+- **Choose one:** **Ollama** on your own computer (free and private), **Claude**
+  (knows films best; paid by use, and `claude-haiku-5-5` as the model keeps it
+  to pennies), or an **OpenAI-compatible server** such as LM Studio.
 - **Put it in:** **Settings → Extras → AI**. *Answers a day for each person*
   keeps use in check (administrators aren't limited).
 - **Check:** **Test it**, then ask something in the bar at the top of Discover.
+
+See [The AI](ai.md) for every feature, the models and what they cost.
 
 ![The AI card: which AI, its address and model, the daily allowance, Save and Test it](images/extras-ai.png)
 
@@ -187,6 +256,33 @@ names to your library.
 
 ![The Entertainment news card with its feeds](images/extras-news.png)
 
+## In theaters
+
+**Optional.** Films in cinemas near you: the *In theaters now* rows on the
+Dashboard and at the top of Library → Movies, cinema openings on the
+calendar, and links to showtimes on a film's page.
+
+- **Set it up:** tick *Show films in theaters*, give your ZIP or postcode, your
+  theater and the country (two letters, such as US).
+- **Showtimes** under each film opens a search with every theater near you
+  showing it, and **Tickets** opens it on your ticket service. **Tickets
+  from** chooses Fandango (the default in the US), Atom Tickets, Cinemark,
+  Moviefone, Showtimes.com, a link of your own (such as an AMC, Regal or
+  local theater's search page, with `{title}` where the film's name goes and
+  `{zip}` for your ZIP code), or none. With Fandango, **All showtimes near**
+  (your ZIP) lists everything playing nearby.
+- **Upload a picture** puts any picture you like on the chosen service's
+  button, such as its logo; each service keeps its own, and Mediarium
+  doesn't come with any.
+- **Optional:** an AMC key (from developers.amctheatres.com) makes the row
+  follow what your AMC theater is showing, with its showtimes.
+
+## Marquee
+
+**Optional.** A lobby display for a tablet or a screen by the TV, with its own
+page (**Marquee** in the menu). See [The Marquee](marquee.md) for setting up a
+screen, the looks, the pre-show, Home Assistant and the API.
+
 ## Comics
 
 **Optional.** Follow comic series, get new issues and read them in a
@@ -202,6 +298,22 @@ page-flip reader, with story arcs and a weekly pull list.
 - **Check:** search for a series on the Comics page and add it.
 
 ![The Comics card in Settings → Extras](images/extras-comics.png)
+
+## NSFW 18+
+
+**Optional, off unless you turn it on.** Adult videos, with performers and
+studios. Only administrators ever see it: it is hidden from everyone else,
+keeps its own library and its own download queue, and never sends
+notifications. The server must allow it (`USHERR_ALLOW_ADULT`).
+
+## Schedules
+
+**Settings → Schedules** keeps heavy work to the hours you choose. Make named
+schedules (one time range every day, or days and times), then give each task
+one: automatic searches, downloads, repair and unpacking, and media server
+refreshes. Anything you start by hand always runs at once. **Quiet for…**
+holds every heavy task for a while, such as when TV time starts early;
+everything picks up again by itself.
 
 ## Notifications
 

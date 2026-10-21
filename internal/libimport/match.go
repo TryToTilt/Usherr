@@ -1,5 +1,7 @@
 package libimport
 
+import "github.com/rdborg/mediarium/internal/parser"
+
 // MatchStatus says how much a metadata search result can be trusted for a
 // group found on disk.
 type MatchStatus string
@@ -28,6 +30,9 @@ type Candidate struct {
 	// Adult is TMDB's adult flag. Such a title is never put before one
 	// without it.
 	Adult bool `json:"-"`
+	// Countries are the countries TMDB gives for a show ("US", "GB"); empty
+	// when unknown. They tell "Shameless (UK)" from "Shameless (US)".
+	Countries []string `json:"-"`
 }
 
 // Decide ranks cands for a group titled title (year 0 = unknown) and
@@ -64,9 +69,18 @@ func Decide(title string, year int, cands []Candidate) (MatchStatus, []Candidate
 // rank orders cands for Decide and says how sure the first one is.
 func rank(title string, year int, cands []Candidate) (MatchStatus, []Candidate) {
 	want := normalize(title)
+	// A folder called "Shameless (UK)" names the show made in that country.
+	wantBase, tag := "", ""
+	if base, code := parser.SplitCountryTag(title); code != "" {
+		wantBase, tag = normalize(base), code
+	}
 	var exactYear, nearYear, exactTitle, restYear, restNear, rest []Candidate
 	for _, c := range cands {
 		same := want != "" && (normalize(c.Title) == want || (c.OriginalTitle != "" && normalize(c.OriginalTitle) == want))
+		if !same && tag != "" && wantBase != "" && (normalize(c.Title) == wantBase || (c.OriginalTitle != "" && normalize(c.OriginalTitle) == wantBase)) {
+			// The name fits; the country decides (a show with no country read counts).
+			same = len(c.Countries) == 0 || inCountries(c.Countries, tag)
+		}
 		switch {
 		case !same && year > 0 && c.Year == year:
 			restYear = append(restYear, c)
@@ -98,6 +112,17 @@ func rank(title string, year int, cands []Candidate) (MatchStatus, []Candidate) 
 		return MatchMatched, ordered
 	}
 	return MatchAmbiguous, ordered
+}
+
+// inCountries reports whether code is one of the countries (both in TMDB's
+// two-letter form).
+func inCountries(countries []string, code string) bool {
+	for _, c := range countries {
+		if parser.CanonicalCountry(c) == code {
+			return true
+		}
+	}
+	return false
 }
 
 func abs(n int) int {

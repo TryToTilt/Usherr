@@ -63,7 +63,7 @@ func TestUsageEndpointAndTraktLimitWarning(t *testing.T) {
 	for _, s := range services {
 		ids = append(ids, s.(map[string]any)["id"].(string))
 	}
-	if strings.Join(ids, ",") != "trakt,opensubtitles,tmdb" {
+	if strings.Join(ids, ",") != "trakt,simkl,opensubtitles,tmdb" {
 		t.Fatalf("services = %v", ids)
 	}
 	svc := usageService(t, env, "trakt")
@@ -130,7 +130,7 @@ func TestUsersOwnKeysOverrideTheBuiltInOnes(t *testing.T) {
 		return s["tmdbUsingOwnKey"].(bool), s["openSubtitlesUsingOwnKey"].(bool), s["traktUsingOwnKey"].(bool)
 	}
 	searchSubtitles := func() string {
-		getJSON[[]map[string]any](t, env.client, fmt.Sprintf("%s/api/movies/%d/subtitles?lang=en", env.baseURL, m.ID))
+		subtitleSearchResults(t, env.client, fmt.Sprintf("%s/api/movies/%d/subtitles?lang=en", env.baseURL, m.ID))
 		return subs.lastKey()
 	}
 

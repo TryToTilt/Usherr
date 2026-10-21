@@ -293,7 +293,7 @@ func subtitleGetMessage(res subtitleFetchResult, quota subtitleQuotaPayload) str
 	if res.quota {
 		limit := "OpenSubtitles' daily download limit is reached."
 		if quota.ResetsAt != nil {
-			limit = "OpenSubtitles' daily download limit is reached. It resets around " + *quota.ResetsAt + "."
+			limit = fmt.Sprintf("OpenSubtitles' daily download limit is reached. It resets around %s.", *quota.ResetsAt)
 		}
 		parts = append(parts, limit)
 	}

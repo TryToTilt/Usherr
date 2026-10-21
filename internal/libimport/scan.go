@@ -28,7 +28,10 @@ const (
 // File is one video file found on disk. Season and Episodes are only set
 // for TV.
 type File struct {
-	Path      string `json:"path"`
+	Path string `json:"path"`
+	// Title is the title read from the file name ("" when the name has none).
+	// Only ScanSeriesFolder fills it in.
+	Title     string `json:"-"`
 	SizeBytes int64  `json:"sizeBytes"`
 	Season    int    `json:"season,omitempty"`
 	Episodes  []int  `json:"episodes,omitempty"`

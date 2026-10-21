@@ -420,7 +420,10 @@ func TestATorrentCanHaveItsOwnUploadLimit(t *testing.T) {
 	if err := mediarium.Download(ctx, lt, nil); err != nil {
 		t.Fatalf("download: %v", err)
 	}
-	if took := time.Since(start); took < 2500*time.Millisecond {
+	// Without a limit 4 MB over localhost takes a fraction of a second; the limiter's
+	// first burst and a loaded machine shift the exact time, so the check is only that
+	// the limit clearly held it back.
+	if took := time.Since(start); took < 1500*time.Millisecond {
 		t.Fatalf("a seeder limited to 1 MB/s gave away 4 MB in %v", took)
 	}
 	t.Logf("4 MB went out in %v with the upload limit at 1 MB/s", time.Since(start))

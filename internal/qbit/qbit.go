@@ -13,13 +13,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/anacrolix/torrent/metainfo"
 
@@ -247,6 +251,42 @@ type AddOptions struct {
 	TorrentFile []byte
 	Category    string
 	Tag         string
+	// Hash is the torrent's info hash when it is known up front. It lets the
+	// share limits be set after the add for clients that ignore them in it.
+	Hash string
+	// Share is how long the client should seed this torrent. Zero in both
+	// fields means "leave the client's own defaults alone".
+	Share ShareLimits
+}
+
+// ShareLimits is when the client itself should stop seeding one torrent.
+// A zero field means no limit of that kind.
+type ShareLimits struct {
+	Ratio float64
+	Time  time.Duration
+}
+
+// Set reports whether there is anything to send.
+func (l ShareLimits) Set() bool { return l.Ratio > 0 || l.Time > 0 }
+
+// ratioValue and minutesValue are the numbers qBittorrent wants: -1 is no
+// limit of that kind, the time is in whole minutes (at least one).
+func (l ShareLimits) ratioValue() string {
+	if l.Ratio <= 0 {
+		return "-1"
+	}
+	return strconv.FormatFloat(l.Ratio, 'f', -1, 64)
+}
+
+func (l ShareLimits) minutesValue() string {
+	if l.Time <= 0 {
+		return "-1"
+	}
+	m := int(math.Ceil(l.Time.Minutes()))
+	if m < 1 {
+		m = 1
+	}
+	return strconv.Itoa(m)
 }
 
 // Add hands a torrent to the client.
@@ -274,6 +314,10 @@ func (c *Client) Add(ctx context.Context, o AddOptions) error {
 	if o.Tag != "" {
 		_ = mw.WriteField("tags", o.Tag)
 	}
+	if o.Share.Set() {
+		_ = mw.WriteField("ratioLimit", o.Share.ratioValue())
+		_ = mw.WriteField("seedingTimeLimit", o.Share.minutesValue())
+	}
 	_ = mw.Close()
 	data, err := c.call(ctx, http.MethodPost, "/api/v2/torrents/add", buf.Bytes(), mw.FormDataContentType())
 	if err != nil {
@@ -282,7 +326,26 @@ func (c *Client) Add(ctx context.Context, o AddOptions) error {
 	if strings.TrimSpace(string(data)) == "Fails." {
 		return errors.New("the download client didn't take the torrent")
 	}
+	if o.Share.Set() && o.Hash != "" {
+		// Older clients and the programs that copy the API may ignore the
+		// limits in the add call, so set them on the torrent too. A failure
+		// here never fails the grab.
+		if err := c.SetShareLimits(ctx, o.Hash, o.Share); err != nil {
+			slog.Debug("download client: couldn't set the share limits", "err", err)
+		}
+	}
 	return nil
+}
+
+// SetShareLimits gives one torrent its own seeding limits. The client decides
+// what happens when they are met (that is its own global setting).
+func (c *Client) SetShareLimits(ctx context.Context, hash string, l ShareLimits) error {
+	return c.post(ctx, "/api/v2/torrents/setShareLimits", url.Values{
+		"hashes":                   {hash},
+		"ratioLimit":               {l.ratioValue()},
+		"seedingTimeLimit":         {l.minutesValue()},
+		"inactiveSeedingTimeLimit": {"-2"},
+	})
 }
 
 // createCategory makes sure the category exists. Clients that already have

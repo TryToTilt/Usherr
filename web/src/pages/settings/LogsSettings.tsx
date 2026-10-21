@@ -35,6 +35,7 @@ import { problemsChanged } from '../../useProblems'
 import { useLive } from '../../useLive'
 import { plural, t, tx, st } from '../../i18n'
 import { withBase } from '../../base'
+import KnownFixHint from '../../components/KnownFixHint'
 
 // Settings > System > Logs and errors: the things that went wrong (a download
 // that failed, a provider that refused a login, a full disk), each with what it
@@ -429,6 +430,7 @@ function ProblemItem({ p, open, onToggle, onRead }: { p: ProblemRow; open: boole
           <section>
             <h4>{t('What happened')}</h4>
             <p>{st(p.explain || p.message)}</p>
+            <KnownFixHint error={`${p.message} ${p.detail ?? ''}`} />
             <p className="pl-dim">{happenedText(p)}</p>
             <p className="pl-dim">
               {t('First seen {when}.', { when: exactTime(p.firstAt) })} <code>{p.code}</code>

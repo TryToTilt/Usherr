@@ -275,10 +275,12 @@ func (s *Server) arrDeleteQueueItem(app arrApp) http.HandlerFunc {
 				return
 			}
 		}
+		ref, inClient := s.clientRefFor(item)
 		if err := s.QueueRepo.Delete(item.ID); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		s.removeFromClient(ref, inClient, false)
 		s.queueItemEvent(item, "removed", queue.LevelInfo, "Removed from the download list: "+item.ReleaseTitle)
 		writeJSON(w, http.StatusOK, map[string]any{})
 	}

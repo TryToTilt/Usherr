@@ -2,7 +2,10 @@ package api
 
 import (
 	"path/filepath"
+	"slices"
 	"testing"
+
+	"github.com/rdborg/mediarium/internal/torrentopts"
 )
 
 func TestMapClientPath(t *testing.T) {
@@ -28,5 +31,46 @@ func TestMapClientPath(t *testing.T) {
 				t.Errorf("mapClientPath(%q, %q, %q) = %q, want %q", tc.path, tc.remote, tc.local, got, want)
 			}
 		})
+	}
+}
+
+func TestClientCategoryPerKind(t *testing.T) {
+	kinds := map[string]string{torrentopts.KindMovie: "films", torrentopts.KindTV: " shows ", torrentopts.KindMusic: "", torrentopts.KindBook: "reads/new"}
+	cases := []struct {
+		name, main, kind, want string
+	}{
+		{"movie has its own", "mediarium", torrentopts.KindMovie, "films"},
+		{"tv is trimmed", "mediarium", torrentopts.KindTV, "shows"},
+		{"music falls back to the main one", "mediarium", torrentopts.KindMusic, "mediarium"},
+		{"books may use a subcategory", "mediarium", torrentopts.KindBook, "reads/new"},
+		{"empty main with other kinds set leaves this kind without one", "", torrentopts.KindMusic, ""},
+		{"empty main still lets a kind use its own", "", torrentopts.KindMovie, "films"},
+		{"unknown kind falls back", "tor", "other", "tor"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := downloadClientConfig{Category: tc.main, KindCategories: kinds}
+			if got := c.categoryFor(tc.kind); got != tc.want {
+				t.Errorf("categoryFor(%q) = %q, want %q", tc.kind, got, tc.want)
+			}
+		})
+	}
+	// Nothing set at all: the default category, as before.
+	if got := (downloadClientConfig{}).category(); got != defaultClientCategory {
+		t.Errorf("category() with nothing set = %q", got)
+	}
+	// Only the main category cleared while kinds have their own: no default creeps back in.
+	only := downloadClientConfig{KindCategories: map[string]string{torrentopts.KindMovie: "films"}}
+	if got := only.allCategories(); !slices.Equal(got, []string{"films"}) {
+		t.Errorf("allCategories() with an empty main = %v", got)
+	}
+	// Nothing set: one category, as before.
+	if got := (downloadClientConfig{}).allCategories(); !slices.Equal(got, []string{"mediarium"}) {
+		t.Errorf("allCategories() = %v", got)
+	}
+	// Torrents added earlier under the main category stay Mediarium's.
+	got := downloadClientConfig{Category: "old", KindCategories: map[string]string{torrentopts.KindMovie: "films", torrentopts.KindTV: "old"}}.allCategories()
+	if !slices.Equal(got, []string{"old", "films"}) {
+		t.Errorf("allCategories() = %v", got)
 	}
 }

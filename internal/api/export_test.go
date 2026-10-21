@@ -11,6 +11,7 @@ import (
 	"github.com/rdborg/mediarium/internal/metadata"
 	"github.com/rdborg/mediarium/internal/notify"
 	"github.com/rdborg/mediarium/internal/settings"
+	"github.com/rdborg/mediarium/internal/simkl"
 	"github.com/rdborg/mediarium/internal/subtitles"
 	"github.com/rdborg/mediarium/internal/trakt"
 )
@@ -43,6 +44,13 @@ func (s *Server) TestWaitBackground() { s.bg.Wait() }
 // TestStreamPauseRound makes one check of the pause-while-streaming loop.
 func (s *Server) TestStreamPauseRound(ctx context.Context) { s.streamPauseRound(ctx) }
 
+// TestHoldForStreaming hands downloads to the paused-for-streaming list the way
+// a resumed-after-restart download does, TestForgetStreamPaused takes some off
+// it the way giving them back does, and TestPausedForStreaming reads it.
+func (s *Server) TestHoldForStreaming(ids []int64)   { s.holdForStreaming(ids) }
+func (s *Server) TestForgetStreamPaused(ids []int64) { s.forgetPausedForStreaming(ids) }
+func (s *Server) TestPausedForStreaming() []int64    { return s.pausedForStreaming() }
+
 // TestRunCleanup runs the clean-up as if the time were now, and
 // TestCleanupJob the automation loop's hourly clean-up check.
 func (s *Server) TestRunCleanup(now time.Time) (removed int, prunedQueue, prunedActivity int64) {
@@ -69,6 +77,14 @@ func (s *Server) TestSetTraktBaseURL(clientID, baseURL string) {
 	s.trakt = trakt.NewWithBaseURL(clientID, baseURL)
 	s.instrumentTrakt(s.trakt)
 	s.traktMu.Unlock()
+}
+
+// TestSetSimklBaseURL points the live Simkl client at a local fixture server.
+func (s *Server) TestSetSimklBaseURL(clientID, baseURL string) {
+	s.simklMu.Lock()
+	s.simkl = simkl.NewWithBaseURL(clientID, baseURL)
+	s.instrumentSimkl(s.simkl)
+	s.simklMu.Unlock()
 }
 
 func (s *Server) TestSetTMDBBaseURL(apiKey, baseURL string) {
@@ -129,6 +145,15 @@ func (s *Server) TestRouteAccess() map[string]string {
 
 // TestBackfillGenres runs the scheduled genre backfill once.
 func (s *Server) TestBackfillGenres(ctx context.Context) { s.backfillGenres(ctx) }
+
+// TestAgeSessions makes every stored browser session look as if it was last
+// used d ago.
+func (s *Server) TestAgeSessions(d time.Duration) {
+	_, _ = s.db.Exec(`UPDATE sessions SET last_used_at = ?`, time.Now().Add(-d).UTC().Format(time.RFC3339Nano))
+}
+
+// TestBackfillCountries runs the scheduled origin-country backfill once.
+func (s *Server) TestBackfillCountries(ctx context.Context) { s.backfillCountries(ctx) }
 
 // TestKickImportWorker starts the import details worker (as the scheduled
 // job does, also after a restart) and TestBackfillImportedAddedDates runs

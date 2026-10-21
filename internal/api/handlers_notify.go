@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -112,6 +113,15 @@ type notifyTargetPayload struct {
 	HasPassword bool              `json:"hasPassword"`
 	URL         string            `json:"url,omitempty"`    // the non-secret url field, as before
 	ChatID      string            `json:"chatId,omitempty"` // the non-secret chatId field, as before
+	// SecretError is set when the saved passwords or tokens can't be read (a
+	// secret.key that doesn't belong to this database); nothing is sent through
+	// the target until they are entered again.
+	SecretError string `json:"secretError,omitempty"`
+}
+
+// notifySecretError is what a target whose saved secrets can't be read is told.
+func notifySecretError(name string) string {
+	return fmt.Sprintf("Mediarium can't read the saved passwords of %s, so it sends nothing. Enter them again.", name)
 }
 
 func toNotifyPayload(t notify.Target) notifyTargetPayload {
@@ -134,11 +144,14 @@ func toNotifyPayload(t notify.Target) notifyTargetPayload {
 	}
 	p.HasPassword = p.HasSecrets["password"]
 	p.URL, p.ChatID = p.Config["url"], p.Config["chatId"]
+	if t.SecretUnreadable {
+		p.SecretError = notifySecretError(t.Name)
+	}
 	return p
 }
 
 func (s *Server) handleListNotifyTargets(w http.ResponseWriter, r *http.Request) {
-	list, err := s.NotifyRepo.List()
+	list, err := s.NotifyRepo.ListAll()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -237,6 +250,10 @@ func (s *Server) handleUpdateNotifyTarget(w http.ResponseWriter, r *http.Request
 	}
 	cfg := s.withStoredSecrets(typ, req.config(), old)
 	cfg = notify.ApplyDefaults(typ, cfg)
+	if old.SecretUnreadable && missingRequiredSecret(typ, cfg) {
+		writeError(w, http.StatusBadRequest, notifySecretError(old.Name))
+		return
+	}
 	if err := notify.Validate(typ, cfg); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -306,6 +323,34 @@ func savedSecretMoved(typ string, cfg map[string]string, saved notify.Target) st
 
 // withStoredSecrets fills secret fields the request left empty from a saved
 // target of the same type.
+// missingRequiredSecret reports whether a required secret field of typ is empty in cfg.
+func missingRequiredSecret(typ string, cfg map[string]string) bool {
+	info, ok := notify.TypeByName(typ)
+	if !ok {
+		return false
+	}
+	for _, f := range info.Fields {
+		if f.Secret() && f.Required && strings.TrimSpace(cfg[f.Name]) == "" {
+			return true
+		}
+	}
+	return false
+}
+
+// hasSecretValue reports whether cfg holds a value for any secret field of typ.
+func hasSecretValue(typ string, cfg map[string]string) bool {
+	info, ok := notify.TypeByName(typ)
+	if !ok {
+		return false
+	}
+	for _, f := range info.Fields {
+		if f.Secret() && strings.TrimSpace(cfg[f.Name]) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) withStoredSecrets(typ string, cfg map[string]string, saved notify.Target) map[string]string {
 	out := map[string]string{}
 	for k, v := range cfg {
@@ -368,6 +413,10 @@ func (s *Server) handleTestNotifyTarget(w http.ResponseWriter, r *http.Request) 
 		}
 		if typ == "" {
 			typ = string(saved.Type)
+		}
+		if saved.SecretUnreadable && !hasSecretValue(typ, cfg) {
+			writeError(w, http.StatusConflict, notifySecretError(saved.Name))
+			return
 		}
 		if len(cfg) == 0 && typ == string(saved.Type) {
 			cfg = saved.Config

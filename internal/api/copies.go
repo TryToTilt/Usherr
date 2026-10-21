@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -73,7 +74,7 @@ func (s *Server) handleListMovieCopies(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	out := copiesAnswer{Folder: s.movieCopiesRoot(), Items: []copyPayload{}}
+	out := copiesAnswer{Folder: folderShown(r, []string{s.movieCopiesRoot()}, s.movieCopiesRoot()), Items: []copyPayload{}}
 	out.MainProfileID = profiles.resolve(main.ProfileID).ID
 	now := time.Now()
 	for _, c := range copies {
@@ -111,7 +112,7 @@ func (s *Server) handleListSeriesCopies(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	out := copiesAnswer{Folder: s.tvCopiesRoot(), Items: []copyPayload{}}
+	out := copiesAnswer{Folder: folderShown(r, []string{s.tvCopiesRoot()}, s.tvCopiesRoot()), Items: []copyPayload{}}
 	out.MainProfileID = profiles.resolveTV(main.ProfileID).ID
 	for _, c := range copies {
 		out.Items = append(out.Items, copyPayload{
@@ -199,7 +200,7 @@ func (s *Server) handleAddMovieCopy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	profiles, _ := s.loadProfiles()
-	_ = s.QueueRepo.LogActivity(m.ID, "added", m.Title+": a second copy in "+profiles.resolve(c.ProfileID).Name+" was added")
+	_ = s.QueueRepo.LogActivity(m.ID, "added", fmt.Sprintf("%s: a second copy in %s was added", m.Title, profiles.resolve(c.ProfileID).Name))
 	go s.searchMovieInBackground(c.ID)
 	writeJSON(w, http.StatusCreated, copyPayload{ID: c.ID, ProfileID: c.ProfileID, ProfileName: profiles.resolve(c.ProfileID).Name, Monitored: c.Monitored, Status: string(c.Status)})
 }
@@ -257,7 +258,7 @@ func (s *Server) handleAddSeriesCopy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	profiles, _ := s.loadProfiles()
-	_ = s.QueueRepo.LogSeriesActivity(sr.ID, "added", sr.Title+": a second copy in "+profiles.resolve(c.ProfileID).Name+" was added")
+	_ = s.QueueRepo.LogSeriesActivity(sr.ID, "added", fmt.Sprintf("%s: a second copy in %s was added", sr.Title, profiles.resolve(c.ProfileID).Name))
 	go s.searchSeriesCopyInBackground(c.ID)
 	writeJSON(w, http.StatusCreated, copyPayload{ID: c.ID, ProfileID: c.ProfileID, ProfileName: profiles.resolve(c.ProfileID).Name, Monitored: c.Monitored,
 		EpisodeCount: c.EpisodeCount, DownloadedCount: c.DownloadedCount})

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { REPO_URL } from '../docs'
 import { t } from '../i18n'
 import { useFocusTrap } from '../useFocusTrap'
-import { notesToShow, SEEN_KEY, type ReleaseNotes } from '../whatsNew'
+import { notesToShow, SEEN_KEY, titleVersion, type ReleaseNotes } from '../whatsNew'
 import Icon from './Icon'
 
 function readSeen(): string | null {
@@ -62,17 +62,17 @@ export default function WhatsNew({ version, onDone }: { version: string; onDone?
   })
 
   if (notes.length === 0) return null
-  return <WhatsNewDialog notes={notes} onClose={close} box={box} />
+  return <WhatsNewDialog notes={notes} version={version} onClose={close} box={box} />
 }
 
-function WhatsNewDialog({ notes, onClose, box }: { notes: ReleaseNotes[]; onClose: () => void; box: React.RefObject<HTMLDivElement | null> }) {
+function WhatsNewDialog({ notes, version, onClose, box }: { notes: ReleaseNotes[]; version: string; onClose: () => void; box: React.RefObject<HTMLDivElement | null> }) {
   // Start at the top of the notes: focusing the last button would scroll a long list to its end on a phone.
   useEffect(() => {
     box.current?.focus({ preventScroll: true })
     box.current?.scrollTo?.(0, 0)
   }, [box])
   useFocusTrap(box)
-  const newest = notes[0].version.replace(/\.0$/, '')
+  const newest = titleVersion(version)
   return createPortal(
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div ref={box} tabIndex={-1} className="modal whats-new" role="dialog" aria-modal="true" aria-labelledby="whats-new-title">

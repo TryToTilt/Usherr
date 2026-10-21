@@ -24,6 +24,9 @@ func CheckSecretKey(db *sql.DB, box *crypto.Box) error {
 		`SELECT api_key_encrypted FROM indexers WHERE COALESCE(api_key_encrypted, '') <> '' LIMIT 3`,
 		`SELECT secrets_encrypted FROM indexers WHERE COALESCE(secrets_encrypted, '') <> '' LIMIT 3`,
 		`SELECT password_encrypted FROM download_clients WHERE COALESCE(password_encrypted, '') <> '' LIMIT 3`,
+		`SELECT private_key_encrypted FROM vpn_configs WHERE COALESCE(private_key_encrypted, '') <> '' LIMIT 3`,
+		`SELECT token_encrypted FROM media_servers WHERE COALESCE(token_encrypted, '') <> '' LIMIT 3`,
+		`SELECT secrets_encrypted FROM notification_targets WHERE COALESCE(secrets_encrypted, '') <> '' LIMIT 3`,
 	} {
 		values, err := sampleColumn(db, q)
 		if err != nil {

@@ -7,6 +7,7 @@ export interface StreamStatus {
   qualities?: string[]
   problem?: string
   tv?: { name: string } | null // the living-room TV, when playing there is set up
+  engine?: string // 'usherr' when Usherr's own engine answers
 }
 
 export interface StreamOption {
@@ -25,6 +26,8 @@ export interface StreamStart {
   codec?: string
   hdr?: string
   audio?: string
+  engine?: string // 'usherr': Usherr's own engine
+  canNext?: boolean // another release is in line
 }
 
 async function call<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
@@ -50,6 +53,8 @@ export const streamApi = {
       signal,
     ),
   start: (b: { option?: string; downloadUrl?: string; releaseTitle?: string; title?: string }) => call<StreamStart>('POST', '/start', b),
+  // Usherr's own engine: play the next release in line (same stream address).
+  next: (id: string) => call<StreamStart>('POST', `/${id}/next`),
   link: (id: string) => call<{ homeUrl: string }>('GET', `/${id}/link`),
   // Open a title in Stremio on the TV, or play a started stream there.
   tvTitle: (t: { kind: 'movie' | 'series'; tmdbId: number; season?: number; episode?: number }) => call<{ message: string }>('POST', '/tv', t),
@@ -75,7 +80,9 @@ export function browserTrouble(s: { codec?: string; hdr?: string; audio?: string
   const hdr = (s.hdr || '').toLowerCase()
   const audio = (s.audio || '').toLowerCase()
   if ((codec === 'x265' || codec.includes('265') || codec.includes('hevc')) && !caps.hevc) return t('This browser can’t show HEVC (H.265) video.')
-  if ((hdr === 'dv' || hdr.includes('dovi') || hdr.includes('vision')) && !caps.dv) return t('Dolby Vision may show with odd colours here.')
+  // Usherr: a release with HDR10 under its Dolby Vision ("DV HDR10") shows right anywhere.
+  const hdr10Too = /(^|[^a-z0-9])hdr(10)?(\+|p|plus)?([^a-z0-9]|$)/i.test(s.release || '')
+  if ((hdr === 'dv' || hdr.includes('dovi') || hdr.includes('vision')) && !caps.dv && !hdr10Too) return t('Dolby Vision may show with odd colours here.')
   if (audio.includes('truehd') || audio.includes('dts')) return t('The {audio} sound may be silent in a browser.', { audio: s.audio ?? '' })
   return ''
 }

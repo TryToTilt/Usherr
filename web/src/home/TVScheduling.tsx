@@ -5,6 +5,7 @@ import { useState } from 'react'
 import type { Series } from '../api'
 import Icon from '../components/Icon'
 import { t } from '../i18n'
+import { StreamChips, StreamFind, type StreamPick } from './TVStreamFind' // Usherr
 
 export interface Daypart {
   part: string
@@ -12,11 +13,14 @@ export interface Daypart {
   genres?: string[]
   decades?: number[]
   allMovies?: boolean
+  stream?: StreamPick[]
 }
 export interface Slot {
   days?: number[]
   at: string
   seriesId?: number
+  streamTmdb?: number
+  streamTitle?: string
   movie?: boolean
   count?: number
   name?: string
@@ -31,6 +35,8 @@ export interface SchedulingRules {
   breaks?: number
   breakMinutes?: number
   familyHours?: boolean
+  look?: '' | 'vintage' | 'hd' | 'age'
+  stream?: StreamPick[]
 }
 
 const PARTS: { part: string; label: () => string; hours: string }[] = [
@@ -55,10 +61,15 @@ export default function TVScheduling<R extends SchedulingRules>({ rules, setRule
       const list = r.dayparts ?? []
       const cur = list.find((d) => d.part === p) ?? { part: p }
       const next = f(cur)
-      const empty = !next.series?.length && !next.genres?.length && !next.decades?.length && !next.allMovies
+      const empty = !next.series?.length && !next.genres?.length && !next.decades?.length && !next.allMovies && !next.stream?.length
       return { ...r, dayparts: empty ? list.filter((d) => d.part !== p) : [...list.filter((d) => d.part !== p), next] }
     })
   const slots = rules.slots ?? []
+  // Usherr: a set time can stream a show: the ones already on the channel, or one found.
+  const [findFor, setFindFor] = useState<number | null>(null)
+  const knownStreams: StreamPick[] = []
+  for (const k of [...(rules.stream ?? []), ...parts.flatMap((d) => d.stream ?? []), ...slots.filter((x) => x.streamTmdb).map((x) => ({ tmdbId: x.streamTmdb!, title: x.streamTitle ?? '' }))])
+    if (k.title && !knownStreams.some((y) => y.tmdbId === k.tmdbId)) knownStreams.push(k)
   const setSlot = (i: number, f: (s: Slot) => Slot) => setRules((r) => ({ ...r, slots: (r.slots ?? []).map((s, j) => (j === i ? f(s) : s)) }))
   const titleOf = (id?: number) => series.find((s) => s.id === id)?.title ?? ''
   const summary = (d?: Daypart) => {
@@ -111,6 +122,8 @@ export default function TVScheduling<R extends SchedulingRules>({ rules, setRule
                         </li>
                       ))}
                     </ul>
+                    <StreamChips list={d?.stream ?? []} onDrop={(s) => setPart(p.part, (x) => ({ ...x, stream: (x.stream ?? []).filter((y) => y.tmdbId !== s.tmdbId) }))} />
+                    <StreamFind picked={d?.stream} onPick={(s) => setPart(p.part, (x) => ({ ...x, stream: [...(x.stream ?? []), s] }))} />
                     <div className="tv-chips">
                       {genres.map((g) => (
                         <button key={g} type="button" className={`btn-sm${(d?.genres ?? []).includes(g) ? ' primary' : ''}`} onClick={() => setPart(p.part, (x) => ({ ...x, genres: toggle(x.genres, g) }))}>
@@ -164,8 +177,20 @@ export default function TVScheduling<R extends SchedulingRules>({ rules, setRule
               <div className="tv-field-row">
                 <input type="time" value={s.at} step={900} onChange={(e) => setSlot(i, (x) => ({ ...x, at: e.target.value }))} aria-label={t('Time')} />
                 <select
-                  value={s.movie ? 'movie' : String(s.seriesId ?? '')}
-                  onChange={(e) => setSlot(i, (x) => (e.target.value === 'movie' ? { ...x, movie: true, seriesId: undefined } : { ...x, movie: false, seriesId: Number(e.target.value) || undefined }))}
+                  value={s.movie ? 'movie' : s.streamTmdb ? `s${s.streamTmdb}` : findFor === i ? 'find' : String(s.seriesId ?? '')}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setFindFor(v === 'find' ? i : null)
+                    if (v === 'find') return
+                    const st = v.startsWith('s') ? knownStreams.find((k) => `s${k.tmdbId}` === v) : undefined
+                    setSlot(i, (x) =>
+                      v === 'movie'
+                        ? { ...x, movie: true, seriesId: undefined, streamTmdb: undefined, streamTitle: undefined }
+                        : st
+                          ? { ...x, movie: false, seriesId: undefined, streamTmdb: st.tmdbId, streamTitle: st.title }
+                          : { ...x, movie: false, seriesId: Number(v) || undefined, streamTmdb: undefined, streamTitle: undefined },
+                    )
+                  }}
                   aria-label={t('What plays')}
                 >
                   <option value="">{t('Pick a show…')}</option>
@@ -175,6 +200,14 @@ export default function TVScheduling<R extends SchedulingRules>({ rules, setRule
                       {x.title}
                     </option>
                   ))}
+                  <optgroup label={t('Streamed')}>
+                    {[...knownStreams, ...(s.streamTmdb && !knownStreams.some((k) => k.tmdbId === s.streamTmdb) ? [{ tmdbId: s.streamTmdb, title: s.streamTitle ?? String(s.streamTmdb) }] : [])].map((k) => (
+                      <option key={`s${k.tmdbId}`} value={`s${k.tmdbId}`}>
+                        {k.title} ({t('stream')})
+                      </option>
+                    ))}
+                    <option value="find">{t('Find a show to stream…')}</option>
+                  </optgroup>
                 </select>
                 {!s.movie && (
                   <label className="tvs-count">
@@ -186,6 +219,15 @@ export default function TVScheduling<R extends SchedulingRules>({ rules, setRule
                   <Icon name="x" size={14} />
                 </button>
               </div>
+              {findFor === i && (
+                <StreamFind
+                  autoFocus
+                  onPick={(p) => {
+                    setFindFor(null)
+                    setSlot(i, (x) => ({ ...x, movie: false, seriesId: undefined, streamTmdb: p.tmdbId, streamTitle: p.title }))
+                  }}
+                />
+              )}
             </li>
           ))}
         </ul>
@@ -229,6 +271,17 @@ export default function TVScheduling<R extends SchedulingRules>({ rules, setRule
         </div>
         {!rules.filler?.folder && <small className="hint">{t('Breaks play the ads in the filler folder: choose one above first.')}</small>}
       </div>
+
+      <label className="tv-field">
+        <span>{t('Picture')}</span>
+        <select value={rules.look ?? ''} onChange={(e) => setRules((r) => ({ ...r, look: (e.target.value || undefined) as SchedulingRules['look'] }))}>
+          <option value="">{t('As each viewer set it')}</option>
+          <option value="age">{t('By each show’s age: older than 2000 looks like old TV')}</option>
+          <option value="vintage">{t('Always old TV: scan lines and static')}</option>
+          <option value="hd">{t('Always clean HD: no effects')}</option>
+        </select>
+        <small className="hint">{t('Old TV adds scan lines, softer colour and static between channels.')}</small>
+      </label>
 
       <div className="tv-field">
         <span>{t('Special programming')}</span>

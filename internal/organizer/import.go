@@ -353,9 +353,19 @@ func copyFile(src, dest string, srcInfo os.FileInfo) (err error) {
 	// while the same copy also succeeded); a short wait and a retry gets
 	// past it. io.Copy would also hand the copy to the kernel
 	// (copy_file_range, sendfile) in large pieces.
-	// home fork: report how far the copy is.
-	if err = copyChunks(out, &progressReader{r: in, path: src, phase: "Copying into the library", total: srcInfo.Size()}); err != nil {
+	// home fork: report how far the copy is, and count what was written
+	// for the check below.
+	cw := &countWriter{w: out}
+	err = copyChunks(cw, &progressReader{r: in, path: src, phase: "Copying into the library", total: srcInfo.Size()})
+	n := cw.n
+	if err != nil {
 		return fmt.Errorf("copy contents: %w", err)
+	}
+	if n != srcInfo.Size() {
+		// A short copy (a full disk that did not say so, a file that changed
+		// while it was read) is never published as the finished file.
+		err = fmt.Errorf("copy contents: %d of %d bytes were written", n, srcInfo.Size())
+		return err
 	}
 	if err = out.Sync(); err != nil {
 		return fmt.Errorf("flush destination: %w", err)
@@ -408,4 +418,17 @@ func writeRetrying(out io.Writer, p []byte) error {
 		time.Sleep(time.Duration(min(tries, 8)) * 250 * time.Millisecond)
 	}
 	return nil
+}
+
+// countWriter counts the bytes written through it (home fork: copyChunks
+// with upstream's short-copy check).
+type countWriter struct {
+	w io.Writer
+	n int64
+}
+
+func (c *countWriter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.n += int64(n)
+	return n, err
 }

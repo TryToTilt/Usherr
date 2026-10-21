@@ -83,7 +83,7 @@ func (s *Server) handleAddSubtitleAddon(w http.ResponseWriter, r *http.Request) 
 	}
 	base, err := subtitles.ParseAddonURL(req.URL)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "That doesn't look right: "+err.Error()+".")
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("That doesn't look right: %s.", err.Error()))
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
@@ -113,7 +113,7 @@ func (s *Server) handleAddSubtitleAddon(w http.ResponseWriter, r *http.Request) 
 	}
 	added := subtitles.Addon{ID: hex.EncodeToString(id), Name: strings.TrimSpace(m.Name), URL: base}
 	if err := s.saveAddons(append(list, added)); err != nil {
-		writeError(w, http.StatusInternalServerError, "Couldn't save the add-on: "+err.Error())
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("Couldn't save the add-on: %s", err.Error()))
 		return
 	}
 	writeJSON(w, http.StatusCreated, addonView(added))
@@ -135,7 +135,7 @@ func (s *Server) handleDeleteSubtitleAddon(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if err := s.saveAddons(kept); err != nil {
-		writeError(w, http.StatusInternalServerError, "Couldn't remove the add-on: "+err.Error())
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("Couldn't remove the add-on: %s", err.Error()))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -198,7 +198,10 @@ func (s *Server) findAddonSubtitles(ctx context.Context, q subtitles.Query) (res
 	if len(list) == 0 {
 		return nil, 0, nil
 	}
-	imdb := s.addonImdbID(ctx, q)
+	imdb := q.IMDBID
+	if imdb == "" {
+		imdb = s.addonImdbID(ctx, q)
+	}
 	if imdb == "" {
 		return nil, len(list), nil // nothing to ask them with: asked, found nothing, not a failure
 	}
@@ -209,6 +212,11 @@ func (s *Server) findAddonSubtitles(ctx context.Context, q subtitles.Query) (res
 	for _, a := range list {
 		asked++
 		found, err := s.addons.Find(ctx, a.URL, aq)
+		line := subtitles.Diagnostic{Source: a.Name, Lookup: "imdb", Value: imdb, Count: len(found), Found: len(found)}
+		if err != nil {
+			line.Note, line.Detail = "error", err.Error()
+		}
+		subtitles.Report(ctx, line)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", a.Name, err))
 			continue
@@ -224,7 +232,7 @@ func (s *Server) findAddonSubtitles(ctx context.Context, q subtitles.Query) (res
 			if release == "" {
 				release = a.Name
 			}
-			results = append(results, subtitles.Result{Language: f.Language, Release: release, Source: subtitles.SourceAddon, Link: sealed, HearingImpaired: f.HearingImpaired, ForeignPartsOnly: f.Forced && !f.HearingImpaired})
+			results = append(results, subtitles.Result{Language: f.Language, Release: release, Source: subtitles.SourceAddon, SourceName: a.Name, Link: sealed, HearingImpaired: f.HearingImpaired, ForeignPartsOnly: f.Forced && !f.HearingImpaired})
 		}
 	}
 	return results, asked, errs

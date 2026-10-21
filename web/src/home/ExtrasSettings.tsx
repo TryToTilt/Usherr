@@ -1,15 +1,19 @@
 // Home fork: Settings > Extras. One card for each thing the fork adds that
 // needs setting up, in the style of the setup wizard's service cards: what it
 // is, whether it's ready, what's missing, and a Test button.
-import type { MarqueeSettings, SceneKind } from './Marquee' // Usherr
 import HelpLink from '../components/HelpLink'
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from '../components/Icon'
 import TestButton from '../components/TestButton'
 import { useToast } from '../components/Toast'
+import { copyText } from '../components/CopyBox'
+import { QRCode } from '../components/TwoStepCard'
 import { plural, t, tx } from '../i18n'
 import './news.css'
+import './cinema.css' // Usherr: the Tickets button
+import { TICKET_SITES, type TicketService } from './cinema' // Usherr
+import { TicketsButton } from './InTheaters' // Usherr
 
 interface Extras {
   server: { kind: '' | 'jellyfin' | 'emby'; name: string; plex: boolean }
@@ -119,15 +123,17 @@ export default function ExtrasSettings({ only }: { only?: string[] } = {}) {
     <div className="settings-stack">
       {show('server') && <MediaServerCard x={x} />}
       {show('address') && <AddressCard x={x} save={save} />}
+      {show('streaming') && <StreamingEngineCard />}
       {show('streaming') && <StreamingCard x={x} save={save} />}
       {show('streamed') && <StreamedCard x={x} save={save} act={act} server={server} />}
       {show('livetv') && <LiveTVCard x={x} act={act} server={server} />}
+      {show('addon') && <AddonCard />}
       {show('playontv') && <PlayOnTVCard x={x} save={save} act={act} />}
       {show('ai') && <AICard />}
       {show('scores') && <ScoresCard />}
       {show('news') && <NewsCard />}
       {show('cinema') && <CinemaCard />}
-      {show('marquee') && <MarqueeCard />}
+      {show('marquee') && <MarqueeCard inWizard={!!only} />}
       {show('comics') && <ComicsCard x={x} act={act} />}
       {show('direct') && <DirectCard x={x} save={save} />}
       {show('nsfw') && <NSFWCard x={x} act={act} />}
@@ -190,6 +196,367 @@ function AddressCard({ x, save }: { x: Extras; save: Save }) {
   )
 }
 
+interface AddonInfo {
+  key: string
+  base: string
+  manifestUrl: string
+  https: boolean
+  stremioUrl?: string
+  qr?: string[]
+  streamsProblem?: string
+}
+
+// Usherr: the add-on for Stremio and Nuvio. Each person has a private link; the
+// apps take it once and then show Usherr's catalogs, streams and Live TV.
+function AddonCard() {
+  const toast = useToast()
+  const [info, setInfo] = useState<AddonInfo | null>(null)
+  const [base, setBase] = useState('')
+  const [error, setError] = useState('')
+  const load = useCallback((b: string) => {
+    call<AddonInfo>('GET', `/api/addon${b ? `?base=${encodeURIComponent(b)}` : ''}`)
+      .then((x) => {
+        setInfo(x)
+        setError('')
+        setBase((cur) => cur || x.base)
+      })
+      .catch((e: Error) => setError(e.message))
+  }, [])
+  useEffect(() => load(''), [load])
+  const renew = async () => {
+    if (!window.confirm(t('Make a new link? The old one stops working, and each app has to add the new one.'))) return
+    try {
+      setInfo(await call<AddonInfo>('POST', `/api/addon/regenerate${base ? `?base=${encodeURIComponent(base)}` : ''}`))
+      toast.success(t('A new link was made.'))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
+  return (
+    <Card
+      title={t('Stremio and Nuvio')}
+      state={info ? 'ready' : 'setup'}
+      blurb={t("One add-on for both apps: your library and streamed titles, your watchlist (thumbs up), releases from your Usenet providers for any title, subtitles from your files, and your Live TV channels. Add the link once in each app; it stays.")}
+      needs={error || undefined}
+    >
+      {info && (
+        <div className="grid-form">
+          <label>
+            {t('The address your devices use for Usherr')}
+            <input style={{ width: '100%' }} value={base} onChange={(e) => setBase(e.target.value)} onBlur={() => load(base.trim())} placeholder="http://192.168.1.20:8264" spellCheck={false} />
+          </label>
+          <p style={small}>{t("Use the address your phone or TV reaches Usherr at (your home network address, or your https address from outside). The link below is made from it.")}</p>
+          <label>
+            {t('Your add-on link')}
+            <input style={{ width: '100%' }} readOnly value={info.manifestUrl} onFocus={(e) => e.currentTarget.select()} />
+          </label>
+          <div style={row}>
+            <button
+              className="primary"
+              onClick={() =>
+                void copyText(info.manifestUrl).then(
+                  () => toast.success(t('Copied.')),
+                  () => toast.error(t("Couldn't copy it. Select the link and copy it by hand.")),
+                )
+              }
+            >
+              {t('Copy the link')}
+            </button>
+            {info.stremioUrl && (
+              <a className="btn" href={info.stremioUrl}>
+                {t('Install in Stremio')}
+              </a>
+            )}
+            <button onClick={() => void renew()}>{t('Make a new link')}</button>
+          </div>
+          {info.qr && (
+            <div style={row}>
+              <QRCode rows={info.qr} label={t('QR code of your add-on link')} />
+              <p style={{ ...small, maxWidth: 420 }}>
+                {t('In Stremio: Add-ons, then Add add-on, then paste the link. In Nuvio: add it under its add-ons or plugins, with the same link. Scan the code with a phone camera to get the link onto the phone.')}
+              </p>
+            </div>
+          )}
+          {info.streamsProblem && <p style={small}>{t('Library, watchlist and Live TV work now. For releases from Usenet: {problem}', { problem: info.streamsProblem })}</p>}
+          {!info.https && <p style={small}>{t('A one-tap Install in Stremio needs an https address; with a home network address, paste the link by hand.')}</p>}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+interface EngineProfile {
+  quality: string
+  maxSizeGB: number
+  exclude: string
+}
+interface EngineInfo {
+  engine: 'streamnzb' | 'usherr'
+  engines: Record<'streamnzb' | 'usherr', { ready: boolean; problem?: string }>
+  profiles: EngineProfile[]
+  servers: { host: string; inUse: number; allowed: number; configured: number; idle: number }[]
+  sessions: { release: string; file: string; sizeMB: number; idleSec: number }[]
+  speed: number
+  indexers: { name: string; used: number; limit: number; note?: string }[]
+}
+
+interface ImportItem {
+  name: string
+  detail: string
+  existing: boolean
+}
+interface ImportPreview {
+  providers: ImportItem[]
+  indexers: ImportItem[]
+  profiles: ImportItem[]
+}
+
+// Usherr: copy StreamNZB's Usenet providers, indexers and size limits, after
+// showing what is there. Logins are copied by the server and never shown.
+function StreamNZBImport({ onDone }: { onDone: () => void }) {
+  const toast = useToast()
+  const [open, setOpen] = useState(false)
+  const [config, setConfig] = useState('')
+  const [fileName, setFileName] = useState('')
+  const [pre, setPre] = useState<ImportPreview | null>(null)
+  const [pick, setPick] = useState<{ providers: string[]; indexers: string[]; profiles: boolean }>({ providers: [], indexers: [], profiles: true })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const look = async (cfg: string) => {
+    setBusy(true)
+    setError('')
+    try {
+      const p = await call<ImportPreview>('POST', '/api/home/streaming/import/preview', { config: cfg })
+      setPre(p)
+      setPick({ providers: p.providers.filter((x) => !x.existing).map((x) => x.name), indexers: p.indexers.filter((x) => !x.existing).map((x) => x.name), profiles: p.profiles.some((x) => !x.existing) })
+    } catch (e) {
+      setPre(null)
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const toggle = (k: 'providers' | 'indexers', name: string) => setPick((p) => ({ ...p, [k]: p[k].includes(name) ? p[k].filter((n) => n !== name) : [...p[k], name] }))
+  const run = async () => {
+    setBusy(true)
+    try {
+      const r = await call<{ imported: string[]; skipped: string[] }>('POST', '/api/home/streaming/import', { config, ...pick })
+      toast.success(r.imported.length ? t('Imported: {list}.', { list: r.imported.join(', ') }) : t('Nothing new to import.'))
+      if (r.skipped.length) toast.error(t('Left out: {list}.', { list: r.skipped.join('; ') }))
+      setPre(null)
+      setOpen(false)
+      onDone()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const list = (title: string, k: 'providers' | 'indexers', items: ImportItem[]) =>
+    items.length > 0 && (
+      <div>
+        <strong>{title}</strong>
+        {items.map((it) => (
+          <label key={it.name} style={row}>
+            <input type="checkbox" disabled={it.existing} checked={!it.existing && pick[k].includes(it.name)} onChange={() => toggle(k, it.name)} />
+            <span>
+              {it.name} <span style={small}>{it.detail}</span> {it.existing && <span className="badge downloaded">{t('already in Usherr')}</span>}
+            </span>
+          </label>
+        ))}
+      </div>
+    )
+  if (!open)
+    return (
+      <div style={row}>
+        <button onClick={() => setOpen(true)}>{t('Import from StreamNZB…')}</button>
+      </div>
+    )
+  const nothing = pre && !pre.providers.some((x) => !x.existing) && !pre.indexers.some((x) => !x.existing) && !pre.profiles.some((x) => !x.existing)
+  return (
+    <div className="notice" style={{ display: 'grid', gap: 8 }}>
+      <strong>{t("Copy StreamNZB's settings")}</strong>
+      <p style={small}>
+        {t("Uses StreamNZB's config.json (mapped into Usherr at /streamnzb/config.json, or chosen here). You see what is in it first, and only what you tick is copied. Logins are copied into Usherr's own settings and never shown.")}
+      </p>
+      <div style={row}>
+        <label className="btn-like">
+          <input
+            type="file"
+            accept=".json,application/json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (!f) return
+              setFileName(f.name)
+              void f.text().then((txt) => {
+                setConfig(txt)
+                void look(txt)
+              })
+            }}
+          />
+          <span className="btn-sm">{fileName ? fileName : t('Choose config.json')}</span>
+        </label>
+        <button disabled={busy} onClick={() => void look(config)}>
+          {busy ? t('Looking…') : config ? t('Look again') : t('Use the mapped file')}
+        </button>
+        <button onClick={() => (setOpen(false), setPre(null), setError(''))}>{t('Cancel')}</button>
+      </div>
+      {error && <p className="error-text">{error}</p>}
+      {pre && (
+        <>
+          {list(t('Usenet providers'), 'providers', pre.providers)}
+          {list(t('Indexers'), 'indexers', pre.indexers)}
+          {pre.profiles.length > 0 && (
+            <label style={row}>
+              <input type="checkbox" disabled={!pre.profiles.some((x) => !x.existing)} checked={pick.profiles} onChange={(e) => setPick((p) => ({ ...p, profiles: e.target.checked }))} />
+              <span>
+                {t('Size limits for qualities')} <span style={small}>{pre.profiles.map((x) => `${x.name} ${x.detail}`).join(' · ')}</span>
+              </span>
+            </label>
+          )}
+          {nothing ? <p style={small}>{t('Usherr already has everything in this file.')}</p> : null}
+          <div style={row}>
+            <button className="primary" disabled={busy || nothing || (pick.providers.length === 0 && pick.indexers.length === 0 && !pick.profiles)} onClick={() => void run()}>
+              {t('Import what is ticked')}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// Usherr: which engine streams (StreamNZB or Usherr's own), what each device
+// quality may be, and what streaming is using right now.
+function StreamingEngineCard() {
+  const toast = useToast()
+  const [d, setD] = useState<EngineInfo | null>(null)
+  const [profiles, setProfiles] = useState<EngineProfile[]>([])
+  const [dirty, setDirty] = useState(false)
+  const dirtyRef = useRef(false)
+  const load = useCallback(() => {
+    call<EngineInfo>('GET', '/api/home/streaming')
+      .then((x) => {
+        setD(x)
+        if (!dirtyRef.current) setProfiles(x.profiles ?? [])
+      })
+      .catch(() => undefined)
+  }, [])
+  useEffect(() => {
+    load()
+    const timer = setInterval(load, 5000)
+    return () => clearInterval(timer)
+  }, [load])
+  const put = async (body: Record<string, unknown>, done: string) => {
+    try {
+      const x = await call<EngineInfo>('PUT', '/api/home/streaming', body)
+      setD(x)
+      dirtyRef.current = false
+      setDirty(false)
+      setProfiles(x.profiles ?? [])
+      toast.success(done)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
+  if (!d || !d.engines) return null
+  // Lists the server sent as null when empty.
+  d.sessions ??= []
+  d.servers ??= []
+  d.indexers ??= []
+  const own = d.engines.usherr
+  const nzb = d.engines.streamnzb
+  const chosen = d.engines[d.engine] ?? own
+  const edit = (i: number, patch: Partial<EngineProfile>) => {
+    dirtyRef.current = true
+    setDirty(true)
+    setProfiles((ps) => ps.map((p, j) => (j === i ? { ...p, ...patch } : p)))
+  }
+  const mbps = (d.speed / 1e6).toFixed(1)
+  return (
+    <Card
+      title={t('Streaming engine')}
+      state={chosen.ready ? 'ready' : 'setup'}
+      blurb={t('"Stream now", the streamed library and streamed TV channels play through one of two engines. If the chosen one finds nothing, the other is tried.')}
+      needs={chosen.problem}
+    >
+      <div className="grid-form">
+        <label style={row}>
+          <input type="radio" name="engine" checked={d.engine === 'usherr'} onChange={() => void put({ engine: 'usherr' }, t('Streaming with Usherr.'))} />
+          <span>
+            <strong>Usherr</strong> {t('searches your indexers and reads from your Usenet servers itself, daily shows by date too.')}
+            {!own.ready && own.problem && <span className="hint"> {own.problem}</span>}
+          </span>
+        </label>
+        <label style={row}>
+          <input type="radio" name="engine" checked={d.engine === 'streamnzb'} onChange={() => void put({ engine: 'streamnzb' }, t('Streaming with StreamNZB.'))} />
+          <span>
+            <strong>StreamNZB</strong> {t('the separate StreamNZB program set up below.')}
+            {!nzb.ready && nzb.problem && <span className="hint"> {nzb.problem}</span>}
+          </span>
+        </label>
+
+        <h3 style={{ margin: '12px 0 0' }}>{t('What each quality may be')}</h3>
+        <p style={small}>{t("A phone takes 720p, a TV 4K. Usherr's engine only offers releases at or below the quality, within the size, and without the words listed.")}</p>
+        {profiles.map((p, i) => (
+          <div key={p.quality} style={row}>
+            <strong style={{ minWidth: 48 }}>{p.quality}</strong>
+            <label style={row}>
+              {t('Up to')}
+              <input type="number" min={0} max={500} step={1} style={{ width: 80 }} value={p.maxSizeGB} onChange={(e) => edit(i, { maxSizeGB: Number(e.target.value) })} /> GB
+            </label>
+            <label style={{ ...row, flex: 1 }}>
+              {t('Leave out')}
+              <input style={{ flex: 1, minWidth: 120 }} value={p.exclude} onChange={(e) => edit(i, { exclude: e.target.value })} placeholder="av1, remux" spellCheck={false} />
+            </label>
+          </div>
+        ))}
+        <div style={row}>
+          <button className="primary" disabled={!dirty} onClick={() => void put({ profiles }, t('Saved.'))}>
+            {t('Save')}
+          </button>
+        </div>
+
+        <StreamNZBImport onDone={load} />
+
+        <h3 style={{ margin: '12px 0 0' }}>{t('Right now')}</h3>
+        <p style={small}>
+          {t('Speed: {n} MB/s', { n: mbps })}
+          {d.servers.map((sv) => (
+            <span key={sv.host}>
+              {' · '}
+              {t('{host}: {used} of {allowed} connections in use', { host: sv.host, used: sv.inUse, allowed: sv.allowed })}
+            </span>
+          ))}
+        </p>
+        {d.sessions.length === 0 ? (
+          <p style={small}>{t('Nothing is streaming through Usherr.')}</p>
+        ) : (
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            {d.sessions.slice(0, 8).map((se) => (
+              <li key={se.release + se.file} style={small}>
+                {se.release} {t('({mb} MB, last read {sec}s ago)', { mb: se.sizeMB, sec: se.idleSec })}
+              </li>
+            ))}
+          </ul>
+        )}
+        {d.indexers.length > 0 && (
+          <p style={small}>
+            {t('Searches today')}:{' '}
+            {d.indexers.map((ix, i) => (
+              <span key={ix.name}>
+                {i > 0 && ' · '}
+                {ix.limit > 0 ? t('{name} {used} of {limit}', { name: ix.name, used: ix.used, limit: ix.limit }) : t('{name} {used} (no limit)', { name: ix.name, used: ix.used })}
+              </span>
+            ))}
+          </p>
+        )}
+      </div>
+    </Card>
+  )
+}
+
 function StreamingCard({ x, save }: { x: Extras; save: Save }) {
   const s = x.streaming
   const [url, setUrl] = useState(s.url)
@@ -198,7 +565,7 @@ function StreamingCard({ x, save }: { x: Extras; save: Save }) {
     <Card
       title={t('Streaming (StreamNZB)')}
       guide="streaming-streamnzb"
-      state={s.ready ? 'ready' : 'setup'}
+      state={s.ready ? 'ready' : s.url || s.tokenSet || s.tokenFile ? 'setup' : 'off'}
       blurb={tx('"Stream now", the streamed library and streamed TV channels play through {streamnzb}, which streams from Usenet without downloading first. Run it next to Mediarium.', {
         streamnzb: (
           <a href="https://github.com/Gaisberg/streamnzb" target="_blank" rel="noreferrer">
@@ -207,10 +574,12 @@ function StreamingCard({ x, save }: { x: Extras; save: Save }) {
         ),
       })}
       needs={
-        <>
-          {t("StreamNZB's address and its admin token.")}
-          {s.problem && <> {t('Now: {problem}.', { problem: s.problem })}</>}
-        </>
+        s.url || s.tokenSet || s.tokenFile ? (
+          <>
+            {t("StreamNZB's address and its admin token.")}
+            {s.problem && <> {t('Now: {problem}.', { problem: s.problem })}</>}
+          </>
+        ) : undefined
       }
     >
       <div className="grid-form">
@@ -696,199 +1065,38 @@ function newsCategoryName(c: string): string {
 }
 
 // Entertainment news (home fork): the feeds behind the news on the Dashboard.
-// Usherr: the Marquee (/marquee), the lobby display for a tablet by the TV.
-// What it shows and in what order, the sign, sizes and quiet hours. The
-// tablet picks changes up within a couple of minutes.
-const MQ_SCENE_LABEL: Record<SceneKind, string> = {
-  playing: t('Now showing (what is playing on the TV)'),
-  new: t('New on the server (one film)'),
-  trailer: t('Trailer'),
-  'theaters-film': t('In theaters now (one film)'),
-  arrivals: t('Just added (posters)'),
-  'coming-film': t('Coming soon (one film)'),
-  theaters: t('In theaters now (posters)'),
-  coming: t('Coming up (the week)'),
-  tvnow: t('On Live TV (what each channel has on)'),
-}
-
-function MarqueeCard() {
-  const toast = useToast()
-  const [m, setM] = useState<MarqueeSettings | null>(null)
-  const [profiles, setProfiles] = useState<string[]>([])
-  const [dirty, setDirty] = useState(false)
+// Usherr: the Marquee has its own page (/marquee/manage); here, and in the
+// setup wizard, a card says what it is and leads there.
+function MarqueeCard({ inWizard }: { inWizard: boolean }) {
+  // Ready once a screen shows it.
+  const [screens, setScreens] = useState(0)
   useEffect(() => {
-    call<{ settings: MarqueeSettings; profiles: string[] }>('GET', '/api/home/marquee/settings')
-      .then((d) => {
-        setM(d.settings)
-        setProfiles(d.profiles ?? [])
-      })
+    call<{ screens: unknown[] }>('GET', '/api/home/marquee/screens')
+      .then((d) => setScreens((d.screens ?? []).length))
       .catch(() => undefined)
   }, [])
-  if (!m) return null
-  const change = (patch: Partial<MarqueeSettings>) => {
-    setM({ ...m, ...patch })
-    setDirty(true)
-  }
-  const move = (i: number, by: number) => {
-    const list = [...m.scenes]
-    const j = i + by
-    if (j < 0 || j >= list.length) return
-    ;[list[i], list[j]] = [list[j], list[i]]
-    change({ scenes: list })
-  }
-  const scene = (i: number, patch: Partial<MarqueeSettings['scenes'][number]>) => change({ scenes: m.scenes.map((s, j) => (j === i ? { ...s, ...patch } : s)) })
-  const save = async () => {
-    try {
-      const d = await call<{ settings: MarqueeSettings }>('PUT', '/api/home/marquee/settings', m)
-      setM(d.settings)
-      setDirty(false)
-      toast.success(t('Marquee settings saved. The tablet shows them within a couple of minutes.'))
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
-    }
-  }
-  const toggleProfile = (p: string, on: boolean) => change({ profiles: on ? [...m.profiles, p] : m.profiles.filter((x) => x !== p) })
   return (
     <Card
       title={t('Marquee')}
-      state="ready"
-      blurb={t('The lobby display for a tablet next to the TV: open {address} on it, full-screen. Everything here applies to it within a couple of minutes.', { address: `${window.location.origin}/marquee` })}
+      state={screens > 0 ? 'ready' : 'off'}
+      blurb={t('A lobby display for a tablet or a screen next to the TV: what’s playing, new and coming films, trailers, Live TV, your own slides and a pre-show. Open {address} on the screen, full-screen.', { address: `${window.location.origin}/marquee` })}
     >
-      <div className="mq-set">
-        <h3>{t('Scenes, in order')}</h3>
-        <ol className="mq-set-scenes">
-          {m.scenes.map((s, i) => (
-            <li key={s.kind} className={s.on ? '' : 'off'}>
-              <label className="cx-check">
-                <input type="checkbox" checked={s.on} onChange={(e) => scene(i, { on: e.target.checked })} /> {MQ_SCENE_LABEL[s.kind]}
-              </label>
-              <label className="mq-set-secs">
-                <input type="number" min={5} max={600} value={s.seconds} onChange={(e) => scene(i, { seconds: Number(e.target.value) || 5 })} aria-label={t('Seconds for {scene}', { scene: MQ_SCENE_LABEL[s.kind] })} /> {t('sec')}
-              </label>
-              <button className="icon-btn" onClick={() => move(i, -1)} disabled={i === 0} aria-label={t('Move {scene} up', { scene: MQ_SCENE_LABEL[s.kind] })}>
-                <Icon name="chevron-up" size={15} />
-              </button>
-              <button className="icon-btn" onClick={() => move(i, 1)} disabled={i === m.scenes.length - 1} aria-label={t('Move {scene} down', { scene: MQ_SCENE_LABEL[s.kind] })}>
-                <Icon name="chevron-down" size={15} />
-              </button>
-            </li>
-          ))}
-        </ol>
-        <p className="hint">{t('Scenes with nothing to show are skipped. A scene taller than the screen scrolls slowly down and back, and takes the time it needs.')}</p>
-
-        <h3>{t('The sign')}</h3>
-        <div style={row}>
-          <label className="cx-check">
-            <input type="radio" name="mq-sign" checked={m.signMode === 'auto'} onChange={() => change({ signMode: 'auto' })} /> {t('The name of each scene')}
-          </label>
-          <label className="cx-check">
-            <input type="radio" name="mq-sign" checked={m.signMode === 'custom'} onChange={() => change({ signMode: 'custom' })} /> {t('My own words')}
-          </label>
-        </div>
-        {m.signMode === 'custom' && (
-          <div className="grid-form">
-            <label>
-              {t('Line 1')}
-              <input value={m.signLine1} maxLength={40} onChange={(e) => change({ signLine1: e.target.value })} placeholder={t('Now Showing')} />
-            </label>
-            <label>
-              {t('Line 2 (optional)')}
-              <input value={m.signLine2} maxLength={40} onChange={(e) => change({ signLine2: e.target.value })} placeholder={t('The Living Room')} />
-            </label>
-            <span className="hint">{t('Each line stays on one line and gets smaller to fit. Leave both empty to hide the sign.')}</span>
-          </div>
-        )}
-
-        <h3>{t('Top bar')}</h3>
-        <div style={row}>
-          <label className="cx-check">
-            <input type="checkbox" checked={m.showIcon} onChange={(e) => change({ showIcon: e.target.checked })} /> {t('Icon')}
-          </label>
-          <label className="cx-check">
-            <input type="checkbox" checked={m.showName} onChange={(e) => change({ showName: e.target.checked })} /> {t('Name')}
-          </label>
-          <label className="cx-check">
-            <input type="checkbox" checked={m.showClock} onChange={(e) => change({ showClock: e.target.checked })} /> {t('Clock')}
-          </label>
-        </div>
-
-        <h3>{t('Sizes')}</h3>
-        <div className="grid-form">
-          <label>
-            {t('Text size: {n}%', { n: m.textScale })}
-            <input type="range" min={70} max={140} step={5} value={m.textScale} onChange={(e) => change({ textScale: Number(e.target.value) })} />
-          </label>
-          <label>
-            {t('Poster and trailer size: {n}%', { n: m.posterScale })}
-            <input type="range" min={60} max={120} step={5} value={m.posterScale} onChange={(e) => change({ posterScale: Number(e.target.value) })} />
-          </label>
-          <span className="hint">{t('Posters and the trailer also grow to fill the room left when the top bar or a sign line is switched off.')}</span>
-          <label>
-            {t('Scroll speed')}
-            <select value={m.scrollSpeed} onChange={(e) => change({ scrollSpeed: e.target.value as MarqueeSettings['scrollSpeed'] })}>
-              <option value="slow">{t('Slow')}</option>
-              <option value="normal">{t('Normal')}</option>
-              <option value="fast">{t('Fast')}</option>
-            </select>
-          </label>
-          <label className="cx-check">
-            <input type="checkbox" checked={m.trailerSound} onChange={(e) => change({ trailerSound: e.target.checked })} /> {t('Play trailers with sound (the tablet’s browser must allow it)')}
-          </label>
-        </div>
-
-        <h3>{t('Now showing comes from')}</h3>
-        <div style={row}>
-          <label className="cx-check">
-            <input type="checkbox" checked={m.fromJellyfin} onChange={(e) => change({ fromJellyfin: e.target.checked })} /> {t('The media server (Jellyfin or Emby)')}
-          </label>
-          <label className="cx-check">
-            <input type="checkbox" checked={m.fromStreamNZB} onChange={(e) => change({ fromStreamNZB: e.target.checked })} /> {t('StreamNZB (Nuvio, Stremio)')}
-          </label>
-        </div>
-        {m.fromStreamNZB && profiles.length > 0 && (
-          <div style={row}>
-            <span className="hint">{t('StreamNZB profiles to show (none ticked shows them all):')}</span>
-            {profiles.map((p) => (
-              <label key={p} className="cx-check">
-                <input type="checkbox" checked={m.profiles.includes(p)} onChange={(e) => toggleProfile(p, e.target.checked)} /> {p}
-              </label>
-            ))}
-          </div>
-        )}
-
-        <h3>{t('Quiet hours')}</h3>
-        <div style={row}>
-          <label className="cx-check">
-            <input type="checkbox" checked={m.quietOn} onChange={(e) => change({ quietOn: e.target.checked })} /> {t('Rest between')}
-          </label>
-          <input type="time" value={m.quietFrom} onChange={(e) => change({ quietFrom: e.target.value })} aria-label={t('Quiet from')} />
-          {t('and')}
-          <input type="time" value={m.quietTo} onChange={(e) => change({ quietTo: e.target.value })} aria-label={t('Quiet until')} />
-          <select value={m.quietMode} onChange={(e) => change({ quietMode: e.target.value as MarqueeSettings['quietMode'] })} aria-label={t('While quiet')}>
-            <option value="clock">{t('showing a dim clock')}</option>
-            <option value="black">{t('with a black screen')}</option>
-          </select>
-        </div>
-
-        <h3>{t('Colours')}</h3>
-        <select value={m.palette} onChange={(e) => change({ palette: e.target.value })} aria-label={t('Marquee colours')}>
-          <option value="">{t('As chosen on the tablet')}</option>
-          {['wine', 'cherry', 'amber', 'emerald', 'teal', 'blue', 'violet', 'rose', 'graphite'].map((p) => (
-            <option key={p} value={p}>
-              {p[0].toUpperCase() + p.slice(1)}
-            </option>
-          ))}
-        </select>
-
-        <div style={{ ...row, marginTop: 16 }}>
-          <button className="primary" onClick={() => void save()} disabled={!dirty}>
-            {t('Save')}
-          </button>
-          <a className="btn-sm btn-with-icon" href="/marquee" target="_blank" rel="noreferrer">
-            <Icon name="external" size={14} /> {t('Open the marquee')}
+      <div style={row}>
+        {/* In the setup wizard it opens beside it, so the wizard isn't left halfway. */}
+        {inWizard ? (
+          <a className="primary btn-sm btn-with-icon" href="/marquee/manage" target="_blank" rel="noreferrer">
+            <Icon name="monitor" size={14} /> {t('The Marquee’s page')}
           </a>
-        </div>
+        ) : (
+          <Link className="primary btn-sm btn-with-icon" to="/marquee/manage">
+            <Icon name="monitor" size={14} /> {t('The Marquee’s page')}
+          </Link>
+        )}
+        <a className="btn-sm btn-with-icon" href="/marquee" target="_blank" rel="noreferrer">
+          <Icon name="external" size={14} /> {t('Open the Marquee')}
+        </a>
       </div>
+      <p className="hint">{t('Its looks, scenes, slides, pre-show, the phone remote and Home Assistant are all on its own page.')}</p>
     </Card>
   )
 }
@@ -901,6 +1109,9 @@ interface CinemaSettings {
   zip: string
   theatre: string
   hasAmcKey: boolean
+  logos?: Record<string, boolean> // services with a picture of the household's own on their button
+  tickets: TicketService
+  ticketsUrl: string
 }
 
 function CinemaCard() {
@@ -910,8 +1121,10 @@ function CinemaCard() {
   const [theatre, setTheatre] = useState('')
   const [region, setRegion] = useState('US')
   const [amcKey, setAmcKey] = useState('')
+  const [ticketsUrl, setTicketsUrl] = useState('')
   const fill = (d: CinemaSettings) => {
     setC(d)
+    setTicketsUrl(d.ticketsUrl ?? '')
     setZip(d.zip)
     setTheatre(d.theatre)
     setRegion(d.region)
@@ -972,7 +1185,111 @@ function CinemaCard() {
           </button>
         )}
       </div>
+      <div className="link-logo-set">
+        <label>
+          {t('Tickets from')}
+          <select value={c.tickets ?? ''} onChange={(e) => void save({ tickets: e.target.value })}>
+            <option value="">{t('Fandango (in the US)')}</option>
+            {(Object.keys(TICKET_SITES) as (keyof typeof TICKET_SITES)[])
+              .filter((k) => k !== 'fandango')
+              .map((k) => (
+                <option key={k} value={k}>
+                  {TICKET_SITES[k].name}
+                </option>
+              ))}
+            <option value="custom">{t('A link of my own')}</option>
+            <option value="off">{t('No Tickets button')}</option>
+          </select>
+        </label>
+        {c.tickets === 'custom' && (
+          <div className="grid-form">
+            <label>
+              {t('Link')}
+              <input value={ticketsUrl} onChange={(e) => setTicketsUrl(e.target.value)} placeholder="https://www.amctheatres.com/search?q={title}" spellCheck={false} />
+              <span className="hint">{t('{title} becomes the film’s name and {zip} your ZIP code, such as an AMC, Regal or local theater’s search page.')}</span>
+            </label>
+            <div>
+              <button className="btn-sm" onClick={() => void save({ tickets: 'custom', ticketsUrl })}>
+                {t('Save the link')}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      {c.tickets !== 'off' && (
+        <LinkLogo
+          key={c.tickets || 'fandango'}
+          service={c.tickets || 'fandango'}
+          has={!!c.logos?.[c.tickets || 'fandango']}
+          name={c.tickets === 'custom' ? t('Tickets') : (TICKET_SITES[(c.tickets || 'fandango') as keyof typeof TICKET_SITES]?.name ?? t('Tickets'))}
+          onChange={() => void call<CinemaSettings>('GET', '/api/home/cinema/settings').then(fill)}
+        />
+      )}
     </Card>
+  )
+}
+
+// Usherr: the picture on the Tickets button: a plain button with the
+// service's name, or any picture you upload, such as the service's logo.
+// Like a channel's logo.
+function LinkLogo({ service, has, name, onChange }: { service: string; has: boolean; name: string; onChange: () => void }) {
+  const toast = useToast()
+  const file = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [v, setV] = useState(0)
+  const upload = async (f: File) => {
+    setBusy(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', f)
+      const r = await fetch(`/api/home/link-logo/${service}`, { method: 'PUT', credentials: 'include', body: fd })
+      const d = (await r.json().catch(() => ({}))) as { error?: string }
+      if (!r.ok) throw new Error(d.error ?? t('Something went wrong (error {status}).', { status: r.status }))
+      setV(Date.now())
+      onChange()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const remove = async () => {
+    setBusy(true)
+    try {
+      await call('DELETE', `/api/home/link-logo/${service}`)
+      onChange()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="link-logo-set">
+      <span className="hint">{t('{service}’s button: a plain button, or a picture of your own, such as its logo. Each service keeps its own.', { service: name })}</span>
+      <div style={row}>
+        {has ? <img className="tickets-logo" src={`/api/home/link-logo/${service}?v=${v}`} alt="" /> : <TicketsButton name={name} />}
+        <input
+          ref={file}
+          type="file"
+          hidden
+          accept="image/png,image/jpeg,image/webp"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            e.target.value = ''
+            if (f) void upload(f)
+          }}
+        />
+        <button className="btn-sm" disabled={busy} onClick={() => file.current?.click()}>
+          {busy ? t('Uploading…') : t('Upload a picture')}
+        </button>
+        {has && (
+          <button className="btn-sm" disabled={busy} onClick={() => void remove()}>
+            {t('Use the plain button')}
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
 

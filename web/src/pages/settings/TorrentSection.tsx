@@ -82,7 +82,7 @@ export default function TorrentSection({ status }: { status: DownloadsStatus['to
       </label>
       <PortStatus status={status} />
       <label>
-        <TipLabel text={t('A finished torrent keeps sharing until it has uploaded this many times its size, or reaches the time limit. Whichever comes first stops it.')} learnMore="downloads#seeding">{t('Seed ratio limit (0 = unlimited)')}</TipLabel>
+        <TipLabel text={t('A finished torrent keeps sharing until it has uploaded this many times its size, or reaches the time limit. Whichever comes first stops it. An external client such as qBittorrent gets these limits too, and decides itself what to do when they are met.')} learnMore="downloads#seeding">{t('Seed ratio limit (0 = unlimited)')}</TipLabel>
         <input aria-label={t('Seed ratio limit (0 = unlimited)')} inputMode="decimal" value={seedRatioLimit} onChange={(e) => setSeedRatioLimit(e.target.value)} {...v.bind('seedRatioLimit', seedRatioLimit, setSeedRatioLimit)} />
         <FieldError v={v} name="seedRatioLimit" />
       </label>

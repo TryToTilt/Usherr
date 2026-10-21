@@ -19,7 +19,7 @@ The screenshots in these pages come from demo mode: the movies, shows, artists, 
 | Add indexers: Usenet and torrent APIs, sites from the definition list, private sites, Cloudflare and FlareSolverr | [indexers.md](./indexers.md) |
 | Grab a release the moment a tracker announces it in IRC (connections, announcement templates, the test box, limits) | [irc-announce.md](./irc-announce.md) |
 | Give family members their own login, see what members can do, reset a password | [accounts.md](./accounts.md) |
-| Add movies and shows by themselves from lists on Trakt, TMDB, IMDb, MDBList and Letterboxd (import lists) | [lists.md](./lists.md) |
+| Add movies and shows by themselves from lists on Trakt, TMDB, IMDb, MDBList, Simkl and Letterboxd (import lists) | [lists.md](./lists.md) |
 | Let people ask for titles: messages when a request is answered, a limit on requests, 4K requests, problem reports | [accounts.md](./accounts.md#requests) |
 | Reach Mediarium from the internet safely (reverse proxy checklist, trusted proxies, what the app protects) | [security.md](./security.md) |
 | Seed the same files on more than one tracker (cross-seeding) next to Mediarium, with Qui or cross-seed | [cross-seeding.md](./cross-seeding.md) |
@@ -61,7 +61,7 @@ Settings has one entry in the sidebar. It always lists its groups, and one group
 | Library | Folders, File names and importing, Quality, Automatic searching | Where files live; how they are named, NFO and artwork files and the script after an import; quality profiles, size limits and the audio language you want; when Mediarium searches by itself. |
 | Indexers & Search | Indexers & Search | Indexers, FlareSolverr and IRC announce. |
 | Downloading | Usenet, Torrents, VPN and proxy, Download rules | Your Usenet provider; the torrent client, debrid and your own client; the VPN; where to download from, speed, hours and checks. |
-| Info, lists and subtitles | Movie and show info, Import lists, Subtitles | TMDB and the info language, trailers; lists and the Trakt key; subtitles. |
+| Info, lists and subtitles | Movie and show info, Import lists, Subtitles | TMDB and the info language, trailers; lists, the Trakt key and the Simkl account; subtitles. |
 | Connections | Media servers, Notifications, Other apps | Plex, Jellyfin and Emby; messages; Overseerr and phone apps. |
 | Accounts | Your profile, Security, Linked services, All accounts, Requests and reports, Ways to sign in | Your own details, passkeys, two-step sign-in and API keys, Plex watchlist, ListenBrainz and e-reader; for administrators the accounts, requests and every way to sign in. |
 | System | Server, Backup and restore, Statistics, Logs and errors, Move from other apps, About and credits | The server and its clean-up, backups, numbers, errors and the report for support. |

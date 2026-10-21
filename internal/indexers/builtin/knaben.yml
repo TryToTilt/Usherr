@@ -1,0 +1,133 @@
+---
+# Knaben (knaben.org), a public search engine that collects torrents from
+# many sites. Shipped with Mediarium because Prowlarr runs it from its own
+# code, so the shared definition list doesn't have it. It searches through
+# Knaben's public JSON API: one POST with the search words, most-seeded
+# results first. Knaben's own filters for risky and adult results are on.
+id: knaben
+name: Knaben
+description: "Knaben is a public torrent search engine that collects results from many sites"
+language: en-US
+type: public
+encoding: UTF-8
+links:
+  - https://api.knaben.org/
+
+caps:
+  categorymappings:
+    - {id: 1000000, cat: Audio, desc: "Audio"}
+    - {id: 1001000, cat: Audio/MP3, desc: "Audio/MP3"}
+    - {id: 1002000, cat: Audio/Lossless, desc: "Audio/Lossless"}
+    - {id: 1003000, cat: Audio/Audiobook, desc: "Audio/Audiobook"}
+    - {id: 1004000, cat: Audio/Video, desc: "Audio/Video"}
+    - {id: 1005000, cat: Audio/Other, desc: "Audio/Other"}
+    - {id: 1006000, cat: Audio/Other, desc: "Audio/Other"}
+    - {id: 2000000, cat: TV, desc: "TV"}
+    - {id: 2001000, cat: TV/HD, desc: "TV/HD"}
+    - {id: 2002000, cat: TV/SD, desc: "TV/SD"}
+    - {id: 2003000, cat: TV/UHD, desc: "TV/UHD"}
+    - {id: 2004000, cat: TV/Documentary, desc: "TV/Documentary"}
+    - {id: 2005000, cat: TV/Foreign, desc: "TV/Foreign"}
+    - {id: 2006000, cat: TV/Sport, desc: "TV/Sport"}
+    - {id: 2007000, cat: TV/Other, desc: "TV/Other"}
+    - {id: 2008000, cat: TV/Other, desc: "TV/Other"}
+    - {id: 3000000, cat: Movies, desc: "Movies"}
+    - {id: 3001000, cat: Movies/HD, desc: "Movies/HD"}
+    - {id: 3002000, cat: Movies/SD, desc: "Movies/SD"}
+    - {id: 3003000, cat: Movies/UHD, desc: "Movies/UHD"}
+    - {id: 3004000, cat: Movies/DVD, desc: "Movies/DVD"}
+    - {id: 3005000, cat: Movies/Foreign, desc: "Movies/Foreign"}
+    - {id: 3006000, cat: Movies/Foreign, desc: "Movies/Foreign"}
+    - {id: 3007000, cat: Movies/3D, desc: "Movies/3D"}
+    - {id: 3008000, cat: Movies/Other, desc: "Movies/Other"}
+    - {id: 4000000, cat: PC, desc: "PC"}
+    - {id: 4001000, cat: PC/Games, desc: "PC/Games"}
+    - {id: 4002000, cat: PC/0day, desc: "PC/0day"}
+    - {id: 4003000, cat: PC/Mac, desc: "PC/Mac"}
+    - {id: 4004000, cat: PC, desc: "PC"}
+    - {id: 5000000, cat: XXX, desc: "XXX"}
+    - {id: 6000000, cat: TV/Anime, desc: "TV/Anime"}
+    - {id: 6001000, cat: TV/Anime, desc: "TV/Anime"}
+    - {id: 6002000, cat: TV/Anime, desc: "TV/Anime"}
+    - {id: 6003000, cat: TV/Anime, desc: "TV/Anime"}
+    - {id: 6004000, cat: TV/Anime, desc: "TV/Anime"}
+    - {id: 6005000, cat: TV/Anime, desc: "TV/Anime"}
+    - {id: 6007000, cat: Audio, desc: "Audio"}
+    - {id: 7000000, cat: Console, desc: "Console"}
+    - {id: 7001000, cat: Console/PS4, desc: "Console/PS4"}
+    - {id: 7002000, cat: Console/PS3, desc: "Console/PS3"}
+    - {id: 7003000, cat: Console/Other, desc: "Console/Other"}
+    - {id: 7004000, cat: Console/Other, desc: "Console/Other"}
+    - {id: 7005000, cat: Console/PS Vita, desc: "Console/PS Vita"}
+    - {id: 7006000, cat: Console/PSP, desc: "Console/PSP"}
+    - {id: 7007000, cat: Console/Xbox 360, desc: "Console/Xbox 360"}
+    - {id: 7008000, cat: Console/Xbox, desc: "Console/Xbox"}
+    - {id: 7009000, cat: Console/Other, desc: "Console/Other"}
+    - {id: 7010000, cat: Console/NDS, desc: "Console/NDS"}
+    - {id: 7011000, cat: Console/Wii, desc: "Console/Wii"}
+    - {id: 7012000, cat: Console/WiiU, desc: "Console/WiiU"}
+    - {id: 7013000, cat: Console/3DS, desc: "Console/3DS"}
+    - {id: 7014000, cat: Console/Other, desc: "Console/Other"}
+    - {id: 7015000, cat: Console/Other, desc: "Console/Other"}
+    - {id: 8000000, cat: PC/Mobile-Other, desc: "PC/Mobile-Other"}
+    - {id: 8001000, cat: PC/Mobile-Android, desc: "PC/Mobile-Android"}
+    - {id: 8002000, cat: PC/Mobile-iOS, desc: "PC/Mobile-iOS"}
+    - {id: 8003000, cat: PC/Mobile-Other, desc: "PC/Mobile-Other"}
+    - {id: 9000000, cat: Books, desc: "Books"}
+    - {id: 9001000, cat: Books/EBook, desc: "Books/EBook"}
+    - {id: 9002000, cat: Books/Comics, desc: "Books/Comics"}
+    - {id: 9003000, cat: Books/Mags, desc: "Books/Mags"}
+    - {id: 9004000, cat: Books/Technical, desc: "Books/Technical"}
+    - {id: 9005000, cat: Books/Other, desc: "Books/Other"}
+    - {id: 10000000, cat: Other, desc: "Other"}
+    - {id: 10001000, cat: Other/Misc, desc: "Other/Misc"}
+  modes:
+    search: [q]
+    tv-search: [q, season, ep]
+    movie-search: [q]
+    music-search: [q]
+    book-search: [q]
+
+search:
+  headers:
+    Content-Type: ["application/json"]
+  paths:
+    - path: v1
+      method: post
+      response:
+        type: json
+  inputs:
+    $raw: '{"search_type":"100%","search_field":"title","query":{{ .Keywords | tojson }},"order_by":"seeders","order_direction":"desc","from":0,"size":100,"hide_unsafe":true,"hide_xxx":true}'
+  rows:
+    selector: hits
+  fields:
+    # each hit lists its main category first and the sub-category second
+    category:
+      selector: categoryId[0]
+      optional: true
+    category|sub:
+      selector: categoryId[1]
+      optional: true
+    title:
+      selector: title
+    magnet:
+      selector: magnetUrl
+      optional: true
+    infohash:
+      selector: hash
+      optional: true
+    details:
+      selector: details
+      optional: true
+    size:
+      selector: bytes
+      optional: true
+    seeders:
+      selector: seeders
+      optional: true
+    leechers:
+      selector: peers
+      optional: true
+    date:
+      selector: date
+      optional: true

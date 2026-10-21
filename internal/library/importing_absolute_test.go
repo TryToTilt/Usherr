@@ -141,8 +141,8 @@ func TestCompleteSeriesImportPlacesFilesByAbsoluteNumber(t *testing.T) {
 				}
 			}
 			done, _ := repo.ImportBatchItems(items[0].BatchID)
-			if done[0].Note != tc.wantNote {
-				t.Fatalf("note %q, want %q", done[0].Note, tc.wantNote)
+			if got := withoutFileList(done[0].Note); got != tc.wantNote {
+				t.Fatalf("note %q, want %q", got, tc.wantNote)
 			}
 		})
 	}

@@ -4,11 +4,13 @@ The bug button at the bottom of the sidebar opens a small window for telling me 
 
 ## What goes in it
 
+If the daily update check already knows a newer version than the one you run, the form starts with a note saying so, with a link to **Settings > System** for administrators. Many problems are fixed by updating, so it's worth doing that first. You can still send the report; the note never blocks it.
+
 - **A problem** or **An idea**.
 - A short **title** and a few sentences on what happened (or what you'd like). For a problem, the steps to make it happen again help most.
 - An optional **screenshot**. **Take a screenshot** moves the window out of the way and shows a small bar: go to the part of Mediarium you want to show, press **Take screenshot** on the bar, and you're back in the form with the picture attached. Your browser asks first whether Mediarium may capture the tab (Chrome and Edge offer this tab straight away; Firefox and Safari ask which screen, window or tab). This needs Mediarium opened over https, or on `localhost`. **Add a picture** takes a PNG, JPEG or WebP file, and you can also paste one with Ctrl+V. Pictures are made smaller and saved again as a plain JPEG in your browser before they go anywhere, so only the picture itself is sent.
 - For administrators, **Include the support report**: the same text as **Copy for support** (your version, setup warnings, recent problems and the last 500 log lines, with passwords, keys and tokens taken out). **See what is included** shows it before you send. Other accounts can't read the log, so their reports go without it.
-- An optional name or way to reach you, such as `u/name` on Reddit, `@name` on GitHub or an email. It's only used to reply, or to thank you by name in the changelog and on the [People who helped](community.md) page if it leads to a change.
+- An optional name or way to reach you, such as `u/name` on Reddit, `@name` on GitHub or an email. Leave one if you would like an answer, because without it nobody can reply. It's only used to reply, or to thank you by name in the changelog and on the [People who helped](community.md) page if it leads to a change.
 
 ## Two ways to send it
 

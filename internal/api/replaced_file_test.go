@@ -32,16 +32,18 @@ func TestUpgradeUnderAnotherNameRemovesTheOldFileOnlyWhenReplacingIsAllowed(t *t
 		keepOld bool
 		// noUpgrade is the title's "leave my file alone" setting.
 		noUpgrade bool
+		// turnedAway says the new release must not be imported at all.
+		turnedAway bool
 	}{
-		{"overwrite, other name in the movie's folder", "overwrite", "HDTV-720p", "The Fixture Movie (1999)/The Fixture Movie (1999) [720p].mp4", false, false},
-		{"overwrite if better, and it is better", "overwrite_if_better", "HDTV-720p", "The Fixture Movie (1999)/The Fixture Movie (1999) [720p].mp4", false, false},
-		{"overwrite if better, but it is not better", "overwrite_if_better", "Remux-2160p", "The Fixture Movie (1999)/The Fixture Movie (1999) [2160p].mkv", true, false},
-		{"default policy replaces a worse file when the title may be upgraded", "", "HDTV-720p", "The Fixture Movie (1999)/The Fixture Movie (1999) [720p].mp4", false, false},
-		{"skip replaces a worse file when the title may be upgraded", "skip", "HDTV-720p", "The Fixture Movie (1999)/The Fixture Movie (1999) [720p].mp4", false, false},
-		{"default policy keeps the file of a title set not to upgrade", "", "HDTV-720p", "The Fixture Movie (1999)/The Fixture Movie (1999) [720p].mp4", true, true},
-		{"skip keeps the file of a title set not to upgrade", "skip", "HDTV-720p", "The Fixture Movie (1999)/The Fixture Movie (1999) [720p].mp4", true, true},
-		{"default policy never replaces a better file", "", "Remux-2160p", "The Fixture Movie (1999)/The Fixture Movie (1999) [2160p].mkv", true, false},
-		{"a file outside the library folder is left alone", "overwrite", "HDTV-720p", "outside:old.mp4", true, false},
+		{"overwrite, other name in the movie's folder", "overwrite", "HDTV-720p", "The Fixture Movie (1999)/The Fixture Movie (1999) [720p].mp4", false, false, false},
+		{"overwrite if better, and it is better", "overwrite_if_better", "HDTV-720p", "The Fixture Movie (1999)/The Fixture Movie (1999) [720p].mp4", false, false, false},
+		{"overwrite if better, but it is not better", "overwrite_if_better", "Remux-2160p", "The Fixture Movie (1999)/The Fixture Movie (1999) [2160p].mkv", true, false, true},
+		{"default policy replaces a worse file when the title may be upgraded", "", "HDTV-720p", "The Fixture Movie (1999)/The Fixture Movie (1999) [720p].mp4", false, false, false},
+		{"skip replaces a worse file when the title may be upgraded", "skip", "HDTV-720p", "The Fixture Movie (1999)/The Fixture Movie (1999) [720p].mp4", false, false, false},
+		{"default policy keeps the file of a title set not to upgrade", "", "HDTV-720p", "The Fixture Movie (1999)/The Fixture Movie (1999) [720p].mp4", true, true, true},
+		{"skip keeps the file of a title set not to upgrade", "skip", "HDTV-720p", "The Fixture Movie (1999)/The Fixture Movie (1999) [720p].mp4", true, true, true},
+		{"default policy never replaces a better file", "", "Remux-2160p", "The Fixture Movie (1999)/The Fixture Movie (1999) [2160p].mkv", true, false, true},
+		{"a file outside the library folder is left alone", "overwrite", "HDTV-720p", "outside:old.mp4", true, false, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -70,12 +72,27 @@ func TestUpgradeUnderAnotherNameRemovesTheOldFileOnlyWhenReplacingIsAllowed(t *t
 			}
 
 			newPath := filepath.Join(e.movies, "The Fixture Movie (1999)", "The Fixture Movie (1999).mkv")
-			if got, err := os.ReadFile(newPath); err != nil || string(got) != string(e.wantFile) {
-				t.Fatalf("the new file: %q, %v", got, err)
-			}
 			m, _ := e.server.MovieRepo.Get(e.movie.ID)
-			if m.FilePath != newPath {
-				t.Errorf("the movie points at %s, want %s", m.FilePath, newPath)
+			if tc.turnedAway {
+				// A release that may not take the file's place is not imported
+				// next to it either: no second copy, and the row keeps pointing at
+				// the file it had.
+				if e.item(t, id)["error"] != "Kept the file you already have." {
+					t.Errorf("the row should say the file was kept, got %v", e.item(t, id)["error"])
+				}
+				if exists(newPath) {
+					t.Errorf("the new release was imported next to the file that stays (library: %s)", tree(t, e.movies))
+				}
+				if m.FilePath != oldPath || m.Quality != tc.oldQuality {
+					t.Errorf("the movie should keep %s (%s), got %s (%s)", oldPath, tc.oldQuality, m.FilePath, m.Quality)
+				}
+			} else {
+				if got, err := os.ReadFile(newPath); err != nil || string(got) != string(e.wantFile) {
+					t.Fatalf("the new file: %q, %v", got, err)
+				}
+				if m.FilePath != newPath {
+					t.Errorf("the movie points at %s, want %s", m.FilePath, newPath)
+				}
 			}
 			if kept := exists(oldPath); kept != tc.keepOld {
 				t.Errorf("old file still there = %v, want %v (library: %s)", kept, tc.keepOld, tree(t, e.movies))

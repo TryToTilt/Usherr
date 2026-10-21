@@ -1,6 +1,61 @@
 package library
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
+
+// importNote is the note of a show's import item: what was placed by
+// TheTVDB's season numbers or by their titles, so the person knows why those
+// episodes sit where they do, then what was left out and which files. Each is a sentence of its own on its own
+// line, so the screen can show both in the reader's language.
+func importNote(bySeason, byTitle int, leftOut string, leftFiles []string) string {
+	var lines []string
+	switch {
+	case bySeason == 1:
+		lines = append(lines, "Placed 1 episode by the TheTVDB season numbers.")
+	case bySeason > 1:
+		lines = append(lines, fmt.Sprintf("Placed %d episodes by the TheTVDB season numbers.", bySeason))
+	}
+	switch {
+	case byTitle == 1:
+		lines = append(lines, "Placed 1 episode by its title.")
+	case byTitle > 1:
+		lines = append(lines, fmt.Sprintf("Placed %d episodes by their titles.", byTitle))
+	}
+	if leftOut != "" {
+		lines = append(lines, leftOut)
+		if names := leftFilesNote(leftFiles); names != "" {
+			lines = append(lines, names)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// leftFilesNote names the files that were left out, the first few of them.
+func leftFilesNote(paths []string) string {
+	const most = 5
+	var names []string
+	seen := map[string]bool{}
+	for _, p := range paths {
+		name := p
+		if i := strings.LastIndexAny(name, `/\`); i >= 0 {
+			name = name[i+1:]
+		}
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	switch {
+	case len(names) == 0:
+		return ""
+	case len(names) > most:
+		return fmt.Sprintf("Files left out: %s and %d more.", strings.Join(names[:most], ", "), len(names)-most)
+	}
+	return fmt.Sprintf("Files left out: %s.", strings.Join(names, ", "))
+}
 
 // leftOutNote is the import report's note for a show whose files named
 // episodes the movie database doesn't list: how many, and what to do about

@@ -25,3 +25,20 @@ test('a gone file is wanted again only when the title is monitored', () => {
 test('a normal rescan still counts its files', () => {
   assert.equal(rescanMessage({ ...none, found: 2, renamed: 1 }), 'Checked the files: 2 fine, 1 found under a new name.')
 })
+
+test('episodes the person put in a show folder are told first', () => {
+  assert.equal(rescanMessage({ ...none, found: 4, addedEpisodes: 3 }), 'Found 3 episodes you added yourself. Checked the files: 4 fine.')
+  assert.equal(rescanMessage({ ...none, addedEpisodes: 1 }), 'Found 1 episode you added yourself.')
+})
+
+test('files that matched no episode are listed by name', () => {
+  assert.equal(
+    rescanMessage({ ...none, found: 2, notMatched: ['Clip.mkv', 'Bonus.mkv'], notMatchedTotal: 2 }),
+    "Checked the files: 2 fine. Couldn't match 2 video files in the show's folder to an episode: Clip.mkv, Bonus.mkv.",
+  )
+  assert.equal(
+    rescanMessage({ ...none, addedEpisodes: 1, notMatched: ['a.mkv'], notMatchedTotal: 13 }),
+    "Found 1 episode you added yourself. Couldn't match 13 video files in the show's folder to an episode: a.mkv and 12 more.",
+  )
+})
+

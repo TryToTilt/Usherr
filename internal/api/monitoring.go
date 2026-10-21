@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -40,7 +41,7 @@ func (s *Server) afterMovieImported(movieID int64, release string) {
 		log.Printf("library: stop monitoring %q: %v", m.Title, err)
 		return
 	}
-	_ = s.QueueRepo.LogActivity(movieID, "monitoring", m.Title+" is downloaded, so it is no longer monitored")
+	_ = s.QueueRepo.LogActivity(movieID, "monitoring", fmt.Sprintf("%s is downloaded, so it is no longer monitored", m.Title))
 }
 
 // afterEpisodeImported records the release an episode's new file came from.
@@ -90,7 +91,7 @@ func (s *Server) stopMonitoringIfFinished(seriesID int64, status string) {
 		log.Printf("library: stop monitoring %q: %v", sr.Title, err)
 		return
 	}
-	_ = s.QueueRepo.LogSeriesActivity(seriesID, "monitoring", sr.Title+" has ended and every episode is in, so it is no longer monitored")
+	_ = s.QueueRepo.LogSeriesActivity(seriesID, "monitoring", fmt.Sprintf("%s has ended and every episode is in, so it is no longer monitored", sr.Title))
 }
 
 // checkFinishedShowSoon re-reads a show from TMDB after an import, so a show

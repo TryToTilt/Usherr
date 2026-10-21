@@ -10,6 +10,7 @@ import { apiKey as apiKeyCheck, firstError, maxLength, numberRange, required, ur
 import { plural, t, st } from '../i18n'
 import { untilText } from '../delayText'
 import TipLabel from './TipLabel'
+import KnownFixHint from './KnownFixHint'
 
 // One saved indexer: name, type and address on top, actions underneath, the
 // last test result on its own line, and an inline form to edit it.
@@ -23,12 +24,16 @@ export default function IndexerCard({ indexer: i, onChanged, onToggle, onRemove 
   const [apiKey, setApiKey] = useState('')
   const [perDay, setPerDay] = useState(String(i.requestsPerDay ?? 0))
   const [saving, setSaving] = useState(false)
+  const [prio, setPrio] = useState(String(i.priority ?? 25))
+  const [minSeed, setMinSeed] = useState(String(i.minSeeders ?? 0))
   const site = i.kind === 'cardigann'
   const v = useValidation({
     name: firstError(required(name, t('Give this indexer a name.')), maxLength(name, 80, t('The name'))),
     perDay: numberRange(perDay, t('Requests per day'), { min: 0, max: 100000 }),
     ...(site
-      ? {}
+      ? i.localSite
+        ? { baseUrl: firstError(required(baseUrl, t('Add the address of the indexer, for example {example}.', { example: 'http://192.168.1.10:3333' })), urlCheck(baseUrl, { requireScheme: true, example: 'http://192.168.1.10:3333' }), maxLength(baseUrl, 200, t('The address'))) }
+        : {}
       : {
           baseUrl: firstError(required(baseUrl, t('Add the address of the indexer, for example {example}.', { example: 'https://api.example.com' })), urlCheck(baseUrl, { example: 'https://api.example.com' })),
           apiKey: apiKeyCheck(apiKey),
@@ -61,13 +66,49 @@ export default function IndexerCard({ indexer: i, onChanged, onToggle, onRemove 
     }
   }
 
-  async function setPriority(priority: number) {
+  // The priority is saved when the box is left or Enter is pressed, not on every key.
+  async function savePriority() {
+    const n = Number(prio)
+    if (prio.trim() === '' || !Number.isInteger(n) || n < 1 || n > 50) {
+      toast.error(t('Priority must be a whole number from 1 to 50.'))
+      setPrio(String(i.priority ?? 25))
+      return
+    }
+    if (n === (i.priority ?? 25)) return
     try {
-      await api.setIndexerPriority(i.id, priority)
-      toast.success(priority === 1 ? t('{name} is preferred now.', { name: i.name }) : priority === 3 ? t('{name} is only used as a last resort now.', { name: i.name }) : t('{name} is back to normal.', { name: i.name }))
+      await api.setIndexerPriority(i.id, n)
+      toast.success(t('{name} now has priority {n}.', { name: i.name, n }))
       onChanged()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
+      setPrio(String(i.priority ?? 25))
+    }
+  }
+
+  // Two short lines: what the daily limit and the feed check say, then the last test.
+  const limitText = i.dailyLimit ? (i.limitNote ? st(i.limitNote) : t('{used} of {limit} requests today', { used: i.requestsToday ?? 0, limit: i.dailyLimit })) : ''
+  const limitBad = !!i.dailyLimit && !!i.limitNote
+  const info = [limitText, i.rssNote ? st(i.rssNote) : ''].filter(Boolean).join(' \u00b7 ')
+  const testFull = i.lastTestAt ? (i.lastTestError ? t('Last test failed {when}: {error}', { when: timeAgo(i.lastTestAt), error: friendlyIndexerError(i.lastTestError) }) : t('Last test passed {when}', { when: timeAgo(i.lastTestAt) })) : ''
+  // A pass from more than a day ago says little any more, so it is shown dimmer. A failure never fades.
+  const testOld = !!i.lastTestAt && !i.lastTestError && Date.now() - new Date(i.lastTestAt).getTime() > 86400000
+
+  // The minimum is saved the same way: when the box is left or Enter is pressed.
+  async function saveMinSeeders() {
+    const n = Number(minSeed)
+    if (minSeed.trim() === '' || !Number.isInteger(n) || n < 0 || n > 1000) {
+      toast.error(t('Minimum seeders must be a whole number from 0 to 1000. Use 0 to turn it off.'))
+      setMinSeed(String(i.minSeeders ?? 0))
+      return
+    }
+    if (n === (i.minSeeders ?? 0)) return
+    try {
+      await api.updateIndexer(i.id, { minSeeders: n })
+      toast.success(n === 0 ? t('{name} no longer skips releases for too few seeders (0 means off).', { name: i.name }) : t('{name} now skips releases with fewer seeders than {n}.', { name: i.name, n }))
+      onChanged()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+      setMinSeed(String(i.minSeeders ?? 0))
     }
   }
 
@@ -75,7 +116,7 @@ export default function IndexerCard({ indexer: i, onChanged, onToggle, onRemove 
     if (!v.attempt()) return
     setSaving(true)
     try {
-      await api.updateIndexer(i.id, { name: name.trim(), requestsPerDay: Number(perDay.trim() || '0'), ...(site ? {} : { baseUrl: baseUrl.trim(), apiKey: apiKey.trim() }) })
+      await api.updateIndexer(i.id, { name: name.trim(), requestsPerDay: Number(perDay.trim() || '0'), ...(site ? (i.localSite ? { baseUrl: baseUrl.trim() } : {}) : { baseUrl: baseUrl.trim(), apiKey: apiKey.trim() }) })
       toast.success(t('{name} saved.', { name: name.trim() || i.name }))
       setEditing(false)
       setApiKey('')
@@ -114,26 +155,48 @@ export default function IndexerCard({ indexer: i, onChanged, onToggle, onRemove 
               </TipLabel>
             </small>
           )}
-          {!!i.dailyLimit && (
-            <small className={`indexer-health ${i.limitNote ? 'bad' : 'ok'}`}>
-              {i.limitNote ? st(i.limitNote) : t('{used} of {limit} requests today', { used: i.requestsToday ?? 0, limit: i.dailyLimit })}
+          {paused && <KnownFixHint error={i.pausedWhy} />}
+          {info && (
+            <small className={`indexer-health idx-line idx-info ${limitBad ? 'bad' : 'ok'}`} title={info}>
+              <span className="idx-text">{info}</span>
             </small>
           )}
-          {!result && i.lastTestAt && (
-            <small className={`indexer-health ${i.lastTestError ? 'bad' : 'ok'}`}>
-              {i.lastTestError ? t('Last test failed {when}: {error}', { when: timeAgo(i.lastTestAt), error: friendlyIndexerError(i.lastTestError) }) : t('Last test passed {when}', { when: timeAgo(i.lastTestAt) })}
+          {!result && i.lastTestAt && (i.lastTestError ? (
+            <details className="idx-more">
+              <summary className="indexer-health idx-line bad" title={testFull}>
+                <span className="idx-dot" aria-hidden="true" />
+                <span className="idx-text">{t('Failed {when}', { when: timeAgo(i.lastTestAt) })}</span>
+              </summary>
+              <small className="idx-why">{friendlyIndexerError(i.lastTestError)}</small>
+            </details>
+          ) : (
+            <small className={`indexer-health idx-line ok${testOld ? ' old' : ''}`} title={testFull}>
+              <span className="idx-dot" aria-hidden="true" />
+              <span className="idx-text">{t('Passed {when}', { when: timeAgo(i.lastTestAt) })}</span>
             </small>
-          )}
+          ))}
+          {!result && !!i.lastTestAt && <KnownFixHint error={i.lastTestError} />}
         </div>
         <label className="indexer-priority">
-          <TipLabel text={t('Quality always comes first. Between two equally good releases, the one from the more preferred indexer wins.')} learnMore="indexers#priority-health-and-test-all">{t('Priority')}</TipLabel>
-          <select value={i.priority ?? 2} onChange={(e) => void setPriority(Number(e.target.value))}>
-            <option value={1}>{t('Preferred')}</option>
-            <option value={2}>{t('Normal')}</option>
-            <option value={3}>{t('Last resort')}</option>
-          </select>
+          <TipLabel text={t('Lower number = tried first. Quality always comes first. Between two equally good releases, the one with the lower number wins.')} learnMore="indexers#priority-health-and-test-all">{t('Priority')}</TipLabel>
+          <input type="number" min={1} max={50} step={1} value={prio} style={{ width: 72 }} onChange={(e) => setPrio(e.target.value)} onBlur={() => void savePriority()} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} />
         </label>
       </div>
+
+      {result && (
+        <div className={`indexer-result ${result.ok ? 'ok' : 'bad'}`}>
+          <Icon name={result.ok ? 'check' : 'warning'} size={14} /> {st(result.message)}
+          {!result.ok && <KnownFixHint error={result.message} />}
+        </div>
+      )}
+
+      {i.protocol === 'torrent' && (
+        <label className="indexer-minseed">
+          <TipLabel text={t('Releases from this indexer with fewer seeders than this are skipped. Releases that a debrid service already has cached are not skipped. 0 means off.')} learnMore="indexers#minimum-seeders">{t('Minimum seeders')}</TipLabel>
+          <input type="number" min={0} max={1000} step={1} value={minSeed} onChange={(e) => setMinSeed(e.target.value)} onBlur={() => void saveMinSeeders()} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} />
+        </label>
+      )}
+      {i.protocol === 'torrent' && <SeedRules indexerId={i.id} />}
 
       <div className="indexer-actions">
         <button className="btn-sm" onClick={() => void test()} disabled={testing}>
@@ -155,14 +218,6 @@ export default function IndexerCard({ indexer: i, onChanged, onToggle, onRemove 
         </button>
       </div>
 
-      {i.protocol === 'torrent' && <SeedRules indexerId={i.id} />}
-
-      {result && (
-        <div className={`indexer-result ${result.ok ? 'ok' : 'bad'}`}>
-          <Icon name={result.ok ? 'check' : 'warning'} size={14} /> {st(result.message)}
-        </div>
-      )}
-
       {editing && (
         <div className="indexer-edit grid-form">
           <label>
@@ -171,7 +226,17 @@ export default function IndexerCard({ indexer: i, onChanged, onToggle, onRemove 
             <FieldError v={v} name="name" />
           </label>
           {site ? (
-            <small style={{ color: 'var(--text-dim)' }}>{t('This site was added from the list. To change its sign-in details, remove it and add it again.')}</small>
+            <>
+              {i.localSite && (
+                <label>
+                  {t('Address')}
+                  <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} spellCheck={false} {...v.bind('baseUrl', baseUrl, setBaseUrl)} />
+                  <FieldError v={v} name="baseUrl" />
+                  <small style={{ color: 'var(--text-dim)', fontWeight: 400 }}>{t('The address of your own server, for example http://192.168.1.10:3333. Inside Docker, 127.0.0.1 is the Mediarium container itself.')}</small>
+                </label>
+              )}
+              <small style={{ color: 'var(--text-dim)' }}>{t('This site was added from the list. To change its sign-in details, remove it and add it again.')}</small>
+            </>
           ) : (
             <>
               <label>

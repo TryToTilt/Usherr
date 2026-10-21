@@ -76,12 +76,9 @@ func preferUsenet(best, candidate *indexers.Result) bool {
 	return candidate.Protocol == pref && best.Protocol != pref
 }
 
-// indexerRank is an indexer's priority, with "not set" counting as normal.
+// indexerRank is an indexer's priority, with "not set" counting as the default (25).
 func indexerRank(p int) int {
-	if p < indexers.PriorityPreferred || p > indexers.PriorityLast {
-		return indexers.PriorityNormal
-	}
-	return p
+	return indexers.ClampPriority(p)
 }
 
 // unreleased reports whether a release date is still in the future, so there

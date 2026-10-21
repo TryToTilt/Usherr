@@ -55,6 +55,7 @@ Notes on the values:
 - **PUID 99 / PGID 100** are Unraid's usual `nobody` / `users`, the same most Unraid apps use. If your Radarr or Sonarr containers use other numbers, use theirs.
 - **The folder variables** are where your folders are *inside* `/data`. If your movies are at `/mnt/user/data/media/movies`, that is `/data/media/movies`. For a brand-new setup you can use `/data/downloads`, `/data/movies` and `/data/tv`. Names are case sensitive.
 - **Downloads folder of its own:** if SABnzbd, NZBGet or qBittorrent also use `/mnt/user/data/downloads`, keep Mediarium in its own sub-folder (`/data/downloads/mediarium`), because Mediarium tidies up leftovers in its own working folder.
+- **Unfinished downloads on the cache:** if you want the parts, repair and unpacking to happen on your cache pool and only the finished file to go to the array, add one more path to the template (for example container path `/temp-downloads`, host path `/mnt/cache/mediarium-temp`, created first) and enter `/temp-downloads` under **Settings > Downloading > Download rules > Temporary download folder**. See [Temporary download folder](downloads.md#temporary-download-folder).
 - **Config on the cache:** keep `appdata` on your cache pool (SSD) so the app stays quick. Don't put it on a network share.
 - **Torrent ports** are optional. Delete both torrent ports if you only use Usenet.
 

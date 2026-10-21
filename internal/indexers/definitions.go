@@ -106,6 +106,9 @@ type DefinitionSummary struct {
 	Problem   string `json:"problem,omitempty"`
 	// Custom marks a definition file an administrator added.
 	Custom bool `json:"custom,omitempty"`
+	// Local marks a site that runs on the person's own network (see
+	// IsLocalDefinition): its address may be replaced with their own.
+	Local bool `json:"local,omitempty"`
 }
 
 // SettingSummary is one setting as the definition declares it, for the UI
@@ -306,8 +309,38 @@ func (s *DefinitionStore) loadIndexLocked() (*DefinitionIndex, error) {
 	if err := json.Unmarshal(data, &idx); err != nil {
 		return nil, fmt.Errorf("read %s: %w", indexFile, err)
 	}
+	s.recheckUnsupportedLocked(&idx)
 	s.index = &idx
 	return s.index, nil
+}
+
+// recheckUnsupportedLocked judges the sites the saved list marks as not
+// supported against this version of Mediarium. The mark was made when the
+// list was downloaded, possibly by an older version with a stricter engine, so
+// a site would stay grey after an update until the list was downloaded again.
+func (s *DefinitionStore) recheckUnsupportedLocked(idx *DefinitionIndex) {
+	for i := range idx.Definitions {
+		d := &idx.Definitions[i]
+		// Whether a site runs on the person's own network follows from its links,
+		// so it is worked out here too: a list saved by an older version has no
+		// such mark.
+		if !d.Custom {
+			d.Local = IsLocalDefinition(d.Links)
+		}
+		if d.Supported || d.Custom {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(s.Dir, d.ID+".yml"))
+		if err != nil {
+			continue
+		}
+		def, err := ParseDefinition(data)
+		if err != nil {
+			continue
+		}
+		fresh := summarize(def)
+		d.Supported, d.Problem = fresh.Supported, fresh.Problem
+	}
 }
 
 // refresh downloads the archive and rebuilds the cache. Callers hold
@@ -559,6 +592,7 @@ func summarize(def *Definition) DefinitionSummary {
 	if sum.Links == nil {
 		sum.Links = []string{}
 	}
+	sum.Local = IsLocalDefinition(sum.Links)
 	for _, st := range def.Settings {
 		ss := SettingSummary{Name: st.Name, Label: st.Label, Type: st.Type}
 		if info, ok := predefinedInfo[st.Type]; ok {

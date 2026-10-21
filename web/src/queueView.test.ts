@@ -1,7 +1,7 @@
 // Run with: npm test
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { bulkState, groupQueue, linePlace, sortQueue, stateNote, statusLabel, stillWaiting } from './queueView.ts'
+import { bulkState, groupQueue, linePlace, sortQueue, stateNote, statusLabel, stillWaiting, unpackLine } from './queueView.ts'
 import type { QueueItem } from './api.ts'
 
 let nextId = 1
@@ -102,6 +102,20 @@ test('badge wording', () => {
     [{ status: 'importing', pending: 'stopping' }, 'Stopping…'],
   ]
   for (const [q, want] of rows) assert.equal(statusLabel(q), want, JSON.stringify(q))
+})
+
+test('the badge says Unpacking while archives are being unpacked', () => {
+  const unpack = { doneBytes: 1, totalBytes: 2, index: 1, count: 1 }
+  assert.equal(statusLabel({ status: 'importing', unpack }), 'Unpacking')
+  assert.equal(statusLabel({ status: 'importing' }), 'Importing')
+  assert.equal(statusLabel({ status: 'importing', unpack, pending: 'stopping' }), 'Stopping…')
+})
+
+test('the unpack line says how much is done', () => {
+  const GB = 1024 ** 3
+  assert.equal(unpackLine({ doneBytes: 30 * GB, totalBytes: 75 * GB, index: 1, count: 1 }), 'Unpacking: 30.0 GB of 75.0 GB')
+  assert.equal(unpackLine({ doneBytes: GB, totalBytes: 4 * GB, index: 2, count: 3 }), 'Unpacking archive 2 of 3: 1.0 GB of 4.0 GB')
+  assert.equal(unpackLine({ doneBytes: 2 * GB, totalBytes: 0, index: 1, count: 1 }), 'Unpacking: 2.0 GB so far')
 })
 
 test('notes under a paused or stopped download say what happened', () => {

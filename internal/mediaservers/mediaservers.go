@@ -104,6 +104,11 @@ type Server struct {
 	ServerID           string // Plex machineIdentifier or Jellyfin/Emby server Id
 	LastError          string
 	LastCheckedAt      time.Time // zero when never checked
+	// SecretUnreadable is set when the saved token could not be decrypted
+	// (usually a secret.key that does not belong to this database). The server
+	// is listed so it can be fixed, but it is not used until a token is entered
+	// again; the stored one is left as it is until then.
+	SecretUnreadable bool
 }
 
 // WebURL is the address people open, without a trailing slash.

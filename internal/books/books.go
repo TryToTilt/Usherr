@@ -194,6 +194,17 @@ func (r *Repo) List() ([]Book, error) {
 	return out, rows.Err()
 }
 
+// Version is the book list's change marker. It moves whenever a book is
+// added, removed or changed in a way the e-reader feeds can show (a database
+// trigger does it, see migration 0213). Reading progress does not move it.
+func (r *Repo) Version() (int64, error) {
+	var v int64
+	if err := r.db.QueryRow(`SELECT version FROM books_change WHERE id = 1`).Scan(&v); err != nil {
+		return 0, fmt.Errorf("read book list version: %w", err)
+	}
+	return v, nil
+}
+
 // SetWant chooses whether format f is wanted.
 func (r *Repo) SetWant(id int64, f Format, want bool) error {
 	col := "want_ebook"

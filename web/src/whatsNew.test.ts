@@ -1,7 +1,7 @@
 // Run with: npm test (uses node's built-in test runner, no extra packages).
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { compareVersions, notesToShow, type ReleaseNotes } from './whatsNew.ts'
+import { compareVersions, notesToShow, titleVersion, WHATS_NEW, type ReleaseNotes } from './whatsNew.ts'
 
 const notes: ReleaseNotes[] = [
   { version: '3.1.0', items: ['c'] },
@@ -33,4 +33,16 @@ test('the notes since the last version seen are shown, newest first', () => {
       `${seen} -> ${current}`,
     )
   }
+})
+
+test('the dialog names the running version, not the newest note', () => {
+  assert.equal(titleVersion('3.1.3'), '3.1.3')
+  assert.equal(titleVersion('3.1.0'), '3.1')
+  assert.equal(titleVersion('3.1.3-beta.2'), '3.1.3')
+  assert.equal(titleVersion('dev'), 'dev')
+})
+
+test('every release has at most four highlights, and 3.1.2 to 3.2.11 have some', () => {
+  for (const n of WHATS_NEW) assert.ok(n.items.length > 0 && n.items.length <= 15, n.version)
+  for (const v of ['3.1.2', '3.1.3', '3.2.0', '3.2.1', '3.2.2', '3.2.3', '3.2.4', '3.2.5', '3.2.6', '3.2.7', '3.2.8', '3.2.9', '3.2.11']) assert.ok(WHATS_NEW.some((n) => n.version === v && n.items.length <= 4), v)
 })

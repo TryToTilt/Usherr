@@ -4,6 +4,7 @@ import DownloadClientCard from '../../components/DownloadClientCard'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type DownloadsStatus, type Settings, type UsenetServer } from '../../api'
+import FolderStatus from '../../components/FolderStatus'
 import Icon from '../../components/Icon'
 import Switch from '../../components/Switch'
 import UsenetServerForm, { blankServer, type UsenetServerDraft } from '../../components/UsenetServerForm'
@@ -110,6 +111,12 @@ export default function DownloadRulesSettings() {
           <Icon name="download" size={14} /> <TipLabel help="downloads#speed-and-space">{t('Speed, hours and free space')}</TipLabel>
         </legend>
         <SpeedAndSpaceCard />
+      </fieldset>
+      <fieldset className="group folders">
+        <legend>
+          <Icon name="folder" size={14} /> <TipLabel help="downloads#temporary-download-folder">{t('Temporary download folder')}</TipLabel>
+        </legend>
+        <TempFolderCard key={settings ? 'loaded' : 'loading'} saved={settings?.downloadsTempPath ?? ''} ready={settings !== null} onSaved={loadSettings} />
       </fieldset>
       <fieldset className="group folders">
         <legend>
@@ -302,6 +309,12 @@ function DownloadsAtOnceCard() {
     (v) => (v ? t('Saved: newer releases start first.') : t('Saved: downloads start in the order they were added.')),
     false,
   )
+  const resume = useAutosaveSetting<boolean>(
+    (s) => s.resumeInterrupted ?? true,
+    (v) => ({ resumeInterrupted: v }),
+    (v) => (v ? t('Saved: interrupted downloads carry on after a restart.') : t('Saved: interrupted downloads stay paused after a restart.')),
+    true,
+  )
   return (
     <div>
       <p style={{ color: 'var(--text-dim)', marginTop: 0 }}>
@@ -319,6 +332,67 @@ function DownloadsAtOnceCard() {
         {t('Start newer releases first')}
       </label>
       <p className="field-hint">{t('Among the downloads Mediarium finds by itself, the movie that came out (or the episode that aired) most recently starts first. What you add by hand, or move to the front, still goes first.')}</p>
+      <label className="inline-field" style={{ marginTop: 12 }}>
+        <input type="checkbox" checked={resume.value} disabled={!resume.loaded || resume.saving} onChange={(e) => void resume.change(e.target.checked)} />
+        {t('Resume interrupted downloads after a restart')}
+      </label>
+      <p className="field-hint">{t('When Mediarium restarts, the downloads that were running carry on by themselves, a few seconds apart. Ones you paused stay paused. Nothing starts in safe mode, while someone is watching (if you pause for that), or before your VPN is up.')}</p>
+    </div>
+  )
+}
+
+// A folder (on a fast drive) for the unfinished part of downloads. Empty keeps
+// everything in the downloads folder, as before. Saved with a button because a
+// wrong path is refused with a message, not silently changed.
+function TempFolderCard({ saved, ready, onSaved }: { saved: string; ready: boolean; onSaved: () => void }) {
+  const toast = useToast()
+  const [value, setValue] = useState(saved)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function save(next: string) {
+    setBusy(true)
+    setError('')
+    try {
+      const result = await api.putSettings({ downloadsTempPath: next.trim() })
+      setValue(result.downloadsTempPath ?? '')
+      toast.success(next.trim() === '' ? t('Saved: unfinished downloads stay in the downloads folder.') : t('Saved: unfinished downloads are worked on in {folder}.', { folder: next.trim() }))
+      onSaved()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const changed = value.trim() !== saved
+  return (
+    <div>
+      <label className="inline-field">
+        <input
+          type="text"
+          aria-label={t('Temporary download folder')}
+          placeholder="/mnt/cache/downloads"
+          value={value}
+          disabled={!ready || busy}
+          onChange={(e) => {
+            setValue(e.target.value)
+            setError('')
+          }}
+        />
+        <button className="primary" disabled={!ready || busy || !changed} onClick={() => void save(value)}>
+          {t('Save')}
+        </button>
+        {saved !== '' && (
+          <button disabled={busy} onClick={() => void save('')}>
+            {t('Turn off')}
+          </button>
+        )}
+      </label>
+      {error !== '' && <p className="error-text">{error}</p>}
+      {value.trim() !== '' && <FolderStatus path={value.trim()} />}
+      <p className="field-hint">
+        {t('Leave this empty and downloads are worked on in the downloads folder. Set a folder on a fast drive, such as a cache drive, and the parts being downloaded, the repair and the unpacking happen there. When a download is finished, the movie or episode is moved into your library from there.')}
+      </p>
+      <p className="field-hint">{t('A download that has already started stays where it is when you change this. In Docker, mount the folder into the container yourself first, then enter the path as the container sees it.')}</p>
     </div>
   )
 }
@@ -630,7 +704,8 @@ function UsenetServersSection({ onChange }: { onChange: () => void }) {
                 <div className="server-host">
                   {s.host}:{s.port} {s.useSsl ? '(SSL)' : t('(no SSL)')} · {plural(s.connections, '{n} connection', '{n} connections')}
                 </div>
-                {s.enabled && <ConnectionProbe server={s} onApply={(n) => setConnections(s, n)} />}
+                {s.secretError && <div className="error-text">{st(s.secretError)}</div>}
+                {s.enabled && !s.secretError && <ConnectionProbe server={s} onApply={(n) => setConnections(s, n)} />}
               </div>
               <div className="server-actions">
                 <TestButton run={() => api.testUsenetServer(s.id)} />

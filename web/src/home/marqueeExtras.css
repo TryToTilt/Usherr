@@ -1,0 +1,133 @@
+/* Usherr: the Marquee's phase 3 parts: badges, the info panel, QR codes,
+   tonight on Usherr TV, the spotlight, trivia, your slides, and the
+   pre-show's built-in pieces, drawn here so they are sharp on any screen.
+   Sizes are in --u (marqueeLook.css). */
+
+.lk-x { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--mq-bg); }
+.lk-x > .lk-sign { padding: calc(var(--u) * 4) calc(var(--u) * 5) calc(var(--u) * 1.5); }
+.st-usherr .lk-x { background: transparent; }
+
+/* ---- Badges. ---- */
+.mqx-badges { display: flex; flex-wrap: wrap; justify-content: center; gap: calc(var(--u) * 1.2); margin-top: calc(var(--u) * 1.6); }
+.mqx-badge { padding: calc(var(--u) * 0.45) calc(var(--u) * 1.6); border-radius: calc(var(--u) * 0.8); border: calc(var(--u) * 0.25) solid rgba(255, 255, 255, 0.7); background: rgba(0, 0, 0, 0.55); color: #fff; font-weight: 800; font-size: calc(var(--u) * 2.9 * var(--mq-t)); letter-spacing: 0.06em; white-space: nowrap; }
+.mqx-badge.b-4k { border-color: #f4c75b; color: #f4c75b; }
+.mqx-badge.b-dolbyvision { border-color: transparent; background: linear-gradient(90deg, #7b2ff7, #f107a3); }
+.mqx-badge.b-hdr10, .mqx-badge.b-hdr10plus, .mqx-badge.b-hlg { border-color: #ff9f1c; color: #ffb648; }
+.mqx-badge.b-dolbyatmos { border-color: transparent; background: linear-gradient(90deg, #0b63ce, #00b4d8); }
+.mqx-badge.b-dtsx, .mqx-badge.b-dtshdma { border-color: #e63946; color: #ff6b75; }
+
+/* ---- The info panel. ---- */
+.mqx-info { position: absolute; left: calc(var(--u) * 4); right: calc(var(--u) * 4); bottom: calc(var(--u) * 4); z-index: 20; display: grid; gap: calc(var(--u) * 1.6); padding: calc(var(--u) * 3); border-radius: calc(var(--u) * 2 * var(--mq-r)); background: color-mix(in srgb, var(--mq-bg) 80%, transparent); backdrop-filter: blur(calc(var(--u) * 1.6)); border: 1px solid color-mix(in srgb, var(--mq-accent) 40%, transparent); color: var(--mq-fg); animation: mqx-up 0.9s ease both; }
+.mqx-info.has-qr { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+.mqx-info.has-qr > .mqx-qr { position: static; grid-row: 1; grid-column: 2; }
+.mqx-info-main { display: grid; gap: calc(var(--u) * 1.6); min-width: 0; }
+.mqx-info-meta { margin: 0; font-size: calc(var(--u) * 3 * var(--mq-t)); color: color-mix(in srgb, var(--mq-fg) 75%, transparent); }
+.mqx-info-plot { margin: 0; font-size: calc(var(--u) * 3.3 * var(--mq-t)); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.mqx-cast { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: calc(var(--u) * 1.6); }
+.mqx-cast li { display: grid; justify-items: center; text-align: center; gap: calc(var(--u) * 0.3); min-width: 0; }
+.mqx-cast img, .mqx-cast-ph { width: calc(var(--u) * 11); height: calc(var(--u) * 11); border-radius: 50%; object-fit: cover; background: var(--mq-panel); display: grid; place-items: center; font-size: calc(var(--u) * 5); color: var(--mq-hi); }
+.mqx-cast strong { font-size: calc(var(--u) * 2.6 * var(--mq-t)); line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mqx-cast small { font-size: calc(var(--u) * 2.3 * var(--mq-t)); color: color-mix(in srgb, var(--mq-fg) 65%, transparent); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes mqx-up { from { opacity: 0; transform: translateY(calc(var(--u) * 3)); } }
+
+/* ---- QR codes. ---- */
+.mqx-qr { position: absolute; right: calc(var(--u) * 3.5); bottom: calc(var(--u) * 4); z-index: 21; display: grid; justify-items: center; gap: calc(var(--u) * 0.6); padding: calc(var(--u) * 1.2); border-radius: calc(var(--u) * 1.2); background: #fff; color: #111; font-size: calc(var(--u) * 2.2); font-weight: 600; box-shadow: 0 calc(var(--u) * 1) calc(var(--u) * 3) rgba(0, 0, 0, 0.5); }
+.mqx-qr svg { width: calc(var(--u) * 17); height: calc(var(--u) * 17); display: block; }
+
+/* ---- Tonight on Usherr TV. ---- */
+.mq-scroll > .lk-tonight { position: relative; inset: auto; min-height: 100%; }
+.lk-tonight .lk-b-list { padding-top: calc(var(--u) * 1); }
+.mqx-times { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 1.1); margin-top: calc(var(--u) * 0.8); }
+.mqx-time { display: inline-flex; align-items: baseline; gap: calc(var(--u) * 1); max-width: 100%; padding: calc(var(--u) * 0.5) calc(var(--u) * 1.5); border: calc(var(--u) * 0.25) solid color-mix(in srgb, var(--mq-accent) 70%, transparent); border-radius: calc(var(--u) * 1 * var(--mq-r)); font-size: calc(var(--u) * 2.9 * var(--mq-t)); }
+.mqx-time b { color: var(--mq-hi); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mqx-time span { min-width: 0; max-width: calc(var(--u) * 42); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mqx-time.now { background: var(--mq-accent); border-color: var(--mq-accent); color: var(--mq-bg); }
+.mqx-time.now b { color: var(--mq-bg); }
+
+/* ---- In the spotlight. ---- */
+.lk-spot { padding-bottom: calc(var(--u) * 4); }
+.mqx-spot-head { display: flex; gap: calc(var(--u) * 4); align-items: flex-end; padding: calc(var(--u) * 2) calc(var(--u) * 5); }
+.mqx-spot-photo { flex: none; width: calc(var(--u) * 36 * var(--mq-p)); aspect-ratio: 2 / 3; object-fit: cover; border-radius: calc(var(--u) * 1.6 * var(--mq-r)); box-shadow: 0 calc(var(--u) * 2) calc(var(--u) * 5) rgba(0, 0, 0, 0.6), 0 0 0 calc(var(--u) * 0.35) var(--mq-accent); }
+.mqx-spot-head > div { min-width: 0; display: grid; gap: calc(var(--u) * 1); }
+.mqx-spot-bio { margin: 0; font-size: calc(var(--u) * 3.2 * var(--mq-t)); line-height: 1.4; color: color-mix(in srgb, var(--mq-fg) 85%, transparent); display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden; }
+.mqx-spot-body { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: calc(var(--u) * 5); min-height: 0; }
+.mqx-spot-films { list-style: none; margin: 0; padding: 0 calc(var(--u) * 5); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: calc(var(--u) * 2.4) calc(var(--u) * 2); }
+.mqx-spot-films li { display: grid; gap: calc(var(--u) * 0.8); min-width: 0; font-size: calc(var(--u) * 2.6 * var(--mq-t)); text-align: center; }
+.mqx-spot-films li > span:last-child { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
+.mqx-spot-poster { position: relative; display: block; }
+.mqx-spot-poster img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: calc(var(--u) * 0.8 * var(--mq-r)); display: block; }
+.mqx-spot-poster b { position: absolute; left: 0; right: 0; bottom: 0; padding: calc(var(--u) * 0.5); background: var(--mq-accent); color: var(--mq-bg); font-size: calc(var(--u) * 2.1); letter-spacing: 0.05em; text-transform: uppercase; border-radius: 0 0 calc(var(--u) * 0.8 * var(--mq-r)) calc(var(--u) * 0.8 * var(--mq-r)); }
+
+/* ---- Did you know? ---- */
+.mqx-trivia-bg { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: 0.22; filter: blur(calc(var(--u) * 0.6)); }
+.mqx-trivia-body { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 3); padding: calc(var(--u) * 4) calc(var(--u) * 7) calc(var(--u) * 8); text-align: center; }
+.mqx-trivia-poster { width: calc(var(--u) * 38 * var(--mq-p)); aspect-ratio: 2 / 3; object-fit: cover; border-radius: calc(var(--u) * 1.4 * var(--mq-r)); box-shadow: 0 calc(var(--u) * 2) calc(var(--u) * 6) rgba(0, 0, 0, 0.6); }
+.mqx-fact { margin: 0; font-family: var(--mq-display); font-size: calc(var(--u) * 6 * var(--mq-t)); line-height: 1.3; color: var(--mq-fg); text-wrap: balance; }
+
+/* ---- Your slides. ---- */
+.lk-media { background: #000; }
+.mqx-media-fill { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border: 0; background: #000; }
+.mqx-media-fill.contain { object-fit: contain; }
+.mqx-media-title { position: absolute; left: calc(var(--u) * 4); right: calc(var(--u) * 4); bottom: calc(var(--u) * 4); padding: calc(var(--u) * 1.5) calc(var(--u) * 2.5); border-radius: calc(var(--u) * 1.2); background: rgba(0, 0, 0, 0.6); color: #fff; font-size: calc(var(--u) * 4); text-align: center; }
+.lk-words { justify-content: center; align-items: center; gap: calc(var(--u) * 3); padding: calc(var(--u) * 6); text-align: center; }
+.mqx-words { margin: 0; font-size: calc(var(--u) * 6 * var(--mq-t)); line-height: 1.35; white-space: pre-line; color: var(--mq-fg); text-wrap: balance; }
+
+/* ---- The pre-show's pieces. ---- */
+.ps { align-items: center; justify-content: center; gap: calc(var(--u) * 3); overflow: hidden; text-align: center; background: radial-gradient(80% 60% at 50% 40%, color-mix(in srgb, var(--mq-glow) 60%, transparent), transparent 75%), var(--mq-bg); }
+.ps-big { position: relative; z-index: 2; margin: 0 calc(var(--u) * 5); font-family: var(--mq-display); font-weight: 400; font-size: calc(var(--u) * 10 * var(--mq-t)); line-height: 1.12; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mq-hi); text-shadow: 0 0 calc(var(--u) * 3) color-mix(in srgb, var(--mq-hi) 55%, transparent); animation: ps-in 1.2s ease both 0.3s; text-wrap: balance; }
+.ps-small { position: relative; z-index: 2; margin: 0; font-size: calc(var(--u) * 4.6 * var(--mq-t)); letter-spacing: 0.2em; text-transform: uppercase; color: var(--mq-fg); animation: ps-in 1.2s ease both 0.9s; }
+@keyframes ps-in { from { opacity: 0; transform: translateY(calc(var(--u) * 3)) scale(0.96); } }
+
+/* Grab your popcorn: a striped bucket, popping. */
+.ps-bucket { position: relative; width: calc(var(--u) * 44); height: calc(var(--u) * 58); }
+.ps-bucket-body { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--u) * 44); clip-path: polygon(0 0, 100% 0, 86% 100%, 14% 100%); background: repeating-linear-gradient(90deg, #d7262f 0 calc(var(--u) * 5.5), #fff5e4 calc(var(--u) * 5.5) calc(var(--u) * 11)); display: grid; place-items: center; }
+.ps-bucket-body b { padding: calc(var(--u) * 0.8) calc(var(--u) * 3); background: #d7262f; color: #fff5e4; border: calc(var(--u) * 0.5) solid #fff5e4; border-radius: calc(var(--u) * 1); font-family: var(--mq-display); font-size: calc(var(--u) * 4.6); letter-spacing: 0.08em; text-transform: uppercase; transform: rotate(-6deg); }
+.ps-kernel { position: absolute; top: calc(var(--u) * 10); left: calc(8% + var(--i) * 6%); width: calc(var(--u) * 5); height: calc(var(--u) * 4.4); border-radius: 50%; background: #fff7dc; box-shadow: calc(var(--u) * 1.8) calc(var(--u) * -1) 0 calc(var(--u) * -0.4) #fff1c4, calc(var(--u) * -1.6) calc(var(--u) * -1.2) 0 calc(var(--u) * -0.6) #fffaf0, 0 0 calc(var(--u) * 1) rgba(255, 210, 120, 0.6); animation: ps-pop 1.7s ease-in infinite; animation-delay: calc(var(--i) * -0.27s); }
+@keyframes ps-pop { 0% { transform: translateY(calc(var(--u) * 8)) scale(0.4); opacity: 0; } 15% { opacity: 1; } 45% { transform: translateY(calc(var(--u) * -14)) rotate(140deg) scale(1); } 100% { transform: translateY(calc(var(--u) * 6)) rotate(320deg) scale(0.9); opacity: 0; } }
+
+/* Please silence your phones. */
+.ps-phone { width: calc(var(--u) * 46); height: calc(var(--u) * 46); fill: none; stroke: var(--mq-hi); stroke-width: 4; stroke-linecap: round; filter: drop-shadow(0 0 calc(var(--u) * 1.2) color-mix(in srgb, var(--mq-hi) 60%, transparent)); }
+.ps-wave { animation: ps-wave 1s ease-in-out infinite alternate; }
+.ps-wave.w2 { animation-delay: 0.3s; }
+@keyframes ps-wave { from { opacity: 0.15; } to { opacity: 1; } }
+.ps-slash { stroke: var(--mq-accent); stroke-width: 7; stroke-dasharray: 130; stroke-dashoffset: 130; animation: ps-slash 0.7s ease forwards 2s; }
+@keyframes ps-slash { to { stroke-dashoffset: 0; } }
+
+/* Coming attractions: the curtains part under two spotlights. */
+.ps-curtain { position: absolute; top: 0; bottom: 0; width: 51%; z-index: 3; background: linear-gradient(to bottom, rgba(0, 0, 0, 0.35), transparent 20%, transparent 80%, rgba(0, 0, 0, 0.5)), repeating-linear-gradient(90deg, #4a0610 0 calc(var(--u) * 2.5), #8e1424 calc(var(--u) * 4.5), #5a0712 calc(var(--u) * 7)); box-shadow: 0 0 calc(var(--u) * 4) rgba(0, 0, 0, 0.7); }
+.ps-curtain.l { left: 0; animation: ps-open-l 2.6s cubic-bezier(0.6, 0, 0.3, 1) forwards 0.5s; }
+.ps-curtain.r { right: 0; animation: ps-open-r 2.6s cubic-bezier(0.6, 0, 0.3, 1) forwards 0.5s; }
+@keyframes ps-open-l { to { transform: translateX(-96%); } }
+@keyframes ps-open-r { to { transform: translateX(96%); } }
+.ps-beam { position: absolute; bottom: -10%; width: 60%; height: 130%; z-index: 1; background: linear-gradient(to top, color-mix(in srgb, var(--mq-hi) 40%, transparent), transparent 85%); clip-path: polygon(45% 100%, 55% 100%, 100% 0, 0 0); transform-origin: 50% 100%; mix-blend-mode: screen; }
+.ps-beam.b1 { left: -12%; animation: ps-sweep-l 3.4s ease-in-out infinite alternate; }
+.ps-beam.b2 { right: -12%; animation: ps-sweep-r 3.4s ease-in-out infinite alternate; }
+@keyframes ps-sweep-l { from { transform: rotate(-24deg); } to { transform: rotate(14deg); } }
+@keyframes ps-sweep-r { from { transform: rotate(24deg); } to { transform: rotate(-14deg); } }
+.ps-coming .ps-big { animation-delay: 1.4s; }
+
+/* Countdown: an old film leader, 5 to 1. */
+@property --ps-a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.ps-countdown { background: #0d0c0a; }
+.ps-leader { position: relative; width: calc(var(--u) * 82); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #d9d2c2 0 60%, #b9b1a0 100%); overflow: hidden; animation: ps-flicker 0.12s steps(2) infinite; box-shadow: 0 0 0 calc(var(--u) * 3) #0d0c0a, 0 0 calc(var(--u) * 10) rgba(255, 240, 200, 0.15); }
+.ps-sweep { position: absolute; inset: 0; background: conic-gradient(rgba(0, 0, 0, 0.42) var(--ps-a), transparent 0); animation: ps-sweep 1s linear 5 both; }
+@keyframes ps-sweep { from { --ps-a: 0deg; } to { --ps-a: 360deg; } }
+.ps-ring { position: absolute; border-radius: 50%; border: calc(var(--u) * 0.7) solid #26231d; }
+.ps-ring.r1 { inset: 8%; }
+.ps-ring.r2 { inset: 15%; border-width: calc(var(--u) * 0.4); }
+.ps-cross { position: absolute; inset: 0; background: linear-gradient(#26231d, #26231d) center / calc(var(--u) * 0.5) 100% no-repeat, linear-gradient(#26231d, #26231d) center / 100% calc(var(--u) * 0.5) no-repeat; }
+.ps-num { position: absolute; inset: 0; display: grid; place-items: center; font-family: Georgia, 'Times New Roman', serif; font-size: calc(var(--u) * 46); line-height: 1; color: #15130f; opacity: 0; animation: ps-num 1s linear forwards; animation-delay: calc(var(--i) * 1s); }
+@keyframes ps-num { 0%, 99.9% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes ps-flicker { 50% { filter: brightness(0.92); } }
+
+/* Our feature presentation: rays, and the words in lights. */
+.ps-rays { position: absolute; inset: -40%; background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--mq-accent) 55%, transparent) 0 7deg, transparent 7deg 14deg); mask-image: radial-gradient(circle, black 10%, transparent 62%); animation: ps-spin 30s linear infinite; }
+@keyframes ps-spin { to { transform: rotate(360deg); } }
+.ps-feature-text { position: relative; z-index: 2; display: grid; gap: calc(var(--u) * 2); padding: calc(var(--u) * 5) calc(var(--u) * 4); border-top: calc(var(--u) * 0.6) solid var(--mq-accent); border-bottom: calc(var(--u) * 0.6) solid var(--mq-accent); background: color-mix(in srgb, var(--mq-bg) 75%, transparent); }
+.ps-feature .ps-big { font-style: italic; font-size: calc(var(--u) * 11 * var(--mq-t)); background: linear-gradient(180deg, #fff6d0, var(--mq-hi) 45%, var(--mq-accent)); -webkit-background-clip: text; background-clip: text; color: transparent; animation: ps-zoom 1.6s cubic-bezier(0.2, 0.7, 0.2, 1) both 0.4s; }
+@keyframes ps-zoom { from { opacity: 0; transform: scale(1.6); filter: blur(calc(var(--u) * 1.5)); } }
+.ps-trailer { padding: 0 calc(var(--u) * 3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ps-kernel, .ps-wave, .ps-beam, .ps-rays, .ps-leader, .mqx-info { animation: none; }
+}

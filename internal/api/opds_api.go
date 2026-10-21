@@ -69,7 +69,9 @@ func (s *Server) handleOPDS(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	_ = user // every account sees the whole library; the sign-in decides who may come in
+	// Every account sees the whole library; the sign-in decides who may come in.
+	// The built pages are kept per account all the same (ereader_cache.go).
+	feed := func(build func(http.ResponseWriter)) { s.serveFeed(w, r, user.ID, build) }
 	v := opdsView{root: s.cfg.URLBase + "/opds"}
 	rest := strings.TrimPrefix(r.URL.Path, "/opds/")
 	if rest == "v2" || strings.HasPrefix(rest, "v2/") {
@@ -81,24 +83,36 @@ func (s *Server) handleOPDS(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case rest == "":
-		s.opdsRootFeed(w, r, v)
+		feed(func(w http.ResponseWriter) { s.opdsRootFeed(w, r, v) })
 	case rest == "new":
-		s.opdsBooks(w, r, v, "/new", "Recently added", "new", func(a, b books.Book) bool { return a.AddedAt > b.AddedAt || (a.AddedAt == b.AddedAt && a.ID > b.ID) }, nil)
+		feed(func(w http.ResponseWriter) {
+			s.opdsBooks(w, r, v, "/new", "Recently added", "new", func(a, b books.Book) bool { return a.AddedAt > b.AddedAt || (a.AddedAt == b.AddedAt && a.ID > b.ID) }, nil)
+		})
 	case rest == "books":
-		s.opdsBooks(w, r, v, "/books", "All books", "books", byTitle, nil)
+		feed(func(w http.ResponseWriter) { s.opdsBooks(w, r, v, "/books", "All books", "books", byTitle, nil) })
 	case rest == "authors":
-		s.opdsGroups(w, r, v, "/authors", "Authors", "authors", "/author", func(b books.Book) string { return b.Author })
+		feed(func(w http.ResponseWriter) {
+			s.opdsGroups(w, r, v, "/authors", "Authors", "authors", "/author", func(b books.Book) string { return b.Author })
+		})
 	case rest == "series":
-		s.opdsGroups(w, r, v, "/series", "Series", "series", "/series-books", func(b books.Book) string { return b.SeriesName })
+		feed(func(w http.ResponseWriter) {
+			s.opdsGroups(w, r, v, "/series", "Series", "series", "/series-books", func(b books.Book) string { return b.SeriesName })
+		})
 	case rest == "author":
 		name := r.URL.Query().Get("name")
-		s.opdsBooks(w, r, v, "/author", name, "author:"+name, byTitle, func(b books.Book) bool { return sameGroup(b.Author, name) }, "name", name)
+		feed(func(w http.ResponseWriter) {
+			s.opdsBooks(w, r, v, "/author", name, "author:"+name, byTitle, func(b books.Book) bool { return sameGroup(b.Author, name) }, "name", name)
+		})
 	case rest == "series-books":
 		name := r.URL.Query().Get("name")
-		s.opdsBooks(w, r, v, "/series-books", name, "series:"+name, bySeriesPos, func(b books.Book) bool { return sameGroup(b.SeriesName, name) }, "name", name)
+		feed(func(w http.ResponseWriter) {
+			s.opdsBooks(w, r, v, "/series-books", name, "series:"+name, bySeriesPos, func(b books.Book) bool { return sameGroup(b.SeriesName, name) }, "name", name)
+		})
 	case rest == "search":
 		q := strings.TrimSpace(r.URL.Query().Get("q"))
-		s.opdsBooks(w, r, v, "/search", "Search: "+q, "search:"+q, byTitle, searchMatch(q), "q", q)
+		feed(func(w http.ResponseWriter) {
+			s.opdsBooks(w, r, v, "/search", "Search: "+q, "search:"+q, byTitle, searchMatch(q), "q", q)
+		})
 	case rest == "opensearch.xml" && !v.json:
 		s.opdsSearchDescription(w, v)
 	case len(parts) == 3 && parts[0] == "books":

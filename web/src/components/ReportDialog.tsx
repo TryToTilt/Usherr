@@ -1,11 +1,13 @@
 import { PRIVATE_REPORTS } from '../brand' // Usherr
 import { createPortal } from 'react-dom'
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api, isAdmin } from '../api'
 import { useAuth } from '../AuthContext'
 import { currentLanguage, t } from '../i18n'
 import { MESSAGE_MAX, PICTURE_MAX_BYTES, PICTURE_TYPES, TITLE_MAX, draftProblem, fitWithin, githubIssueURL, type ReportKind } from '../report'
 import { formatSupportReport } from '../supportReport'
+import { newerVersion } from '../updateAdvice'
 import { useFocusTrap } from '../useFocusTrap'
 import { copyText } from './CopyBox'
 import Icon from './Icon'
@@ -124,6 +126,14 @@ export default function ReportDialog({ onClose, initialKind = 'problem' }: { onC
   useEffect(() => {
     api.version().then((v) => setVersion(v.version)).catch(() => undefined)
   }, [])
+
+  // What the daily update check already knows (nothing is fetched from the
+  // internet here). Only administrators can read it.
+  const [newest, setNewest] = useState('')
+  useEffect(() => {
+    api.updateLatest().then((n) => setNewest(n.latest?.version ?? '')).catch(() => undefined)
+  }, [])
+  const newer = newerVersion(version, newest)
 
   // The support report is fetched once, the first time it's wanted.
   useEffect(() => {
@@ -320,6 +330,18 @@ export default function ReportDialog({ onClose, initialKind = 'problem' }: { onC
           {closeButton}
         </div>
 
+        {newer && (
+          <div className="report-update" role="note">
+            <Icon name="info" size={16} />
+            <p>{t('You are on {current} and {newest} is out. Many problems are fixed by updating, so please update first and send this only if it still happens.', { current: version, newest: newer })}</p>
+            {admin && (
+              <Link className="btn-link" to="/settings/system" onClick={onClose}>
+                {t('Go to updates')}
+              </Link>
+            )}
+          </div>
+        )}
+
         <div className="report-body">
           <div className="report-form">
             <div className="seg" role="radiogroup" aria-label={t('What is it?')}>
@@ -356,7 +378,7 @@ export default function ReportDialog({ onClose, initialKind = 'problem' }: { onC
             <label>
               {t('Name to credit or a way to reach you (optional)')}
               <input value={contact} maxLength={200} onChange={(e) => setContact(e.target.value)} placeholder={t('For example: u/name on Reddit, @name on GitHub, or an email')} />
-              <small className="report-help">{t('Only used to reply to you, or to thank you by name if your idea or report leads to a change.')}</small>
+              <small className="report-help">{t('Leave an email or your GitHub name if you would like an answer. It is optional and only used to reply or to credit you.')}</small>
             </label>
             {checked && hint && <p className="error-text">{hint}</p>}
           </div>

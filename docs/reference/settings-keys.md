@@ -8,6 +8,7 @@ The keys the app stores in its settings table. You normally change these from th
 |---|---|
 | `apps.links` | JSON list of add-ons: other programs next to Mediarium with a link to each (name, address, how it opens) |
 | `audiobooks.path` | audiobooks library folder; falls back to the AUDIOBOOKS_DIR env default (/audiobooks) when unset |
+| `auth.idle_days` | browser sessions not used for this many days (1 to 7) end and the person signs in again. Unset or "0" leaves it off. API keys, calendar feeds and e-reader passwords are not affected |
 | `auth.ldap` | encrypted; sign-in with a directory (LDAP or Active Directory) (JSON: enabled, server, bind account and password, filters, attribute names, account rules). Off unless enabled is true. Only a signed-in browser session can read or set it, not an API key. MEDIARIUM_DISABLE_SSO=1 overrides it |
 | `auth.local_signin` | "0" turns the username and password form off (only possible once an administrator has signed in with another method); anything else (including unset) leaves it on |
 | `auth.oidc` | encrypted; single sign-on with an OpenID Connect provider (JSON: enabled, name, issuer, client id and secret, scopes, claim names, account rules). Off unless enabled is true. Only a signed-in browser session can read or set it, not an API key. MEDIARIUM_DISABLE_SSO=1 overrides it |
@@ -32,13 +33,18 @@ The keys the app stores in its settings table. You normally change these from th
 | `debrid.cached_lower_score` | "1" lets a cached release win over an uncached one of the same quality even when the profile's preferred terms score it lower; unset or "0" only breaks ties between equal scores |
 | `debrid.prefer_cached` | "0" stops asking TorBox which releases it already has (no tag, no ranking); "1" or unset (with TorBox as the service) asks and ranks a cached release ahead of an equal one that is not. Real-Debrid has no such check |
 | `debrid.service` | "" (off), "realdebrid" or "torbox": torrent releases go to that service instead of the built-in client |
-| `downloadclient.category` | the category torrents are added with; unset = "mediarium" |
+| `downloadclient.category` | the category torrents are added with; unset = "mediarium" (when no kind has a category of its own either) |
+| `downloadclient.category_books` | category for books; unset = the main category |
+| `downloadclient.category_movies` | category for movies; unset = the main category |
+| `downloadclient.category_music` | category for music; unset = the main category |
+| `downloadclient.category_tv` | category for TV shows; unset = the main category |
 | `downloadclient.kind` | "" (off), "qbittorrent", "rdtclient" or "decypharr" |
 | `downloadclient.link_root` | symlinks from the client may be imported only when they lead into this folder (Decypharr's mount); unset = no symlinks |
 | `downloadclient.local_path` | path mapping: the same folder as Mediarium sees it, e.g. /data/torrents |
 | `downloadclient.password` | encrypted; never shown or logged |
 | `downloadclient.remote_path` | path mapping: a folder as the download client reports it, e.g. /downloads; unset = no mapping |
 | `downloadclient.remove_after_import` | "1" removes a torrent from the client once it's imported; unset or "0" leaves it seeding |
+| `downloadclient.remove_on_stop` | "0" leaves a stopped or removed download's torrent in the client; unset or "1" removes it too (only an unfinished torrent Mediarium added itself) |
 | `downloadclient.url` | the client's web address, e.g. http://192.168.1.10:8080 |
 | `downloadclient.username` | the client's web login |
 | `downloads.concurrent` | how many downloads run at the same time, Usenet and torrents together: 1 to 5; unset = 1 |
@@ -50,15 +56,23 @@ The keys the app stores in its settings table. You normally change these from th
 | `downloads.paused_for_streaming` | the ids of the downloads paused for a stream, as JSON |
 | `downloads.precheck` | "1" asks the news servers whether a sample of an NZB's articles exist before downloading it, and gives up at once on a release the PAR2 files could not repair; unset or "0" leaves it off |
 | `downloads.reject_executables` | "0" lets releases that hold programs or scripts (.exe, .scr, .bat...) through; anything else (including unset) rejects them |
+| `downloads.resume_interrupted` | "0" leaves downloads that a restart interrupted paused; unset or "1" lets them carry on by themselves |
 | `downloads.retention_days` | Usenet releases posted longer ago than this many days are not taken (the provider no longer has them): 1 to 10000, "0" or unset = off |
 | `downloads.skip_duplicates` | "1" does not download a release twice (same NZB, or same name and size, for the same title); unset or "0" leaves it off |
 | `downloads.speed_limit_hours` | when the speed limit applies, "8-23" (from 8:00 to 23:00, server time); unset = all day |
 | `downloads.speed_limit_mb` | download speed limit in MB/s for Usenet and torrents together; unset or "0" = no limit |
 | `downloads.speed_schedule` | JSON list of speed rules (days, hours, limit); the first one that fits the moment sets the limit |
 | `downloads.stall_hours` | hours a torrent may get no data before it is given up on (blocklisted and searched for again): 1 to 72, "0" = never; unset = 2 for the built-in client and 6 for a download client |
+| `downloads.temp_dir` | a folder for the unfinished part of downloads (a fast cache drive); unset = they stay in the downloads folder |
+| `downloads.temp_dir_previous` | earlier temporary folders (a JSON list), kept so downloads that started there are still found |
 | `ebooks.path` | ebooks library folder; falls back to the EBOOKS_DIR env default (/ebooks) when unset |
 | `flaresolverr.url` | e.g. http://flaresolverr:8191; unset = none |
+| `formats.trash_auto_update` | "1" re-reads the TRaSH Guides once a day and updates the custom formats that came from them; unset or "0" only updates on request |
+| `formats.trash_every_days` | how often the daily update reads the guides: "1" every day (the default) or "7" every week |
+| `formats.trash_last_check` | what the last check of the TRaSH Guides found, as JSON (shown under the switch on the Custom formats card) |
+| `formats.trash_last_update` | when the TRaSH Guides were last read for the daily update (RFC 3339) |
 | `info.language` | the language titles, plots, genres and posters are read in, as a TMDB tag like "de-DE" (en-US when unset); file and folder names always use the English title |
+| `info.release_country` | the country release dates are read for, as a code like "IN"; unset = the country of the info language |
 | `legal.acknowledged_at` |  |
 | `library.default_profile_id` | id of the stored quality profile used by items with no profile of their own |
 | `library.default_profile_id_tv` | id of the quality profile shows with none of their own use; unset = the same default as movies |
@@ -81,6 +95,8 @@ The keys the app stores in its settings table. You normally change these from th
 | `library.naming_preset` | plex\|jellyfin\|kodi\|minimal\|custom |
 | `library.presets_version` | revision of the built-in quality presets last applied; unset means never (set at start, not user-editable) |
 | `library.quality_profile` | legacy: an old preset key (any-1080p, ultra-hd, any); only read once to pick the initial default profile |
+| `library.roots_confirmed` | library folders Mediarium has seen with their .mediarium-root marker (a JSON list); one that loses its marker is refused until it is back |
+| `library.season_packs` | "1" looks for a season pack once a season has ended (a show can say otherwise for itself); unset or "0" leaves it off |
 | `library.trash_days` | days removed titles' files stay in the recycle bin (.mediarium-trash in the library folder); unset = 7, "0" = delete straight away |
 | `library.tv_copies_path` | the same for shows |
 | `library.tv_extra_paths` | the same for shows |
@@ -88,6 +104,8 @@ The keys the app stores in its settings table. You normally change these from th
 | `library.unmonitor_downloaded` | "1" stops monitoring a movie once it is downloaded; unset or "0" keeps it monitored |
 | `library.unmonitor_finished_shows` | "1" stops monitoring a show once it has ended and every monitored episode is in; unset or "0" keeps it monitored |
 | `mediaservers.client_id` | set by the app, not user-editable |
+| `metadata.simkl_client_id` | encrypted; the Client ID of a Simkl app (own, or the one a release ships with) |
+| `metadata.simkl_token` | encrypted; the access token of the connected Simkl account |
 | `metadata.tmdb_api_key` | encrypted |
 | `metadata.trakt_client_id` | encrypted |
 | `modules.audiobooks` | "1" switches it on; unset or "0" leaves it off |

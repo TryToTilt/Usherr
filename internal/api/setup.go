@@ -98,7 +98,3 @@ func (s *Server) setupCodeMatches(given string) bool {
 	}
 	return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
 }
-
-// setupCodeMessage is the answer to a missing or wrong code.
-const setupCodeMessage = "This Mediarium has no account yet, and it can't tell that you are on the home network, so it needs its one-time setup code. " +
-	"You'll find it in the Mediarium log (for example, run: docker logs mediarium). Look for \"setup code\"."

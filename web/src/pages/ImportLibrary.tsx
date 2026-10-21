@@ -11,7 +11,7 @@ import {
 } from '../api'
 import Switch from '../components/Switch'
 import { useToast } from '../components/Toast'
-import { formatBytes } from '../format'
+import { formatBytes, withNameTag } from '../format'
 import { afterText, etaText, progressText, setText, totalLine } from '../importText'
 import { plural, t, st } from '../i18n'
 import KindGlyph from '../components/KindGlyph'
@@ -597,7 +597,7 @@ function ReviewRow(props: {
           <select value={chosen ?? ''} onChange={(e) => props.onChoose(Number(e.target.value))}>
             {options.map((c) => (
               <option key={c.tmdbId} value={c.tmdbId}>
-                {c.title} {c.year ? `(${c.year})` : ''}
+                {withNameTag(c.title, c.nameTag, c.year)} {c.year ? `(${c.year})` : ''}
               </option>
             ))}
           </select>

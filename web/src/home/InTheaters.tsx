@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from '../components/Icon'
 import { t } from '../i18n'
-import { loadCinema, theatreUrl, whereElseUrl, type Cinema } from './cinema'
+import { loadCinema, nearUrl, theatreUrl, ticketsFor, whereElseUrl, type Cinema } from './cinema'
 import './cinema.css'
 
 export default function InTheaters() {
@@ -18,12 +18,18 @@ export default function InTheaters() {
     }
   }, [])
   if (!c?.on || c.results.length === 0) return null
+  const near = nearUrl(c)
   return (
     <section className="card cinema-row" aria-labelledby="cinema-row-title">
       <div className="cinema-head">
         <Icon name="film" size={18} />
         <h2 id="cinema-row-title">{t('In theaters now')}</h2>
         <span className="hint cinema-where">{c.source === 'amc' && c.theatre ? c.theatre : t('In cinemas across the country')}</span>
+        {near && (
+          <a className="cinema-near" href={near} target="_blank" rel="noopener noreferrer">
+            {t('All showtimes near {zip}', { zip: c.zip })} <Icon name="external" size={11} />
+          </a>
+        )}
       </div>
       <ul className="cinema-strip">
         {c.results.map((m) => (
@@ -39,9 +45,12 @@ export default function InTheaters() {
             <Link to={`/title/${m.tmdbId}`} className="cinema-title">
               {m.title}
             </Link>
-            <a className="cinema-times" href={whereElseUrl(m.title, m.year, c.zip)} target="_blank" rel="noopener noreferrer">
-              <Icon name="external" size={11} /> {t('Showtimes')}
-            </a>
+            <span className="cinema-links">
+              <a className="cinema-times" href={whereElseUrl(m.title, m.year, c.zip)} target="_blank" rel="noopener noreferrer">
+                <Icon name="external" size={11} /> {t('Showtimes')}
+              </a>
+              <TicketsLink c={c} title={m.title} />
+            </span>
           </li>
         ))}
       </ul>
@@ -74,6 +83,32 @@ export function InTheatersPanel({ tmdbId, title, year }: { tmdbId: number; title
       <a href={whereElseUrl(title, year, c.zip)} target="_blank" rel="noopener noreferrer">
         {t('Where else is it playing?')} <Icon name="external" size={12} />
       </a>
+      <TicketsLink c={c} title={title} />
     </div>
+  )
+}
+
+// TicketsLink opens the film on the ticket service chosen (Settings > Extras
+// > In theaters): the household's own picture when it uploaded one, else a
+// plain button with the service's name.
+function TicketsLink({ c, title }: { c: Cinema; title: string }) {
+  const tix = ticketsFor(c, title)
+  if (!tix) return null
+  const label = tix.name ? t('Tickets on {service}', { service: tix.name }) : t('Tickets')
+  return (
+    <a className="cinema-tickets" href={tix.url} target="_blank" rel="noopener noreferrer" title={label} aria-label={label}>
+      {c.logos?.[tix.service] ? <img className="tickets-logo" src={`/api/home/link-logo/${tix.service}`} alt="" /> : <TicketsButton name={tix.name || t('Tickets')} />}
+    </a>
+  )
+}
+
+export function TicketsButton({ name }: { name: string }) {
+  return (
+    <span className="tickets-button">
+      <svg viewBox="0 0 16 12" width="14" height="11" aria-hidden="true">
+        <path d="M1 1h14v3a2 2 0 0 0 0 4v3H1V8a2 2 0 0 0 0-4z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      </svg>
+      {name}
+    </span>
   )
 }

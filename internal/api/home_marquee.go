@@ -39,12 +39,26 @@ type marqueeFeature struct {
 	Trailer     string   `json:"trailer,omitempty"` // a YouTube video key
 	Reason      string   `json:"reason"`            // "new" (arrived lately), "theaters" or "coming" (opens soon)
 	ReleaseDate string   `json:"releaseDate,omitempty"`
+	// Usherr (phase 3): the info panel and the trivia.
+	Overview      string          `json:"overview,omitempty"`
+	Cast          []marqueePerson `json:"cast,omitempty"`
+	Director      *marqueePerson  `json:"director,omitempty"`
+	DirectorFilms []string        `json:"directorFilms,omitempty"` // the director's other best-known films
+	Budget        int64           `json:"budget,omitempty"`
+	Revenue       int64           `json:"revenue,omitempty"`
+	Studio        string          `json:"studio,omitempty"`
+	Country       string          `json:"country,omitempty"`
+	Collection    string          `json:"collection,omitempty"`
+	OriginalTitle string          `json:"originalTitle,omitempty"`
+	ThemeURL      string          `json:"themeUrl,omitempty"` // the film's theme music, when the library has one
 }
 
 type marqueePlaying struct {
 	mediaservers.Playing
-	PosterURL   string `json:"posterUrl,omitempty"`
-	BackdropURL string `json:"backdropUrl,omitempty"`
+	PosterURL   string          `json:"posterUrl,omitempty"`
+	BackdropURL string          `json:"backdropUrl,omitempty"`
+	Cast        []marqueePerson `json:"cast,omitempty"`     // Usherr: the info panel
+	Director    *marqueePerson  `json:"director,omitempty"` // Usherr
 }
 
 type marqueePayload struct {
@@ -56,6 +70,11 @@ type marqueePayload struct {
 	Theatre    string                 `json:"theatre,omitempty"`
 	Settings   marqueeSettings        `json:"settings"`
 	TVNow      []marqueeTV            `json:"tvNow"` // Usherr: what the Live TV channels have on
+	// Usherr (phase 3).
+	Tonight    []marqueeTonight   `json:"tonight"`
+	Spotlights []marqueeSpotlight `json:"spotlights"`
+	Media      []marqueeMediaItem `json:"media"`
+	Themes     map[string]string  `json:"themes"` // "movie:{tmdbId}" or "tv:{seriesId}" → theme music
 }
 
 // marqueeTV is a Live TV channel and what it has on now and next.
@@ -141,6 +160,7 @@ func (s *Server) marqueeFeature(ctx context.Context, tmdbID int, reason string) 
 			break
 		}
 	}
+	s.marqueeFilmDetails(ctx, d, &f) // Usherr
 	marqueeDetails.Lock()
 	marqueeDetails.m[tmdbID] = marqueeDetailEntry{at: time.Now(), f: f}
 	marqueeDetails.Unlock()
@@ -151,11 +171,17 @@ func (s *Server) marqueeFeature(ctx context.Context, tmdbID int, reason string) 
 // GET /api/home/marquee
 func (s *Server) handleMarquee(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	out := marqueePayload{NowPlaying: []marqueePlaying{}, Features: []marqueeFeature{}, Arrivals: []dashRecent{}, Theaters: []marqueeFeature{}, Coming: []calendarEntryPayload{}, TVNow: []marqueeTV{}}
+	out := marqueePayload{NowPlaying: []marqueePlaying{}, Features: []marqueeFeature{}, Arrivals: []dashRecent{}, Theaters: []marqueeFeature{}, Coming: []calendarEntryPayload{}, TVNow: []marqueeTV{},
+		Tonight: []marqueeTonight{}, Spotlights: []marqueeSpotlight{}, Media: []marqueeMediaItem{}, Themes: map[string]string{}}
 	out.Theatre, _ = s.Settings.Get(keyCinemaTheatre)
 	tmdbOK := s.TMDB().HasAPIKey()
 
-	set := s.marqueeSettings()
+	// Usherr: a screen that says who it is gets its own settings, if it has any.
+	screen := marqueeScreenID(r)
+	width, _ := queryInt(r, "w")
+	height, _ := queryInt(r, "h")
+	s.marqueeSeen(ctx, screen, width, height)
+	set, _ := s.marqueeSettingsFor(ctx, screen)
 	out.Settings = set
 
 	// Now showing: what the media servers are playing.
@@ -175,7 +201,14 @@ func (s *Server) handleMarquee(w http.ResponseWriter, r *http.Request) {
 				if p.Kind == "movie" && p.TMDBID > 0 && tmdbOK {
 					if f, ok := s.marqueeFeature(ctx, p.TMDBID, "playing"); ok {
 						mp.PosterURL, mp.BackdropURL = f.PosterURL, f.BackdropURL
+						mp.Cast, mp.Director = f.Cast, f.Director // Usherr
+						if mp.Overview == "" {
+							mp.Overview = f.Overview
+						}
 					}
+				}
+				if p.Kind == "episode" && p.SeriesTMDB > 0 && tmdbOK { // Usherr: the show's poster
+					mp.PosterURL, mp.BackdropURL, mp.Cast = s.marqueeShowArt(ctx, p.SeriesTMDB)
 				}
 				out.NowPlaying = append(out.NowPlaying, mp)
 			}
@@ -305,7 +338,8 @@ func (s *Server) handleMarquee(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	sort.SliceStable(out.Coming, func(i, j int) bool { return out.Coming[i].ReleaseDate < out.Coming[j].ReleaseDate })
-	out.TVNow = s.marqueeTVNow() // Usherr
+	out.TVNow = s.marqueeTVNow()  // Usherr
+	s.marqueeMore(ctx, set, &out) // Usherr (phase 3)
 	writeJSON(w, http.StatusOK, out)
 }
 

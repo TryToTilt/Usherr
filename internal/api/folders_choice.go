@@ -13,6 +13,7 @@ func (s *Server) checkFolderChoice(want string, offered []string, what string) (
 	if want == "" || len(offered) == 0 {
 		return "", ""
 	}
+	want = resolveFolderChoice(want, offered) // a label is as good as a path
 	c := filepath.Clean(want)
 	if c == filepath.Clean(offered[0]) {
 		return "", ""
@@ -27,9 +28,15 @@ func (s *Server) checkFolderChoice(want string, offered []string, what string) (
 
 // handleLibraryFolders is GET /api/library/folders (any account): the folders
 // a movie or a show can be kept in, the main one first. The add dialog uses it
-// to offer a choice.
+// to offer a choice. Administrators get the full paths; everyone else gets a
+// label for each folder (its name), which is accepted wherever a folder is
+// chosen.
 func (s *Server) handleLibraryFolders(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string][]string{"movies": nonNil(s.movieFolders()), "tv": nonNil(s.tvFolders())})
+	movies, tv := s.movieFolders(), s.tvFolders()
+	if !isAdminRequest(r) {
+		movies, tv = folderLabels(movies), folderLabels(tv)
+	}
+	writeJSON(w, http.StatusOK, map[string][]string{"movies": nonNil(movies), "tv": nonNil(tv)})
 }
 
 type setFolderRequest struct {
@@ -67,5 +74,5 @@ func (s *Server) setFolder(w http.ResponseWriter, r *http.Request, what string, 
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"rootPath": root})
+	writeJSON(w, http.StatusOK, map[string]string{"rootPath": folderShown(r, offered(), root)})
 }

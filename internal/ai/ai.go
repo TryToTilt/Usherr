@@ -33,8 +33,10 @@ const (
 	DefaultOllamaURL   = "http://host.docker.internal:11434"
 	DefaultOllamaModel = "gemma3:4b"
 	DefaultClaudeModel = "claude-sonnet-5-5"
-	claudeURL          = "https://api.anthropic.com/v1/messages"
 )
+
+// claudeURL is Anthropic's Messages API (a variable so a test can answer).
+var claudeURL = "https://api.anthropic.com/v1/messages"
 
 // Config is where the model is and which one.
 type Config struct {
@@ -52,7 +54,12 @@ type Image struct {
 
 // Request is one question.
 type Request struct {
-	System    string
+	System string
+	// Shared is long context that many questions in a row repeat word for
+	// word (a library list): Claude keeps it cached for a few minutes, so
+	// the next questions pay a tenth of the price for it. Other providers
+	// get it in front of the prompt.
+	Shared    string
 	Prompt    string
 	Images    []Image
 	JSON      bool // the answer must be a JSON object
@@ -77,7 +84,7 @@ func Ask(ctx context.Context, cfg Config, req Request) (string, error) {
 	if cut || !readable(ans) {
 		log.Printf("ai: %s answer %s (%d tokens), asking again with more room", cfg.Provider, map[bool]string{true: "was cut off", false: "couldn't be read"}[cut], req.MaxTokens)
 		again := req
-		again.MaxTokens = min(req.MaxTokens*2, 8000)
+		again.MaxTokens = min(req.MaxTokens*2, 16000)
 		again.Prompt += "\n\nReply with the JSON object only, and keep each text short."
 		if ans2, _, err2 := ask(ctx, cfg, again); err2 == nil && readable(ans2) {
 			return ans2, nil
@@ -90,6 +97,9 @@ func Ask(ctx context.Context, cfg Config, req Request) (string, error) {
 
 // ask sends one question; cut is true when the answer stopped for lack of room.
 func ask(ctx context.Context, cfg Config, req Request) (string, bool, error) {
+	if req.Shared != "" && cfg.Provider != Claude {
+		req.Prompt = req.Shared + "\n\n" + req.Prompt
+	}
 	switch cfg.Provider {
 	case Ollama:
 		return askOllama(ctx, cfg, req)
@@ -270,7 +280,17 @@ func askClaude(ctx context.Context, cfg Config, req Request) (string, bool, erro
 		"model": cfg.Model, "max_tokens": req.MaxTokens,
 		"messages": []map[string]any{{"role": "user", "content": parts}},
 	}
-	if req.System != "" {
+	switch {
+	case req.Shared != "":
+		// The system prompt and the shared part are the cached prefix; the
+		// prompt after them changes with every question.
+		var sys []map[string]any
+		if req.System != "" {
+			sys = append(sys, map[string]any{"type": "text", "text": req.System})
+		}
+		sys = append(sys, map[string]any{"type": "text", "text": req.Shared, "cache_control": map[string]string{"type": "ephemeral"}})
+		body["system"] = sys
+	case req.System != "":
 		body["system"] = req.System
 	}
 	headers := map[string]string{"x-api-key": cfg.Key, "anthropic-version": "2023-06-01"}

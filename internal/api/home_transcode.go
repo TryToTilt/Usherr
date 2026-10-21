@@ -27,6 +27,8 @@ import (
 
 	"github.com/rdborg/mediarium/internal/auth"
 	"github.com/rdborg/mediarium/internal/mediaservers"
+	"log/slog"
+	"path/filepath"
 )
 
 // browserCaps is what the page found this browser can decode.
@@ -44,6 +46,10 @@ type browserCaps struct {
 	Native bool `json:"nativeHls"`
 }
 
+// maxStreamingBitrate is above any 4K film's (a UHD Blu-ray peaks near 130
+// Mbit/s), so Jellyfin never makes a picture smaller to fit.
+const maxStreamingBitrate = 400_000_000
+
 // deviceProfile describes the browser to Jellyfin.
 func (c browserCaps) deviceProfile() map[string]any {
 	video := []string{"h264"}
@@ -53,13 +59,7 @@ func (c browserCaps) deviceProfile() map[string]any {
 	if c.AV1 {
 		video = append(video, "av1")
 	}
-	audio := []string{"aac", "mp3"}
-	if c.AC3 {
-		audio = append(audio, "ac3")
-	}
-	if c.EAC3 {
-		audio = append(audio, "eac3")
-	}
+	audio := []string{"aac", "mp3"} // Usherr: no AC3/E-AC3: browsers that claim them often play no sound
 	if c.Opus {
 		audio = append(audio, "opus")
 	}
@@ -82,12 +82,26 @@ func (c browserCaps) deviceProfile() map[string]any {
 		ranges += "|DOVI|DOVIWithHDR10|DOVIWithHLG|DOVIWithSDR"
 	}
 	rangeRule := []map[string]any{{"Condition": "EqualsAny", "Property": "VideoRangeType", "Value": ranges, "IsRequired": false}}
+	// Usherr: the converted stream keeps the best this browser plays: HEVC
+	// (and AV1) are copied, not turned into H.264, in MP4 pieces (HLS can
+	// only carry them that way); 5.1 sound stays 5.1. Nothing is made
+	// smaller: the bitrate allowed is above any 4K film's.
+	container, convVideo := "ts", "h264"
+	if c.HEVC || c.AV1 {
+		container = "mp4"
+		if c.HEVC {
+			convVideo = "hevc," + convVideo
+		}
+		if c.AV1 {
+			convVideo += ",av1"
+		}
+	}
 	return map[string]any{
-		"MaxStreamingBitrate": 120_000_000,
+		"MaxStreamingBitrate": maxStreamingBitrate,
 		"DirectPlayProfiles":  direct,
 		"TranscodingProfiles": []map[string]any{{
-			"Container": "ts", "Type": "Video", "VideoCodec": "h264", "AudioCodec": "aac",
-			"Protocol": "hls", "Context": "Streaming", "MaxAudioChannels": "2", "MinSegments": 1, "BreakOnNonKeyFrames": true,
+			"Container": container, "Type": "Video", "VideoCodec": convVideo, "AudioCodec": strings.Join(audio, ","),
+			"Protocol": "hls", "Context": "Streaming", "MaxAudioChannels": "6", "MinSegments": 1, "BreakOnNonKeyFrames": true,
 		}},
 		"CodecProfiles": []map[string]any{
 			{"Type": "Video", "Codec": "hevc", "Conditions": rangeRule},
@@ -300,6 +314,15 @@ func (s *Server) handlePlayPrepare(w http.ResponseWriter, r *http.Request) {
 		Kind string      `json:"kind"`
 		ID   int64       `json:"id"`
 		Caps browserCaps `json:"caps"`
+		// Usherr: Force converts even what looks playable (the player heard
+		// no sound); At is where to start a copy converted here.
+		Force bool    `json:"force"`
+		At    float64 `json:"at"`
+		// Audio is the sound track asked for (its stream index); Lang the
+		// language to prefer otherwise; Burn a picture subtitle to burn in.
+		Audio *int   `json:"audio"`
+		Lang  string `json:"lang"`
+		Burn  *int   `json:"burn"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "That request couldn't be read.")
@@ -314,8 +337,51 @@ func (s *Server) handlePlayPrepare(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "This title has no file yet.")
 		return
 	}
+	// Usherr: the file itself says whether it plays as it is; when it
+	// doesn't and Jellyfin can't convert it, Usherr converts it here.
+	fc, probeErr := probeCodecs(r.Context(), file)
+	// The sound track: the one asked for, or the language wanted. A browser
+	// only ever plays a file's first one, so another means converting.
+	audio := -1
+	firstAudio := true
+	if tracks, err := probeTracks(r.Context(), file); err == nil {
+		if tr, ok := pickAudio(tracks, req.Audio, req.Lang); ok {
+			audio, fc.Audio, fc.Channels = tr.Index, tr.Codec, tr.Channels
+			for _, t := range tracks {
+				if t.Kind == "audio" {
+					firstAudio = t.Index == tr.Index
+					break
+				}
+			}
+		}
+	}
+	burn := -1
+	if req.Burn != nil {
+		burn = *req.Burn
+	}
+	safe := probeErr == nil && browserSafe(fc, file, req.Caps) && firstAudio && burn < 0
+	if probeErr == nil && !req.Force && safe {
+		writeJSON(w, http.StatusOK, map[string]any{"mode": "direct", "url": direct, "audio": audio})
+		return
+	}
 	directAnswer := func(note string) {
-		writeJSON(w, http.StatusOK, map[string]any{"mode": "direct", "url": direct, "note": note})
+		if probeErr == nil && (req.Force || !safe) {
+			slog.Info("play: converting here", "file", filepath.Base(file), "why", note)
+			// Only what this browser can't play is converted: a picture it
+			// shows stays as it is (4K stays 4K), and so does a sound it
+			// plays (unless it played silently before).
+			cv, ca := 0, 0
+			if picturePlays(fc, req.Caps) {
+				cv = 1
+			}
+			if soundPlays(fc.Audio, req.Caps) && !req.Force {
+				ca = 1
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"mode": "direct", "converted": true, "note": "Converted by Usherr for this browser", "audio": audio, "shift": req.At,
+				"url": fmt.Sprintf("/api/play/convert/%s/%d?at=%.1f&audio=%d&burn=%d&cv=%d&ca=%d", req.Kind, req.ID, req.At, audio, burn, cv, ca)})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"mode": "direct", "url": direct, "note": note, "audio": audio})
 	}
 	srv, ok := s.jellyfinServer()
 	if !ok {
@@ -339,10 +405,25 @@ func (s *Server) handlePlayPrepare(w http.ResponseWriter, r *http.Request) {
 			TranscodingSubPro string   `json:"TranscodingSubProtocol"`
 		} `json:"MediaSources"`
 	}
+	profile := req.Caps.deviceProfile()
+	if burn >= 0 {
+		// A picture subtitle can only be burned into the picture.
+		profile["SubtitleProfiles"] = []map[string]any{{"Format": "pgssub", "Method": "Encode"}, {"Format": "dvdsub", "Method": "Encode"}, {"Format": "dvbsub", "Method": "Encode"}, {"Format": "vtt", "Method": "External"}, {"Format": "srt", "Method": "External"}}
+	}
 	body := map[string]any{
-		"DeviceProfile": req.Caps.deviceProfile(), "MaxStreamingBitrate": 120_000_000,
-		"EnableDirectPlay": true, "EnableDirectStream": false, "EnableTranscoding": true,
-		"AllowVideoStreamCopy": false, "AllowAudioStreamCopy": false, "AutoOpenLiveStream": false,
+		"DeviceProfile": profile, "MaxStreamingBitrate": maxStreamingBitrate,
+		// Usherr: the file was checked above and doesn't play as it is. Only
+		// what the browser can't play is converted: a picture it shows (H.264,
+		// or HEVC and AV1 where it plays them) is copied, so often only the
+		// sound is converted, and a sound it plays is copied too.
+		"EnableDirectPlay": false, "EnableDirectStream": false, "EnableTranscoding": true,
+		"AllowVideoStreamCopy": burn < 0, "AllowAudioStreamCopy": true, "AutoOpenLiveStream": false,
+	}
+	if audio >= 0 {
+		body["AudioStreamIndex"] = audio
+	}
+	if burn >= 0 {
+		body["SubtitleStreamIndex"] = burn
 	}
 	if err := jfJSON(ctx, srv, http.MethodPost, "/Items/"+url.PathEscape(itemID)+"/PlaybackInfo", body, &info); err != nil {
 		directAnswer(err.Error())
@@ -353,8 +434,8 @@ func (s *Server) handlePlayPrepare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	src := info.MediaSources[0]
-	if src.SupportsDirect || src.TranscodingURL == "" {
-		directAnswer("")
+	if src.TranscodingURL == "" {
+		directAnswer(serverLabel(srv) + " offered no converted version.")
 		return
 	}
 	u, err := url.Parse(src.TranscodingURL)
@@ -372,11 +453,18 @@ func (s *Server) handlePlayPrepare(w http.ResponseWriter, r *http.Request) {
 	if sess.playSession == "" {
 		sess.playSession = q.Get("PlaySessionId")
 	}
+	if audio >= 0 && q.Get("AudioStreamIndex") == "" {
+		q.Set("AudioStreamIndex", strconv.Itoa(audio))
+	}
+	if burn >= 0 && q.Get("SubtitleStreamIndex") == "" {
+		q.Set("SubtitleStreamIndex", strconv.Itoa(burn))
+		q.Set("SubtitleMethod", "Encode")
+	}
 	sess.master = u.Path + "?" + q.Encode()
 	hlsSessions.Store(sess.token, sess)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"mode": "hls", "url": "/api/play/hls/" + sess.token + "/master.m3u8", "session": sess.token,
-		"reasons": src.TranscodeReasons,
+		"reasons": src.TranscodeReasons, "audio": audio,
 	})
 }
 

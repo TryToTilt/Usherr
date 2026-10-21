@@ -215,3 +215,20 @@ func TestStoppedItemsAreFinishedButPausedOnesAreNot(t *testing.T) {
 		t.Fatalf("a paused item must survive Clear finished: %v", err)
 	}
 }
+
+func TestRecoverInterruptedItemsOnlyListsWhatWasDownloading(t *testing.T) {
+	db := openDB(t)
+	repo := queue.NewRepo(db)
+	lib := library.NewRepo(db)
+	m1, _ := lib.Add(library.Movie{TMDBID: 1, Title: "A"})
+	m2, _ := lib.Add(library.Movie{TMDBID: 2, Title: "B"})
+	dl := seedItem(t, repo, m1.ID, queue.StatusDownloading)
+	imp := seedItem(t, repo, m2.ID, queue.StatusImporting)
+	paused, running, err := repo.RecoverInterruptedItems()
+	if err != nil || paused != 2 {
+		t.Fatalf("paused %d, err %v", paused, err)
+	}
+	if len(running) != 1 || running[0].ID != dl || running[0].Status != queue.StatusPaused || !running[0].Interrupted {
+		t.Fatalf("only the download that was running may carry on, got %+v (importing item %d)", running, imp)
+	}
+}

@@ -3,6 +3,7 @@ package vpn
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/rdborg/mediarium/internal/crypto"
@@ -16,6 +17,10 @@ type StoredConfig struct {
 	Provider string
 	Active   bool
 	Config   Config
+	// SecretUnreadable is set when a saved key could not be decrypted (usually a
+	// secret.key that does not belong to this database). The config is listed so
+	// it can be removed, but it is never connected.
+	SecretUnreadable bool
 }
 
 type Repo struct {
@@ -75,6 +80,18 @@ func (r *Repo) List() ([]StoredConfig, error) {
 		out = append(out, sc)
 	}
 	return out, rows.Err()
+}
+
+// Usable is the configs of list that can be connected: those whose saved keys
+// could be read.
+func Usable(list []StoredConfig) []StoredConfig {
+	out := make([]StoredConfig, 0, len(list))
+	for _, sc := range list {
+		if !sc.SecretUnreadable {
+			out = append(out, sc)
+		}
+	}
+	return out
 }
 
 // Active returns the currently active config, if any.
@@ -140,15 +157,19 @@ func (r *Repo) scan(scanner rowScanner) (StoredConfig, error) {
 
 	priv, err := r.box.Decrypt(encPriv)
 	if err != nil {
-		return StoredConfig{}, fmt.Errorf("decrypt private key for vpn config %d: %w", sc.ID, err)
+		sc.SecretUnreadable = true
+		slog.Warn("vpn: the saved private key can't be read", "config", sc.ID)
+	} else {
+		sc.Config.PrivateKey = priv
 	}
-	sc.Config.PrivateKey = priv
 	if encPSK.Valid && encPSK.String != "" {
 		psk, err := r.box.Decrypt(encPSK.String)
 		if err != nil {
-			return StoredConfig{}, fmt.Errorf("decrypt preshared key for vpn config %d: %w", sc.ID, err)
+			sc.SecretUnreadable = true
+			slog.Warn("vpn: the saved preshared key can't be read", "config", sc.ID)
+		} else {
+			sc.Config.PresharedKey = psk
 		}
-		sc.Config.PresharedKey = psk
 	}
 	sc.Config.Endpoint = endpoint
 	sc.Config.AllowedIPs = splitNonEmpty(allowedIPs)

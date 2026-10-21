@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/rdborg/mediarium/internal/animemap"
+	"github.com/rdborg/mediarium/internal/libimport"
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/parser"
 	"github.com/rdborg/mediarium/internal/settings"
@@ -107,6 +108,26 @@ func (s *Server) numberingFor(series library.Series) *animemap.Numbering {
 	s.anime.cache[key] = numberingCached{num: num, at: time.Now()}
 	s.anime.mu.Unlock()
 	return num
+}
+
+// importMaps is what is known about a show's other numberings, to place files
+// named by them.
+func (s *Server) importMaps(series library.Series) library.ImportMaps {
+	num := s.numberingFor(series)
+	if num.Empty() {
+		return library.ImportMaps{}
+	}
+	return library.ImportMaps{Scene: num.MapScene, TVDB: num.MapTVDB}
+}
+
+// importFilesOf turns the files a folder scan found into what the import
+// rules read.
+func importFilesOf(files []libimport.File) []library.ImportFile {
+	out := make([]library.ImportFile, len(files))
+	for i, f := range files {
+		out[i] = library.ImportFile{Path: f.Path, Quality: f.Quality, Season: f.Season, Episodes: f.Episodes, Absolute: f.Absolute, AirDate: f.AirDate, DailyPart: f.DailyPart}
+	}
+	return out
 }
 
 func (s *Server) forgetNumbering(key int64) {

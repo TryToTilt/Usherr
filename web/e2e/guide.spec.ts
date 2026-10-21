@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { expectNoErrors, watchErrors } from './helpers'
+import { expectNoErrors, narrow, openNav, watchErrors } from './helpers'
 
 // The built-in user guide: it opens, search finds a topic, a link between two
 // topics works, and the small "i" tips open and close the way they should.
@@ -9,7 +9,9 @@ test('the guide opens and lists its topics', async ({ page }) => {
   await page.goto('/help')
   await expect(page).toHaveTitle(/User guide/)
   await expect(page.getByRole('heading', { name: 'User guide', level: 1 })).toBeVisible()
-  await expect(page.getByRole('navigation', { name: 'Guide topics' }).getByRole('link', { name: 'Subtitles' })).toBeVisible()
+  // A wide screen has the side list; a narrow one lists the topics as cards.
+  const topics = (page.viewportSize()?.width ?? 1280) > 900 ? page.getByRole('navigation', { name: 'Guide topics' }) : page.locator('main')
+  await expect(topics.getByRole('link', { name: /^Subtitles/ }).first()).toBeVisible()
   await expect(page.getByRole('link', { name: /Read the full documentation/ }).first()).toHaveAttribute('href', /github\.com/)
   await expectNoErrors(errors)
 })
@@ -67,10 +69,15 @@ test('the ? key, the header button and the profile menu all open the guide', asy
   await expect(page).toHaveURL(/\/help$/)
   // Typing a question mark in a box does not leave the page.
   await page.goto('/library')
+  // Usherr: on a phone or tablet the top bar's box is behind its search button.
+  if (narrow(page)) await page.locator('.search-toggle').first().click()
   const box = page.locator('input:visible').first() // Usherr: the top bar's box is a searchbox or, in AI mode, a textbox
   await box.fill('')
   await box.press('?')
   await expect(page).toHaveURL(/\/library/)
+  // Usherr: the opened search box covers the menu button on a small screen.
+  if (narrow(page)) await page.keyboard.press('Escape')
+  await openNav(page)
   await page.getByRole('group', { name: 'Apps and links' }).getByRole('button', { name: 'User guide' }).first().click()
   await expect(page).toHaveURL(/\/help$/)
   await page.goto('/')

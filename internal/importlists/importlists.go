@@ -19,6 +19,7 @@ type Item struct {
 	Kind   string
 	TMDBID int
 	IMDBID string
+	TVDBID int // a show's TheTVDB id, when that is all the list gives
 	Title  string
 	Year   int
 	// Rating is TMDB's vote average when the list came from TMDB and said so,

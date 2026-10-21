@@ -50,10 +50,11 @@ var defaultTMDBAPIKey string
 // up for TMDB, OpenSubtitles or Trakt themselves. Builds from source leave
 // them empty and the app asks for them instead.
 //
-//	go build -ldflags="-X main.defaultOpenSubtitlesAPIKey=... -X main.defaultTraktClientID=..." ./cmd/app
+//	go build -ldflags="-X main.defaultOpenSubtitlesAPIKey=... -X main.defaultTraktClientID=... -X main.defaultSimklClientID=..." ./cmd/app
 var (
 	defaultOpenSubtitlesAPIKey string
 	defaultTraktClientID       string
+	defaultSimklClientID       string
 )
 
 // version identifies the running build (the "version-pinned Docker tags,
@@ -92,6 +93,9 @@ func main() {
 			log.Fatalf("mediarium: %v", err)
 		}
 		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "reset-key" {
+		os.Exit(runResetKey(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
 	}
 	if len(os.Args) > 1 && os.Args[1] == "reset-two-step" {
 		if err := resetTwoStep(os.Args[2:]); err != nil {
@@ -193,6 +197,9 @@ func run() error {
 		return fmt.Errorf("initialize server: %w", err)
 	}
 	restartWanted = server.RestartWanted
+	// Passwords and keys that can't be read are named in the log (never their
+	// values) and on the Health list, so none of them goes quiet.
+	server.LogUnreadableSecrets()
 	// Download addresses queued by older versions were kept in plain text.
 	if n, err := server.QueueRepo.EncryptStoredURLs(); err != nil {
 		log.Printf("warning: could not encrypt the saved download addresses: %v", err)
@@ -211,6 +218,7 @@ func run() error {
 		TMDB:          defaultTMDBAPIKey,
 		OpenSubtitles: defaultOpenSubtitlesAPIKey,
 		TraktClientID: defaultTraktClientID,
+		SimklClientID: defaultSimklClientID,
 	})
 	if err := server.SetUpdatePublicKey(updatePublicKey); err != nil {
 		log.Printf("warning: %v; installing updates from GitHub is switched off", err)
@@ -243,6 +251,9 @@ func run() error {
 
 	stopStreamPause := server.StartStreamPause()
 	defer stopStreamPause()
+
+	stopMarqueeMQTT := server.StartMarqueeMQTT() // Usherr: the Marquee in Home Assistant
+	defer stopMarqueeMQTT()
 
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),

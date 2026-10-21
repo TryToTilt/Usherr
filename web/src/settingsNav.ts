@@ -29,6 +29,7 @@ export const SETTINGS_NAV: { to: string; label: string; icon: IconName; color: s
   { to: '/settings/notifications', label: t('Notifications'), icon: 'mail', color: '#f7b27a', blurb: t('Messages when something is added, downloaded or goes wrong.'), help: 'notifications' },
   { to: '/settings/other-apps', label: t('Other apps'), icon: 'server', color: '#9fd4a8', blurb: t('Let Overseerr, Homepage and phone apps talk to Mediarium.'), help: 'media-servers#overseerr-dashboards-and-phone-apps' },
   { to: '/settings/extras', label: t('Extras'), icon: 'sparkles', color: '#6fd6c8', blurb: t('Streaming, Live TV, playing on a TV, comics and more.'), help: 'home-setup' }, // home fork
+  { to: '/marquee/manage', label: t('Marquee'), icon: 'monitor', color: '#f2c14e', blurb: t('The lobby display for a tablet or a screen by the TV: its screens, looks, slides, pre-show and Home Assistant.'), help: 'home-marquee' }, // Usherr
   { to: '/settings/addons', label: t('Add-ons'), icon: 'grid', color: '#9fd4a8', blurb: t('Other programs you run next to Mediarium, with a link to each.'), help: 'media-servers#add-ons' },
   { to: '/settings/profile', label: t('Your profile'), icon: 'user', color: '#8fb8f5', blurb: t('Your name, email and password, and the messages you get about your requests.'), member: true },
   { to: '/settings/security', label: t('Security'), icon: 'shield', color: '#8fb8f5', blurb: t('Passkeys, two-step sign-in, a linked single sign-on account and your API keys.'), member: true, help: 'accounts#two-step-sign-in' },
@@ -81,6 +82,7 @@ const GROUPS: { key: string; label: string; icon: IconName; color: string; pages
   { key: 'metadata', label: t('Info, lists and subtitles'), icon: 'globe', color: '#c1acf7', pages: ['/settings/metadata', '/settings/lists', '/settings/subtitles'] },
   { key: 'connections', label: t('Connections'), icon: 'monitor', color: '#f2c14e', pages: ['/settings/media-servers', '/settings/notifications', '/settings/other-apps', '/settings/addons'] },
   { key: 'extras', label: t('Extras'), icon: 'sparkles', color: '#6fd6c8', pages: ['/settings/extras'] }, // home fork
+  { key: 'marquee', label: t('Marquee'), icon: 'monitor', color: '#f2c14e', pages: ['/marquee/manage'] }, // Usherr: its own page
   { key: 'profile', label: t('Account & Access'), icon: 'user', color: '#8fb8f5', pages: ['/settings/profile', '/settings/security', '/settings/services', '/settings/accounts', '/settings/requests', '/settings/sign-in'] },
   { key: 'system', label: t('System'), icon: 'hard', color: '#b4bfcc', pages: ['/settings/system', '/settings/backup', '/settings/statistics', '/settings/logs', '/settings/migrate', '/settings/about'] },
 ]

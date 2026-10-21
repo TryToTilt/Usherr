@@ -108,7 +108,15 @@ type Repo struct {
 	// onEnqueue, when set, is told about every release added to the line, with
 	// its download address as written (used to count grabs per indexer).
 	onEnqueue func(Item)
+	// indexerOf, when set, names the indexer of a release that was added
+	// without one.
+	indexerOf func(url string) (int64, bool)
 }
+
+// SetIndexerOf sets a function that says which indexer gave the release at a
+// URL. A release added without an indexer gets the one it names, so the
+// indexer's seeding rules and statistics can follow the download.
+func (r *Repo) SetIndexerOf(f func(url string) (int64, bool)) { r.indexerOf = f }
 
 // SetOnEnqueue sets a function that is called after each release is added.
 func (r *Repo) SetOnEnqueue(f func(Item)) { r.onEnqueue = f }
@@ -202,6 +210,11 @@ func (r *Repo) Enqueue(item Item) (int64, error) {
 	storedURL, err := r.sealURL(item.NZBURL)
 	if err != nil {
 		return 0, err
+	}
+	if !item.IndexerID.Valid && r.indexerOf != nil {
+		if id, ok := r.indexerOf(item.NZBURL); ok {
+			item.IndexerID = sql.NullInt64{Int64: id, Valid: true}
+		}
 	}
 	// The new item goes to the back of the line: one number past the highest
 	// place anyone has taken, and always above 0 (0 and below mark resumed
@@ -331,38 +344,60 @@ func (r *Repo) Pause(id int64, interrupted bool) error {
 // Call it once at startup, before anything can start a download. It returns
 // how many it paused. Each one gets a line in its title's history saying so.
 func (r *Repo) RecoverInterrupted() (int64, error) {
-	rows, err := r.db.Query(`SELECT id FROM download_queue WHERE status IN ('downloading', 'importing')`)
+	paused, _, err := r.RecoverInterruptedItems()
+	return paused, err
+}
+
+// RecoverInterruptedItems is RecoverInterrupted that also says which of the
+// paused items were actually downloading (not importing) when Mediarium
+// stopped, oldest first: those are the ones that may carry on by themselves.
+func (r *Repo) RecoverInterruptedItems() (int64, []Item, error) {
+	rows, err := r.db.Query(`SELECT id, status FROM download_queue WHERE status IN ('downloading', 'importing') ORDER BY id`)
 	if err != nil {
-		return 0, fmt.Errorf("find interrupted downloads: %w", err)
+		return 0, nil, fmt.Errorf("find interrupted downloads: %w", err)
 	}
-	var ids []int64
+	type found struct {
+		id          int64
+		downloading bool
+	}
+	var ids []found
 	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
+		var f found
+		var st string
+		if err := rows.Scan(&f.id, &st); err != nil {
 			rows.Close()
-			return 0, fmt.Errorf("find interrupted downloads: %w", err)
+			return 0, nil, fmt.Errorf("find interrupted downloads: %w", err)
 		}
-		ids = append(ids, id)
+		f.downloading = st == string(StatusDownloading)
+		ids = append(ids, f)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
-		return 0, fmt.Errorf("find interrupted downloads: %w", err)
+		return 0, nil, fmt.Errorf("find interrupted downloads: %w", err)
 	}
-	var paused int64
-	for _, id := range ids {
-		res, err := r.db.Exec(`UPDATE download_queue SET status = ?, interrupted = 1 WHERE id = ? AND status IN ('downloading', 'importing')`, string(StatusPaused), id)
+	var (
+		paused  int64
+		running []Item
+	)
+	for _, f := range ids {
+		res, err := r.db.Exec(`UPDATE download_queue SET status = ?, interrupted = 1 WHERE id = ? AND status IN ('downloading', 'importing')`, string(StatusPaused), f.id)
 		if err != nil {
-			return paused, fmt.Errorf("pause interrupted download %d: %w", id, err)
+			return paused, running, fmt.Errorf("pause interrupted download %d: %w", f.id, err)
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
 			continue
 		}
 		paused++
-		if err := r.ReleaseEvent(id, "download", LevelWarn, "Mediarium was restarted while this was downloading, so it is paused"); err != nil {
-			slog.Warn("queue: record an interrupted download", "queueId", id, "err", err)
+		if f.downloading {
+			if it, err := r.Get(f.id); err == nil {
+				running = append(running, it)
+			}
+		}
+		if err := r.ReleaseEvent(f.id, "download", LevelWarn, "Mediarium was restarted while this was downloading, so it is paused"); err != nil {
+			slog.Warn("queue: record an interrupted download", "queueId", f.id, "err", err)
 		}
 	}
-	return paused, nil
+	return paused, running, nil
 }
 
 func (r *Repo) SetProgress(id int64, pct float64) error {

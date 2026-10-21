@@ -3,6 +3,7 @@ package download
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 
 	"github.com/rdborg/mediarium/internal/crypto"
 )
@@ -17,6 +18,11 @@ type StoredClient struct {
 	Config   ClientConfig
 	Priority int  // 0 = primary; higher numbers are backup servers
 	Enabled  bool // disabled servers are kept but never used
+	// SecretUnreadable is set when the saved password could not be decrypted
+	// (usually a secret.key that does not belong to this database). The server
+	// is still listed so it can be fixed, but it is never used: its password
+	// stays as it is stored until a new one is entered.
+	SecretUnreadable bool
 }
 
 // Repo persists Usenet server configs, encrypting the password at rest.
@@ -115,9 +121,12 @@ func (r *Repo) query(where string) ([]StoredClient, error) {
 		if encPassword.Valid && encPassword.String != "" {
 			plain, err := r.box.Decrypt(encPassword.String)
 			if err != nil {
-				return nil, fmt.Errorf("decrypt password for usenet server %d: %w", sc.ID, err)
+				// One unreadable password must not take the other servers down with it.
+				sc.SecretUnreadable = true
+				slog.Warn("usenet server: the saved password can't be read", "server", sc.ID)
+			} else {
+				sc.Config.Password = plain
 			}
-			sc.Config.Password = plain
 		}
 		out = append(out, sc)
 	}
@@ -125,9 +134,22 @@ func (r *Repo) query(where string) ([]StoredClient, error) {
 }
 
 // List returns the enabled servers in priority order — what a download uses.
-func (r *Repo) List() ([]StoredClient, error) { return r.query(` WHERE enabled = 1`) }
+// A server whose saved password can't be read is left out (see ListAll).
+func (r *Repo) List() ([]StoredClient, error) {
+	all, err := r.query(` WHERE enabled = 1`)
+	if err != nil {
+		return nil, err
+	}
+	out := all[:0]
+	for _, sc := range all {
+		if !sc.SecretUnreadable {
+			out = append(out, sc)
+		}
+	}
+	return out, nil
+}
 
-// ListAll returns every server, disabled ones included, for the settings UI.
+// ListAll returns every server, disabled and unreadable ones included, for the settings UI.
 func (r *Repo) ListAll() ([]StoredClient, error) { return r.query("") }
 
 // Get returns one server by id.

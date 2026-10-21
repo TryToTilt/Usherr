@@ -44,13 +44,21 @@ func init() {
 
 // BadRelease says why a release title is one "Skip bad releases" leaves out
 // ("" when it isn't).
-func BadRelease(title string) string {
+func BadRelease(title string) string { return badRelease(lazyFor(title)) }
+
+// BadReleaseRel is BadRelease for a title that is already parsed.
+func BadReleaseRel(title string, rel parser.Release) string {
+	return badRelease(knownRel(title, rel))
+}
+
+func badRelease(l *lazyRel) string {
+	title := l.title
 	for _, rule := range badReleaseRules {
 		if rule.re.MatchString(title) {
 			return rule.why
 		}
 	}
-	r := parser.Parse(title)
+	r := l.get()
 	if g := strings.ToLower(r.Group); g != "" && lowQualityGroups[g] {
 		return fmt.Sprintf("comes from %s, a group known for low-quality re-encodes", r.Group)
 	}
@@ -69,11 +77,11 @@ var fixedRelease = regexp.MustCompile(`(?i)\b(PROPER|REPACK|RERIP|REAL)\b`)
 // the score, so it wins over the broken one at the same quality.
 const fixBonus = 5
 
-func (p Profile) skipBadReason(title string) string {
+func (p Profile) skipBadReason(l *lazyRel) string {
 	if !p.SkipBadReleases {
 		return ""
 	}
-	if why := BadRelease(title); why != "" {
+	if why := badRelease(l); why != "" {
 		return fmt.Sprintf("%s, which \"Skip bad releases\" leaves out", why)
 	}
 	return ""

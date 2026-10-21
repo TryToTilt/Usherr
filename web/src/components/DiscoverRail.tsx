@@ -3,6 +3,7 @@ import { useStreamed } from '../home/useHave' // Usherr
 import { describeState } from './state' // Usherr
 import { useVotes } from '../home/useVotes' // home fork
 import { voteActions } from '../home/VoteButtons' // home fork
+import { stackAction, useStack } from '../home/stack' // Usherr: your stack
 import { CardScores } from '../home/scores' // home fork
 import { MoreSentinel, useNarrow } from '../home/swipeRows' // home fork
 import { useRowMemory } from '../home/rowMemory' // home fork
@@ -10,6 +11,7 @@ import { leanOrder, useFewer } from '../home/leanings' // home fork
 import { Link, useNavigate } from 'react-router-dom'
 import type { DiscoverMovie } from '../api'
 import { comingLabel, fetchPage, sourceToQuery, type Kind, type Source } from '../discoverSources'
+import { withNameTag } from '../format'
 import { useGridColumns } from '../useGridColumns'
 import { useHideOwned } from '../useHideOwned'
 import { useIsHad } from '../home/useHave' // home fork: on disk, streamed, wanted
@@ -28,6 +30,7 @@ export function DiscoverCards({ items, kind, owned, onAdd, why }: { items: Disco
   const navigate = useNavigate()
   const picks = usePicks()
   const votes = useVotes() // home fork
+  const stack = useStack() // Usherr
   const map = kind === 'movie' ? owned.movies : owned.shows
   const streamed = useStreamed(kind) // Usherr
   return (
@@ -42,13 +45,13 @@ export function DiscoverCards({ items, kind, owned, onAdd, why }: { items: Disco
             key={m.tmdbId}
             to={path}
             poster={m.posterUrl}
-            title={m.title}
+            title={withNameTag(m.title, m.nameTag, m.year)}
             meta={coming ? <><span className="coming-soon">{coming}</span>{why?.[m.tmdbId] && <span className="card-why">{why[m.tmdbId]}</span>}</> : why?.[m.tmdbId] ? <>{m.year || ''}<span className="card-why">{why[m.tmdbId]}</span></> : <>{m.year || ''}<CardScores kind={kind} tmdbId={m.tmdbId} /></>} // scores: home fork
             genres={m.genres}
             rating={coming ? undefined : m.rating}
             kind={kind}
             state={own?.state ?? (streamed(m.tmdbId) ? describeState('streams') : undefined)} // Usherr: streamed titles say so
-            actions={voteActions(votes, kind, m.tmdbId, { title: m.title, year: m.year, image: m.posterUrl })} // home fork: votes
+            actions={[...voteActions(votes, kind, m.tmdbId, { title: m.title, year: m.year, image: m.posterUrl }), stackAction(stack, { kind, tmdbId: m.tmdbId, title: m.title, year: m.year, posterUrl: m.posterUrl })]} // home fork: votes; Usherr: your stack
             footer={
               <div className="pcard-footer">
                 {libraryId ? (

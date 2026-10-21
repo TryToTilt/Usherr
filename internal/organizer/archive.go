@@ -2,6 +2,7 @@ package organizer
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -108,6 +109,17 @@ type Extractor struct {
 	// SevenZipTimeout stops the external 7z tool if it runs longer than this
 	// for one archive. Zero means six hours.
 	SevenZipTimeout time.Duration
+
+	// Context, when set, stops an unpack that is still going once it ends (a
+	// download that is paused or stopped). Nil means it can't be stopped.
+	Context context.Context
+
+	// Progress, when set, is called every couple of seconds while an archive is
+	// being unpacked: how much has been done, out of how much (total is 0 when
+	// that is not known). It is called from another goroutine, and keeps being
+	// called with the same figures while a write is stuck. The unit depends on
+	// the format, but done/total is always the fraction that is finished.
+	Progress func(done, total int64)
 }
 
 func NewExtractor() *Extractor { return &Extractor{BinaryPath: "7z"} }
@@ -147,6 +159,9 @@ func (e *Extractor) freeSpace(dir string) (uint64, bool) {
 var (
 	rarVolumeRe = regexp.MustCompile(`(?i)\.part0*(\d+)\.rar$`)
 	rarOldStyle = regexp.MustCompile(`(?i)\.r\d{2,3}$`)
+	// sevenZipSplitRe matches a 7z archive cut into numbered pieces
+	// ("name.7z.001", "name.7z.002", ...), which is how Usenet posts them.
+	sevenZipSplitRe = regexp.MustCompile(`(?i)\.7z\.0*(\d+)$`)
 	// rarSetRe splits "name.part07.rar" into the set name and the digits.
 	rarSetRe = regexp.MustCompile(`(?i)^(.+)\.part(\d+)\.rar$`)
 )
@@ -219,6 +234,11 @@ func primariesIn(dir string, entries []os.DirEntry) []string {
 				continue // only part1/part01 is the entry point
 			}
 			primaries = append(primaries, filepath.Join(dir, name))
+		case sevenZipSplitRe.MatchString(lower):
+			if m := sevenZipSplitRe.FindStringSubmatch(lower); m[1] != "1" {
+				continue // only .7z.001 is the entry point; 7z finds the rest
+			}
+			primaries = append(primaries, filepath.Join(dir, name))
 		case strings.HasSuffix(lower, ".rar"), strings.HasSuffix(lower, ".zip"), strings.HasSuffix(lower, ".7z"):
 			primaries = append(primaries, filepath.Join(dir, name))
 		}
@@ -245,7 +265,7 @@ func (e *Extractor) Extract(archivePath, destDir string) error {
 		return e.ExtractAs(archivePath, destDir, FormatRAR)
 	case strings.HasSuffix(lower, ".zip"):
 		return e.ExtractAs(archivePath, destDir, FormatZip)
-	case strings.HasSuffix(lower, ".7z"):
+	case strings.HasSuffix(lower, ".7z"), sevenZipSplitRe.MatchString(lower):
 		return e.ExtractAs(archivePath, destDir, Format7z)
 	default:
 		return fmt.Errorf("extract %s: %w", filepath.Base(archivePath), ErrUnsupportedArchive)
@@ -301,10 +321,15 @@ func (e *Extractor) extractRAR(archivePath, destDir string) error {
 		return fmt.Errorf("extract %s: %w", filepath.Base(archivePath), err)
 	}
 	name := filepath.Base(archivePath)
-	// Read the volumes in large chunks (home fork): the library default is
-	// 4 KB, which on a network share or a Docker Desktop folder mount means
-	// millions of slow round trips for one 4K movie (unpacking ran at ~3 MB/s).
-	opts := []rardecode.Option{rardecode.MaxDictionarySize(maxRARDictionary), rardecode.BufferSize(unpackBufSize)}
+	// The set's own size is the amount of work: how much of the volumes has been
+	// read is how far the unpack has come, whatever the files inside compress to.
+	meter := e.startMeter(totalSize(rarSetFiles(archivePath)), false, nil)
+	defer meter.finish()
+	opts := []rardecode.Option{
+		rardecode.MaxDictionarySize(maxRARDictionary),
+		rardecode.BufferSize(unpackBufferBytes),
+		rardecode.FileSystem(countingFS{m: meter}),
+	}
 	if e.Password != "" {
 		opts = append(opts, rardecode.Password(e.Password))
 	}
@@ -322,7 +347,7 @@ func (e *Extractor) extractRAR(archivePath, destDir string) error {
 	defer rc.Close()
 
 	x := e.newExtraction(destDir)
-	x.progTotal = rarSetSize(archivePath) // home fork
+	x.m = meter
 	for {
 		h, err := rc.Next()
 		if errors.Is(err, io.EOF) {
@@ -541,7 +566,15 @@ func (e *Extractor) extractZip(archivePath, destDir string) error {
 		}
 	}
 
+	var total int64
+	for _, f := range zr.File {
+		if f.UncompressedSize64 <= uint64(1<<50) {
+			total += int64(f.UncompressedSize64)
+		}
+	}
 	x := e.newExtraction(destDir)
+	x.m = e.startMeter(total, true, nil)
+	defer x.m.finish()
 	for _, f := range zr.File {
 		if err := x.countEntry(); err != nil {
 			return fmt.Errorf("extract %s: %w", name, err)
@@ -606,7 +639,7 @@ func (e *Extractor) extract7z(archivePath, destDir string) error {
 	if timeout <= 0 {
 		timeout = defaultSevenZipTimeout
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(e.ctxOrBackground(), timeout)
 	defer cancel()
 
 	// Without a password 7z fails instead of prompting (stdin is the null
@@ -635,6 +668,10 @@ func (e *Extractor) extract7z(archivePath, destDir string) error {
 		return fmt.Errorf("extract %s: create a working folder: %w", name, err)
 	}
 	defer os.RemoveAll(stage)
+	// 7z reports nothing we read, so the size of what it has written so far
+	// against the size the listing declares is the progress.
+	meter := e.startMeter(total, true, func() int64 { return dirSize(stage) })
+	defer meter.finish()
 	if out, _, err := e.run7z(ctx, 64<<10, append(e.sevenZipArgs("x", "-y", "-o"+stage), "--", archivePath)...); err != nil {
 		return e.sevenZipError(ctx, name, out, err)
 	}
@@ -666,6 +703,9 @@ func (e *Extractor) run7z(ctx context.Context, limit int, args ...string) (out [
 
 // sevenZipError turns a failed 7z run into the error the caller reports.
 func (e *Extractor) sevenZipError(ctx context.Context, name string, out []byte, err error) error {
+	if e.Context != nil && e.Context.Err() != nil {
+		return fmt.Errorf("extract %s: stopped: %w", name, e.Context.Err())
+	}
 	if ctx.Err() != nil {
 		return fmt.Errorf("extract %s: 7z took too long and was stopped: %w", name, ctx.Err())
 	}
@@ -863,10 +903,8 @@ type extraction struct {
 	dest    string
 	budget  int64
 	entries int
-	// home fork: progress, against the archive's size on disk.
-	progTotal int64
-	progDone  int64
-	progLast  time.Time
+	m       *meter        // progress; may be nil
+	wbuf    *bufio.Writer // reused between files
 }
 
 func (e *Extractor) newExtraction(dest string) *extraction {
@@ -959,12 +997,17 @@ func (x *extraction) writeFile(name string, declared int64, r io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("create %s: %w", name, err)
 	}
-	lw := &limitedWriter{w: f, left: x.budget}
-	var w io.Writer = lw
-	if x.progTotal > 0 { // home fork: progress
-		w = progressWriter{w: lw, path: x.dest, phase: "Unpacking", done: &x.progDone, total: x.progTotal, last: &x.progLast}
+	// Written in big pieces: see unpackBufferBytes.
+	if x.wbuf == nil {
+		x.wbuf = bufio.NewWriterSize(f, unpackBufferBytes)
+	} else {
+		x.wbuf.Reset(f)
 	}
-	_, copyErr := io.CopyBuffer(w, r, make([]byte, unpackBufSize))
+	lw := &limitedWriter{w: x.wbuf, left: x.budget, ctx: x.e.ctxOrBackground(), m: x.m}
+	_, copyErr := io.Copy(lw, r)
+	if copyErr == nil {
+		copyErr = x.wbuf.Flush()
+	}
 	if copyErr == nil {
 		copyErr = f.Chmod(0o644)
 	}
@@ -995,16 +1038,25 @@ const unpackBufSize = 4 << 20
 type limitedWriter struct {
 	w    io.Writer
 	left int64
+	ctx  context.Context // an unpack that is stopped fails the next write
+	m    *meter          // counts what is written; may be nil
 }
 
 func (l *limitedWriter) Write(p []byte) (int, error) {
+	if l.ctx != nil {
+		if err := l.ctx.Err(); err != nil {
+			return 0, err
+		}
+	}
 	if int64(len(p)) > l.left {
 		n, _ := l.w.Write(p[:l.left])
 		l.left -= int64(n)
+		l.m.addWritten(n)
 		return n, errLimitExceeded
 	}
 	n, err := l.w.Write(p)
 	l.left -= int64(n)
+	l.m.addWritten(n)
 	return n, err
 }
 

@@ -19,3 +19,16 @@ export function watchErrors(page: Page): string[] {
 export async function expectNoErrors(errors: string[]) {
   expect(errors, errors.join('\n')).toEqual([])
 }
+
+// The layout for tablets and phones starts at 900px: the main menu is a drawer
+// that starts closed (the theme button and the links to the guide live in it)
+// and the guide's landing page lists its topics as cards instead of a side list.
+export const narrow = (page: Page) => (page.viewportSize()?.width ?? 1280) <= 900
+
+// Opens the menu drawer; on a wide screen the menu is already there.
+export async function openNav(page: Page) {
+  if (!narrow(page)) return
+  const button = page.locator('.menu-button')
+  await expect(button).toBeVisible()
+  if ((await button.getAttribute('aria-expanded')) === 'false') await button.click()
+}

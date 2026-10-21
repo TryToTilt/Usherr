@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStreamed } from '../home/useHave' // Usherr
 import VoteButtons from '../home/VoteButtons' // home fork
+import StackButton from '../home/StackButton' // Usherr: your stack
 import { WhatsItLike } from '../home/AIGuides' // home fork
 import { StreamingOn } from '../home/Recipes' // home fork
 import { ScoresLine } from '../home/scores' // home fork
@@ -22,7 +23,8 @@ import SubtitlesOffNote from '../components/SubtitlesOffNote'
 import SubtitlesPanel from '../components/SubtitlesPanel'
 import Switch from '../components/Switch'
 import TitleHero from '../components/TitleHero'
-import { CastCard, titleLinks } from '../components/TitlePreview'
+import { CastCard, PeopleLinks, titleLinks } from '../components/TitlePreview'
+import { crewWith } from '../people'
 import WatchLinks from '../components/WatchLinks'
 import FolderLine from '../components/FolderLine'
 import LocateDialog from '../components/LocateDialog'
@@ -41,6 +43,7 @@ import { useLive } from '../useLive'
 import { useConfirm } from '../components/ConfirmProvider'
 import { removeOption } from '../diskUsage'
 import ReleaseNotice from '../components/ReleaseNotice'
+import { releaseFacts } from '../releaseDates'
 import type { Unanswered } from '../releaseHint'
 import { useDocumentTitle } from '../documentTitle'
 import { plural, t } from '../i18n'
@@ -265,6 +268,8 @@ function MoviePage() {
   if (!movie) return <div className="skeleton" style={{ height: 380, borderRadius: 22 }} />
 
   const inLibrary = !!movie.libraryId
+  const directors = crewWith(movie.crew, 'Director')
+  const writers = crewWith(movie.crew, 'Writer')
   const stateKey = !inLibrary ? (streamedHere ? 'streams' : null) : movie.status === 'downloaded' ? 'downloaded' : movie.status === 'downloading' ? 'downloading' : monitored === false ? 'added' : 'searching'
   const state = stateKey ? describeState(stateKey) : null
 
@@ -276,8 +281,9 @@ function MoviePage() {
           ...movie,
           kind: 'movie',
           facts: [
-            ...(movie.directors?.length ? [{ label: movie.directors.length > 1 ? t('Directors') : t('Director'), value: movie.directors.join(', ') }] : []),
-            ...(movie.releaseDate ? [{ label: t('Released'), value: movie.releaseDate }] : []),
+            ...(directors.length ? [{ label: directors.length > 1 ? t('Directors') : t('Director'), value: <PeopleLinks people={directors} /> }] : []),
+            ...(writers.length ? [{ label: writers.length > 1 ? t('Writers') : t('Writer'), value: <PeopleLinks people={writers} /> }] : []),
+            ...releaseFacts(movie.releaseDates, movie.releaseDate),
             ...(movie.releaseStatus ? [{ label: t('Status'), value: movie.releaseStatus }] : []),
           ],
           links: titleLinks('movie', movie.tmdbId, movie.imdbId, movie.homepage),
@@ -334,6 +340,7 @@ function MoviePage() {
               {movie.status === 'downloaded' && <WatchLinks tmdbId={movie.tmdbId} kind="movie" />}
               <WhatsItLike kind="movie" tmdbId={movie.tmdbId} title={movie.title} /> {/* home fork */}
               <VoteButtons kind="movie" refId={movie.tmdbId} meta={{ title: movie.title, year: movie.year, image: movie.posterUrl }} /> {/* home fork */}
+              <StackButton item={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title, year: movie.year, posterUrl: movie.posterUrl }} /> {/* Usherr */}
               {admin && ((movie.status === 'downloaded' && movie.filePath) || movie.status === 'missing') && (
                 <button className="btn-with-icon" onClick={() => void rescan()} disabled={rescanning} title={movie.filePath ? t('Looks at the file on your disk again: if it was deleted by hand the movie is wanted again, and a renamed file is found.') : t("Looks in the movie's folder for a video file you put there by hand and adds it to the movie.")}>
                   <Icon name="folder" size={16} /> {rescanning ? t('Checking…') : t('Rescan files')}
@@ -361,6 +368,7 @@ function MoviePage() {
               )}
               <WhatsItLike kind="movie" tmdbId={movie.tmdbId} title={movie.title} /> {/* home fork */}
               <VoteButtons kind="movie" refId={movie.tmdbId} meta={{ title: movie.title, year: movie.year, image: movie.posterUrl }} /> {/* home fork */}
+              <StackButton item={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title, year: movie.year, posterUrl: movie.posterUrl }} /> {/* Usherr */}
             </>
           )
         }
@@ -391,7 +399,7 @@ function MoviePage() {
         <InTheatersPanel tmdbId={movie.tmdbId} title={movie.title} year={movie.year} /> {/* Usherr */}
       </TitleHero>
 
-      {!inLibrary && <CastCard cast={movie.cast ?? []} />}
+      <CastCard cast={movie.cast ?? []} />
 
       {adding && (
         <AddDialog

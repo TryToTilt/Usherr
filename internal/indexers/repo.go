@@ -109,8 +109,8 @@ func (r *Repo) Create(inst Instance, secret Secrets) (Instance, error) {
 		return Instance{}, err
 	}
 	res, err := r.db.Exec(
-		`INSERT INTO indexers (name, definition_id, base_url, api_key_encrypted, protocol, enabled, kind, settings_json, secrets_encrypted, requests_per_day) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		inst.Name, inst.DefinitionID, inst.BaseURL, encAPIKey, string(inst.Protocol), inst.Enabled, string(inst.Kind), settingsJSON, encSecrets, max(0, inst.RequestsPerDay),
+		`INSERT INTO indexers (name, definition_id, base_url, api_key_encrypted, protocol, enabled, kind, settings_json, secrets_encrypted, requests_per_day, priority_rank, min_seeders) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		inst.Name, inst.DefinitionID, inst.BaseURL, encAPIKey, string(inst.Protocol), inst.Enabled, string(inst.Kind), settingsJSON, encSecrets, max(0, inst.RequestsPerDay), ClampPriority(inst.Priority), ClampMinSeeders(inst.MinSeeders),
 	)
 	if err != nil {
 		return Instance{}, fmt.Errorf("insert indexer: %w", err)
@@ -120,6 +120,8 @@ func (r *Repo) Create(inst Instance, secret Secrets) (Instance, error) {
 		return Instance{}, fmt.Errorf("get inserted indexer id: %w", err)
 	}
 	inst.ID = id
+	inst.Priority = ClampPriority(inst.Priority)
+	inst.MinSeeders = ClampMinSeeders(inst.MinSeeders)
 	inst.Tracker = r.tracker
 	if inst.IsCardigann() {
 		inst.Cardigann = r.cardigann
@@ -146,8 +148,8 @@ func (r *Repo) Update(inst Instance, secret Secrets) error {
 		return err
 	}
 	res, err := r.db.Exec(
-		`UPDATE indexers SET name = ?, base_url = ?, api_key_encrypted = ?, settings_json = ?, secrets_encrypted = ?, enabled = ?, protocol = ?, kind = ?, requests_per_day = ? WHERE id = ?`,
-		inst.Name, inst.BaseURL, encAPIKey, settingsJSON, encSecrets, inst.Enabled, string(inst.Protocol), string(defaultKind(inst)), max(0, inst.RequestsPerDay), inst.ID,
+		`UPDATE indexers SET name = ?, base_url = ?, api_key_encrypted = ?, settings_json = ?, secrets_encrypted = ?, enabled = ?, protocol = ?, kind = ?, requests_per_day = ?, min_seeders = ? WHERE id = ?`,
+		inst.Name, inst.BaseURL, encAPIKey, settingsJSON, encSecrets, inst.Enabled, string(inst.Protocol), string(defaultKind(inst)), max(0, inst.RequestsPerDay), ClampMinSeeders(inst.MinSeeders), inst.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update indexer %d: %w", inst.ID, err)
@@ -160,7 +162,7 @@ func (r *Repo) Update(inst Instance, secret Secrets) error {
 	return nil
 }
 
-const indexerColumns = `id, name, definition_id, base_url, api_key_encrypted, protocol, enabled, kind, settings_json, secrets_encrypted, last_test_error, last_test_at, priority, requests_per_day`
+const indexerColumns = `id, name, definition_id, base_url, api_key_encrypted, protocol, enabled, kind, settings_json, secrets_encrypted, last_test_error, last_test_at, priority_rank, requests_per_day, min_seeders`
 
 // List returns every configured indexer instance, secrets decrypted.
 func (r *Repo) List() ([]Instance, error) {
@@ -201,7 +203,7 @@ func (r *Repo) scan(sc scanner) (Instance, error) {
 		settingsJSON, testAt  string
 	)
 	if err := sc.Scan(&inst.ID, &inst.Name, &inst.DefinitionID, &inst.BaseURL, &encAPIKey, &protocol, &inst.Enabled,
-		&kind, &settingsJSON, &encSecrets, &inst.LastTestError, &testAt, &inst.Priority, &inst.RequestsPerDay); err != nil {
+		&kind, &settingsJSON, &encSecrets, &inst.LastTestError, &testAt, &inst.Priority, &inst.RequestsPerDay, &inst.MinSeeders); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Instance{}, err
 		}
@@ -247,13 +249,12 @@ func (r *Repo) scan(sc scanner) (Instance, error) {
 	return inst, nil
 }
 
-// SetPriority sets how much an indexer is preferred: 1 preferred, 2 normal,
-// 3 last resort.
+// SetPriority sets how much an indexer is preferred: 1 to 50, lower first.
 func (r *Repo) SetPriority(id int64, priority int) error {
-	if priority < PriorityPreferred || priority > PriorityLast {
-		return fmt.Errorf("priority %d is not 1, 2 or 3", priority)
+	if priority < PriorityMin || priority > PriorityMax {
+		return fmt.Errorf("priority %d is not between %d and %d", priority, PriorityMin, PriorityMax)
 	}
-	res, err := r.db.Exec(`UPDATE indexers SET priority = ? WHERE id = ?`, priority, id)
+	res, err := r.db.Exec(`UPDATE indexers SET priority_rank = ? WHERE id = ?`, priority, id)
 	if err != nil {
 		return fmt.Errorf("set indexer priority: %w", err)
 	}

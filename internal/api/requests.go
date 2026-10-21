@@ -241,7 +241,7 @@ func (s *Server) checkAndFileRequest(w http.ResponseWriter, kind, body string, i
 	key := requestKey(kind, body)
 	for _, x := range mine {
 		if x.Status == requests.Pending && x.Kind == kind && key != "" && requestKey(x.Kind, x.Payload) == key {
-			writeError(w, http.StatusConflict, "You already asked for "+info.title+". An administrator will look at it.")
+			writeError(w, http.StatusConflict, fmt.Sprintf("You already asked for %s. An administrator will look at it.", info.title))
 			return requests.Request{}, false
 		}
 	}

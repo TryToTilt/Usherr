@@ -43,9 +43,12 @@ func (s *Server) handleRescanSeries(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "That isn't a valid show ID.")
 		return
 	}
-	if _, err := s.MovieRepo.GetSeries(id); err != nil {
+	sr, err := s.MovieRepo.GetSeries(id)
+	if err != nil {
 		writeError(w, http.StatusNotFound, "That show isn't in your library.")
 		return
 	}
-	writeJSON(w, http.StatusOK, s.rescanSeriesFiles(id, true))
+	rep := s.rescanSeriesFiles(id, true)
+	s.attachHandAddedEpisodes(sr, &rep)
+	writeJSON(w, http.StatusOK, rep)
 }

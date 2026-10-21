@@ -93,9 +93,9 @@ func (s *Server) discardWorkDir(dir string, protocol indexers.Protocol) {
 // removeWorkDir deletes one queue-N working folder directly inside the
 // working folder (anything else is refused) and returns the space freed.
 func (s *Server) removeWorkDir(dir string) int64 {
-	area := s.downloadsArea()
 	dir = filepath.Clean(dir)
-	if !s.isWorkDirPath(dir, area.Work) {
+	area, inArea := s.areaFor(dir)
+	if !inArea || !s.isWorkDirPath(dir, area.Work) {
 		log.Printf("cleanup: refused to remove path=%s: not a download's working folder", dir)
 		return 0
 	}
@@ -172,7 +172,7 @@ func (s *Server) scanDownloads(now time.Time) ([]cleanup.Item, error) {
 	for _, it := range list {
 		items[it.ID] = it
 	}
-	return cleanup.Scan(s.downloadsArea(), s.classifyWorkEntry(items, now))
+	return cleanup.ScanAll(s.downloadsAreas(), s.classifyWorkEntry(items, now))
 }
 
 // historyRetentionDays is how many days finished downloads and activity are
@@ -223,7 +223,7 @@ func (s *Server) runCleanup(now time.Time) cleanupResult {
 	if err != nil {
 		res.Errors = append(res.Errors, plainerror.Message(err))
 	}
-	removed, err := cleanup.Remove(s.downloadsArea(), items)
+	removed, err := cleanup.RemoveAll(s.downloadsAreas(), items)
 	if err != nil {
 		res.Errors = append(res.Errors, plainerror.Message(err))
 	}
@@ -265,6 +265,7 @@ func (s *Server) runCleanup(now time.Time) cleanupResult {
 // cleanupJob is the automation loop's hourly check: it runs the clean-up
 // when the automatic switch is on and the last run is a day old.
 func (s *Server) cleanupJob(context.Context) {
+	s.purgeSessions() // sessions that have run out, whether or not the downloads clean-up is on
 	if !s.cleanupAutoEnabled() {
 		return
 	}

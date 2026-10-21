@@ -68,9 +68,33 @@ func TestSlowRequestBodyIsCutOffExceptForBigUploads(t *testing.T) {
 		_, _ = fmt.Fprintf(conn, "POST /api/auth/login HTTP/1.1\r\nHost: %s\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n{", u2.Host)
 		start := time.Now()
 		_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-		_, _ = io.ReadAll(conn) // returns when the server answers and closes
+		answer, _ := io.ReadAll(conn) // returns when the server answers and closes
 		if took := time.Since(start); took > 3*time.Second {
 			t.Fatalf("the server kept a stalled request open for %v", took)
+		}
+		if !strings.HasPrefix(string(answer), "HTTP/1.1 400") {
+			t.Fatalf("the stalled request should have been answered, got %q", answer)
+		}
+	})
+
+	t.Run("an answer to a body that arrived whole keeps the connection", func(t *testing.T) {
+		u2, _ := url.Parse(base)
+		conn, err := net.Dial("tcp", u2.Host)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer conn.Close()
+		_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+		payload := `{"username":"nobody","password":"wrong"}`
+		_, _ = fmt.Fprintf(conn, "POST /api/auth/login HTTP/1.1\r\nHost: %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s", u2.Host, len(payload), payload)
+		resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+		if resp.Close {
+			t.Fatal("the connection was closed although the whole request had been read")
 		}
 	})
 

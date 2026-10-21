@@ -1,8 +1,8 @@
-// Home fork: a short first-visit tour for a new account. Six cards, each
-// pointing at one place (the AI bar, Discover, the Library, Upcoming, the
-// guide); where that place isn't on screen (a phone's folded menu) the card
-// sits in the middle instead. Done or skipped once, it doesn't come back;
-// Help → "Take the tour" plays it again.
+// Home fork: a short first-visit tour for a new account. Seven cards, each
+// pointing at one place (the AI bar, Discover, the Library, Upcoming, your
+// stack, the guide); where that place isn't on screen (a phone's folded
+// menu) the card sits in the middle instead. Done or skipped once, it doesn't
+// come back; Help → "Take the tour" plays it again.
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext'
@@ -20,11 +20,12 @@ interface Step {
 
 function steps(): Step[] {
   return [
-    { title: t('Welcome to Mediarium'), text: t('A quick look around, six steps. You can skip it, and see it again any time from the user guide.') },
+    { title: t('Welcome to Mediarium'), text: t('A quick look around, seven steps. You can skip it, and see it again any time from the user guide.') },
     { path: '/', target: '.omni-bar.ai, .omni-bar', title: t('Ask for anything'), text: t('Type what you are in the mood for, in your own words, and Mediarium suggests titles. "What should I watch tonight?" picks from what is already here.') },
     { target: 'nav a[href="/discover"]', title: t('Discover'), text: t('Rows of films and shows to browse. Add what you like; the family filter and "Hide what I have" are at the top.') },
     { target: 'nav a[href="/library"]', title: t('Library'), text: t('Everything the house has. Play what is downloaded; Stream plays the rest straight away.') },
     { target: 'nav a[href="/calendar"]', title: t('Upcoming'), text: t('New episodes and films on the way, and the actors and directors you follow.') },
+    { target: '.side-stack', title: t('Your stack'), text: t('What you want to watch next, as a stack of tickets. Put a title on it with the stack button on any poster, swipe through it, and tap a poster to play it.') },
     { target: '.help-tool', title: t('Help is always here'), text: t('The ? opens the user guide. Small ? marks on pages open the part about that page.') },
   ]
 }

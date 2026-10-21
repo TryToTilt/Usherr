@@ -10,6 +10,7 @@ package api
 // next program.
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -131,6 +132,9 @@ type tvStreamSrc struct {
 	// browserOK is whether a web browser can play it as it is; old AVI and
 	// XviD copies can't, and are converted for the browser instead.
 	browserOK bool
+	// copyVideo: the picture plays as it is and only its box (AVI, TS)
+	// doesn't, so a conversion keeps the picture.
+	copyVideo bool
 }
 
 var (
@@ -153,6 +157,38 @@ func (s *Server) tvStreamSource(ctx context.Context, path string) (tvStreamSrc, 
 	if !ok {
 		return tvStreamSrc{}, errOffAir
 	}
+	// Usherr: the engine chosen in Settings > Extras goes first. Usherr's own
+	// engine also takes over when StreamNZB has nothing that plays (a daily
+	// show it can't search by date, or no StreamNZB at all).
+	if s.streamEngine() == engineUsherr {
+		if own, oerr := s.tvStreamOwn(ctx, path, tmdbID, season, episode); oerr == nil {
+			tvStreamSrcs.Store(path, own)
+			return own, nil
+		} else if !errors.Is(oerr, errNoRelease) {
+			slog.Info("tv: own stream", "episode", path, "err", oerr)
+		}
+		if src, err := s.tvStreamNZB(ctx, path, tmdbID, season, episode); err == nil {
+			return src, nil
+		}
+		tvMissing.Store(path, time.Now())
+		return tvStreamSrc{}, errOffAir
+	}
+	src, err := s.tvStreamNZB(ctx, path, tmdbID, season, episode)
+	if err == nil {
+		return src, nil
+	}
+	if own, oerr := s.tvStreamOwn(ctx, path, tmdbID, season, episode); oerr == nil {
+		tvStreamSrcs.Store(path, own)
+		return own, nil
+	} else if !errors.Is(oerr, errNoRelease) {
+		slog.Info("tv: own stream", "episode", path, "err", oerr)
+	}
+	tvMissing.Store(path, time.Now())
+	return tvStreamSrc{}, errOffAir
+}
+
+// tvStreamNZB finds an episode's stream on StreamNZB.
+func (s *Server) tvStreamNZB(ctx context.Context, path string, tmdbID int64, season, episode int) (tvStreamSrc, error) {
 	c, err := s.streamNZB()
 	if err != nil {
 		return tvStreamSrc{}, err
@@ -201,12 +237,11 @@ func (s *Server) tvStreamSource(ctx context.Context, path string) (tvStreamSrc, 
 			continue
 		}
 		secs := pr.secs
-		src := tvStreamSrc{url: u, homeURL: st.URL, release: releaseLine(st.Title + "\n" + st.Description), at: time.Now(), browserOK: pr.browserOK()}
+		src := tvStreamSrc{url: u, homeURL: st.URL, release: releaseLine(st.Title + "\n" + st.Description), at: time.Now(), browserOK: pr.browserOK(), copyVideo: pr.copyVideo()}
 		tvStreamSrcs.Store(path, src)
 		repo.SetDuration(path, 0, secs) // its next showing gets its real length
 		return src, nil
 	}
-	tvMissing.Store(path, time.Now())
 	return tvStreamSrc{}, errOffAir
 }
 
@@ -215,6 +250,10 @@ type streamProbe struct {
 	format string // ffprobe's format names: "matroska,webm", "avi", ...
 	video  string // the first video stream's codec
 }
+
+// copyVideo is whether the picture can be kept as it is when the stream is
+// converted (it's H.264, only in a box browsers don't open).
+func (p streamProbe) copyVideo() bool { return p.video == "h264" }
 
 // browserOK is whether web browsers play this as it is.
 func (p streamProbe) browserOK() bool {
@@ -228,11 +267,42 @@ func (p streamProbe) browserOK() bool {
 
 // probeStream measures a stream: how long it plays and what it is.
 func probeStream(ctx context.Context, u string) (streamProbe, error) {
-	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	return probeStreamWithin(ctx, u, 45*time.Second)
+}
+
+// probeStreamTwice is probeStream that looks once more when the first look
+// failed: the first read of a stream that was only just opened from Usenet can
+// be slow or fail once (the log showed "exit status 1" and "killed" for streams
+// that played a minute later).
+func probeStreamTwice(ctx context.Context, u string) (streamProbe, error) {
+	p, err := probeStreamWithin(ctx, u, 40*time.Second)
+	if err == nil || ctx.Err() != nil {
+		return p, err
+	}
+	slog.Info("tv: probe failed, looking again", "err", err)
+	if !sleepCtx(ctx, 2*time.Second) {
+		return p, err
+	}
+	return probeStreamWithin(ctx, u, 60*time.Second)
+}
+
+// probeStreamWithin is probeStream with its own time limit. A failure says
+// why, in ffprobe's words, and a read that stalls gives up before the limit.
+func probeStreamWithin(ctx context.Context, u string, limit time.Duration) (streamProbe, error) {
+	ctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "ffprobe", "-v", "error", "-select_streams", "v:0",
-		"-show_entries", "format=duration,format_name:stream=codec_name", "-of", "default=noprint_wrappers=1", u).Output()
+	var stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, "ffprobe", "-v", "error", "-rw_timeout", "30000000", "-select_streams", "v:0",
+		"-show_entries", "format=duration,format_name:stream=codec_name", "-of", "default=noprint_wrappers=1", u)
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return streamProbe{}, fmt.Errorf("ffprobe didn't answer in %s", limit.Round(time.Second))
+		}
+		if why := strings.TrimSpace(firstLine(strings.TrimSpace(stderr.String()))); why != "" {
+			return streamProbe{}, fmt.Errorf("ffprobe: %s", why)
+		}
 		return streamProbe{}, err
 	}
 	var p streamProbe
@@ -272,19 +342,24 @@ func releaseLine(text string) string {
 // ---- converting for the browser ----
 
 // tvBrowserArgs plays a stream from offset as fragmented MP4 that any web
-// browser plays: H.264 at most 720 lines high and stereo AAC, at real-time
-// speed after a short head start.
-func tvBrowserArgs(u string, offset time.Duration) []string {
+// browser plays, at real-time speed after a short head start. Only what has
+// to be converted is: the picture is kept when copyVideo (else it becomes
+// H.264 at its own size), and the sound becomes AAC with its channels.
+func tvBrowserArgs(u string, offset time.Duration, copyVideo bool) []string {
 	args := []string{"-hide_banner", "-loglevel", "error", "-nostdin",
 		"-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"}
 	if offset > time.Second {
 		args = append(args, "-ss", strconv.FormatFloat(offset.Seconds(), 'f', 3, 64))
 	}
-	return append(args, "-fflags", "+genpts", "-readrate", "1", "-readrate_initial_burst", "8", "-i", u,
-		"-map", "0:v:0", "-map", "0:a:0?",
-		"-vf", "scale=-2:'min(720,ih)'", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
-		"-c:a", "aac", "-b:a", "160k", "-ac", "2",
-		"-movflags", "frag_keyframe+empty_moov+default_base_moof", "-f", "mp4", "pipe:1")
+	args = append(args, "-fflags", "+genpts", "-readrate", "1", "-readrate_initial_burst", "8", "-i", u,
+		"-map", "0:v:0", "-map", "0:a:0?")
+	if copyVideo {
+		args = append(args, "-c:v", "copy")
+	} else {
+		args = append(args, "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p")
+	}
+	args = append(args, aacArgs(6)...)
+	return append(args, "-movflags", "frag_keyframe+empty_moov+default_base_moof", "-f", "mp4", "pipe:1")
 }
 
 // GET /api/stream/{id}/browser?at=<seconds>: a stream session's video
@@ -296,7 +371,7 @@ func (s *Server) handleStreamBrowser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	at, _ := strconv.ParseFloat(r.URL.Query().Get("at"), 64)
-	cmd := exec.CommandContext(r.Context(), "ffmpeg", tvBrowserArgs(ss.target, time.Duration(at*float64(time.Second)))...)
+	cmd := exec.CommandContext(r.Context(), "ffmpeg", tvBrowserArgs(ss.target, time.Duration(at*float64(time.Second)), r.URL.Query().Get("v") == "copy")...)
 	w.Header().Set("Content-Type", "video/mp4")
 	w.Header().Set("Cache-Control", "no-store")
 	cmd.Stdout = flushWriter{w: w}

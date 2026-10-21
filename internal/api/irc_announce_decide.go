@@ -278,10 +278,7 @@ func (d ircDecider) decideTV(ctx context.Context, rel parser.Release, res indexe
 	blocked := s.searchSkipKeys()
 	var matched bool
 	var why string
-	for _, sr := range series {
-		if !matchesShowFor(res.Title, sr, rel.Season) {
-			continue
-		}
+	for _, sr := range showsForRelease(res.Title, rel.Season, series) {
 		matched = true
 		if !sr.Monitored {
 			why = fmt.Sprintf("Matches %s, which isn't monitored.", sr.Title)

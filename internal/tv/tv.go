@@ -64,6 +64,17 @@ type Rules struct {
 	BreakMinutes int `json:"breakMinutes,omitempty"`
 	// FamilyHours keeps anything for older than about ten off before 9 PM.
 	FamilyHours bool `json:"familyHours,omitempty"`
+	// Look is how the picture looks (Usherr): "" as each viewer set it,
+	// "vintage" always scan lines and static, "hd" never, "age" by each
+	// show's year (older than 2000 looks old).
+	Look string `json:"look,omitempty"`
+	// Fixed replays a real network's day (Usherr: Real TV): each slot at its
+	// time, repeated daily. FixedFrom says where it came from.
+	Fixed     []FixedItem `json:"fixed,omitempty"`
+	FixedFrom string      `json:"fixedFrom,omitempty"`
+	// RealTV is where a Real TV channel's day comes from, so it can be
+	// refreshed each night with the day before.
+	RealTV *RealTVSource `json:"realTv,omitempty"`
 }
 
 // Daypart is a part of the day with a line-up of its own.
@@ -79,13 +90,14 @@ type Daypart struct {
 
 // Slot pins something to a time on some days.
 type Slot struct {
-	Days       []int  `json:"days,omitempty"` // 0 = Sunday ... 6 = Saturday; none = every day
-	At         string `json:"at"`             // "19:00"
-	SeriesID   int64  `json:"seriesId,omitempty"`
-	StreamTMDB int64  `json:"streamTmdb,omitempty"` // a streamed show instead
-	Movie      bool   `json:"movie,omitempty"`      // a movie from the channel's movies instead
-	Count      int    `json:"count,omitempty"`      // episodes in a row (1 when unset)
-	Name       string `json:"name,omitempty"`       // "Sunday Night Movie", shown in the guide
+	Days        []int  `json:"days,omitempty"` // 0 = Sunday ... 6 = Saturday; none = every day
+	At          string `json:"at"`             // "19:00"
+	SeriesID    int64  `json:"seriesId,omitempty"`
+	StreamTMDB  int64  `json:"streamTmdb,omitempty"`  // a streamed show instead
+	StreamTitle string `json:"streamTitle,omitempty"` // its name, for the settings (Usherr)
+	Movie       bool   `json:"movie,omitempty"`       // a movie from the channel's movies instead
+	Count       int    `json:"count,omitempty"`       // episodes in a row (1 when unset)
+	Name        string `json:"name,omitempty"`        // "Sunday Night Movie", shown in the guide
 }
 
 // Filler says what fills the time between programs.

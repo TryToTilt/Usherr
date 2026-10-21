@@ -40,10 +40,18 @@ func (s *Server) registerTVChannelRoutes(play, admin routeGroup) {
 	play.HandleFunc("GET /api/tv/channels/{id}/logo", s.handleTVLogo)
 	play.HandleFunc("GET /api/tv/channels/{id}/filler/{start}", s.handleTVFiller) // Usherr
 	play.HandleFunc("GET /api/stream/{id}/browser", s.handleStreamBrowser)
+	play.HandleFunc("GET /api/stream/{id}/sound", s.handleStreamSound)   // Usherr: the sound on its own
+	play.HandleFunc("GET /api/stream/{id}/tracks", s.handleStreamTracks) // Usherr: its languages
 	admin.HandleFunc("POST /api/tv/channels", s.handleTVSave)
-	admin.HandleFunc("POST /api/tv/ai-build", s.handleTVAIBuild)  // Usherr: the AI channel builder
-	play.HandleFunc("POST /api/tv/remind", s.handleTVRemind)      // Usherr: reminders
-	play.HandleFunc("GET /api/tv/reminders", s.handleTVReminders) // Usherr
+	admin.HandleFunc("POST /api/tv/replay", s.handleTVReplay)                   // Usherr: Real TV
+	admin.HandleFunc("GET /api/tv/replay/providers", s.handleTVReplayProviders) // Usherr: the lineups at a zip
+	admin.HandleFunc("GET /api/tv/replay/lineup", s.handleTVReplayLineup)
+	admin.HandleFunc("GET /api/tv/replay/{id}", s.handleTVReplayStatus)
+	admin.HandleFunc("POST /api/tv/replay/create", s.handleTVReplayCreate)
+	admin.HandleFunc("POST /api/tv/replay/refresh", s.handleTVReplayRefresh) // Usherr: the nightly refresh, now
+	admin.HandleFunc("POST /api/tv/ai-build", s.handleTVAIBuild)             // Usherr: the AI channel builder
+	play.HandleFunc("POST /api/tv/remind", s.handleTVRemind)                 // Usherr: reminders
+	play.HandleFunc("GET /api/tv/reminders", s.handleTVReminders)            // Usherr
 	admin.HandleFunc("PUT /api/tv/channels/{id}", s.handleTVSave)
 	admin.HandleFunc("DELETE /api/tv/channels/{id}", s.handleTVDelete)
 	admin.HandleFunc("POST /api/tv/channels/{id}/rebuild", s.handleTVRebuild)
@@ -225,6 +233,7 @@ func (s *Server) handleTVNow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := map[string]any{"channel": ch, "program": p, "offset": (now.Sub(p.Start) + p.Offset).Seconds(), "remaining": p.End.Sub(now).Seconds()}
+	out["look"] = s.tvLook(r.Context(), ch, p) // Usherr
 	// Usherr: part of a show split by breaks: the player stops at the part's end.
 	if s.isSplitPart(id, p) {
 		out["cut"] = true
@@ -243,7 +252,29 @@ func (s *Server) handleTVNow(w http.ResponseWriter, r *http.Request) {
 	if p.Kind == "stream" {
 		// A streamed episode plays through a Stream now session of the
 		// viewer's, like any stream.
-		src, err := s.tvStreamSource(r.Context(), p.FilePath)
+		// Usherr: a lookup that takes long doesn't hold the request: the page asks again shortly.
+		src, pending, err := s.tvStreamSourceWithin(r.Context(), p.FilePath, tvTuneWait)
+		if pending {
+			out["preparing"], out["retryIn"] = true, 3
+			writeJSON(w, http.StatusOK, out)
+			return
+		}
+		// Usherr: Real TV: the show isn't on Usenet yet: its backup plays.
+		if err != nil {
+			if b, ok := s.tvBackup(ch, p); ok {
+				p = b
+				out["program"] = p
+				if p.Kind != "stream" {
+					writeJSON(w, http.StatusOK, out)
+					return
+				}
+				if src, pending, err = s.tvStreamSourceWithin(r.Context(), p.FilePath, tvTuneWait); pending {
+					out["preparing"], out["retryIn"] = true, 3
+					writeJSON(w, http.StatusOK, out)
+					return
+				}
+			}
+		}
 		if err != nil {
 			out["offAir"] = true
 			writeJSON(w, http.StatusOK, out)
@@ -251,9 +282,8 @@ func (s *Server) handleTVNow(w http.ResponseWriter, r *http.Request) {
 		}
 		ss := &streamSession{id: randomID("str_"), userID: requestUserID(r), last: time.Now(), title: p.Title,
 			target: src.url, lanURL: src.homeURL, streamFor: "title", release: src.release}
-		if c, err := s.streamNZB(); err == nil {
-			streams.sweep(c)
-		}
+		c, _ := s.streamNZB()
+		streams.sweep(c) // Usherr: c is nil without StreamNZB; own streams are swept too
 		streams.mu.Lock()
 		streams.sessions[ss.id] = ss
 		streams.mu.Unlock()
@@ -265,6 +295,9 @@ func (s *Server) handleTVNow(w http.ResponseWriter, r *http.Request) {
 			// Browsers can't play it as it is: a converted copy, already
 			// started at the right moment.
 			st["videoUrl"] = fmt.Sprintf("/api/stream/%s/browser?at=%.1f", ss.id, now.Sub(p.Start).Seconds())
+			if src.copyVideo {
+				st["videoUrl"] = st["videoUrl"].(string) + "&v=copy" // only the box and the sound are converted
+			}
 			st["converted"] = true
 		}
 		out["stream"] = st
@@ -320,7 +353,7 @@ func (s *Server) handleTVSave(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		ch.Rules.StreamURL = u.String()
-	} else if len(ch.Rules.Series) == 0 && len(ch.Rules.Movies) == 0 && len(ch.Rules.Genres) == 0 && len(ch.Rules.Decades) == 0 && len(ch.Rules.Stream) == 0 {
+	} else if len(ch.Rules.Series) == 0 && len(ch.Rules.Movies) == 0 && len(ch.Rules.Genres) == 0 && len(ch.Rules.Decades) == 0 && len(ch.Rules.Stream) == 0 && len(ch.Rules.Fixed) == 0 {
 		writeError(w, http.StatusBadRequest, "Pick at least one show, movie, genre or decade.")
 		return
 	}

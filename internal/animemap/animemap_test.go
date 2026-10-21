@@ -667,3 +667,67 @@ func TestGateSpacesRequests(t *testing.T) {
 		t.Fatal("a cancelled wait should stop")
 	}
 }
+
+// A show the movie database keeps as one season where TheTVDB has three, in
+// the shape the anime list gives it (written by hand to match Jujutsu Kaisen's
+// 24, 23 and 12 episodes; nothing here comes from a live answer).
+const tvdbSeasonsList = `[
+ {"type":"TV","anidb_id":15001,"anilist_id":113415,"mal_id":40748,"themoviedb_id":{"tv":95479},"tvdb_id":377543,"season":{"tvdb":1,"tmdb":1}},
+ {"type":"TV","anidb_id":15002,"anilist_id":145064,"mal_id":51009,"themoviedb_id":{"tv":95479},"tvdb_id":377543,"season":{"tvdb":2,"tmdb":1},"episode_offset":{"tmdb":24}},
+ {"type":"TV","anidb_id":15003,"anilist_id":172463,"mal_id":57658,"themoviedb_id":{"tv":95479},"tvdb_id":377543,"season":{"tvdb":3,"tmdb":1},"episode_offset":{"tmdb":47}},
+ {"type":"MOVIE","anidb_id":15004,"anilist_id":131573,"mal_id":48561,"themoviedb_id":{"movie":[810693]},"tvdb_id":377543,"season":{"tvdb":0}}
+]`
+
+func TestMapTVDBConvertsTheTVDBSeasonsToTheShowsOwn(t *testing.T) {
+	l := NewLists(testUA, t.TempDir())
+	idx, err := parseList(strings.NewReader(tvdbSeasonsList))
+	if err != nil {
+		t.Fatal(err)
+	}
+	l.idx, l.idxAt = idx, time.Now()
+	entries, err := l.Lookup(context.Background(), 95479, 377543, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := &Numbering{Entries: entries}
+	tests := []struct {
+		name            string
+		season, episode int
+		wantSeason      int
+		wantEpisode     int
+		wantOK          bool
+	}{
+		{"the first season stays", 1, 24, 1, 24, true},
+		{"season 2 starts after season 1", 2, 1, 1, 25, true},
+		{"the last of season 2", 2, 23, 1, 47, true},
+		{"season 3 starts after season 2", 3, 1, 1, 48, true},
+		{"the last of season 3", 3, 12, 1, 59, true},
+		{"a season the lists don't have", 4, 1, 0, 0, false},
+		{"the specials are not mapped", 0, 1, 0, 0, false},
+		{"no episode 0", 2, 0, 0, 0, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s, e, ok := n.MapTVDB(tc.season, tc.episode)
+			if s != tc.wantSeason || e != tc.wantEpisode || ok != tc.wantOK {
+				t.Fatalf("MapTVDB(%d, %d) = %d, %d, %v; want %d, %d, %v", tc.season, tc.episode, s, e, ok, tc.wantSeason, tc.wantEpisode, tc.wantOK)
+			}
+		})
+	}
+	var nilNumbering *Numbering
+	if _, _, ok := nilNumbering.MapTVDB(2, 1); ok {
+		t.Fatal("nothing is known about a show without numbering")
+	}
+}
+
+func TestMapTVDBRefusesSeasonsThatStartAtTheSamePlace(t *testing.T) {
+	// The list has no TMDB offset for the second season: it would land on
+	// the first season's episode 1, which TheTVDB's season 1 already names.
+	n := &Numbering{Entries: []Entry{
+		{AniDB: 1, Type: "TV", Season: 1, TVDBSeason: 1},
+		{AniDB: 2, Type: "TV", Season: 1, TVDBSeason: 2},
+	}}
+	if s, e, ok := n.MapTVDB(2, 1); ok {
+		t.Fatalf("mapped to %d, %d", s, e)
+	}
+}

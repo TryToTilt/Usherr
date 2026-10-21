@@ -195,9 +195,12 @@ func (s *Server) fetchSeriesDetails(ctx context.Context, item library.ImportItem
 	if sr, gerr := s.MovieRepo.GetSeries(item.TitleID); gerr == nil {
 		if num := s.numberingFor(sr); !num.Empty() {
 			details.SceneMap = num.MapScene
+			details.TVDBMap = num.MapTVDB
 		}
 	}
 	episodes := toLibraryEpisodes(infos)
+	// A show whose files are named by the day they aired is a daily one.
+	details.Daily = library.LooksDaily(item.Files, details.GuessedType == library.SeriesDaily)
 	// A daily show's files named by the day they aired go on that day's episode.
 	item.Files = library.PlaceByAirDate(item.Files, episodes)
 	_, err = s.MovieRepo.CompleteSeriesImport(item, details, episodes)

@@ -139,6 +139,15 @@ func writeModulesError(w http.ResponseWriter, err error) {
 // setModules applies a change after checking the whole result: nothing is
 // written unless every rule holds.
 func (s *Server) setModules(c moduleChanges) error {
+	t := &settingsSave{}
+	if err := s.setModulesIn(t, c); err != nil {
+		return err
+	}
+	return s.commitSettings(t)
+}
+
+// setModulesIn is setModules into an update that is saved with other settings.
+func (s *Server) setModulesIn(st settingSetter, c moduleChanges) error {
 	pick := func(change *bool, current bool) bool {
 		if change == nil {
 			return current
@@ -171,7 +180,7 @@ func (s *Server) setModules(c moduleChanges) error {
 		if w.changed == nil {
 			continue
 		}
-		if err := s.Settings.Set(w.key, flag(w.on), false); err != nil {
+		if err := st.Set(w.key, flag(w.on), false); err != nil {
 			return err
 		}
 	}

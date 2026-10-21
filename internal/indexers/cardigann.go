@@ -501,8 +501,9 @@ func (v *defValidator) field(what string, f SelectorField, json bool) {
 }
 
 // maxFilters is the longest filter list one value may have. Real definitions
-// use a handful.
-const maxFilters = 32
+// use a handful; a few that normalise titles in several languages go past 30
+// (Mazepa has 38).
+const maxFilters = 100
 
 func (v *defValidator) filters(what string, fs []FilterBlock) {
 	if len(fs) > maxFilters {

@@ -44,17 +44,28 @@ type subtitleItem struct {
 	title      string
 	subtitle   string // "S01E02 · Name" for episodes
 	tmdbID     int    // movie
+	year       int    // the movie's or series' year
 	parentTMDB int    // series (episodes)
 	seriesID   int64  // series (episodes)
 	season     int
 	episode    int
 	filePath   string
+
+	// releaseTitle and quality are what was recorded for the file when it was
+	// downloaded; the file name itself says nothing about the release.
+	releaseTitle string
+	quality      string
+}
+
+// hints are the facts besides the file name that tell how a subtitle fits.
+func (it subtitleItem) hints() subtitles.VideoHints {
+	return subtitles.VideoHints{ReleaseTitle: it.releaseTitle, Quality: it.quality}
 }
 
 func (it subtitleItem) ref() subtitles.Item { return subtitles.Item{Kind: it.kind, ID: it.id} }
 
 func movieSubtitleItem(m library.Movie) subtitleItem {
-	return subtitleItem{kind: "movie", id: m.ID, title: m.Title, tmdbID: m.TMDBID, filePath: m.FilePath}
+	return subtitleItem{kind: "movie", id: m.ID, title: m.Title, year: m.Year, tmdbID: m.TMDBID, filePath: m.FilePath, releaseTitle: m.ReleaseTitle, quality: m.Quality}
 }
 
 func episodeSubtitleItem(sr library.Series, ep library.Episode) subtitleItem {
@@ -63,8 +74,8 @@ func episodeSubtitleItem(sr library.Series, ep library.Episode) subtitleItem {
 		label += " · " + ep.Title
 	}
 	return subtitleItem{
-		kind: "episode", id: ep.ID, title: sr.Title, subtitle: label,
-		parentTMDB: sr.TMDBID, seriesID: sr.ID, season: ep.Season, episode: ep.Episode, filePath: ep.FilePath,
+		kind: "episode", id: ep.ID, title: sr.Title, year: sr.Year, subtitle: label,
+		parentTMDB: sr.TMDBID, seriesID: sr.ID, season: ep.Season, episode: ep.Episode, filePath: ep.FilePath, releaseTitle: ep.ReleaseTitle, quality: ep.Quality,
 	}
 }
 
@@ -121,9 +132,9 @@ func (s *Server) autoSubtitlesEnabled() bool {
 
 func (it subtitleItem) query(lang string) subtitles.Query {
 	if it.kind == "episode" {
-		return queryFileInfo(subtitles.Query{ParentTMDBID: it.parentTMDB, Season: it.season, Episode: it.episode, Type: "episode", Language: lang}, it.filePath)
+		return queryFileInfo(subtitles.Query{ParentTMDBID: it.parentTMDB, Season: it.season, Episode: it.episode, Type: "episode", Language: lang, Title: it.title, Year: it.year}, it.filePath)
 	}
-	return queryFileInfo(subtitles.Query{TMDBID: it.tmdbID, Type: "movie", Language: lang}, it.filePath)
+	return queryFileInfo(subtitles.Query{TMDBID: it.tmdbID, Type: "movie", Language: lang, Title: it.title, Year: it.year}, it.filePath)
 }
 
 // subtitleBase is the video path without its extension; external subtitles
@@ -420,11 +431,16 @@ func (s *Server) findSubtitles(ctx context.Context, q subtitles.Query, useOpenSu
 	var results []subtitles.Result
 	var errs []error
 	asked := 0
+	if q.IMDBID == "" && (q.TMDBID > 0 || q.ParentTMDBID > 0) && (src.OpenSubtitles.On() || src.SubDL.On() || src.Addons.On()) {
+		// The IMDb id is what a site is asked with when it doesn't know the
+		// TMDB id. TMDB's answer is kept, so this is one call per title.
+		q.IMDBID = s.addonImdbID(ctx, q)
+	}
 	if useOpenSubtitles && src.OpenSubtitles.On() {
 		asked++
 		r, err := s.Subtitles().Find(ctx, q)
 		if err != nil {
-			errs = append(errs, err)
+			errs = append(errs, sourceError("OpenSubtitles", err))
 		}
 		results = append(results, r...)
 	}
@@ -432,7 +448,7 @@ func (s *Server) findSubtitles(ctx context.Context, q subtitles.Query, useOpenSu
 		asked++
 		r, err := s.SubDL().Find(ctx, q)
 		if err != nil {
-			errs = append(errs, err)
+			errs = append(errs, sourceError("SubDL", err))
 		}
 		results = append(results, r...)
 	}
@@ -457,13 +473,24 @@ func (s *Server) findSubtitles(ctx context.Context, q subtitles.Query, useOpenSu
 		return nil, subtitles.ErrNoSource
 	case asked == 0:
 		return nil, subtitles.ErrNoAPIKey
-	case len(errs) == asked:
+	case len(errs) == asked, len(results) == 0 && len(errs) > 0:
+		// Every source failed, or the ones that answered had nothing and one
+		// failed: say so, rather than "no subtitles", which would be a guess.
 		return nil, errs[0]
 	}
 	for _, err := range errs {
 		log.Printf("subtitles: one source failed, using the other: %v", err)
 	}
 	return results, nil
+}
+
+// sourceError says which source an error came from, keeping the error itself
+// for errors.Is.
+func sourceError(name string, err error) error {
+	if errors.Is(err, subtitles.ErrQuota) || errors.Is(err, subtitles.ErrNoAPIKey) || errors.Is(err, subtitles.ErrInvalidKey) || errors.Is(err, subtitles.ErrSubDLKey) {
+		return err // these already name the site, or are handled by their kind
+	}
+	return fmt.Errorf("%s: %w", name, err)
 }
 
 // fetchBestSubtitle finds the subtitle that best fits the video file and
@@ -479,7 +506,7 @@ func (s *Server) fetchBestSubtitle(ctx context.Context, it subtitleItem, key str
 	if err != nil {
 		return "", err
 	}
-	best := subtitles.Pick(profile.Filter(slot, results), filepath.Base(it.filePath))
+	best := subtitles.PickFor(profile.Filter(slot, results), filepath.Base(it.filePath), it.hints())
 	if best == nil {
 		return "", errNoSubtitle
 	}
@@ -646,10 +673,11 @@ func (s *Server) fetchSubtitles(ctx context.Context, items []subtitleItem, opts 
 			default:
 				if errors.Is(err, errNoSubtitle) {
 					res.notFound++
+					_ = s.SubtitleAttempts.Record(it.kind, it.id, lang)
 				} else {
+					// A failed search is not an answer: it is tried again next time.
 					log.Printf("subtitles: %s %d (%s): %v", it.kind, it.id, lang, err)
 				}
-				_ = s.SubtitleAttempts.Record(it.kind, it.id, lang)
 			}
 		}
 	}

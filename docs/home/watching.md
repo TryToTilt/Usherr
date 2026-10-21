@@ -11,6 +11,22 @@
   later.
 - In the Library, titles marked **Streams** aren't on disk: they always play
   this way.
+- **What the browser can't play is converted, and nothing else.** A 4K film
+  stays 4K, HDR stays HDR and 5.1 stays 5.1. Most often only the sound is
+  converted: Dolby (E-AC3, Atmos), TrueHD and DTS, which Chrome and Edge play
+  silently, become AAC with the same channels, while the picture plays as it
+  is. A stream that starts silent gets its sound this way within a few
+  seconds, and seeks as usual. The delay your speakers add (spatial sound,
+  a receiver, Bluetooth) is allowed for; if it's still a little off, the
+  player's **− Sync +** buttons move the sound earlier or later, 50 ms a tap
+  (tap the number to put it back). It's kept on each device.
+  Only a picture the browser can't show at all
+  (an old XviD, or HDR on a screen without it) is converted, at its own
+  size. A smaller picture only comes from a quality you pick.
+- **Audio & subtitles** in the player picks the language, for files and
+  streams alike (a stream offers its sound tracks; its subtitles aren't read,
+  since that means reading the whole film). The language you pick is
+  remembered, and a release with several (MULTi) starts in it.
 
 ## On the TV
 
@@ -38,15 +54,19 @@ Everything the house has, in tabs: **Movies**, **TV**, **Anime**, **Ebooks**,
 
 ## Live TV
 
-Channels made from the library, each with a schedule: a film night, a comedy
-channel that plays a show in order, and so on.
+Channels like broadcast TV, made from the library, from streams, from free
+live channels, or rebuilt from a real network's day (**Real TV**).
 
 ![Live TV: what's on now, and the guide](images/live-tv.png)
 
-- **Guide** shows what's on now and next; **Watch** joins a channel where it
-  is, like real TV.
-- The same channels can show in Jellyfin's Live TV on the TV.
-- Whoever runs the server makes the channels (**New channel**).
+- **Guide** shows what's on now and next; tap a program twice to watch, or
+  once later on for **Remind me**. **Watch** joins a channel where it is.
+- Change channel like a cable box (↑ ↓, a number, Backspace for the last
+  one), or watch four at once in **Multiview**.
+- The same channels show in Jellyfin, Plex and IPTV apps such as TiviMate.
+
+See [Live TV](live-tv.md) for everything: making channels, packs, the AI
+builder, scheduling like a network, Real TV and the other apps.
 
 ## Upcoming
 
@@ -59,7 +79,8 @@ channel that plays a show in order, and so on.
 
 The **Comics** tab in the Library: your series, with new issues each week.
 Open an issue to read it page by page (swipe or use the arrow keys);
-**Panels** mode zooms panel by panel on a phone. *Catch me up* recaps a series
+**Panels** mode zooms panel by panel on a phone, and the **page-turn** view curls
+the pages like paper (two side by side on a wide screen). *Catch me up* recaps a series
 up to where you stopped, and **Story arcs** lists what to read in which order.
 
 ## On a phone

@@ -1,85 +1,49 @@
 // Usherr: the Marquee, a lobby display for a tablet standing next to the TV
 // (portrait, read from across the room). It rotates through scenes in the
-// order set in Settings > Extras > Marquee: what's playing now, single films
+// order set on the Marquee's page: what's playing now, single films
 // (new, in theaters, coming soon) with trailers, what arrived lately, what's
 // in cinemas and the week ahead. Open /marquee full-screen. ?sound=1 plays
-// trailers with sound, and ?only=new,trailer,... shows only those scenes.
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+// trailers with sound, ?only=new,trailer,... shows only those scenes, and
+// ?screen=NAME gives the screen a fixed id. The Marquee remote steers it.
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { locale, t } from '../i18n'
 import type { CalendarEntry } from '../api'
+import { dayLabel, hours, inQuiet, typeLabel, type Data, type Feature, type MediaItem, type Playing, type SceneKind, type Spotlight } from './marqueeData'
 import { applyPalette, markSrc } from '../palette'
+import { Board, ItemLook, itemsFor, Wall, wallItems, type Item } from './MarqueeLooks'
+import { FitLine, SceneFrame, Stage } from './marqueeParts'
+import { Badges, InfoPanel, MediaSlide, PreShow, preShowHasSomething, QR, qrFor, SpotlightView, ThemeMusic, TonightView, trivia, TriviaView } from './MarqueeExtras'
+import './marqueeFonts'
 import './marquee.css'
+import './marqueeLook.css'
+import './marqueeExtras.css'
 
-interface Playing {
-  title: string
-  series?: string
-  season?: number
-  episode?: number
-  kind: 'movie' | 'episode' | 'other'
-  year?: number
-  progress: number
-  paused: boolean
-  device?: string
-  posterUrl?: string
-  backdropUrl?: string
-}
-interface Feature {
-  tmdbId: number
-  title: string
-  year?: number
-  tagline?: string
-  runtime?: number
-  rating?: number
-  rated?: string
-  genres?: string[]
-  posterUrl?: string
-  backdropUrl?: string
-  trailer?: string
-  reason: 'new' | 'theaters' | 'coming'
-  releaseDate?: string
-}
-interface Arrival {
-  kind: string
-  title: string
-  year?: number
-  posterUrl?: string
-  at: string
-}
-export type SceneKind = 'playing' | 'new' | 'trailer' | 'theaters-film' | 'arrivals' | 'coming-film' | 'theaters' | 'coming' | 'tvnow'
-export interface MarqueeSettings {
-  scenes: { kind: SceneKind; on: boolean; seconds: number }[]
-  showIcon: boolean
-  showName: boolean
-  showClock: boolean
-  signMode: 'auto' | 'custom'
-  signLine1: string
-  signLine2: string
-  textScale: number
-  posterScale: number
-  scrollSpeed: 'slow' | 'normal' | 'fast'
-  trailerSound: boolean
-  fromJellyfin: boolean
-  fromStreamNZB: boolean
-  profiles: string[]
-  quietOn: boolean
-  quietFrom: string
-  quietTo: string
-  quietMode: 'clock' | 'black'
-  palette: string
-}
-interface Data {
-  nowPlaying: Playing[]
-  features: Feature[]
-  arrivals: Arrival[]
-  theaters: Feature[]
-  coming: CalendarEntry[]
-  theatre?: string
-  settings: MarqueeSettings
-  tvNow?: { number: number; name: string; logo?: string; title: string; subtitle?: string; progress: number; next?: string; nextAt?: string }[] // Usherr: Live TV
-}
+// A scene of the Usherr look, one item of another single-poster look, or the
+// whole of the wall or the board.
+type Scene =
+  | { kind: 'playing'; p: Playing }
+  | { kind: 'feature'; f: Feature }
+  | { kind: 'trailer'; f: Feature }
+  | { kind: 'arrivals' }
+  | { kind: 'theaters' }
+  | { kind: 'coming' }
+  | { kind: 'tvnow' }
+  | { kind: 'item'; it: Item }
+  | { kind: 'wall' }
+  | { kind: 'board' }
+  | { kind: 'tonight' }
+  | { kind: 'spotlight'; sp: Spotlight }
+  | { kind: 'trivia'; f: Feature; fact: string }
+  | { kind: 'slide'; m: MediaItem }
+  | { kind: 'preshow' }
 
-type Scene = { kind: 'playing'; p: Playing } | { kind: 'feature'; f: Feature } | { kind: 'trailer'; f: Feature } | { kind: 'arrivals' } | { kind: 'theaters' } | { kind: 'coming' } | { kind: 'tvnow' }
+// The scenes every look shows the same way (with its own colours and fonts).
+const EXTRA = new Set(['tonight', 'spotlight', 'trivia', 'slide', 'preshow'])
+
+const SINGLE = new Set(['cinema', 'screensaver', 'posterr', 'onesheet'])
+const NUDGE_MS = 3 * 60 * 1000 // burn-in protection: a few pixels every three minutes
+const BOARD_MS = 40_000 // the board, read through before it starts again
 
 const REFRESH_MS = 2 * 60 * 1000
 const SPEED = { slow: 18, normal: 28, fast: 44 } // pixels a second when a tall scene scrolls
@@ -103,88 +67,127 @@ function heading(s: Scene): string {
       return t('Coming up')
     case 'tvnow':
       return t('On Live TV')
+    case 'item':
+      return s.it.label
+    case 'wall':
+    case 'board':
+      return t('Now showing')
+    case 'tonight':
+      return t('Tonight on Usherr TV')
+    case 'spotlight':
+      return t('In the spotlight')
+    case 'trivia':
+      return t('Did you know?')
+    case 'slide':
+      return s.m.title || t('Now showing')
+    case 'preshow':
+      return t('Now showing')
   }
 }
 
-const hours = (min?: number) => (min ? `${Math.floor(min / 60)}h ${min % 60}m` : '')
-
-function dayLabel(date: string): string {
-  const d = new Date(`${date}T00:00:00`)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const diff = Math.round((d.getTime() - today.getTime()) / 86400000)
-  if (diff === 0) return t('Today')
-  if (diff === 1) return t('Tomorrow')
-  return d.toLocaleDateString(locale(), { weekday: 'long', month: 'short', day: 'numeric' })
-}
-
-function typeLabel(e: CalendarEntry): string {
-  switch (e.kind) {
-    case 'episode':
-      return e.subtitle?.split(' · ')[0] ?? t('Episode')
-    case 'album':
-      return t('Album')
-    case 'book':
-      return t('Book')
-    case 'comic':
-      return t('Comic')
-    default:
-      return e.status === 'theaters' ? t('In theaters') : t('Movie')
+// Each browser showing the Marquee is a screen with an id it keeps (or the
+// one in ?screen=), so the remote can name it, give it its own settings and
+// steer it.
+const SCREEN_KEY = 'usherr-marquee-screen'
+function screenId(fromUrl: string | null): string {
+  const clean = (v: string | null | undefined) => {
+    const id = (v ?? '').trim().toLowerCase()
+    return /^[a-z0-9-]{6,40}$/.test(id) ? id : ''
+  }
+  if (clean(fromUrl)) return clean(fromUrl)
+  try {
+    const kept = clean(localStorage.getItem(SCREEN_KEY))
+    if (kept) return kept
+    const made = `mq-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`
+    localStorage.setItem(SCREEN_KEY, made)
+    return made
+  } catch {
+    return ''
   }
 }
 
-// Quiet hours: "23:30" to "14:00" runs over midnight.
-function inQuiet(now: Date, from: string, to: string): boolean {
-  const m = now.getHours() * 60 + now.getMinutes()
-  const [fh, fm] = from.split(':').map(Number)
-  const [th, tm] = to.split(':').map(Number)
-  const a = fh * 60 + fm
-  const b = th * 60 + tm
-  return a <= b ? m >= a && m < b : m >= a || m < b
+// What a scene shows, in a line and a picture, for the remote's preview.
+function summary(s: Scene, d: Data): { title: string; posterUrl?: string } {
+  switch (s.kind) {
+    case 'playing':
+      return { title: s.p.series ?? s.p.title, posterUrl: s.p.posterUrl }
+    case 'feature':
+    case 'trailer':
+      return { title: s.f.title, posterUrl: s.f.posterUrl }
+    case 'arrivals':
+      return { title: heading(s), posterUrl: d.arrivals[0]?.posterUrl }
+    case 'theaters':
+      return { title: heading(s), posterUrl: d.theaters[0]?.posterUrl }
+    case 'coming':
+      return { title: heading(s), posterUrl: d.coming[0]?.posterUrl }
+    case 'tvnow':
+    case 'wall':
+    case 'board':
+      return { title: heading(s) }
+    case 'item':
+      return { title: s.it.title, posterUrl: s.it.posterUrl }
+    case 'tonight':
+    case 'preshow':
+      return { title: s.kind === 'preshow' ? t('The pre-show') : heading(s) }
+    case 'spotlight':
+      return { title: s.sp.name, posterUrl: s.sp.photo }
+    case 'trivia':
+      return { title: s.f.title, posterUrl: s.f.posterUrl }
+    case 'slide':
+      return { title: s.m.title || t('Your slide'), posterUrl: s.m.kind === 'image' ? s.m.fileUrl : undefined }
+  }
 }
 
-// FitLine keeps a line of the sign on one line, shrinking its type until it
-// fits the sign's width.
-function FitLine({ text }: { text: string }) {
-  const ref = useRef<HTMLSpanElement>(null)
-  useLayoutEffect(() => {
-    const el = ref.current
-    const box = el?.parentElement
-    if (!el || !box) return
-    const fit = () => {
-      el.style.fontSize = ''
-      const room = box.clientWidth - 2
-      let k = 1
-      for (let i = 0; i < 40 && el.scrollWidth > room && k > 0.2; i++) {
-        k *= Math.max(0.6, Math.min(0.97, room / el.scrollWidth))
-        el.style.fontSize = `calc(var(--mq-sign) * ${k.toFixed(3)})`
-      }
-    }
-    fit()
-    const ro = new ResizeObserver(fit)
-    ro.observe(box)
-    void document.fonts?.ready.then(fit)
-    return () => ro.disconnect()
-  }, [text])
-  return (
-    <span ref={ref} className="mq-line">
-      {text}
-    </span>
-  )
+// The film behind a scene, for the info panel, the QR code and theme music.
+function filmOf(s: Scene): Feature | undefined {
+  if (s.kind === 'feature' || s.kind === 'trailer') return s.f
+  if (s.kind === 'item') return s.it.feature
+  return undefined
+}
+
+function playingOf(s: Scene): Playing | undefined {
+  if (s.kind === 'playing') return s.p
+  if (s.kind === 'item') return s.it.playing
+  return undefined
+}
+
+type Shown = { s: Scene; seconds: number; n: number; kind: SceneKind }
+interface Remote {
+  paused: boolean // stays on this scene
+  pinned: boolean // plays this scene again and again (a scroll, a trailer)
+  dim: boolean
+  blank: boolean
+  info: boolean // the info panel, from the remote
 }
 
 export default function Marquee() {
   const [params] = useSearchParams()
   const only = params.get('only')
+  const [screen] = useState(() => screenId(params.get('screen')))
   const [data, setData] = useState<Data | null>(null)
-  const [scene, setScene] = useState<{ s: Scene; seconds: number; n: number } | null>(null)
+  const [scene, setScene] = useState<Shown | null>(null)
   const [clock, setClock] = useState(() => new Date())
+  const [remote, setRemote] = useState<Remote>({ paused: false, pinned: false, dim: false, blank: false, info: false })
+  const remoteRef = useRef(remote)
+  const waiting = useRef(false) // a paused scene's time is up
+  const shown = useRef<Shown[]>([]) // the scenes shown, for "previous"
   const failures = useRef(0)
   const dataRef = useRef<Data | null>(null)
   const cursor = useRef({ step: -1, counts: {} as Record<string, number>, lastFeature: null as Feature | null, n: 0 })
+  const current = useRef(0) // the scene on screen (its n)
+  const [bump, setBump] = useState(0) // the wall's "next"
+  const [wallHero, setWallHero] = useState<Item | undefined>(undefined)
+  const [nudge, setNudge] = useState({ x: 0, y: 0 })
+  const startPreShow = useRef<(thenPlaying: boolean) => void>(() => undefined)
+  const afterPreShow = useRef(false) // show what's playing once the pre-show ends
+
+  useEffect(() => {
+    remoteRef.current = remote
+  }, [remote])
 
   const load = useCallback(() => {
-    fetch('/api/home/marquee', { credentials: 'include' })
+    const who = screen ? `?screen=${screen}&w=${Math.round(window.innerWidth * devicePixelRatio)}&h=${Math.round(window.innerHeight * devicePixelRatio)}` : ''
+    fetch(`/api/home/marquee${who}`, { credentials: 'include' })
       .then((r) => (r.ok ? (r.json() as Promise<Data>) : Promise.reject(new Error(String(r.status)))))
       .then((d) => {
         failures.current = 0
@@ -196,7 +199,7 @@ export default function Marquee() {
         // Signed out (or the server restarted with a new session): back to sign-in.
         if (failures.current >= 3) window.location.reload()
       })
-  }, [])
+  }, [screen])
 
   useEffect(() => {
     load()
@@ -207,20 +210,23 @@ export default function Marquee() {
   // What's playing changes faster than the rest: asked every 30 seconds.
   useEffect(() => {
     const id = window.setInterval(() => {
-      fetch('/api/home/marquee?only=playing', { credentials: 'include' })
+      fetch(`/api/home/marquee?only=playing${screen ? `&screen=${screen}` : ''}`, { credentials: 'include' })
         .then((r) => (r.ok ? (r.json() as Promise<Data>) : null))
         .then((d) => {
           if (!d) return
+          const before = new Set((dataRef.current?.nowPlaying ?? []).map((p) => `${p.device}|${p.title}`))
+          const started = d.nowPlaying.some((p) => !before.has(`${p.device}|${p.title}`))
           setData((old) => {
             const next = old ? { ...old, nowPlaying: d.nowPlaying } : old
             dataRef.current = next
             return next
           })
+          if (started && dataRef.current?.settings.preShowOnStart) startPreShow.current(true)
         })
         .catch(() => undefined)
     }, 30_000)
     return () => window.clearInterval(id)
-  }, [])
+  }, [screen])
 
   useEffect(() => {
     const id = window.setInterval(() => setClock(new Date()), 20_000)
@@ -244,16 +250,16 @@ export default function Marquee() {
     if (palette) applyPalette(palette)
   }, [palette])
 
-  // The next scene: the next one switched on, in the set order, that has
-  // something to show; each takes the next film of its kind in turn.
-  const advance = useCallback(() => {
+  const show = useCallback((next: Shown) => {
+    shown.current = [...shown.current.slice(-29), next]
+    current.current = next.n
+    setScene(next)
+  }, [])
+
+  // pick finds the next thing for a scene to show, or nothing.
+  const pick = useCallback((kind: SceneKind): Scene | undefined => {
     const d = dataRef.current
-    if (!d) return
-    let order = d.settings.scenes.filter((x) => x.on)
-    if (only) {
-      const want = new Set(only.split(',').flatMap((w) => OLD_NAMES[w.trim()] ?? [w.trim()]))
-      order = d.settings.scenes.filter((x) => want.has(x.kind))
-    }
+    if (!d) return undefined
     const c = cursor.current
     const take = <T,>(key: string, list: T[]): T | undefined => {
       if (!list.length) return undefined
@@ -261,48 +267,219 @@ export default function Marquee() {
       c.counts[key] = i + 1
       return list[i % list.length]
     }
+    // The scenes every look shows alike.
+    switch (kind) {
+      case 'tonight':
+        return (d.tonight ?? []).some((c) => c.shows.length) ? { kind: 'tonight' } : undefined
+      case 'spotlight': {
+        const sp = take('spotlight', d.spotlights ?? [])
+        return sp && { kind: 'spotlight', sp }
+      }
+      case 'trivia': {
+        const x = take('trivia', trivia(d.features))
+        return x && { kind: 'trivia', f: x.f, fact: x.fact }
+      }
+      case 'slides': {
+        const m = take(
+          'slides',
+          (d.media ?? []).filter((x) => x.place === 'slide'),
+        )
+        return m && { kind: 'slide', m }
+      }
+      case 'preshow':
+        return preShowHasSomething(d, d.settings) ? { kind: 'preshow' } : undefined
+    }
+    // The other single-poster looks show one film, show or channel at a time.
+    if (SINGLE.has(d.settings.style)) {
+      const it = take(kind, itemsFor(kind, d))
+      return it && { kind: 'item', it }
+    }
+    const reason = REASON[kind]
+    if (kind === 'playing') {
+      const p = take('playing', d.nowPlaying)
+      return p && { kind: 'playing', p }
+    }
+    if (reason) {
+      const f = take(
+        kind,
+        d.features.filter((x) => x.reason === reason),
+      )
+      if (f) c.lastFeature = f
+      return f && { kind: 'feature', f }
+    }
+    if (kind === 'trailer') {
+      const f = c.lastFeature?.trailer
+        ? c.lastFeature
+        : take(
+            'trailer',
+            d.features.filter((x) => x.trailer),
+          )
+      if (!f?.trailer) return undefined
+      c.lastFeature = null
+      return { kind: 'trailer', f }
+    }
+    if (kind === 'arrivals' && d.arrivals.length >= 2) return { kind: 'arrivals' }
+    if (kind === 'theaters' && d.theaters.length >= 2) return { kind: 'theaters' }
+    if (kind === 'coming' && d.coming.length) return { kind: 'coming' }
+    if (kind === 'tvnow' && (d.tvNow?.length ?? 0) > 0) return { kind: 'tvnow' }
+    return undefined
+  }, [])
+
+  // The next scene: the next one switched on, in the set order, that has
+  // something to show; each takes the next film of its kind in turn.
+  const advance = useCallback(() => {
+    const d = dataRef.current
+    if (!d) return
+    const c = cursor.current
+    // The wall and the board are one scene each.
+    if (d.settings.style === 'wall' || d.settings.style === 'board') {
+      c.n++
+      show({ s: { kind: d.settings.style }, seconds: BOARD_MS / 1000, n: c.n, kind: 'playing' })
+      return
+    }
+    let order = d.settings.scenes.filter((x) => x.on)
+    if (only) {
+      const want = new Set(only.split(',').flatMap((w) => OLD_NAMES[w.trim()] ?? [w.trim()]))
+      order = d.settings.scenes.filter((x) => want.has(x.kind))
+    }
+    // While something plays, only that, when asked.
+    if (d.settings.playingFirst && d.nowPlaying.length) {
+      const playing = d.settings.scenes.find((x) => x.kind === 'playing')
+      order = [{ kind: 'playing', on: true, seconds: playing?.seconds ?? 20 }]
+    }
     for (let tries = 0; tries < order.length; tries++) {
       c.step = (c.step + 1) % order.length
       const slot = order[c.step]
-      let s: Scene | undefined
-      const reason = REASON[slot.kind]
-      if (slot.kind === 'playing') {
-        const p = take('playing', d.nowPlaying)
-        if (p) s = { kind: 'playing', p }
-      } else if (reason) {
-        const f = take(
-          slot.kind,
-          d.features.filter((x) => x.reason === reason),
-        )
-        if (f) {
-          c.lastFeature = f
-          s = { kind: 'feature', f }
-        }
-      } else if (slot.kind === 'trailer') {
-        const f = c.lastFeature?.trailer
-          ? c.lastFeature
-          : take(
-              'trailer',
-              d.features.filter((x) => x.trailer),
-            )
-        if (f?.trailer) {
-          c.lastFeature = null
-          s = { kind: 'trailer', f }
-        }
-      } else if (slot.kind === 'arrivals' && d.arrivals.length >= 2) s = { kind: 'arrivals' }
-      else if (slot.kind === 'theaters' && d.theaters.length >= 2) s = { kind: 'theaters' }
-      else if (slot.kind === 'coming' && d.coming.length) s = { kind: 'coming' }
-      else if (slot.kind === 'tvnow' && (d.tvNow?.length ?? 0) > 0) s = { kind: 'tvnow' }
+      const s = pick(slot.kind)
       if (s) {
         c.n++
-        setScene({ s, seconds: slot.seconds, n: c.n })
+        show({ s, seconds: slot.seconds, n: c.n, kind: slot.kind })
         return
       }
     }
     // Nothing to show right now: look again shortly.
     setScene(null)
     window.setTimeout(() => advance(), 15_000)
-  }, [only])
+  }, [only, pick, show])
+
+  // A scene's time is up: the next one, unless the remote holds this one.
+  const done = useCallback((n: number) => {
+    if (n !== current.current) return // a scene leaving with a transition
+    const r = remoteRef.current
+    if (r.paused) {
+      waiting.current = true
+      return
+    }
+    if (r.pinned) {
+      const again = ++cursor.current.n
+      current.current = again
+      setScene((sc) => sc && { ...sc, n: again })
+      return
+    }
+    // After a pre-show that something starting began: what's playing.
+    if (afterPreShow.current) {
+      afterPreShow.current = false
+      const s = pick('playing')
+      if (s) {
+        const seconds = dataRef.current?.settings.scenes.find((x) => x.kind === 'playing')?.seconds ?? 20
+        show({ s, seconds, n: ++cursor.current.n, kind: 'playing' })
+        return
+      }
+    }
+    advance()
+  }, [advance, pick, show])
+
+  useEffect(() => {
+    startPreShow.current = (thenPlaying: boolean) => {
+      const d = dataRef.current
+      if (!d || d.settings.style === 'wall' || d.settings.style === 'board' || !preShowHasSomething(d, d.settings)) return
+      afterPreShow.current = thenPlaying
+      waiting.current = false
+      show({ s: { kind: 'preshow' }, seconds: 0, n: ++cursor.current.n, kind: 'preshow' })
+    }
+  }, [show])
+
+  // The remote's buttons.
+  const command = useCallback(
+    (cmd: string, arg?: string) => {
+      const on = arg === 'on'
+      const c = cursor.current
+      switch (cmd) {
+        case 'next':
+          waiting.current = false
+          if (dataRef.current?.settings.style === 'wall') setBump((b) => b + 1)
+          else advance()
+          break
+        case 'prev': {
+          if (dataRef.current?.settings.style === 'wall') {
+            setBump((b) => b + 1)
+            break
+          }
+          const before = shown.current.slice(0, -1)
+          const back = before[before.length - 1]
+          if (!back) break
+          waiting.current = false
+          shown.current = before.slice(0, -1)
+          c.n++
+          show({ ...back, n: c.n })
+          break
+        }
+        case 'scene': {
+          const kind = arg as SceneKind
+          const s = pick(kind)
+          if (!s) break
+          const seconds = dataRef.current?.settings.scenes.find((x) => x.kind === kind)?.seconds ?? 20
+          waiting.current = false
+          c.n++
+          show({ s, seconds, n: c.n, kind })
+          break
+        }
+        case 'pause':
+          setRemote((r) => ({ ...r, paused: on }))
+          if (!on && waiting.current) {
+            waiting.current = false
+            advance()
+          }
+          break
+        case 'pin':
+          setRemote((r) => ({ ...r, pinned: on }))
+          break
+        case 'dim':
+          setRemote((r) => ({ ...r, dim: on }))
+          break
+        case 'blank':
+          setRemote((r) => ({ ...r, blank: on }))
+          break
+        case 'reload':
+          window.location.reload()
+          break
+        case 'info':
+          setRemote((r) => ({ ...r, info: on }))
+          break
+        case 'preshow':
+          startPreShow.current(false)
+          break
+      }
+    },
+    [advance, pick, show],
+  )
+
+  // The live stream: new settings and the remote's buttons arrive at once.
+  useEffect(() => {
+    if (!screen || typeof EventSource === 'undefined') return
+    const es = new EventSource(`/api/home/marquee/events?screen=${screen}`)
+    es.onmessage = (m) => {
+      let ev: { type?: string; cmd?: string; arg?: string }
+      try {
+        ev = JSON.parse(m.data as string) as typeof ev
+      } catch {
+        return
+      }
+      if (ev.type === 'settings') load()
+      else if (ev.type === 'command' && ev.cmd) command(ev.cmd, ev.arg)
+    }
+    return () => es.close()
+  }, [screen, load, command])
 
   const started = useRef(false)
   useEffect(() => {
@@ -312,100 +489,235 @@ export default function Marquee() {
     }
   }, [data, advance])
 
+  // A new look (from the settings or the remote) starts from its first scene.
+  const style = data?.settings.style
+  const lastStyle = useRef(style)
+  useEffect(() => {
+    if (!started.current || style === lastStyle.current) return
+    lastStyle.current = style
+    shown.current = []
+    advance()
+  }, [style, advance])
+
+  // Burn-in protection: everything moves a few pixels now and then.
+  const nudgeOn = !!data?.settings.nudge
+  useEffect(() => {
+    if (!nudgeOn) return
+    const id = window.setInterval(() => setNudge({ x: Math.round(Math.random() * 12 - 6), y: Math.round(Math.random() * 12 - 6) }), NUDGE_MS)
+    return () => {
+      window.clearInterval(id)
+      setNudge({ x: 0, y: 0 })
+    }
+  }, [nudgeOn])
+
+  const kinds = useMemo(() => (data ? data.settings.scenes.filter((x) => x.on).map((x) => x.kind) : []), [data])
+  const pool = useMemo(() => (data && data.settings.style === 'wall' ? wallItems(kinds, data) : []), [data, kinds])
+
+  // Tell the remote what's on, for its preview.
+  const quiet = !!data && data.settings.quietOn && inQuiet(clock, data.settings.quietFrom, data.settings.quietTo)
+  useEffect(() => {
+    const d = dataRef.current
+    if (!screen || !d) return
+    const what = scene?.s.kind === 'wall' && wallHero ? { title: wallHero.title, posterUrl: wallHero.posterUrl } : scene ? summary(scene.s, d) : { title: '' }
+    fetch(`/api/home/marquee/showing?screen=${screen}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scene: scene?.s.kind === 'wall' || scene?.s.kind === 'board' ? '' : (scene?.kind ?? ''), ...what, ...remote, quiet }),
+    }).catch(() => undefined)
+  }, [screen, scene, remote, quiet, wallHero])
+
   if (!data) return <div className="mq" />
   const set = data.settings
   const sound = set.trailerSound || params.get('sound') === '1'
-  const quiet = set.quietOn && inQuiet(clock, set.quietFrom, set.quietTo)
   const time = clock.toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' })
-  const vars = { '--mq-t': set.textScale / 100, '--mq-p': set.posterScale / 100 } as CSSProperties
+  const vars = {
+    '--mq-t': set.textScale / 100,
+    '--mq-p': set.posterScale / 100,
+    '--mq-bulb': set.bulbSize / 100,
+    ...(set.accent ? { '--mq-accent': set.accent } : {}),
+    ...(set.background ? { '--mq-bg': set.background } : {}),
+  } as CSSProperties
+  const look = `th-${set.theme} f-${set.font} c-${set.corners} st-${set.style}`
 
+  if (remote.blank) return <div className={`mq ${look} mq-quiet black`} />
   if (quiet) {
-    return <div className={`mq mq-quiet${set.quietMode === 'black' ? ' black' : ''}`}>{set.quietMode === 'clock' && <span className="mq-quiet-clock">{time}</span>}</div>
+    return (
+      <div className={`mq ${look} mq-quiet${set.quietMode === 'black' ? ' black' : ''}`} style={vars}>
+        {set.quietMode === 'clock' && <span className="mq-quiet-clock">{time}</span>}
+      </div>
+    )
   }
-  const sign = set.signMode === 'custom' ? [set.signLine1, set.signLine2].filter(Boolean) : [scene ? heading(scene.s) : t('Now showing')]
-  const top = set.showIcon || set.showName || set.showClock
+  const custom = set.signMode === 'custom' ? [set.signLine1, set.signLine2].filter(Boolean) : null
+  const speed = SPEED[set.scrollSpeed] ?? SPEED.normal
+  // Dimmed by the remote, or at night.
+  const night = set.nightDimOn && inQuiet(clock, set.nightFrom, set.nightTo)
+  const shade = Math.max(remote.dim ? 0.65 : 0, night ? 1 - set.nightLevel / 100 : 0)
 
-  return (
-    <div className="mq" style={vars} onDoubleClick={() => void document.documentElement.requestFullscreen?.().catch(() => undefined)}>
-      {top && (
-        <header className="mq-top">
-          {set.showIcon && <img className="mq-mark" src={markSrc()} alt="" />}
-          {set.showName && <span className="mq-name">Usherr</span>}
-          {set.showClock && <span className="mq-clock">{time}</span>}
-        </header>
-      )}
-      {sign.length > 0 && (
-        <div className={`mq-marquee${top ? '' : ' alone'}`} aria-live="polite">
-          <span className="mq-bulbs" aria-hidden="true" />
-          <h1 className={sign.length > 1 ? 'two' : ''}>
-            {sign.map((line, i) => (
-              <FitLine key={i} text={line} />
-            ))}
-          </h1>
-          <span className="mq-bulbs" aria-hidden="true" />
-        </div>
-      )}
-      <main className="mq-stage">
-        {scene ? (
-          <SceneFrame key={scene.n} minMs={scene.seconds * 1000} still={scene.s.kind === 'trailer'} speed={SPEED[set.scrollSpeed] ?? SPEED.normal} onDone={advance}>
-            <SceneView scene={scene.s} data={data} sound={sound} />
+  // Scenes every look shows alike, with its colours and fonts.
+  const extra = (sc: Shown, header: boolean): ReactNode => {
+    const s = sc.s
+    const end = () => done(sc.n)
+    switch (s.kind) {
+      case 'tonight':
+        return (
+          <SceneFrame n={sc.n} minMs={sc.seconds * 1000} speed={speed} onDone={done}>
+            <TonightView data={data} header={header} />
           </SceneFrame>
+        )
+      case 'spotlight':
+        return (
+          <SceneFrame n={sc.n} minMs={sc.seconds * 1000} still speed={speed} onDone={done}>
+            <SpotlightView sp={s.sp} header={header} />
+          </SceneFrame>
+        )
+      case 'trivia':
+        return (
+          <SceneFrame n={sc.n} minMs={sc.seconds * 1000} still speed={speed} onDone={done}>
+            <TriviaView f={s.f} fact={s.fact} header={header} />
+          </SceneFrame>
+        )
+      case 'slide':
+        return <MediaSlide m={s.m} sound={sound} onEnd={end} header={header} />
+      case 'preshow':
+        return <PreShow data={data} set={set} sound={sound} trailerSeconds={set.scenes.find((x) => x.kind === 'trailer')?.seconds ?? 75} onDone={end} />
+      default:
+        return null
+    }
+  }
+  const isExtra = !!scene && EXTRA.has(scene.s.kind)
+  const preshow = scene?.s.kind === 'preshow'
+
+  // Over the scene: the info panel and a QR code, for a film or what's playing.
+  const film = scene ? filmOf(scene.s) : undefined
+  const playing = scene ? playingOf(scene.s) : undefined
+  const infoOn = !preshow && (remote.info || set.infoPanel === 'always' || (set.infoPanel === 'held' && (remote.paused || remote.pinned || !!playing?.paused)))
+  const qr = !preshow ? qrFor(film, set.qr) : null
+  const info =
+    infoOn && (film || playing) ? (
+      <InfoPanel
+        overview={film?.overview ?? playing?.overview}
+        cast={film?.cast ?? playing?.cast}
+        director={film?.director ?? playing?.director}
+        meta={[film?.genres?.slice(0, 3).join(', ') ?? playing?.genres?.slice(0, 3).join(', '), film?.rated ?? playing?.rated].filter(Boolean).join('  ·  ')}
+        side={qr ? <QR text={qr.text} label={qr.label} /> : undefined}
+      />
+    ) : null
+  const overlays = info ?? (qr ? <QR text={qr.text} label={qr.label} /> : null)
+
+  // Theme music for a film or a show of the library, when it has some.
+  let theme = ''
+  if (set.themeMusic && scene && !preshow && !sound) {
+    if (film?.themeUrl) theme = film.themeUrl
+    else if (scene.s.kind === 'item' && scene.s.it.themeKey) theme = data.themes?.[scene.s.it.themeKey] ?? ''
+  }
+
+  let body: ReactNode
+  if (set.style === 'wall') {
+    body = <Wall items={pool} set={set} paused={remote.paused} bump={bump} sign={custom && custom.length ? custom : null} time={time} onShow={setWallHero} />
+  } else if (set.style === 'board') {
+    body = (
+      <Board
+        data={data}
+        kinds={kinds}
+        sign={custom ?? [t('Now showing')]}
+        time={time}
+        showClock={set.showClock}
+        wrap={(list) =>
+          scene ? (
+            <SceneFrame key={scene.n} n={scene.n} minMs={BOARD_MS} speed={speed} onDone={done}>
+              {list}
+            </SceneFrame>
+          ) : (
+            list
+          )
+        }
+      />
+    )
+  } else if (set.style !== 'usherr') {
+    body = (
+      <main className="mq-stage">
+        {scene && isExtra ? (
+          <Stage k={scene.n} type={set.transition} ms={set.transitionMs}>
+            {extra(scene, true)}
+          </Stage>
+        ) : scene?.s.kind === 'item' ? (
+          <Stage k={scene.n} type={set.transition} ms={set.transitionMs}>
+            <SceneFrame n={scene.n} minMs={scene.seconds * 1000} still speed={speed} onDone={done}>
+              <ItemLook style={set.style} it={scene.s.it} set={set} n={scene.n} seconds={scene.seconds} sign={custom} time={time} portrait={window.innerHeight >= window.innerWidth} sound={sound} />
+            </SceneFrame>
+          </Stage>
         ) : (
           <p className="mq-empty">{t('Nothing to show yet.')}</p>
         )}
+        {overlays}
       </main>
-    </div>
-  )
-}
+    )
+  } else if (preshow && scene) {
+    body = (
+      <main className="mq-stage">
+        <Stage k={scene.n} type={set.transition} ms={set.transitionMs}>
+          {extra(scene, false)}
+        </Stage>
+      </main>
+    )
+  } else {
+    const sign = custom ?? [scene ? heading(scene.s) : t('Now showing')]
+    const top = set.showIcon || set.showName || set.showClock
+    body = (
+      <>
+        {top && (
+          <header className="mq-top">
+            {set.showIcon && <img className="mq-mark" src={markSrc()} alt="" />}
+            {set.showName && <span className="mq-name">Usherr</span>}
+            {set.showClock && <span className="mq-clock">{time}</span>}
+          </header>
+        )}
+        {sign.length > 0 && (
+          <div className={`mq-marquee fr-${set.frame}${top ? '' : ' alone'}`} aria-live="polite">
+            <span className="mq-bulbs" aria-hidden="true" />
+            <h1 className={sign.length > 1 ? 'two' : ''}>
+              {sign.map((line, i) => (
+                <FitLine key={i} text={line} />
+              ))}
+            </h1>
+            <span className="mq-bulbs" aria-hidden="true" />
+          </div>
+        )}
+        <main className="mq-stage">
+          {scene && isExtra ? (
+            <Stage k={scene.n} type={set.transition} ms={set.transitionMs}>
+              {extra(scene, false)}
+            </Stage>
+          ) : scene ? (
+            <Stage k={scene.n} type={set.transition} ms={set.transitionMs}>
+              <SceneFrame n={scene.n} minMs={scene.seconds * 1000} still={scene.s.kind === 'trailer'} speed={speed} onDone={done}>
+                <SceneView scene={scene.s} data={data} sound={sound} badges={set.badges === 'on'} />
+              </SceneFrame>
+            </Stage>
+          ) : (
+            <p className="mq-empty">{t('Nothing to show yet.')}</p>
+          )}
+          {overlays}
+        </main>
+      </>
+    )
+  }
 
-// SceneFrame shows a scene for its time. When the scene is taller than the
-// screen it reads it out slowly: a pause at the top, a slow glide to the
-// bottom, a pause, back up, and only then the next scene.
-const HOLD_TOP_MS = 4000
-const HOLD_BOTTOM_MS = 3000
-function SceneFrame({ minMs, still, speed, onDone, children }: { minMs: number; still?: boolean; speed: number; onDone: () => void; children: ReactNode }) {
-  const box = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const el = box.current
-    let raf = 0
-    const timers: number[] = []
-    const later = (ms: number, f: () => void) => timers.push(window.setTimeout(f, ms))
-    const glide = (from: number, to: number, ms: number, then: () => void) => {
-      const start = performance.now()
-      const step = (now: number) => {
-        const k = Math.min(1, (now - start) / ms)
-        const ease = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
-        if (el) el.scrollTop = from + (to - from) * ease
-        if (k < 1) raf = requestAnimationFrame(step)
-        else then()
-      }
-      raf = requestAnimationFrame(step)
-    }
-    const begun = performance.now()
-    const finish = () => later(Math.max(0, minMs - (performance.now() - begun)), onDone)
-    later(HOLD_TOP_MS, () => {
-      // Measured now, once the posters have loaded.
-      const over = el ? el.scrollHeight - el.clientHeight : 0
-      if (still || !el || over < 8) {
-        finish()
-        return
-      }
-      const down = (over / speed) * 1000
-      glide(0, over, down, () => later(HOLD_BOTTOM_MS, () => glide(over, 0, down / 1.5, () => later(1500, finish))))
-    })
-    return () => {
-      cancelAnimationFrame(raf)
-      timers.forEach((t) => window.clearTimeout(t))
-    }
-  }, [minMs, still, speed, onDone])
   return (
-    <div ref={box} className="mq-scroll">
-      {children}
+    <div className={`mq ${look}`} style={vars} onDoubleClick={() => void document.documentElement.requestFullscreen?.().catch(() => undefined)}>
+      <div className="mq-nudger" style={nudge.x || nudge.y ? { transform: `translate(${nudge.x}px, ${nudge.y}px)` } : undefined}>
+        {body}
+      </div>
+      {set.vintage && <div className="mq-fx mq-vintage" aria-hidden="true" />}
+      {set.grain && <div className="mq-fx mq-grain" aria-hidden="true" />}
+      <div className="mq-fx mq-shade" style={{ opacity: shade }} aria-hidden="true" />
+      {theme && <ThemeMusic url={theme} volume={set.themeVolume} />}
     </div>
   )
 }
 
-function SceneView({ scene, data, sound }: { scene: Scene; data: Data; sound: boolean }) {
+function SceneView({ scene, data, sound, badges }: { scene: Scene; data: Data; sound: boolean; badges: boolean }) {
   switch (scene.kind) {
     case 'playing': {
       const p = scene.p
@@ -423,6 +735,7 @@ function SceneView({ scene, data, sound }: { scene: Scene; data: Data; sound: bo
             {p.paused ? t('Paused') : t('Playing')}
             {p.device ? ` · ${p.device}` : ''}
           </p>
+          {badges && <Badges p={p} />}
         </div>
       )
     }
@@ -537,5 +850,7 @@ function SceneView({ scene, data, sound }: { scene: Scene; data: Data; sound: bo
         </div>
       )
     }
+    default:
+      return null
   }
 }

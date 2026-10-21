@@ -82,6 +82,8 @@ func fakeListsTMDB(t *testing.T) *httptest.Server {
 			reply(w, map[string]any{"movie_results": []map[string]any{{"id": 100}}, "tv_results": []any{}})
 		case "tt0000103":
 			reply(w, map[string]any{"movie_results": []map[string]any{{"id": 103}}, "tv_results": []any{}})
+		case "5000": // TheTVDB id of Show One
+			reply(w, map[string]any{"movie_results": []any{}, "tv_results": []map[string]any{{"id": 200}}})
 		case "tt0000200":
 			reply(w, map[string]any{"movie_results": []any{}, "tv_results": []map[string]any{{"id": 200}}})
 		default:

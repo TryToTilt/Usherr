@@ -10,6 +10,104 @@ export interface ReleaseNotes {
 
 export const WHATS_NEW: ReleaseNotes[] = [
   {
+    version: '3.2.11',
+    items: [
+      t("A small arrow after a release's score opens why it scored that way and why an automatic search may skip it."),
+      t("Sites that run on your own network, like BitMagnet, take your own address when you add or edit them."),
+    ],
+  },
+  {
+    version: '3.2.9',
+    items: [
+      t("Set a minimum number of seeders on each torrent indexer, so releases that would stall are skipped."),
+      t("The indexer cards in a row are the same height, with the test result and limits in short lines and the buttons at the bottom."),
+    ],
+  },
+  {
+    version: '3.2.8',
+    items: [
+      t("Custom formats from the TRaSH Guides come in with TRaSH's score in your default profile, and you can add several formats to several profiles at once."),
+      t("Keep TRaSH formats up to date with one button or a daily switch, and see the best release first in a manual search."),
+    ],
+  },
+  {
+    version: '3.2.7',
+    items: [
+      t("SubDL subtitles are no longer dropped for a download link of a shape Mediarium did not know, and the Details line shows what the link looked like."),
+    ],
+  },
+  {
+    version: '3.2.6',
+    items: [
+      t("The Indexers & Search page is one full-width card per section, with your indexers in up to three columns."),
+      t("When a subtitle search finds nothing, a Details line shows what each site was asked and what came back."),
+    ],
+  },
+  {
+    version: '3.2.5',
+    items: [
+      t("Pick the country for a movie's release dates under Settings > Info, lists and subtitles."),
+      t("The Indexers & Search page no longer slides one card over another when you scroll."),
+    ],
+  },
+  {
+    version: '3.2.4',
+    items: [
+      t("An indexer's seeding rules now reach your torrent client, and the Category box stays empty when you clear it."),
+      t("Stopping or removing a download also removes the torrent Mediarium sent to qBittorrent or Transmission (you can switch this off)."),
+    ],
+  },
+  {
+    version: '3.2.3',
+    items: [
+      t("A movie's page shows when it is in cinemas and when it comes out digitally, and the calendar marks both days."),
+      t("A release that may not replace your file is no longer imported next to it under another name, which stops second copies."),
+      t("Subtitle search tries each site by TMDB id, IMDb id and title, and shows an error instead of saying there are none."),
+    ],
+  },
+  {
+    version: '3.2.2',
+    items: [
+      t("The indexer list is sorted by priority, in two columns, with a filter box when you have many."),
+      t("The problem report form tells you when a newer version is out, so you can update first."),
+      t("Members no longer see server folder paths, and more checks keep a disconnected library drive from being written into."),
+    ],
+  },
+  {
+    version: '3.2.1',
+    items: [
+      t("Indexers have a priority from 1 to 50, like Prowlarr, and Knaben is a built-in site."),
+      t("Import your Simkl lists, next to Trakt (new, not yet tried with a real account)."),
+      t("Anime numbered by TheTVDB seasons, like One Piece and Jujutsu Kaisen, is placed on the right episodes."),
+      t("The e-reader catalogue loads much faster on big libraries, and an unmounted library folder is never written into."),
+    ],
+  },
+  {
+    version: '3.2.0',
+    items: [
+      t("Click an actor, director or writer on a movie or show page to see their photo, life and other work, and add it from there."),
+      t("A big unpack is much faster on network shares and Unraid, and Activity shows how far it is."),
+      t("Set a temporary download folder on a fast disk, and pick a category in your torrent client for each kind of download."),
+      t("Shows you already have can be set to only watch episodes that haven't aired yet, and Rescan finds episodes you added by hand."),
+    ],
+  },
+  {
+    version: '3.1.3',
+    items: [
+      t('Titles with accents or in other alphabets, such as Pokémon, Amélie or Japanese titles, are now found and matched.'),
+      t('Big libraries load much faster, and password-protected RAR downloads now open with their password.'),
+      t('Keep the original file names if you like, locate a renamed file, change a show\'s folder, set your own book cover and sign out your other devices.'),
+      t('Safer by default: the setup code can\'t be skipped, sign-in limits hold, and a site entry can\'t be pointed at your home network.'),
+    ],
+  },
+  {
+    version: '3.1.2',
+    items: [
+      t('Mediarium now learns the daily request limit of an indexer, stops before it is used up, and shows the requests used on the indexer\'s card.'),
+      t('The connection check of an indexer no longer uses up the daily requests of free indexers.'),
+    ],
+  },
+  {
     version: '3.1.1',
     items: [
       t('More subtitle and audio languages, searching under other titles, and a switch to take only the languages you list.'),
@@ -61,6 +159,13 @@ export const WHATS_NEW: ReleaseNotes[] = [
     ],
   },
 ]
+
+// titleVersion is the version the dialog names: the one running, without a
+// pre-release tag or a trailing .0 ("3.1.3-beta.2" -> "3.1.3", "3.1.0" -> "3.1").
+export function titleVersion(current: string): string {
+  const p = parts(current)
+  return p ? p.join('.').replace(/\.0$/, '') : current
+}
 
 export const SEEN_KEY = 'mediarium-seen-version'
 

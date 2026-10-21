@@ -79,6 +79,12 @@ type rescanReport struct {
 	Added  string `json:"added,omitempty"`
 	Looked string `json:"looked,omitempty"`
 	Busy   bool   `json:"busy,omitempty"`
+	// For a show: how many episodes took a video file put in its folder by
+	// hand, and the names (at most ten; NotMatchedTotal says how many there
+	// are) of the video files there that matched no episode.
+	AddedEpisodes   int      `json:"addedEpisodes,omitempty"`
+	NotMatched      []string `json:"notMatched,omitempty"`
+	NotMatchedTotal int      `json:"notMatchedTotal,omitempty"`
 }
 
 // libraryAvailable says the library folder is there and has something in it. A

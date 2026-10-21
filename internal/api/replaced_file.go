@@ -8,6 +8,8 @@ import (
 
 	"github.com/rdborg/mediarium/internal/cleanup"
 	"github.com/rdborg/mediarium/internal/organizer"
+	"github.com/rdborg/mediarium/internal/parser"
+	"github.com/rdborg/mediarium/internal/quality"
 )
 
 // replacesOldFiles reports whether the import conflict policy lets a new file
@@ -25,9 +27,51 @@ func replacesOldFiles(policy organizer.ConflictPolicy, isBetter func() bool) boo
 	return false
 }
 
-// removeReplacedFile deletes the file a title had before an import put a new
+// keepsEarlierFile reports whether an import must be turned away because the
+// title already has a file under another name that the new one may not
+// replace. Without this a worse release (or any release, for a title set to
+// keep its file) landed next to the file the title had and became the file the
+// library points at, leaving two copies. A recorded file that is gone from
+// the disk does not count: the new release then imports as usual.
+func keepsEarlierFile(earlier, dest string, replaceEarlier bool) bool {
+	if replaceEarlier || earlier == "" || filepath.Clean(earlier) == filepath.Clean(dest) {
+		return false
+	}
+	info, err := os.Stat(earlier)
+	return err == nil && info.Mode().IsRegular()
+}
+
+// existingTier is the quality an existing file counts as when a new release is
+// compared with it. The quality stored with the title is used; a title
+// without one (a file added by hand or by an older version) is read from the
+// name of its file, which includes names in the TRaSH style such as
+// "[Bluray-1080p]", and then from the release it came from. It reports false
+// when the quality cannot be told: a release is then never taken for an
+// upgrade over a file of unknown quality.
+func existingTier(stored, release, file string) (quality.Tier, bool) {
+	if t := quality.Tier(stored); t != "" && t != quality.TierUnknown {
+		return t, true
+	}
+	names := []string{release}
+	if file != "" {
+		base := filepath.Base(file)
+		names = append([]string{base[:len(base)-len(filepath.Ext(base))]}, names...)
+	}
+	for _, n := range names {
+		if n == "" {
+			continue
+		}
+		if t := quality.Classify(parser.Parse(n)); t != quality.TierUnknown {
+			return t, true
+		}
+	}
+	return "", false
+}
+
+// removeReplacedFile removes the file a title had before an import put a new
 // one under another name (a different quality tag or container, say), so the
-// library does not keep two copies. It only removes a plain file strictly
+// library does not keep two copies. The file and the files named after it go
+// to the recycle bin when that is on, otherwise they are deleted. It only removes a plain file strictly
 // inside root, reached through no link that leads out of it; never the new
 // file; and never a file another movie or episode still points at. A problem
 // is logged and never fails the import. It reports whether it removed the
@@ -52,7 +96,7 @@ func (s *Server) removeReplacedFile(root, old, kept string, movieID, seriesID in
 			return false // still another title's (or episode's) file
 		}
 	}
-	if err := os.Remove(old); err != nil {
+	if _, _, err := s.discardFileWithSidecars(root, old, title); err != nil {
 		slog.Warn("import: remove the file this one replaces", "path", old, "err", err)
 		return false
 	}

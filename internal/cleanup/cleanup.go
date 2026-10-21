@@ -65,6 +65,7 @@ type Item struct {
 	SizeBytes int64  // space removing it frees (hardlinked files count 0)
 	Reason    Reason
 	abs       string
+	area      int // which of the areas ScanAll found it in
 }
 
 // Decision is what the caller decides about one entry of the working

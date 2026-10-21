@@ -48,6 +48,12 @@ type Entry struct {
 	// episode number in that season.
 	Season int `json:"season"`
 	Offset int `json:"offset,omitempty"`
+	// TVDBSeason and TVDBOffset say where the entry sits in TheTVDB's
+	// numbering, which is what Sonarr names files by: the season (0 when the
+	// list has none) and what is added to an entry episode number to get the
+	// episode number in that season.
+	TVDBSeason int `json:"tvdbSeason,omitempty"`
+	TVDBOffset int `json:"tvdbOffset,omitempty"`
 	// Titles are the names the entry is known by (romaji, English, synonyms).
 	Titles []string `json:"titles,omitempty"`
 }
@@ -125,6 +131,41 @@ func (n *Numbering) uniqueAbsolute(abs int, of func(SceneEpisode) int) (s, e int
 		s, e = r.Season, r.Episode
 	}
 	return s, e, count == 1
+}
+
+// MapTVDB gives the episode of the show that a TheTVDB season and episode
+// stands for, through the anime lists: the entry that sits at that TheTVDB
+// season, its number within the entry, and where the entry starts in the
+// show's own numbering. ok is false when the lists know nothing about that
+// TheTVDB season, or two entries claim the episode equally.
+func (n *Numbering) MapTVDB(season, episode int) (s, e int, ok bool) {
+	if n == nil || season <= 0 || episode <= 0 {
+		return 0, 0, false
+	}
+	var best Entry
+	found, tie := false, false
+	for _, en := range n.Entries {
+		if !regularEntry(en) || en.TVDBSeason != season || en.Season <= 0 || episode-en.TVDBOffset < 1 {
+			continue
+		}
+		switch {
+		case !found || en.TVDBOffset > best.TVDBOffset:
+			best, found, tie = en, true, false
+		case en.TVDBOffset == best.TVDBOffset:
+			tie = true
+		}
+	}
+	if !found || tie {
+		return 0, 0, false
+	}
+	// Two TheTVDB seasons that start at the same place in the show mean the
+	// lists don't say where the later one begins; nothing is guessed.
+	for _, en := range n.Entries {
+		if regularEntry(en) && en.TVDBSeason > 0 && en.TVDBSeason != best.TVDBSeason && en.Season == best.Season && en.Offset == best.Offset {
+			return 0, 0, false
+		}
+	}
+	return best.Season, episode - best.TVDBOffset + best.Offset, true
 }
 
 // SceneOf is the scene numbering of an episode of the show, to search for it

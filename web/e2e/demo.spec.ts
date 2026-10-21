@@ -23,3 +23,16 @@ test('discover shows only made-up titles', async ({ page }) => {
   await expect(page.getByText('Small Weather').first()).toBeVisible()
   await expectNoErrors(errors)
 })
+
+test('a cast member opens the person page with their work', async ({ page }) => {
+  const errors = watchErrors(page)
+  await page.goto('/library?kind=movie')
+  await page.getByText('The Long Equation').first().click()
+  await page.getByRole('link', { name: /Actor One/ }).first().click()
+  await expect(page).toHaveURL(/\/person\/9001$/)
+  await expect(page.getByRole('heading', { name: 'Actor One' }).first()).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Movies' })).toBeVisible()
+  await page.getByRole('button', { name: 'Directing' }).click()
+  await expect(page).toHaveURL(/role=directing/)
+  await expectNoErrors(errors)
+})

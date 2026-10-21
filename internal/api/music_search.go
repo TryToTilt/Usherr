@@ -41,6 +41,10 @@ type musicReleasePayload struct {
 	PublishDate string `json:"publishDate,omitempty"`
 	Seeders     int    `json:"seeders,omitempty"`
 	Peers       int    `json:"peers,omitempty"`
+	// BelowMinSeeders marks a torrent with fewer seeders than its indexer's minimum
+	// (MinSeeders): automatic searches skip it, a grab by hand is allowed.
+	BelowMinSeeders bool `json:"belowMinSeeders,omitempty"`
+	MinSeeders      int  `json:"minSeeders,omitempty"`
 	// What the release name says.
 	Artist      string `json:"artist,omitempty"`
 	Album       string `json:"album,omitempty"`
@@ -149,6 +153,9 @@ func (s *Server) handleAlbumSearch(w http.ResponseWriter, r *http.Request) {
 		if !res.PublishDate.IsZero() {
 			p.PublishDate = res.PublishDate.Format(time.RFC3339)
 		}
+		if belowMinSeeders(res) {
+			p.BelowMinSeeders, p.MinSeeders = true, res.MinSeeders
+		}
 		out = append(out, p)
 	}
 	writeSearch(w, r, out, len(instances), outcomes)
@@ -230,9 +237,11 @@ func (s *Server) huntAlbum(ctx context.Context, artist music.Artist, album music
 	}
 	outcomes := indexers.SearchAll(ctx, instances, albumQuery(artist, album), musicCategories)
 	results, expired := s.freshResults(indexers.MergeResults(outcomes))
+	results, thin := s.keepSeeded(ctx, results)
 	sources := s.sourcesFor("")
 	best, verdict := pickMusicRelease(results, blocked, sources, artist, album, profile, current)
 	verdict.addExpired(expired, s.retentionDays())
+	verdict.addThin(thin)
 	verdict.failedIndexers = failedIndexers(outcomes)
 	what := "Searched"
 	if current != "" {

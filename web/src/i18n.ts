@@ -210,6 +210,8 @@ function serverText(text: string | undefined | null): string {
   if (lang === 'en') return text
   const exact = table[text]
   if (exact) return exact
+  // A note of two sentences, each on its own line, is translated sentence by sentence.
+  if (text.includes('\n')) return text.split('\n').map(st).join(' ')
   if (text.length > MAX_SERVER_TEXT) return text
   if (!serverPatterns) serverPatterns = compileServerPatterns()
   for (const p of serverPatterns) {

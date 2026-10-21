@@ -45,7 +45,7 @@
   .cbar-row .cbar-sort { min-width: 0; flex: 1 1 auto; }
   .cbar-panel > .dropdown, .cbar-panel > .cbar-find { flex: 1 1 100%; }
   .cbar-filters .cbar-filters-label { display: none; }
-  .cbar-row .dropdown-btn { max-width: 100%; }
+  .cbar-row .dropdown-btn { max-width: 100%; min-width: 0; } /* shorter with "…" rather than wider than the phone */
   .cbar-row .cbar-sort .dropdown { width: 100%; }
   .cbar-panel > .spacer { display: none; }
   .cbar-add-label { display: none; }

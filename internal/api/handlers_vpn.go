@@ -24,6 +24,9 @@ type vpnConfigPayload struct {
 	LocalAddresses []string `json:"localAddresses"`
 	DNS            []string `json:"dns,omitempty"`
 	Active         bool     `json:"active"`
+	// SecretError is set when the saved keys can't be read (a secret.key that
+	// doesn't belong to this database): the config can only be removed.
+	SecretError string `json:"secretError,omitempty"`
 }
 
 func (s *Server) handleListVPNConfigs(w http.ResponseWriter, r *http.Request) {
@@ -39,6 +42,9 @@ func (s *Server) handleListVPNConfigs(w http.ResponseWriter, r *http.Request) {
 			ID: c.ID, Label: c.Label, Provider: c.Provider, PeerPublicKey: c.Config.PeerPublicKey,
 			Endpoint: c.Config.Endpoint, AllowedIPs: c.Config.AllowedIPs, LocalAddresses: c.Config.LocalAddresses,
 			DNS: c.Config.DNS, Active: c.Active,
+		}
+		if c.SecretUnreadable {
+			out[i].SecretError = fmt.Sprintf("Mediarium can't read the saved keys of %s. Remove it and add the config again.", c.Label)
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -119,6 +125,10 @@ func (s *Server) handleActivateVPNConfig(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusNotFound, "That VPN config no longer exists.")
 		return
 	}
+	if target.SecretUnreadable {
+		writeError(w, http.StatusConflict, fmt.Sprintf("Mediarium can't read the saved keys of %s, so it can't be switched on. Remove it and add the config again.", target.Label))
+		return
+	}
 
 	if err := s.VPNManager.Activate(target.Label, target.Config); err != nil {
 		slog.Warn("vpn: couldn't switch a connection on", "label", target.Label, "err", err)
@@ -154,6 +164,11 @@ func (s *Server) restoreVPN() {
 		return
 	}
 	if !ok {
+		return
+	}
+	if active.SecretUnreadable {
+		slog.Warn("vpn: the saved connection can't be read, so it was not switched on", "config", active.ID)
+		s.VPNManager.Broken("VPN", "Couldn't read the saved connection. Add it again.")
 		return
 	}
 	s.VPNManager.Restore(active.Label, active.Config)

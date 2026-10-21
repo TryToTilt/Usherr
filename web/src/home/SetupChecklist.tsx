@@ -54,16 +54,19 @@ const GUIDE = '/help/home-setup#'
 export default function SetupChecklist() {
   const [items, setItems] = useState<Item[] | null>(null)
   const load = useCallback(async () => {
-    const [dash, mods, settings, x, ai, mdb, news, notes, two] = await Promise.all([
+    const [dash, mods, settings, x, eng, ai, mdb, news, notes, two, cinema, marquee] = await Promise.all([
       api.dashboard().catch(() => null) as Promise<DashboardData | null>,
       api.modules().catch(() => null),
       api.getSettings().catch(() => null),
       get<Extras>('/api/home/extras'),
+      get<{ engine: 'streamnzb' | 'usherr'; engines: Record<string, { ready: boolean; problem?: string }> }>('/api/home/streaming'), // Usherr: the engine chosen
       get<{ provider: string; model: string }>('/api/home/ai'),
       get<{ keySet: boolean }>('/api/home/mdblist'),
       get<{ on: boolean }>('/api/home/news/settings'),
       get<unknown[]>('/api/notifications'),
       api.twoStep().catch(() => null) as Promise<TwoStepStatus | null>,
+      get<{ on: boolean }>('/api/home/cinema/settings'), // Usherr
+      get<{ screens: unknown[] }>('/api/home/marquee/screens'), // Usherr
     ])
     const on = (k: 'movies' | 'tv') => !!(mods as Record<string, { enabled?: boolean }> | null)?.[k]?.enabled
     const f = dash ? factsFromDashboard(dash, { movies: on('movies'), tv: on('tv') }) : null
@@ -86,8 +89,11 @@ export default function SetupChecklist() {
       const server = x.server.kind ? x.server.name || x.server.kind : ''
       add({ id: 'jellyfin', title: t('Jellyfin or Emby'), gives: t('Playing on your TVs, Live TV in its guide, the streamed library'), state: server ? 'ready' : 'setup', missing: server ? undefined : t('a Jellyfin or Emby server'), to: '/settings/media-servers', guide: 'jellyfin-or-emby' })
       add({ id: 'address', title: t("Mediarium's address on your network"), gives: t('Reached by your TV and media server'), state: x.address.value ? 'ready' : 'setup', missing: x.address.value ? undefined : t('the address, such as http://192.168.1.20:8264'), to: '/settings/extras', guide: 'mediariums-address-on-your-network', test: x.address.value ? () => tested(call('POST', '/api/home/extras/test/address')) : undefined })
-      add({ id: 'streaming', title: t('Streaming (StreamNZB)'), gives: t('Stream now, without downloading first'), state: x.streaming.ready ? 'ready' : 'setup', missing: x.streaming.ready ? undefined : x.streaming.problem || t("StreamNZB's address and admin token"), to: '/settings/extras', guide: 'streaming-streamnzb', test: () => tested(call('POST', '/api/home/extras/test/streaming')) })
-      const sNeeds = [!x.streaming.ready && t('Streaming'), !x.address.value && t('the address'), !server && t('Jellyfin or Emby'), !x.streamed.folderOk && t('a folder mapped to /data/streamed'), x.streamed.serverFolder === '' && t('where the media server sees that folder')].filter(Boolean)
+      // Usherr: streaming is ready when the engine chosen is (Usherr's own, or StreamNZB).
+      const streamOk = eng ? eng.engines[eng.engine]?.ready : x.streaming.ready
+      const streamWhy = eng ? eng.engines[eng.engine]?.problem : x.streaming.problem
+      add({ id: 'streaming', title: t('Streaming'), gives: t('Stream now, without downloading first'), state: streamOk ? 'ready' : 'setup', missing: streamOk ? undefined : streamWhy || t('a Usenet server and an indexer, or StreamNZB'), to: '/settings/extras', guide: 'streaming-streamnzb', test: eng?.engine === 'usherr' ? undefined : () => tested(call('POST', '/api/home/extras/test/streaming')) })
+      const sNeeds = [!streamOk && t('Streaming'), !x.address.value && t('the address'), !server && t('Jellyfin or Emby'), !x.streamed.folderOk && t('a folder mapped to /data/streamed'), x.streamed.serverFolder === '' && t('where the media server sees that folder')].filter(Boolean)
       add({ id: 'streamed', title: t('Streamed library'), gives: t('Streamed titles in the Library and the media server'), state: sNeeds.length ? 'setup' : 'ready', missing: sNeeds.length ? sNeeds.join(', ') : undefined, to: '/settings/extras', guide: 'streamed-library' })
       add({ id: 'livetv', title: t('Live TV'), gives: t('Scheduled channels with a guide'), state: x.liveTv.channels > 0 ? 'ready' : 'off', missing: x.liveTv.channels > 0 ? undefined : t('a channel'), to: '/tv', guide: 'live-tv' })
       add({ id: 'playontv', title: t('Play on TV'), gives: t('Send a stream to an Android TV box'), state: x.playOnTv.ready ? 'ready' : x.playOnTv.address ? 'setup' : 'off', missing: x.playOnTv.ready ? undefined : x.playOnTv.address ? t('pairing with the TV') : t("the TV's address"), to: '/settings/extras', guide: 'play-on-tv', test: x.playOnTv.address ? () => tested(call('POST', '/api/home/extras/test/tv')) : undefined })
@@ -96,10 +102,12 @@ export default function SetupChecklist() {
     // Extras
     if (ai) {
       const ready = ai.provider !== '' && !!ai.model
-      add({ id: 'ai', title: t('AI'), gives: t('AI Search, Tonight, Catch me up, the family filter, news summaries'), state: ready ? 'ready' : 'off', missing: ready ? undefined : t('Ollama or a Claude key'), to: '/settings/extras', guide: 'ai', test: ready ? () => tested(call('POST', '/api/home/ai/test')) : undefined })
+      add({ id: 'ai', title: t('AI'), gives: t('The Ask bar, Tonight, Catch me up, the family filter, news summaries, AI-built channels'), state: ready ? 'ready' : 'off', missing: ready ? undefined : t('Ollama or a Claude key'), to: '/settings/extras', guide: 'ai', test: ready ? () => tested(call('POST', '/api/home/ai/test')) : undefined })
     }
     if (mdb) add({ id: 'mdblist', title: t('Scores (MDBList)'), gives: t('IMDb, Rotten Tomatoes and Metacritic scores, Common Sense ages'), state: mdb.keySet ? 'ready' : 'off', missing: mdb.keySet ? undefined : t('a free MDBList key'), to: '/settings/extras', guide: 'scores-mdblist', test: mdb.keySet ? () => tested(call('POST', '/api/home/mdblist/test')) : undefined })
     if (news) add({ id: 'news', title: t('Entertainment news'), gives: t('Short news on the Dashboard'), state: news.on ? (ai && ai.provider ? 'ready' : 'setup') : 'off', missing: news.on && !(ai && ai.provider) ? t('the AI, to summarise the stories') : news.on ? undefined : t('turning on'), to: '/settings/extras', guide: 'entertainment-news' })
+    if (cinema) add({ id: 'cinema', title: t('In theaters'), gives: t('Films in cinemas near you, on the Dashboard and the calendar'), state: cinema.on ? 'ready' : 'off', missing: cinema.on ? undefined : t('your ZIP or postcode'), to: '/settings/extras', guide: 'in-theaters' }) // Usherr
+    if (marquee) add({ id: 'marquee', title: t('Marquee'), gives: t('A lobby display for a tablet or a screen by the TV'), state: (marquee.screens ?? []).length > 0 ? 'ready' : 'off', missing: (marquee.screens ?? []).length > 0 ? undefined : t('a screen showing /marquee'), to: '/marquee/manage', guide: 'marquee' }) // Usherr
     if (x) add({ id: 'comics', title: t('Comics'), gives: t('Comic series, new issues and a reader'), state: x.comics.enabled && x.comics.keySet ? 'ready' : x.comics.enabled ? 'setup' : 'off', missing: x.comics.enabled && !x.comics.keySet ? t('a ComicVine API key, on the Comics page') : x.comics.enabled ? undefined : t('turning on'), to: x.comics.enabled ? '/comics' : '/settings/extras', guide: 'comics' })
 
     // Looking after it

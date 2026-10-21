@@ -279,3 +279,50 @@
 .tv-apps-row { display: grid; gap: 4px; }
 .tv-apps-link { display: flex; gap: 8px; align-items: center; min-width: 0; }
 .tv-apps-link code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; padding: 6px 8px; border-radius: 8px; background: var(--surface-2); font-size: 0.82rem; }
+
+/* Usherr: the Rounded tiles guide: every channel and show its own rounded box, with gaps */
+.tvg.tvg-rounded { --tvg-row: 72px; border-radius: 18px; padding: 6px; }
+.tvg-rounded .tvg-names { border-right: 0; }
+.tvg-rounded .tvg-name { margin: 4px 6px 4px 0; border: 0; border-radius: 14px; background: color-mix(in srgb, #fff 5%, transparent); }
+.tvg-rounded .tvg-name.sel { box-shadow: inset 0 0 0 2px #fde68a; }
+.tvg-rounded .tvg-times span { border-left: 0; }
+.tvg-rounded .tvg-row { border-top: 0; }
+.tvg-rounded .tvg-prog, .tvg-rounded .tvg-prog[class*='tvg-c'] { top: 4px; bottom: 4px; border: 0 solid transparent; border-left-width: 3px; border-right-width: 3px; background-clip: padding-box; border-radius: 16px; padding: 0 12px; }
+.tvg-rounded .tvg-prog.on { box-shadow: inset 0 0 0 2px #fde68a; }
+.tvg-rounded .tvg-prog.sel { border-radius: 16px; }
+.tvg-rounded .tvg-now { border-radius: 2px; }
+
+/* Usherr: finding a show to stream */
+.tv-streamfind { display: grid; gap: 6px; }
+
+/* Usherr: Real TV */
+.modal.rtv { width: min(820px, 96vw); display: grid; gap: 12px; padding: 0 20px 18px; }
+.modal.rtv .modal-head { padding: 18px 0 0; justify-content: space-between; align-items: center; }
+.modal.rtv .modal-head h2 { margin: 0; }
+.modal.rtv .modal-foot { display: flex; justify-content: flex-end; gap: 8px; }
+.rtv-step { display: flex; align-items: center; gap: 10px; }
+.rtv-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent, #e11d48); animation: rtv-pulse 1s ease-in-out infinite; }
+@keyframes rtv-pulse { 50% { opacity: 0.25; transform: scale(0.7); } }
+.rtv-nets { display: grid; gap: 8px; max-height: 55vh; overflow: auto; }
+.rtv-net { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
+.rtv-net summary { cursor: pointer; }
+.rtv-net ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 2px; }
+.rtv-net li { display: grid; grid-template-columns: 4.6em minmax(0, 1fr) minmax(0, 1.3fr); gap: 8px; font-size: 0.85rem; padding: 3px 0; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.rtv-net li.exact .rtv-plays { color: #4ade80; }
+.rtv-net li.stand .rtv-plays { color: #fbbf24; }
+.rtv-time { opacity: 0.7; font-variant-numeric: tabular-nums; }
+.rtv-was small, .rtv-plays small { opacity: 0.75; }
+@media (max-width: 600px) { .rtv-net li { grid-template-columns: 4.2em minmax(0, 1fr); } .rtv-plays { grid-column: 2; } }
+
+.rtv-pick { display: grid; gap: 8px; }
+.rtv-pick-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.rtv-pick-bar input[type='search'] { flex: 1; min-width: 160px; }
+.rtv-list { list-style: none; margin: 0; padding: 0; max-height: 34vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+.rtv-list li { border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.rtv-list li:first-child { border-top: 0; }
+.rtv-list label { display: grid; grid-template-columns: auto 3.6em minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 10px; cursor: pointer; }
+.rtv-list label:hover { background: color-mix(in srgb, var(--border) 25%, transparent); }
+.rtv-no { opacity: 0.7; font-variant-numeric: tabular-nums; }
+.rtv-name small { margin-left: 6px; }
+.rtv-refresh { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; }
+.rtv-refresh small { flex: 1; min-width: 200px; }

@@ -31,7 +31,10 @@ func TestFileTagReaderGivesUpOnAZeroFilledFLAC(t *testing.T) {
 	if ok || !errors.Is(err, ErrTagReadLimit) {
 		t.Fatalf("want ErrTagReadLimit, got ok=%v err=%v", ok, err)
 	}
-	if took := time.Since(start); took > 3*time.Second {
+	// The reader itself gives up after TagReadTimeout (5 s), so a loaded
+	// machine can legitimately take that long; the limit only has to catch a
+	// loop that never ends.
+	if took := time.Since(start); took > 15*time.Second*slowdown {
 		t.Errorf("giving up took %v", took)
 	}
 	// The file is still identified, by its name.

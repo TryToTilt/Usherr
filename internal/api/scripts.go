@@ -214,7 +214,7 @@ func (s *Server) runScript(event string, it notify.Item) scriptRun {
 		run.TimedOut = true
 		run.Problem = fmt.Sprintf("It was stopped after %s.", limit)
 	case err != nil && run.ExitCode <= 0:
-		run.Problem = "It couldn't be started: " + err.Error() + ". Check that its first line names an interpreter the container has, such as #!/bin/sh."
+		run.Problem = fmt.Sprintf("It couldn't be started: %s. Check that its first line names an interpreter the container has, such as #!/bin/sh.", err.Error())
 	case err != nil:
 		run.Problem = fmt.Sprintf("It finished with exit code %d.", run.ExitCode)
 	}
@@ -312,7 +312,7 @@ func (s *Server) handlePutScripts(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Script != "" {
 		if _, err := scriptPath(s.scriptsDir(), req.Script); err != nil {
-			writeError(w, http.StatusBadRequest, "That script can't be used: "+err.Error()+".")
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("That script can't be used: %s.", err.Error()))
 			return
 		}
 	}

@@ -1,7 +1,7 @@
 // Run with: npm test (uses node's built-in test runner, no extra packages).
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { ageOf, filterReleases, indexersIn, qualitiesIn, resolutionOf, sortReleases, sortSubtitles, type SortableRelease } from './releaseSort.ts'
+import { ageOf, defaultOrder, filterReleases, indexersIn, qualitiesIn, resolutionOf, sortReleases, sortSubtitles, subtitleFit, subtitleRating, subtitleSite, type SortableRelease } from './releaseSort.ts'
 
 const base = { protocol: 'usenet', sizeBytes: 0 }
 const list: SortableRelease[] = [
@@ -24,6 +24,14 @@ test('size, seeders and names sort the way people read them', () => {
   assert.deepEqual(sortReleases(list, 'seeders', -1).map((r) => r.seeders ?? null), [50, 3, null, null])
   assert.equal(sortReleases(list, 'indexer', 1)[0].indexerName, 'Alpha')
   assert.equal(sortReleases(list, null, 1), list)
+})
+
+test('the list starts with the best match, then the highest score, then the order the server gave', () => {
+  const r = (title: string, formatScore?: number, best?: boolean): SortableRelease => ({ ...base, title, indexerName: 'A', formatScore, best })
+  const scored = [r('a', 0), r('b', 300), r('c', -50), r('d', 300), r('e', 100, true)]
+  assert.deepEqual(defaultOrder(scored).map((x) => x.title), ['e', 'b', 'd', 'a', 'c'])
+  // A list that is not scored and has no marked release is left alone.
+  assert.equal(defaultOrder(list), list)
 })
 
 test('filters combine: indexer, quality and words in the title', () => {
@@ -63,4 +71,19 @@ test('age sorts by when the release was posted, newest first, and unknown last',
   assert.equal(ageOf(rel('a', '2024-01-01T00:00:00Z'), now), '2y')
   assert.equal(ageOf(rel('a'), now), '')
   assert.equal(ageOf(rel('a', '0001-01-01T00:00:00Z'), now), '')
+})
+
+test('a subtitle shows its own site or add-on name, and only the rating and fit it has', () => {
+  const os = { release: 'a', rating: 7.5, score: 61.4 }
+  const sdl = { release: 'b', rating: 0, score: 130, source: 'subdl' }
+  const addon = { release: 'c', rating: 0, score: 130.2, source: 'addon', sourceName: 'YIFY Subtitles' }
+  const nameless = { release: 'd', rating: 0, score: 0, source: 'addon' }
+  assert.equal(subtitleSite(os), 'OpenSubtitles')
+  assert.equal(subtitleSite(sdl), 'SubDL')
+  assert.equal(subtitleSite(addon), 'YIFY Subtitles')
+  assert.equal(subtitleSite(nameless), '')
+  assert.equal(subtitleRating(os), '7.5')
+  assert.equal(subtitleRating(addon), '')
+  assert.equal(subtitleFit(addon), '130')
+  assert.equal(subtitleFit(nameless), '')
 })

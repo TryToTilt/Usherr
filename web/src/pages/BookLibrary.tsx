@@ -14,6 +14,7 @@ import { useUrlState } from '../useUrlState'
 import { useModules } from '../ModulesContext'
 import Shelves from '../home/Shelves' // home fork
 import { groupShelves, letterShelves, monthShelves, RowsByPick, ShelfControls, useShelfView } from '../home/shelfKit' // home fork
+import { looseIncludes } from '../looseText'
 
 type Sort = 'added' | 'title' | 'author'
 type BookRows = 'author' | 'genre' | 'series' | 'narrator' | 'az' | 'added' // home fork
@@ -105,7 +106,7 @@ export default function BookLibrary({
     if (!books) return null
     const test = FILTERS.find((f) => f.id === filter)?.test ?? (() => true)
     const needle = text.trim().toLowerCase()
-    const list = mine.filter((b) => test(bookState(b, format, queue)) && (!needle || b.title.toLowerCase().includes(needle) || b.author.toLowerCase().includes(needle)))
+    const list = mine.filter((b) => test(bookState(b, format, queue)) && (!needle || looseIncludes(b.title, needle) || looseIncludes(b.author, needle)))
     if (sort === 'title') list.sort((a, b) => a.title.localeCompare(b.title))
     else if (sort === 'author') list.sort((a, b) => a.author.localeCompare(b.author) || a.title.localeCompare(b.title))
     else list.sort((a, b) => b.addedAt.localeCompare(a.addedAt))

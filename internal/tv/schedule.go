@@ -72,6 +72,9 @@ func Build(ch Channel, lib Library, probe Prober, st *State, from, until time.Ti
 	if st.Next == nil {
 		st.Next = map[int64]int{}
 	}
+	if len(ch.Rules.Fixed) > 0 { // Usherr: Real TV, a network's day
+		return buildFixed(ch, lib, probe, st, from, until, rnd)
+	}
 	if usesBlocks(ch.Rules) { // Usherr: a grid, dayparts, slots or filler
 		return buildBlocks(ch, lib, probe, st, from, until, rnd)
 	}

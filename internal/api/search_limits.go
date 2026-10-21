@@ -29,6 +29,7 @@ func (s *Server) setupSearchExtras() {
 	s.setCachedPolicy()
 	tr := s.IndexerRepo.Tracker()
 	s.QueueRepo.SetOnEnqueue(func(it queue.Item) { tr.NoteGrab(it.NZBURL) })
+	s.QueueRepo.SetIndexerOf(s.indexerOfRelease)
 }
 
 // ---- size limits ----
@@ -37,7 +38,7 @@ func (s *Server) setupSearchExtras() {
 // only when the table is on and a release has a size; episodes says how many
 // episodes a release holds (0 for a movie). It also returns the reason the
 // first refused release gave, "" when none was refused.
-func (s *Server) applySizeTable(results []indexers.Result, runtime func() float64, episodes func(title string) int) ([]indexers.Result, string) {
+func (s *Server) applySizeTable(results []indexers.Result, runtime func() float64, episodes func(res indexers.Result) int) ([]indexers.Result, string) {
 	table := s.sizeLimits()
 	if !table.Enabled || len(results) == 0 {
 		return results, ""
@@ -52,8 +53,8 @@ func (s *Server) applySizeTable(results []indexers.Result, runtime func() float6
 			if minutes == 0 {
 				minutes = runtime()
 			}
-			tier := quality.Classify(parser.Parse(res.Title))
-			if reason := table.Check(tier, res.SizeBytes, minutes, episodes(res.Title)); reason != "" {
+			tier := quality.Classify(res.Parsed())
+			if reason := table.Check(tier, res.SizeBytes, minutes, episodes(res)); reason != "" {
 				if first == "" {
 					first = reason
 				}
@@ -102,8 +103,8 @@ func (s *Server) movieSizeRejections(ctx context.Context, m library.Movie, profi
 }
 
 // episodeCount is how many episodes a release holds, SeasonPack when it lists none.
-func episodeCount(mapper func(parser.Release) parser.Release, title string) int {
-	if n := len(parseFor(mapper, title).Episodes); n > 0 {
+func episodeCount(mapper func(parser.Release) parser.Release, rel parser.Release) int {
+	if n := len(mapped(mapper, rel).Episodes); n > 0 {
 		return n
 	}
 	return quality.SeasonPack
@@ -118,7 +119,7 @@ func (s *Server) tvSizeRejections(ctx context.Context, series library.Series, pr
 		if table.Enabled && minutes == 0 {
 			minutes = s.episodeRuntime(ctx, series)
 		}
-		return s.sizeRejections(table, minutes, profile, title, size, episodeCount(mapper, title))
+		return s.sizeRejections(table, minutes, profile, title, size, episodeCount(mapper, parser.Parse(title)))
 	}
 }
 
@@ -168,7 +169,7 @@ func (s *Server) holdBack(remember bool, it delay.Item, profile quality.Profile,
 		rel := delay.Release{
 			Protocol: string(res.Protocol),
 			Posted:   res.PublishDate,
-			Highest:  quality.Rank(quality.Classify(parser.Parse(res.Title))) >= highestRank(by),
+			Highest:  quality.Rank(quality.Classify(res.Parsed())) >= highestRank(by),
 		}
 		if res.PublishDate.IsZero() {
 			rel.FirstSeen = s.delays.FirstSeen(it, res.Title)
@@ -265,7 +266,7 @@ func (s *Server) limitMovieResults(ctx context.Context, m library.Movie, profile
 // limitMovie is limitMovieResults that also says what it took out.
 func (s *Server) limitMovie(ctx context.Context, m library.Movie, profile quality.Profile, mode limitMode, results []indexers.Result) ([]indexers.Result, limitReport) {
 	var rep limitReport
-	results, rep.size = s.applySizeTable(results, func() float64 { return s.movieRuntime(ctx, m) }, func(string) int { return 0 })
+	results, rep.size = s.applySizeTable(results, func() float64 { return s.movieRuntime(ctx, m) }, func(indexers.Result) int { return 0 })
 	if mode != limitDry {
 		results = s.markCached(ctx, results) // only reorders: see debrid_cache.go
 	}
@@ -300,7 +301,7 @@ func (s *Server) limitTV(series library.Series, season, episode int, profile qua
 	var rep limitReport
 	mapper := s.releaseMapper(series)
 	results, rep.size = s.applySizeTable(results, func() float64 { return s.episodeRuntime(context.Background(), series) },
-		func(title string) int { return episodeCount(mapper, title) })
+		func(res indexers.Result) int { return episodeCount(mapper, res.Parsed()) })
 	if mode != limitDry {
 		results = s.markCached(context.Background(), results) // only reorders: see debrid_cache.go
 	}
@@ -308,11 +309,12 @@ func (s *Server) limitTV(series library.Series, season, episode int, profile qua
 		return results, rep
 	}
 	relevant := func(res indexers.Result) bool {
-		rel := parseFor(mapper, res.Title)
-		if !matchesShowFor(res.Title, series, season) || !coversTarget(rel, season, episode) || (episode > 0 && len(rel.Episodes) == 0) {
+		parsed := res.Parsed()
+		rel := mapped(mapper, parsed)
+		if !matchesShowForRel(parsed, series, season) || !coversTarget(rel, season, episode) || (episode > 0 && len(rel.Episodes) == 0) {
 			return false
 		}
-		return current == nil || profile.IsUpgradeOver(current.Tier, current.Release, res.Title)
+		return current == nil || profile.IsUpgradeOverRel(current.Tier, current.Release, res.Title, parsed)
 	}
 	results, rep.until = s.holdBack(mode == limitAutomatic, delay.Item{Kind: "episode", SeriesID: series.ID, Season: season, Episode: episode}, profile, results, relevant, func(msg string) {
 		s.itemEvent(0, series.ID, "delayed", queue.LevelInfo, msg)

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { api, ApiError, isAdmin, startModulesEarly, type User } from './api'
-import { onSessionEnded } from './sessionEnd'
+import { clearEndReason, onSessionEnded } from './sessionEnd'
 
 interface AuthState {
   loading: boolean
@@ -146,6 +146,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refresh()
     return () => clearTimeout(retry.current)
   }, [refresh])
+
+  // Someone signed in: whatever ended the last session is forgotten.
+  useEffect(() => {
+    if (user) clearEndReason()
+  }, [user])
 
   // The session ended while the app was open: show the sign-in page. It shows
   // in place of the page, at the same address, so signing in goes back there.

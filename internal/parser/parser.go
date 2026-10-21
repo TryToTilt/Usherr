@@ -13,14 +13,27 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
+	"time"
 )
+
+// parseCalls counts calls to Parse, so a test can show that a run parses each
+// release once.
+var parseCalls atomic.Int64
+
+// ParseCalls is how many times Parse has been called in this process.
+func ParseCalls() int64 { return parseCalls.Load() }
 
 // Release is the structured result of parsing a release filename. Season/
 // Episode fields are zero for movie releases; they exist now (rather than
 // being added in Phase 2) so the same struct serves both without a rework.
 type Release struct {
-	Title      string
-	Year       int
+	Title string
+	Year  int
+	// YearLate is set when Year stands after the season or episode marker
+	// ("Show.S01E05.2015.WEB-DL"). That is as likely an air year as the show's
+	// own, so a check against the show's year should not rely on it.
+	YearLate   bool
 	Season     int   // 0 = not a TV release
 	SeasonTo   int   // last season of a pack of several (S01-S03 gives 3), else 0
 	Episode    int   // 0 = season pack / not episode-specific
@@ -193,6 +206,82 @@ var (
 	leadingDigitRe = regexp.MustCompile(`^(\d{1,3})`)
 )
 
+// pickYear finds the release year in a name: the last year that could be one.
+// It returns where the year starts (-1 for none), its value, and whether it
+// stands after the season or episode marker.
+//
+// A number is not a release year when
+//   - it is the first thing in the name ("1917.1080p", "2012 (2009)"),
+//   - it is more than a year ahead of today ("Blade.Runner.2049.1080p"), or
+//   - the name has a title before its season or episode marker and the number
+//     comes after the marker but not right behind it: that is the episode's
+//     title ("Show.S02E05.2012.Olympics.Special", "Show.S03E10.The.Year.2000").
+func pickYear(working string, seasonSpans [][2]int) (at, year int, late bool) {
+	all := yearPattern.FindAllStringSubmatchIndex(working, -1)
+	if len(all) == 0 {
+		return -1, 0, false
+	}
+	// The first marker with a title in front of it.
+	markerAt := -1
+	for _, sp := range seasonSpans {
+		if (markerAt < 0 || sp[0] < markerAt) && cleanTitle(working[:sp[0]]) != "" {
+			markerAt = sp[0]
+		}
+	}
+	maxYear := time.Now().Year() + 1
+	for i := len(all) - 1; i >= 0; i-- {
+		m := all[i]
+		if m[0] == 0 {
+			break // earlier ones can only be further left
+		}
+		y := atoi(working[m[2]:m[3]])
+		if y > maxYear {
+			continue
+		}
+		if markerAt >= 0 && m[0] > markerAt {
+			if !rightAfterMarker(working, seasonSpans, m[0]) || !endsWithTags(working[m[1]:]) {
+				continue
+			}
+			late = true
+		}
+		return m[0], y, late
+	}
+	return -1, 0, false
+}
+
+// rightAfterMarker reports whether only separators lie between the end of a
+// season or episode marker and pos.
+func rightAfterMarker(working string, seasonSpans [][2]int, pos int) bool {
+	for _, sp := range seasonSpans {
+		if sp[1] <= pos && strings.Trim(working[sp[1]:pos], "._-([ ") == "" {
+			return true
+		}
+	}
+	return false
+}
+
+// endsWithTags reports whether rest (what follows a year) is nothing, a group,
+// or starts with a quality tag, as opposed to more of a title.
+func endsWithTags(rest string) bool {
+	rest = strings.TrimLeft(rest, ")]")
+	if rest == "" || rest[0] == '-' {
+		return true
+	}
+	rest = strings.TrimLeft(rest, "._ [(")
+	if rest == "" {
+		return true
+	}
+	if len(rest) > 40 {
+		rest = rest[:40]
+	}
+	for _, t := range tokens {
+		if loc := t.re.FindStringIndex(rest); loc != nil && loc[0] == 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // assignSeasonPack reads a season pack marker: m[1] is the season, m[2] the
 // last season of a range, if any.
 func assignSeasonPack(r *Release, m []string) {
@@ -254,6 +343,7 @@ func parseEpisodeRun(s string) []int {
 // Parse extracts a Release from a raw filename or release title. The input
 // need not have an extension; if present it's stripped first.
 func Parse(name string) Release {
+	parseCalls.Add(1)
 	// Names come from indexers and disks; bytes that are not UTF-8 would
 	// otherwise flow into the title as they are.
 	name = strings.ToValidUTF8(name, "")
@@ -307,18 +397,16 @@ func Parse(name string) Release {
 
 	// Year is handled separately from the generic token loop: a title can
 	// itself contain a year-like number ("Blade Runner 2049"), so instead of
-	// taking the first (leftmost) match we take the last one — the actual
-	// release year reliably sits right before the quality/source metadata
-	// block, whereas a year embedded in the title sits earlier. A year at the
-	// very start is the title ("1917.1080p.BluRay"), not a release year.
-	if allYears := yearPattern.FindAllStringSubmatchIndex(working, -1); len(allYears) > 0 {
-		last := allYears[len(allYears)-1]
-		if last[0] > 0 {
-			tagStarts = append(tagStarts, last[0])
-			r.Year = atoi(working[last[2]:last[3]])
-			if last[0] < titleEnd {
-				titleEnd = last[0]
-			}
+	// taking the first (leftmost) match we take the last plausible one — the
+	// actual release year reliably sits right before the quality/source
+	// metadata block, whereas a year embedded in the title sits earlier. A
+	// year at the very start is the title ("1917.1080p.BluRay"), not a release
+	// year.
+	if at, year, late := pickYear(working, seasonSpans); at >= 0 {
+		tagStarts = append(tagStarts, at)
+		r.Year, r.YearLate = year, late
+		if at < titleEnd {
+			titleEnd = at
 		}
 	}
 

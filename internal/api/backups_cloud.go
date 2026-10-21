@@ -200,7 +200,7 @@ func (s *Server) uploadToCloud(ctx context.Context, c cloudConfig, name string) 
 	if err != nil {
 		st.Problem = err.Error()
 		problems.Record(problems.Problem{Code: problems.CodeCloudBackupFailed, Err: err})
-		_ = s.QueueRepo.LogActivity(0, "backup", "Couldn't copy the backup to the cloud: "+err.Error())
+		_ = s.QueueRepo.LogActivity(0, "backup", fmt.Sprintf("Couldn't copy the backup to the cloud: %s", err.Error()))
 	} else {
 		_ = s.QueueRepo.LogActivity(0, "backup", fmt.Sprintf("Copied the backup to the cloud (%s)", humanBytes(st.Size)))
 	}
@@ -370,7 +370,7 @@ func (s *Server) handlePutCloudBackup(w http.ResponseWriter, r *http.Request) {
 	}
 	if c.Enabled {
 		if err := c.check(); err != nil {
-			writeError(w, http.StatusBadRequest, "Can't switch cloud backups on yet: "+err.Error()+".")
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("Can't switch cloud backups on yet: %s.", err.Error()))
 			return
 		}
 	}
@@ -446,7 +446,7 @@ func (s *Server) handleUploadCloudBackup(w http.ResponseWriter, r *http.Request)
 	}
 	c := s.cloudConfig()
 	if err := c.check(); err != nil {
-		writeError(w, http.StatusConflict, "Set up cloud backups and save first: "+err.Error()+".")
+		writeError(w, http.StatusConflict, fmt.Sprintf("Set up cloud backups and save first: %s.", err.Error()))
 		return
 	}
 	list, err := backup.ListSaved(s.cfg.ConfigDir)
@@ -468,7 +468,7 @@ func (s *Server) handleUploadCloudBackup(w http.ResponseWriter, r *http.Request)
 	}
 	st, err := s.uploadToCloud(r.Context(), c, name)
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "The backup was saved here but couldn't be copied to the cloud: "+err.Error()+".")
+		writeError(w, http.StatusBadGateway, fmt.Sprintf("The backup was saved here but couldn't be copied to the cloud: %s.", err.Error()))
 		return
 	}
 	writeJSON(w, http.StatusOK, st)

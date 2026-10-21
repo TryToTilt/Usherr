@@ -25,10 +25,12 @@ the same way; this guide covers what the fork adds and how to set it up.
 |---|---|---|
 | Jellyfin or Emby | Play in your media server's apps, Live TV in its guide, the streamed library | [Jellyfin or Emby](integrations.md#jellyfin-or-emby) |
 | StreamNZB | "Stream now": play from Usenet without downloading first | [StreamNZB](integrations.md#streaming-streamnzb) |
-| An AI (Ollama or Claude) | AI Search, Tonight, Catch me up, the family filter's estimates, news summaries | [AI](integrations.md#ai) |
+| An AI (Ollama or Claude) | The Ask bar, Tonight, Catch me up, the family filter's estimates, news summaries, AI-built Live TV channels | [The AI](ai.md) |
 | MDBList key | IMDb, Rotten Tomatoes and Metacritic scores, Common Sense Media ages | [Scores](integrations.md#scores-mdblist) |
 | ComicVine key | Comics: series, new issues, story arcs | [Comics](integrations.md#comics) |
 | An Android TV box | Play on TV: send a stream to the box | [Play on TV](integrations.md#play-on-tv) |
+| Nothing extra | Live TV: channels from your library and streams, free live channels, Real TV, in Jellyfin, Plex and IPTV apps | [Live TV](live-tv.md) |
+| A tablet or a spare screen | The Marquee: a lobby display of what's playing, coming and on Live TV, with a pre-show, steered from your phone or Home Assistant | [The Marquee](marquee.md) |
 
 ## The quickest way to a working server
 
@@ -36,11 +38,12 @@ the same way; this guide covers what the fork adds and how to set it up.
    asks for an administrator account, the media types you want, your folders,
    your TMDB key, your indexers and Usenet provider, and your media server.
    Its last step, **Extras**, offers the home fork's own parts: Mediarium's
-   address on your network, StreamNZB, the AI and scores. All of them are
+   address on your network, the streaming engine, the AI, scores, In theaters
+   (your ZIP, theater and ticket service) and the Marquee. All of them are
    optional and can wait. Everything the wizard asks can be changed later in
    **Settings**.
 
-![The setup wizard's Extras step: the address, StreamNZB, AI and scores cards, each optional](images/wizard-extras.png)
+![The setup wizard's Extras step: the address, streaming engine, StreamNZB, AI, scores, In theaters and Marquee cards, each optional](images/wizard-extras.png)
 2. Add a movie from **Discover**. If it downloads and lands in your library
    folder, the basics work.
 3. Open **Settings → General → Setup checklist**. It lists every part

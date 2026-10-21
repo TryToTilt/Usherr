@@ -141,6 +141,9 @@ func newMusicEnv(t *testing.T) *musicEnv {
 	mb, covers := newFakeMusicBrainzHits(t)
 	server.TestSetMusicBrainz(mb.URL)
 	root := filepath.Join(t.TempDir(), "music")
+	if err := os.MkdirAll(root, 0o755); err != nil { // a library folder has to be there before anything is imported
+		t.Fatal(err)
+	}
 	postJSONMethod[map[string]any](t, client, http.MethodPut, base+"/api/settings", map[string]any{
 		"musicEnabled": true, "musicPath": root,
 	}, http.StatusOK)

@@ -387,7 +387,7 @@ func Apply(ctx context.Context, c *Client, f File) ([]Result, error) {
 var writeOnly = map[string]map[string]bool{
 	"settings": {
 		"tmdbApiKey": true, "openSubtitlesApiKey": true, "subdlApiKey": true,
-		"openSubtitlesUsername": true, "openSubtitlesPassword": true, "traktClientId": true,
+		"openSubtitlesUsername": true, "openSubtitlesPassword": true, "traktClientId": true, "simklClientId": true,
 	},
 	"downloadClient": {"password": true},
 	"debrid":         {"apiKey": true},

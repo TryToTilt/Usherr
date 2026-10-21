@@ -115,6 +115,7 @@ export default function PosterCard({
   kind,
   progress,
   ribbon,
+  onArt,
 }: {
   to?: string
   poster?: string
@@ -134,6 +135,8 @@ export default function PosterCard({
   kind?: CardKind
   ribbon?: CardRibbon
   progress?: { pct: number; label?: string }
+  // Usherr: the picture does this instead of opening the item (the Stack offers its page or Play now).
+  onArt?: () => void
 }) {
   // Remember which address failed, so a poster that changes later (an import finishes) gets its own try.
   const [brokenSrc, setBrokenSrc] = useState<string | undefined>()
@@ -158,6 +161,10 @@ export default function PosterCard({
             <span className={`pcard-check${selection.selected ? ' on' : ''}`} aria-hidden="true">
               {selection.selected && <Icon name="check" size={16} />}
             </span>
+          </button>
+        ) : onArt ? (
+          <button type="button" className="pcard-link pcard-art-btn" onClick={onArt} aria-label={title}>
+            {image}
           </button>
         ) : to ? (
           <Link to={to} className="pcard-link" aria-label={title}>

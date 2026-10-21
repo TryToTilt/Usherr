@@ -9,6 +9,7 @@ import {
   type ImportListsAnswer,
   type PlexWatchlistRow,
   type QualityProfile,
+  type SimklStatus,
 } from '../api'
 import { defaultProfileFor } from '../profileDefaults'
 import { timeAgo } from '../format'
@@ -24,7 +25,7 @@ import './ImportLists.css'
 import TipLabel from './TipLabel'
 
 // Settings > Info, lists and subtitles > Import lists: lists on Trakt, TMDB,
-// IMDb, MDBList and Letterboxd that Mediarium reads on a schedule, adding
+// IMDb, MDBList, Simkl and Letterboxd that Mediarium reads on a schedule, adding
 // what is on them to the library. Nothing is ever removed because a title
 // left a list.
 
@@ -61,7 +62,7 @@ const blank = (source: ImportListSource): ImportListInput => ({
   name: '',
   source: source.id,
   media: source.media === 'movie' ? 'movie' : 'both',
-  config: source.id.endsWith('chart') ? { chart: source.id === 'tmdb-chart' ? 'popular' : 'trending', count: source.id === 'tmdb-chart' ? 40 : 50 } : {},
+  config: source.id === 'simkl' ? { status: 'plantowatch' } : source.id.endsWith('chart') ? { chart: source.id === 'tmdb-chart' ? 'popular' : 'trending', count: source.id === 'tmdb-chart' ? 40 : 50 } : {},
   key: '',
   enabled: true,
   intervalHours: 24,
@@ -390,6 +391,10 @@ function ListForm({
   const [hasCsv, setHasCsv] = useState(initial.hasCsv)
   const [genres, setGenres] = useState<{ id: number; name: string }[]>([])
   const [preview, setPreview] = useState<ImportListPreview | null>(null)
+  const [simkl, setSimkl] = useState<SimklStatus | null>(null)
+  useEffect(() => {
+    if (d.source === 'simkl') api.simklStatus().then(setSimkl).catch(() => undefined)
+  }, [d.source])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState<'' | 'save' | 'check'>('')
   const fileInput = useRef<HTMLInputElement>(null)
@@ -501,6 +506,21 @@ function ListForm({
                 }
               />
               {d.source === 'trakt-watchlist' && <small className="field-hint">{t('Only a public watchlist can be read. Set the profile to public on Trakt first.')}</small>}
+            </label>
+          )}
+
+          {d.source === 'simkl' && (
+            <label className="il-wide">
+              {t('Which Simkl list')}
+              <select value={d.config.status ?? 'plantowatch'} onChange={(e) => setCfg({ status: e.target.value })}>
+                <option value="plantowatch">{t('Plan to watch')}</option>
+                <option value="watching">{t('Watching')}</option>
+                <option value="completed">{t('Completed')}</option>
+                <option value="hold">{t('On hold')}</option>
+                <option value="dropped">{t('Dropped')}</option>
+              </select>
+              <small className="field-hint">{t('Movies, shows and anime on that list are added. An anime film counts as a movie and other anime as a show. Nothing is removed when you take a title off the list.')}</small>
+              {simkl && !simkl.connected && <small className="field-hint error-text">{t('Connect your Simkl account first, in the Simkl card below the lists.')}</small>}
             </label>
           )}
 

@@ -42,6 +42,10 @@ var (
 	ErrAccountDisabled = errors.New("this account is turned off")
 	ErrUsernameTaken   = errors.New("username already taken")
 	ErrSessionNotFound = errors.New("session not found or expired")
+	// ErrSessionIdle is ErrSessionNotFound for a session that ended because it
+	// was not used for too long (Settings > Account & Access > Security). The
+	// sign-in page can then say so.
+	ErrSessionIdle = fmt.Errorf("%w: it was idle for too long", ErrSessionNotFound)
 	// ErrSetupDone is returned by CreateFirstAdmin once any account exists.
 	ErrSetupDone = errors.New("an admin account already exists")
 	// ErrPasswordTooLong is returned for a password bcrypt cannot use whole.
@@ -127,6 +131,10 @@ func (u *User) DisplayName() string {
 
 type Service struct {
 	db *sql.DB
+	// idle says how long a browser session may go unused before it ends; nil or
+	// zero means no limit. clock is time.Now unless a test sets it.
+	idle  func() time.Duration
+	clock func() time.Time
 }
 
 func New(db *sql.DB) *Service {
@@ -486,11 +494,12 @@ func (s *Service) CreateSessionVia(userID int64, method string) (token string, e
 	if err != nil {
 		return "", time.Time{}, err
 	}
-	expiresAt = time.Now().Add(sessionTTL)
+	now := s.now()
+	expiresAt = now.Add(sessionTTL)
 	// Sessions nobody signed out of would otherwise stay in the table forever.
-	_, _ = s.db.Exec(`DELETE FROM sessions WHERE expires_at < ?`, time.Now().UTC().Format(time.RFC3339Nano))
-	_, err = s.db.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, method) VALUES (?, ?, ?, ?)`,
-		hashToken(token), userID, expiresAt.UTC().Format(time.RFC3339Nano), method)
+	_, _ = s.db.Exec(`DELETE FROM sessions WHERE expires_at < ?`, now.UTC().Format(time.RFC3339Nano))
+	_, err = s.db.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, method, last_used_at) VALUES (?, ?, ?, ?, ?)`,
+		hashToken(token), userID, expiresAt.UTC().Format(time.RFC3339Nano), method, now.UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("insert session: %w", err)
 	}
@@ -501,12 +510,13 @@ func (s *Service) CreateSessionVia(userID int64, method string) (token string, e
 // ErrSessionNotFound if it's missing/expired.
 func (s *Service) UserForSession(token string) (*User, error) {
 	u := &User{}
-	var expires string
+	var expires, created string
+	var lastUsed, idleEnded sql.NullString
 	err := s.db.QueryRow(`
-		SELECT `+userColsOf("u")+`, sess.expires_at
+		SELECT `+userColsOf("u")+`, sess.expires_at, sess.created_at, sess.last_used_at, sess.idle_ended_at
 		FROM sessions sess JOIN users u ON u.id = sess.user_id
 		WHERE sess.token_hash = ?`, hashToken(token)).
-		Scan(append(u.scanDest(), &expires)...)
+		Scan(append(u.scanDest(), &expires, &created, &lastUsed, &idleEnded)...)
 	if err == sql.ErrNoRows {
 		return nil, ErrSessionNotFound
 	}
@@ -517,13 +527,17 @@ func (s *Service) UserForSession(token string) (*User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse session expiry: %w", err)
 	}
-	if time.Now().After(expiresAt) {
+	now := s.now()
+	if now.After(expiresAt) {
 		_, _ = s.db.Exec(`DELETE FROM sessions WHERE token_hash = ?`, hashToken(token))
 		return nil, ErrSessionNotFound
 	}
 	// An account an administrator turned off is signed out at once.
 	if u.Disabled {
 		return nil, ErrSessionNotFound
+	}
+	if err := s.checkIdle(token, created, lastUsed, idleEnded, now); err != nil {
+		return nil, err
 	}
 	return u, nil
 }
@@ -549,7 +563,7 @@ type SessionInfo struct {
 // SessionsOf lists the unexpired sessions of userID, newest first. current is
 // the raw token of the session asking, so it can be marked.
 func (s *Service) SessionsOf(userID int64, current string) ([]SessionInfo, error) {
-	rows, err := s.db.Query(`SELECT token_hash, created_at, expires_at, method FROM sessions WHERE user_id = ? ORDER BY created_at DESC`, userID)
+	rows, err := s.db.Query(`SELECT token_hash, created_at, expires_at, method, last_used_at, idle_ended_at FROM sessions WHERE user_id = ? ORDER BY created_at DESC`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list sessions: %w", err)
 	}
@@ -558,12 +572,16 @@ func (s *Service) SessionsOf(userID int64, current string) ([]SessionInfo, error
 	var out []SessionInfo
 	for rows.Next() {
 		var hash, created, expires, method string
-		if err := rows.Scan(&hash, &created, &expires, &method); err != nil {
+		var lastUsed, idleEnded sql.NullString
+		if err := rows.Scan(&hash, &created, &expires, &method, &lastUsed, &idleEnded); err != nil {
 			return nil, fmt.Errorf("scan session: %w", err)
 		}
 		exp, err := time.Parse(time.RFC3339Nano, expires)
-		if err != nil || time.Now().After(exp) {
+		if err != nil || s.now().After(exp) {
 			continue
+		}
+		if idleEnded.Valid || s.idleOver(created, lastUsed, s.now()) {
+			continue // ended for being idle: not a place the person is signed in any more
 		}
 		made, _ := time.Parse(time.RFC3339Nano, created)
 		out = append(out, SessionInfo{CreatedAt: made, ExpiresAt: exp, Method: method, Current: current != "" && hash == mine})

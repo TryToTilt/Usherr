@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 
@@ -44,6 +45,11 @@ type Target struct {
 	Enabled  bool
 	Events   []string          // kinds this target hears about (see EventKinds); empty means all
 	Config   map[string]string // field name -> value
+	// SecretUnreadable is set when the saved passwords or tokens could not be
+	// decrypted (usually a secret.key that does not belong to this database).
+	// The target is listed so it can be fixed, but nothing is sent through it;
+	// what is stored is left as it is until a secret is entered again.
+	SecretUnreadable bool
 }
 
 // Subscribed reports whether the target wants events of the given kind.
@@ -171,6 +177,19 @@ func (r *Repo) Update(t Target) (Target, error) {
 		return Target{}, err
 	}
 	events := normalizeEventsForStore(t.Events)
+	if old.SecretUnreadable && secret == "" {
+		// The saved secrets can't be read and no new one was given, so there is
+		// nothing to carry over: they stay in the database as they are, rather
+		// than being replaced by an empty set.
+		_, err = r.db.Exec(
+			`UPDATE notification_targets SET name = ?, type = ?, enabled = ?, events = ?, config_json = ? WHERE id = ?`,
+			t.Name, string(t.Type), t.Enabled, events, public, t.ID,
+		)
+		if err != nil {
+			return Target{}, fmt.Errorf("update notification target %d: %w", t.ID, err)
+		}
+		return r.Get(t.ID)
+	}
 	// The legacy columns are cleared: their values now live in the generic
 	// config, which List reads last.
 	_, err = r.db.Exec(
@@ -186,7 +205,7 @@ func (r *Repo) Update(t Target) (Target, error) {
 
 // Get returns one target, or sql.ErrNoRows.
 func (r *Repo) Get(id int64) (Target, error) {
-	all, err := r.List()
+	all, err := r.ListAll()
 	if err != nil {
 		return Target{}, err
 	}
@@ -198,7 +217,25 @@ func (r *Repo) Get(id int64) (Target, error) {
 	return Target{}, sql.ErrNoRows
 }
 
+// List returns the targets that can be used: one whose saved secrets can't be
+// read is left out (see ListAll).
 func (r *Repo) List() ([]Target, error) {
+	all, err := r.ListAll()
+	if err != nil {
+		return nil, err
+	}
+	out := all[:0]
+	for _, t := range all {
+		if !t.SecretUnreadable {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
+// ListAll returns every target, those with unreadable secrets included
+// (flagged with SecretUnreadable).
+func (r *Repo) ListAll() ([]Target, error) {
 	rows, err := r.db.Query(`SELECT id, name, type, COALESCE(url, ''), bot_token_encrypted, COALESCE(chat_id, ''), enabled, events, config_json, secrets_encrypted FROM notification_targets ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("list notification targets: %w", err)
@@ -232,9 +269,11 @@ func (r *Repo) List() ([]Target, error) {
 		if encToken.Valid && encToken.String != "" {
 			token, err := r.box.Decrypt(encToken.String)
 			if err != nil {
-				return nil, fmt.Errorf("decrypt bot token for target %d: %w", t.ID, err)
+				t.SecretUnreadable = true
+				slog.Warn("notifications: the saved bot token can't be read", "target", t.ID)
+			} else {
+				t.Config["botToken"] = token
 			}
-			t.Config["botToken"] = token
 		}
 		if cfgJSON != "" {
 			if err := mergeJSON(t.Config, cfgJSON); err != nil {
@@ -244,9 +283,9 @@ func (r *Repo) List() ([]Target, error) {
 		if secEnc != "" {
 			plain, err := r.box.Decrypt(secEnc)
 			if err != nil {
-				return nil, fmt.Errorf("decrypt secrets for target %d: %w", t.ID, err)
-			}
-			if err := mergeJSON(t.Config, plain); err != nil {
+				t.SecretUnreadable = true
+				slog.Warn("notifications: the saved secrets can't be read", "target", t.ID)
+			} else if err := mergeJSON(t.Config, plain); err != nil {
 				return nil, fmt.Errorf("decode secrets for target %d: %w", t.ID, err)
 			}
 		}

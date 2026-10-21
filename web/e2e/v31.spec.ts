@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test'
-import { expectNoErrors, watchErrors } from './helpers'
+import { expect, test, type Page } from '@playwright/test'
+import { expectNoErrors, openNav, watchErrors } from './helpers'
 
 // What came with 3.1: more screen languages, the speed schedule, the weekly
 // summary, "Quiet for a while", Add-ons and the calendar's Backdrops view.
@@ -16,6 +16,7 @@ test('the new screen languages load and a plural form reads right', async ({ pag
     await page.goto('/settings/general')
     await page.getByRole('combobox', { name: /language|sprache|lingua|taal|język|язык|мова/i }).selectOption(code)
     await expect(page.locator('html')).toHaveAttribute('lang', code)
+    await openNav(page)
     await expect(page.getByRole('navigation').first().getByText(menu).first()).toBeVisible()
   }
   await page.goto('/settings/general')
@@ -61,7 +62,18 @@ test('quiet for a while starts and ends', async ({ page }) => {
   await expectNoErrors(errors)
 })
 
-test('an add-on shows in the players menu and opens inside Mediarium', async ({ page }) => {
+test('an add-on shows in the players menu and opens inside Mediarium', async ({ page, request }) => {
+  // A run that failed half way must not leave "Channel guide" behind for the next one.
+  const clear = () => request.put('/api/apps', { data: [] })
+  await clear()
+  try {
+    await addOnShowsInMenu(page)
+  } finally {
+    await clear()
+  }
+})
+
+async function addOnShowsInMenu(page: Page) {
   const errors = watchErrors(page)
   await page.goto('/settings/addons')
   await page.getByRole('button', { name: 'Add an add-on' }).click()
@@ -72,6 +84,7 @@ test('an add-on shows in the players menu and opens inside Mediarium', async ({ 
   await page.reload()
   await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue('Channel guide')
   // The players menu (the play button at the bottom of the sidebar) lists it.
+  await openNav(page)
   await page.getByRole('button', { name: 'Players and media servers' }).first().click()
   await page.getByRole('menuitem', { name: /Channel guide/ }).click()
   await expect(page).toHaveURL(/\/apps\/[0-9a-f]+$/)
@@ -83,7 +96,7 @@ test('an add-on shows in the players menu and opens inside Mediarium', async ({ 
   await page.reload()
   await expect(page.getByRole('textbox', { name: 'Name' })).toHaveCount(0)
   await expectNoErrors(errors)
-})
+}
 
 test('the calendar has a Backdrops view', async ({ page }) => {
   const errors = watchErrors(page)

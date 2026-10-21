@@ -365,6 +365,7 @@ func (s *Server) handleTrashImportFormats(w http.ResponseWriter, r *http.Request
 			res.Missing = append(res.Missing, id)
 			continue
 		}
+		f.Format.TrashScore = &f.DefaultScore
 		saved, err := s.saveFormat(f.Format, &res)
 		if err != nil {
 			writeFormatError(w, err)
@@ -445,6 +446,7 @@ func (s *Server) handleTrashImportProfile(w http.ResponseWriter, r *http.Request
 			res.Missing = append(res.Missing, id)
 			continue
 		}
+		f.Format.TrashScore = &f.DefaultScore
 		saved, err := s.saveFormat(f.Format, &res)
 		if err != nil {
 			writeFormatError(w, err)

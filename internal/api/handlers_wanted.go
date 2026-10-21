@@ -23,22 +23,30 @@ import (
 // rejected release by hand is always allowed.
 // currentRelease is the release the file came from ("" when unknown).
 func rejectionsFor(title string, profile quality.Profile, downloaded bool, currentQuality, currentRelease string) []string {
-	var out []string
+	return reasonTexts(rejectionReasonsFor(title, profile, downloaded, currentQuality, currentRelease))
+}
+
+// rejectionReasonsFor is rejectionsFor with the kind of each reason: profile
+// (the profile's own rules, including the minimum score), language, quality
+// (not allowed, or only as a fallback) and upgrade (the file you have is as
+// good or better).
+func rejectionReasonsFor(title string, profile quality.Profile, downloaded bool, currentQuality, currentRelease string) []releaseReason {
+	var out []releaseReason
 	rel := parser.Parse(title)
 	tier := quality.Classify(rel)
 	if ok, why := profile.TitleAllowed(title); !ok {
-		out = append(out, why)
+		out = append(out, releaseReason{"profile", why})
 	}
 	if reason := profile.LanguageReason(rel); reason != "" {
-		out = append(out, reason)
+		out = append(out, releaseReason{"language", reason})
 	}
 	if !profile.AllowsTier(tier) {
-		out = append(out, fmt.Sprintf("%s isn't allowed by the %q profile", tier, profile.Name))
+		out = append(out, releaseReason{"quality", fmt.Sprintf("%s isn't allowed by the %q profile", tier, profile.Name)})
 		if by, fallback, ok := profile.AcceptedBy(title); ok && fallback {
 			if downloaded {
-				out = append(out, fmt.Sprintf("allowed only as a fallback (%q), which is used only when nothing is downloaded yet", by.Name))
+				out = append(out, releaseReason{"quality", fmt.Sprintf("allowed only as a fallback (%q), which is used only when nothing is downloaded yet", by.Name)})
 			} else {
-				out = append(out, fmt.Sprintf("allowed only as a fallback (%q): taken only when no release the %q profile accepts is found", by.Name, profile.Name))
+				out = append(out, releaseReason{"quality", fmt.Sprintf("allowed only as a fallback (%q): taken only when no release the %q profile accepts is found", by.Name, profile.Name)})
 			}
 		}
 	}
@@ -47,11 +55,11 @@ func rejectionsFor(title string, profile quality.Profile, downloaded bool, curre
 		case profile.WantsFormatUpgrade(currentRelease) && profile.IsUpgradeOver(quality.Tier(currentQuality), currentRelease, title):
 			// same or better quality with a better custom-format score
 		case profile.ReachedCutoffTier(quality.Tier(currentQuality)) && profile.WantsFormatUpgrade(currentRelease):
-			out = append(out, "doesn't score higher with custom formats than the file you have")
+			out = append(out, releaseReason{"upgrade", "doesn't score higher with custom formats than the file you have"})
 		case profile.ReachedCutoffTier(quality.Tier(currentQuality)):
-			out = append(out, fmt.Sprintf("already at the profile cutoff (%s)", currentQuality))
+			out = append(out, releaseReason{"upgrade", fmt.Sprintf("already at the profile cutoff (%s)", currentQuality)})
 		case quality.Rank(tier) <= quality.Rank(quality.Tier(currentQuality)):
-			out = append(out, fmt.Sprintf("not an upgrade over %s", currentQuality))
+			out = append(out, releaseReason{"upgrade", fmt.Sprintf("not an upgrade over %s", currentQuality)})
 		}
 	}
 	return out
@@ -63,9 +71,10 @@ func setFormatScore(p *searchResultPayload, profile quality.Profile, title strin
 	if len(profile.Formats) == 0 {
 		return
 	}
-	score, names := profile.FormatScore(title)
+	score, hits := profile.FormatBreakdown(title)
 	p.FormatScore = &score
-	p.Formats = names
+	p.Formats = hits
+	p.MinScore, p.UpgradeUntil = profile.MinFormatScore, profile.CutoffFormatScore
 }
 
 // handleMovieSearch is the interactive search for one library movie: every
@@ -109,6 +118,7 @@ func (s *Server) handleMovieSearch(w http.ResponseWriter, r *http.Request) {
 	outcomes := s.searchMovieTitles(r.Context(), instances, m, nil)
 	merged := indexers.MergeResults(outcomes)
 	out := []searchResultPayload{}
+	var found []indexers.Result
 	for _, res := range merged {
 		if !matchesMovie(res.Title, m) {
 			continue
@@ -116,15 +126,18 @@ func (s *Server) handleMovieSearch(w http.ResponseWriter, r *http.Request) {
 		p := s.toSearchResultPayload(res)
 		p.MatchedTitle = matchedOtherTitle(res.Title, m.Title, m.AltTitles)
 		p.Blocklisted = blocked[blocklist.Key(res.Title)]
-		p.Rejections = append(p.Rejections, rejectionsFor(res.Title, profile, m.Status == library.StatusDownloaded, m.Quality, m.ReleaseTitle)...)
-		p.Rejections = append(p.Rejections, sizeReasons(res.Title, res.SizeBytes)...)
+		p.addReasonList(rejectionReasonsFor(res.Title, profile, m.Status == library.StatusDownloaded, m.Quality, m.ReleaseTitle))
+		p.addReasons("size", sizeReasons(res.Title, res.SizeBytes))
 		if beforeHome && looksLikeHomeCopy(res.Title) {
-			p.Rejections = append(p.Rejections, cinemaCopyWarning)
+			p.addReasons("release", []string{cinemaCopyWarning})
 		}
+		p.addStateReasons()
 		setFormatScore(&p, profile, res.Title)
 		p.AcceptedBy = acceptedBy(profile, res.Title)
 		out = append(out, p)
+		found = append(found, res)
 	}
+	markBestMatch(out, found, profile)
 	s.markCachedPayloads(r.Context(), out)
 	writeSearch(w, r, out, len(instances), outcomes)
 }

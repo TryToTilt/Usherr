@@ -461,11 +461,8 @@ func (s *Server) arrAddSeries(w http.ResponseWriter, r *http.Request) {
 			_ = s.MovieRepo.SetSeasonMonitored(created.ID, ep.Season, want)
 		}
 	case req.AddOptions != nil:
-		switch strings.ToLower(req.AddOptions.Monitor) {
-		case "future":
-			_ = s.MovieRepo.MonitorFromDate(created.ID, today())
-		case "none":
-			_ = s.MovieRepo.SetAllEpisodesMonitored(created.ID, false)
+		if mode := strings.ToLower(req.AddOptions.Monitor); mode == library.MonitorFuture || mode == library.MonitorNone {
+			_, _ = s.MovieRepo.ApplyMonitorMode(created.ID, mode, today(), false)
 		}
 	}
 	if req.Monitored != nil && !*req.Monitored {
@@ -657,9 +654,40 @@ func (s *Server) arrListEpisodes(w http.ResponseWriter, r *http.Request) {
 			series = &a
 		}
 	}
+	// Sonarr's own filters: one season (0 is the specials), a list of episode
+	// ids, one episode file. Tools such as Maintainerr ask for a single season
+	// and then act on everything that comes back, so leaving a filter out
+	// would hand them every season of the show.
+	season, hasSeason := 0, false
+	if v := r.URL.Query().Get("seasonNumber"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			arrBadRequest(w, "SeasonNumber", "The season number must be a number.")
+			return
+		}
+		season, hasSeason = n, true
+	}
+	wantIDs := map[int64]bool{}
+	for _, v := range r.URL.Query()["episodeIds"] {
+		for _, part := range strings.Split(v, ",") {
+			if n, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64); err == nil && n > 0 {
+				wantIDs[n] = true
+			}
+		}
+	}
+	fileID, _ := strconv.ParseInt(r.URL.Query().Get("episodeFileId"), 10, 64)
 	out := []arrEpisode{}
 	for _, ep := range eps {
+		if hasSeason && ep.Season != season {
+			continue
+		}
+		if len(wantIDs) > 0 && !wantIDs[ep.ID] {
+			continue
+		}
 		e := toArrEpisode(ep)
+		if fileID > 0 && (!e.HasFile || e.EpisodeFileID != fileID) {
+			continue
+		}
 		e.Series = series
 		out = append(out, e)
 	}

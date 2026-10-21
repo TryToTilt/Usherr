@@ -194,7 +194,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	// Times a shared service said "too many requests" in the last 24 hours.
 	if s.Usage != nil {
 		m.gauge("mediarium_service_limit_hits", "Times an outside service refused a request because of a limit, in the last 24 hours.")
-		for _, svc := range []string{serviceTMDB, serviceTrakt, serviceOpenSubtitles} {
+		for _, svc := range []string{serviceTMDB, serviceTrakt, serviceSimkl, serviceOpenSubtitles} {
 			m.sample("mediarium_service_limit_hits", labels{"service", svc}, float64(s.Usage.Stats(svc).LimitHits))
 		}
 	}

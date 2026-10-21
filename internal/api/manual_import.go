@@ -132,9 +132,13 @@ func (s *Server) handleManualImport(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		if err := s.checkLibraryRoot(dest); err != nil {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
 		res, err := organizer.Import(src, dest, organizer.ConflictSkip, nil)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Couldn't move the file into your library: "+err.Error())
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("Couldn't move the file into your library: %s", err.Error()))
 			return
 		}
 		if res.Skipped {
@@ -164,6 +168,9 @@ func (s *Server) handleManualImport(w http.ResponseWriter, r *http.Request) {
 			found := false
 			if sr.SeriesType == library.SeriesAnime {
 				ep, found = s.episodeByAbsolute(sr.ID, filepath.Base(src))
+				if !found {
+					ep, found = s.episodeByTVDBSeason(sr, req.Season, req.Episode)
+				}
 			}
 			if !found {
 				if sr.SeriesType == library.SeriesAnime {
@@ -179,9 +186,13 @@ func (s *Server) handleManualImport(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		if err := s.checkLibraryRoot(dest); err != nil {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
 		res, err := organizer.Import(src, dest, organizer.ConflictSkip, nil)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "Couldn't move the file into your library: "+err.Error())
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("Couldn't move the file into your library: %s", err.Error()))
 			return
 		}
 		if res.Skipped {
@@ -221,6 +232,23 @@ func (s *Server) manualSource(rel string) (string, error) {
 		return "", errors.New("That isn't a video file in the downloads folder any more.")
 	}
 	return real, nil
+}
+
+// episodeByTVDBSeason is the episode of a show that a season and episode
+// counted the way TheTVDB (and so Sonarr) counts stands for, by the same rules
+// an import uses. Only the one episode, never a guess.
+func (s *Server) episodeByTVDBSeason(sr library.Series, season, episode int) (library.Episode, bool) {
+	episodes, err := s.MovieRepo.ListEpisodes(sr.ID)
+	if err != nil {
+		return library.Episode{}, false
+	}
+	place := library.ImportPlacer(episodes, true, s.importMaps(sr), nil)
+	to, numbers, ok := place(library.ImportFile{Season: season, Episodes: []int{episode}})
+	if !ok || len(numbers) != 1 {
+		return library.Episode{}, false
+	}
+	ep, err := s.MovieRepo.GetEpisode(sr.ID, to, numbers[0])
+	return ep, err == nil
 }
 
 // episodeByAbsolute is the episode of a show that a file name's number,

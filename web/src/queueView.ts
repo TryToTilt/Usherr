@@ -2,7 +2,8 @@
 // from the page so the order and the wording can be tested. The server sorts
 // the list the same way (sortQueueItems in Go); this repeats it so the page
 // stays in order even when it is shown a list in another order.
-import type { QueueItem } from './api'
+import type { QueueItem, QueueUnpack } from './api'
+import { formatBytes } from './format.ts'
 import { t } from './i18n.ts'
 
 type Status = QueueItem['status']
@@ -64,7 +65,7 @@ export function groupQueue(items: readonly QueueItem[]): QueueSections {
 }
 
 // What the status badge says.
-export function statusLabel(q: Pick<QueueItem, 'status' | 'interrupted' | 'pending'>): string {
+export function statusLabel(q: Pick<QueueItem, 'status' | 'interrupted' | 'pending' | 'unpack'>): string {
   if (q.pending === 'pausing') return t('Pausing…')
   if (q.pending === 'stopping') return t('Stopping…')
   switch (q.status) {
@@ -73,7 +74,7 @@ export function statusLabel(q: Pick<QueueItem, 'status' | 'interrupted' | 'pendi
     case 'downloading':
       return t('Downloading')
     case 'importing':
-      return t('Importing')
+      return q.unpack ? t('Unpacking') : t('Importing')
     case 'paused':
       return q.interrupted ? t('Partly downloaded, stopped') : t('Paused')
     case 'stopped':
@@ -85,6 +86,17 @@ export function statusLabel(q: Pick<QueueItem, 'status' | 'interrupted' | 'pendi
     case 'completed':
       return t('Done')
   }
+}
+
+// The line under a download that is being unpacked: how much is done, in plain
+// words. The total is the size of the archive's volumes, so it is the same
+// whatever the files inside compress to.
+export function unpackLine(u: QueueUnpack): string {
+  const done = formatBytes(u.doneBytes)
+  if (u.totalBytes <= 0) return t('Unpacking: {done} so far', { done })
+  const total = formatBytes(u.totalBytes)
+  if (u.count > 1) return t('Unpacking archive {n} of {count}: {done} of {total}', { n: u.index, count: u.count, done, total })
+  return t('Unpacking: {done} of {total}', { done, total })
 }
 
 // Where a download waiting in line stands: "Next in line", "3rd in line",

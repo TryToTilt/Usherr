@@ -62,6 +62,52 @@ func (s *Server) pausedForStreaming() []int64 {
 	return ids
 }
 
+// pausedListMu guards the list of downloads paused for a stream. It is changed
+// by the stream-pause check and by the resume after a restart, so every change
+// reads and writes it under this lock (holdForStreaming, forgetPausedForStreaming).
+var pausedListMu sync.Mutex
+
+// holdForStreaming adds downloads to the list; one that is on it already stays
+// on it once.
+func (s *Server) holdForStreaming(ids []int64) {
+	if len(ids) == 0 {
+		return
+	}
+	pausedListMu.Lock()
+	defer pausedListMu.Unlock()
+	have := map[int64]bool{}
+	held := s.pausedForStreaming()
+	for _, id := range held {
+		have[id] = true
+	}
+	for _, id := range ids {
+		if !have[id] {
+			have[id] = true
+			held = append(held, id)
+		}
+	}
+	s.savePausedForStreaming(held)
+}
+
+// forgetPausedForStreaming takes downloads off the list. Ones added since the
+// caller read it stay on it.
+func (s *Server) forgetPausedForStreaming(ids []int64) {
+	pausedListMu.Lock()
+	defer pausedListMu.Unlock()
+	gone := map[int64]bool{}
+	for _, id := range ids {
+		gone[id] = true
+	}
+	var keep []int64
+	for _, id := range s.pausedForStreaming() {
+		if !gone[id] {
+			keep = append(keep, id)
+		}
+	}
+	s.savePausedForStreaming(keep)
+}
+
+// savePausedForStreaming writes the list; callers hold pausedListMu.
 func (s *Server) savePausedForStreaming(ids []int64) {
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	val := ""
@@ -168,9 +214,8 @@ func (s *Server) pauseForStreaming() {
 	queueControlMu.Lock()
 	defer queueControlMu.Unlock()
 	defer s.dispatch.Hold()()
-	held := s.pausedForStreaming()
 	have := map[int64]bool{}
-	for _, id := range held {
+	for _, id := range s.pausedForStreaming() {
 		have[id] = true
 	}
 	var newly []int64
@@ -180,12 +225,11 @@ func (s *Server) pauseForStreaming() {
 		}
 		if s.pauseItem(it) == nil && !have[it.ID] {
 			have[it.ID] = true
-			held = append(held, it.ID)
 			newly = append(newly, it.ID)
 		}
 	}
 	if len(newly) > 0 {
-		s.savePausedForStreaming(held)
+		s.holdForStreaming(newly)
 		slog.Info("downloads paused while someone is watching", "paused", len(newly))
 	}
 }
@@ -209,7 +253,7 @@ func (s *Server) resumeStreamPaused(ids []int64) {
 			n++
 		}
 	}
-	s.savePausedForStreaming(nil)
+	s.forgetPausedForStreaming(ids)
 	if n > 0 {
 		slog.Info("downloads carry on: nobody is watching", "resumed", n)
 	}

@@ -308,12 +308,16 @@ func (s *Server) planMove(ref library.Ref, newRoot, stored string, busyMovies, b
 			return t
 		}
 		if _, err := os.Stat(f); err != nil {
-			t.Problem = "A file is not where Mediarium expects it (" + filepath.Base(f) + ")."
+			t.Problem = fmt.Sprintf("A file is not where Mediarium expects it (%s).", filepath.Base(f))
 			return t
 		}
 	}
 	if info, err := os.Stat(newRoot); err != nil || !info.IsDir() {
 		t.Problem = "The new folder doesn't exist."
+		return t
+	}
+	if err := s.checkLibraryRoot(newRoot); err != nil {
+		t.Problem = err.Error()
 		return t
 	}
 
@@ -375,7 +379,7 @@ func (s *Server) planMove(ref library.Ref, newRoot, stored string, busyMovies, b
 			return t
 		}
 		if _, err := os.Lstat(u.Dst); err == nil {
-			t.Problem = "There is already something at " + u.Dst + "."
+			t.Problem = fmt.Sprintf("There is already something at %s.", u.Dst)
 			return t
 		}
 		n, size := treeStats(u.Src)
@@ -456,7 +460,7 @@ func (s *Server) moveContext(w http.ResponseWriter, r *http.Request) (plans []mo
 	}
 	busyMovies, busyShows, err := s.busyTitles()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Couldn't check what is downloading right now. "+plainerror.Message(err))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("Couldn't check what is downloading right now. %s", plainerror.Message(err)))
 		return
 	}
 	taken := map[string]string{} // where each unit goes, so two titles can't land on one place
@@ -465,7 +469,7 @@ func (s *Server) moveContext(w http.ResponseWriter, r *http.Request) (plans []mo
 		if t.Problem == "" {
 			for _, u := range t.units {
 				if other, clash := taken[u.Dst]; clash {
-					t.Problem = "It would go to the same place as " + other + "."
+					t.Problem = fmt.Sprintf("It would go to the same place as %s.", other)
 					t.units, t.Method = nil, ""
 					break
 				}

@@ -60,6 +60,14 @@ func TestReplaceWithSmallerVersion(t *testing.T) {
 			}
 
 			newPath := filepath.Join(e.movies, name, name+".mkv")
+			if !tc.current {
+				// Imported the ordinary way, a lower quality never takes a place next
+				// to the file the movie has now.
+				if exists(newPath) || !exists(other) || !exists(oldPath) {
+					t.Errorf("nothing should be imported or removed (library: %s)", tree(t, e.movies))
+				}
+				return
+			}
 			if got, err := os.ReadFile(newPath); err != nil || string(got) != string(e.wantFile) {
 				t.Fatalf("the new file: %q, %v", got, err)
 			}

@@ -82,12 +82,24 @@ export function useSurfKeys(on: { up: () => void; down: () => void; number: (n: 
   }, [])
 }
 
-// Static: a short burst of snow (and, when chosen, its hiss) on a channel change.
-export function StaticBurst({ run }: { run: number }) {
+// Static: snow (and, when chosen, its hiss) on a channel change, until the
+// new channel's picture is actually moving. force: true always, false never
+// (or stop now), undefined as the viewer set it.
+export function StaticBurst({ run, force }: { run: number; force?: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const [on, setOn] = useState(false)
+  const active = useRef(0)
+  const stop = useRef<(() => void) | null>(null)
+  useEffect(() => () => stop.current?.(), [])
   useEffect(() => {
-    if (run === 0 || !tvPrefsNow().staticOn) return
+    if (run === 0) return
+    if (!(force ?? tvPrefsNow().staticOn)) {
+      stop.current?.()
+      return
+    }
+    if (active.current === run) return // already showing (or shown) for this change
+    stop.current?.()
+    active.current = run
     setOn(true)
     const c = canvas.current
     const ctx = c?.getContext('2d')
@@ -113,19 +125,39 @@ export function StaticBurst({ run }: { run: number }) {
         for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.15
         const src = audio.createBufferSource()
         src.buffer = buf
+        src.loop = true
         src.connect(audio.destination)
         src.start()
       } catch {
         audio = null
       }
     }
-    const stop = window.setTimeout(() => setOn(false), 450)
-    return () => {
-      cancelAnimationFrame(frame)
-      window.clearTimeout(stop)
-      void audio?.close().catch(() => undefined)
+    // The picture is moving when its time goes on between two looks; a
+    // black, buffering or paused video doesn't count.
+    const t0 = Date.now()
+    let last = -1
+    const video = () => {
+      const p = c?.parentElement
+      if (!p) return null
+      return (p.classList.contains('tv-inline') ? p.querySelector('video') : p.querySelector(':scope > .hp-player video')) as HTMLVideoElement | null
     }
-  }, [run])
+    const watch = window.setInterval(() => {
+      const v = video()
+      const waited = Date.now() - t0
+      if (v && !v.paused && v.readyState >= 3 && v.videoWidth > 0) {
+        if (last >= 0 && v.currentTime > last + 0.03 && waited >= 450) stop.current?.()
+        last = v.currentTime
+      } else last = -1
+      if (c?.parentElement?.querySelector('[data-tv-error]') || (!v && waited > 8000) || waited > 20000) stop.current?.()
+    }, 120)
+    stop.current = () => {
+      stop.current = null
+      cancelAnimationFrame(frame)
+      window.clearInterval(watch)
+      void audio?.close().catch(() => undefined)
+      setOn(false)
+    }
+  }, [run, force])
   return <canvas ref={canvas} width={160} height={90} className={`tv-static${on ? ' on' : ''}`} aria-hidden="true" />
 }
 

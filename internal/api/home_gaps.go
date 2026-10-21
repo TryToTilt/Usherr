@@ -604,7 +604,7 @@ func (s *Server) handlePerson(w http.ResponseWriter, r *http.Request) {
 	mp := s.moviePagePayload(ctx, &metadata.MoviePage{Page: 1, TotalPages: 1, Results: movies})
 	sp := s.showPagePayload(ctx, &metadata.ShowPage{Page: 1, TotalPages: 1, Results: shows})
 	writeJSON(w, http.StatusOK, map[string]any{
-		"person":    map[string]any{"id": p.ID, "name": p.Name, "biography": p.Biography, "birthday": p.Birthday, "deathday": p.Deathday, "place": p.Place, "known": p.Known, "image": metadata.ProfileURL(p.ProfilePath)},
+		"person":    map[string]any{"id": p.ID, "name": p.Name, "biography": p.Biography, "birthday": p.Birthday, "deathday": p.Deathday, "place": p.PlaceOfBirth, "known": p.KnownForDepartment, "image": metadata.ProfileURL(p.ProfilePath)},
 		"following": s.isFollowing(ctx, userID(r), id),
 		"movies":    mp.Results,
 		"shows":     sp.Results,

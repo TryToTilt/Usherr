@@ -38,19 +38,15 @@ func TestPlaceByAirDate(t *testing.T) {
 	}
 
 	// The files left without an episode are counted as left out, never placed.
-	listed := map[[2]int]bool{}
-	for _, e := range episodes {
-		listed[[2]int{e.Season, e.Episode}] = true
-	}
-	has := func(s, e int) bool { return listed[[2]int{s, e}] }
+	rules := newImportRules(episodes, true, ImportMaps{}, nil)
 	for _, f := range got[2:5] {
-		if _, ok, _ := resolveImportFile(f, has, AbsoluteOrder(episodes), true, nil); ok {
+		if _, ok, _ := resolveImportFile(f, rules); ok {
 			t.Errorf("%s should stay unplaced", f.Path)
 		}
 	}
 
 	// Change folder uses the placer, which reads the date too.
-	place := ImportPlacer(episodes, false, nil)
+	place := ImportPlacer(episodes, false, ImportMaps{}, nil)
 	if s, eps, ok := place(ImportFile{AirDate: "2024-01-15"}); !ok || s != 29 || !reflect.DeepEqual(eps, []int{1}) {
 		t.Fatalf("placer: %d %v %v", s, eps, ok)
 	}

@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/netproxy"
+	"github.com/rdborg/mediarium/internal/parser"
 	"github.com/rdborg/mediarium/internal/problems"
 )
 
@@ -59,12 +61,15 @@ type Instance struct {
 	// never tested); LastTestAt is when it ran.
 	LastTestError string
 	LastTestAt    time.Time
-	// Priority is how much this indexer is preferred: PriorityPreferred,
-	// PriorityNormal (the default) or PriorityLast.
+	// Priority is a number from PriorityMin to PriorityMax; a lower number is
+	// preferred (PriorityDefault when nothing was chosen).
 	Priority int
 	// RequestsPerDay is the daily limit a person set for the indexer; 0 = none
 	// set, so what the indexer itself reported (if anything) is used.
 	RequestsPerDay int
+	// MinSeeders is the fewest seeders a torrent release from this indexer needs
+	// to be picked by itself; 0 = off. Usenet indexers ignore it.
+	MinSeeders int
 	// SecretError is set when the saved key or password of this indexer could
 	// not be read (usually a secret.key that does not belong to the database).
 	// The indexer is still listed, so it can be fixed, but it is never searched.
@@ -78,13 +83,63 @@ func (i *Instance) markUnreadable() {
 	i.LastTestError = i.SecretError
 }
 
-// Indexer priorities. Between two equally good releases the one from the
-// more preferred indexer is picked.
+// Indexer priorities are numbers from 1 to 50, like Prowlarr: a lower
+// number is tried and picked first. Between two equally good releases the
+// one from the lower-numbered indexer is picked.
 const (
-	PriorityPreferred = 1
-	PriorityNormal    = 2
-	PriorityLast      = 3
+	PriorityMin     = 1
+	PriorityMax     = 50
+	PriorityDefault = 25
+	// The three old levels, kept for files and scripts that still use them.
+	PriorityPreferred = 10
+	PriorityNormal    = PriorityDefault
+	PriorityLast      = 40
 )
+
+// ParsePriority reads a priority from JSON or YAML input: a whole number
+// from 1 to 50, a numeric string, or one of the old words (preferred,
+// normal, last resort). ok is false for anything else.
+func ParsePriority(v any) (int, bool) {
+	switch x := v.(type) {
+	case int:
+		return x, x >= PriorityMin && x <= PriorityMax
+	case int64:
+		return int(x), x >= PriorityMin && x <= PriorityMax
+	case float64:
+		n := int(x)
+		return n, float64(n) == x && n >= PriorityMin && n <= PriorityMax
+	case string:
+		s := strings.ToLower(strings.TrimSpace(x))
+		switch strings.NewReplacer("_", " ", "-", " ").Replace(s) {
+		case "preferred":
+			return PriorityPreferred, true
+		case "normal":
+			return PriorityNormal, true
+		case "last resort", "last", "lastresort":
+			return PriorityLast, true
+		}
+		n, err := strconv.Atoi(s)
+		return n, err == nil && n >= PriorityMin && n <= PriorityMax
+	}
+	return 0, false
+}
+
+// MinSeedersMax is the largest minimum a person can set.
+const MinSeedersMax = 1000
+
+// ClampMinSeeders keeps a stored minimum inside 0 to MinSeedersMax.
+func ClampMinSeeders(n int) int {
+	return min(max(n, 0), MinSeedersMax)
+}
+
+// ClampPriority returns p, or PriorityDefault when p is outside 1 to 50
+// (nothing chosen).
+func ClampPriority(p int) int {
+	if p < PriorityMin || p > PriorityMax {
+		return PriorityDefault
+	}
+	return p
+}
 
 // IsCardigann reports whether the instance is a definition-based site.
 func (inst Instance) IsCardigann() bool { return inst.Kind == KindCardigann }
@@ -197,6 +252,9 @@ func SearchAll(ctx context.Context, instances []Instance, query string, categori
 					results[j].Protocol = ProtocolTorrent
 				}
 				results[j].Priority = inst.Priority
+				if results[j].Protocol == ProtocolTorrent {
+					results[j].MinSeeders = inst.MinSeeders
+				}
 			}
 			outcomes[i] = Outcome{IndexerName: inst.Name, Results: results, Err: err, LimitNote: limitNote}
 			// A search cut short by the caller, or waiting for the VPN, says
@@ -258,6 +316,8 @@ func MergeResults(outcomes []Outcome) []Result {
 	// anime's season and absolute number) often bring back the same release
 	// from the same indexer: it is listed once.
 	seen := map[[3]string]bool{}
+	// The same release often comes from several indexers: parse each name once.
+	parsed := map[string]*parser.Release{}
 	for _, o := range outcomes {
 		if o.Err != nil {
 			continue
@@ -268,6 +328,13 @@ func MergeResults(outcomes []Outcome) []Result {
 				continue
 			}
 			seen[key] = true
+			p := parsed[r.Title]
+			if p == nil {
+				rel := parser.Parse(r.Title)
+				p = &rel
+				parsed[r.Title] = p
+			}
+			r.parsed = p
 			all = append(all, r)
 		}
 	}

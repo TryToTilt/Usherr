@@ -19,11 +19,11 @@ import (
 
 const tvBuildSystem = `You program a TV channel for a home media server, like a network scheduler would. You get the shows and movies in the library (id | title | year | genres) and a description of the channel wanted.
 Reply with a JSON object only:
-{"name":"short channel name","series":[library show ids],"movies":[library movie ids],"stream":[{"title":"...","year":0}],"grid":30,"slots":[{"days":[1,2,3,4,5],"at":"19:00","seriesId":0,"movie":false,"count":1,"name":""}],"holidays":false,"premieres":false,"familyHours":false,"note":"one sentence on what you made"}
+{"name":"short channel name","series":[library show ids],"movies":[library movie ids],"stream":[{"title":"...","year":0}],"grid":30,"slots":[{"days":[1,2,3,4,5],"at":"19:00","seriesId":0,"streamTitle":"","movie":false,"count":1,"name":""}],"holidays":false,"premieres":false,"familyHours":false,"note":"one sentence on what you made"}
 Rules:
-- Use library shows and movies that fit; prefer them. "stream" is for a few famous shows that fit but aren't in the library (they play from the internet); leave it empty when the library has enough.
+- %s
 - grid: 30 for sitcoms and cartoons, 60 for dramas, 0 for movie channels.
-- slots: pin the best-known fits to classic times when the description suggests it (a Friday 8 PM line-up, a Sunday Night Movie). seriesId must be a library show id. days: 0 = Sunday ... 6 = Saturday.
+- slots: pin the best-known fits to classic times when the description suggests it (a Friday 8 PM line-up, a Sunday Night Movie). seriesId must be a library show id; for a streamed show leave it 0 and put its title in streamTitle. days: 0 = Sunday ... 6 = Saturday.
 - familyHours for kids' or family channels; holidays for seasonal ones; premieres when the shows are still airing.
 - Keep it to what fits the description: 3 to 25 shows.`
 
@@ -37,6 +37,8 @@ func (s *Server) handleTVAIBuild(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Prompt string `json:"prompt"`
 		Lang   string `json:"lang"`
+		// Usherr: "library" (no streaming), "mix" (the default) or "stream" (mostly streamed).
+		Streaming string `json:"streaming"`
 	}
 	if err := decodeJSON(r, &req); err != nil || strings.TrimSpace(req.Prompt) == "" {
 		writeError(w, http.StatusBadRequest, "Describe the channel first.")
@@ -77,7 +79,17 @@ func (s *Server) handleTVAIBuild(w http.ResponseWriter, r *http.Request) {
 		rows.Close()
 	}
 	prompt := fmt.Sprintf("%s\nThe channel wanted: %s\nWrite the name and note in %s.", sb.String(), firstN(strings.TrimSpace(req.Prompt), 400), languageName(req.Lang))
-	raw, err := ai.Ask(ctx, cfg, ai.Request{System: tvBuildSystem, Prompt: prompt, JSON: true, MaxTokens: 2500})
+	streamCap := 8
+	streamRule := `Use library shows and movies that fit; prefer them. "stream" is for a few famous shows that fit but aren't in the library (they play from the internet); leave it empty when the library has enough.`
+	switch req.Streaming {
+	case "library":
+		streamCap = 0
+		streamRule = `Use only library shows and movies. Leave "stream" empty.`
+	case "stream":
+		streamCap = 16
+		streamRule = `Build the line-up mostly from streamed shows (they play from the internet): put the shows that fit in "stream", in the library or not (up to 16). Library movies may still go in "movies".`
+	}
+	raw, err := ai.Ask(ctx, cfg, ai.Request{System: fmt.Sprintf(tvBuildSystem, streamRule), Prompt: prompt, JSON: true, MaxTokens: 2500})
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
@@ -114,20 +126,28 @@ func (s *Server) handleTVAIBuild(w http.ResponseWriter, r *http.Request) {
 	case 15, 30, 60:
 		rules.Grid = ans.Grid
 	}
-	for _, sl := range ans.Slots {
-		if (sl.Movie && len(rules.Movies) > 0) || showIDs[sl.SeriesID] {
-			if _, _, ok := clockOfSlot(sl.At); ok {
-				rules.Slots = append(rules.Slots, sl)
-			}
-		}
-	}
 	tm := s.displayTMDB()
 	for _, st := range ans.Stream {
-		if len(rules.Stream) >= 8 {
+		if len(rules.Stream) >= streamCap {
 			break
 		}
 		if _, sh := matchTitle(ctx, tm, aiTitle{Title: st.Title, Year: st.Year, Type: "tv"}); sh != nil {
 			rules.Stream = append(rules.Stream, tv.StreamShow{TMDBID: int64(sh.TMDBID), Title: sh.Name, Year: sh.Year()})
+		}
+	}
+	for _, sl := range ans.Slots {
+		// Usherr: a set time may stream a show, one of the channel's streamed ones.
+		if sl.SeriesID == 0 && !sl.Movie && sl.StreamTitle != "" && streamCap > 0 {
+			for _, st := range rules.Stream {
+				if strings.EqualFold(st.Title, strings.TrimSpace(sl.StreamTitle)) {
+					sl.StreamTMDB, sl.StreamTitle = st.TMDBID, st.Title
+				}
+			}
+		}
+		if (sl.Movie && len(rules.Movies) > 0) || showIDs[sl.SeriesID] || (sl.SeriesID == 0 && sl.StreamTMDB > 0) {
+			if _, _, ok := clockOfSlot(sl.At); ok {
+				rules.Slots = append(rules.Slots, sl)
+			}
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"name": strings.TrimSpace(ans.Name), "rules": rules, "note": strings.TrimSpace(ans.Note)})

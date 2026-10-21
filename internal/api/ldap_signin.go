@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -177,11 +178,11 @@ func (s *Server) handlePutLDAP(w http.ResponseWriter, r *http.Request) {
 	}
 	if c.Enabled {
 		if err := c.Check(); err != nil {
-			writeError(w, http.StatusBadRequest, "Can't switch directory sign-in on yet: "+err.Error()+".")
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("Can't switch directory sign-in on yet: %s.", err.Error()))
 			return
 		}
 		if err := s.sso().ldap.Probe(c); err != nil {
-			writeError(w, http.StatusBadRequest, "Can't switch directory sign-in on yet: "+ldapProblem(err)+".")
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("Can't switch directory sign-in on yet: %s.", ldapProblem(err)))
 			return
 		}
 	}

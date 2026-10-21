@@ -571,7 +571,7 @@ func (im *Importer) planIndexer(ctx context.Context, x prowlarrIndexer, d *prowl
 				key = ""
 				notes = append(notes, "Prowlarr hid its API key: added switched off, enter the key under Settings > Indexers & Search")
 			}
-			ipl.inst = indexers.Instance{Name: x.Name, Kind: kind, BaseURL: addr, APIKey: strings.TrimSpace(key), Protocol: protocol, Enabled: x.Enable && !ipl.masked}
+			ipl.inst = indexers.Instance{Name: x.Name, Kind: kind, BaseURL: addr, APIKey: strings.TrimSpace(key), Protocol: protocol, Enabled: x.Enable && !ipl.masked, Priority: x.Priority}
 		}
 	default:
 		im.planSiteIndexer(ctx, x, d, &item, &ipl, &notes, seenURL, seenDef)
@@ -581,6 +581,9 @@ func (im *Importer) planIndexer(ctx context.Context, x prowlarrIndexer, d *prowl
 			notes = append([]string{item.Reason}, notes...)
 		}
 		item.Reason = strings.Join(notes, "; ")
+	}
+	if item.Action == ActionAdd && ipl.inst.Protocol == indexers.ProtocolTorrent {
+		ipl.inst.MinSeeders = x.minSeeders()
 	}
 	ipl.item = item
 	skipBadIndexer(&ipl)
@@ -712,7 +715,7 @@ func (im *Importer) planSiteIndexer(ctx context.Context, x prowlarrIndexer, d *p
 	}
 	seenDef[strings.ToLower(sum.ID)] = true
 	item.Action = ActionAdd
-	ipl.inst = indexers.Instance{Name: x.Name, Kind: indexers.KindCardigann, DefinitionID: sum.ID, BaseURL: base, Protocol: protocol, Enabled: x.Enable && !hidden, Settings: settings}
+	ipl.inst = indexers.Instance{Name: x.Name, Kind: indexers.KindCardigann, DefinitionID: sum.ID, BaseURL: base, Protocol: protocol, Enabled: x.Enable && !hidden, Settings: settings, Priority: x.Priority}
 	ipl.secret = sum.IsSecret
 }
 
@@ -736,7 +739,7 @@ func (im *Importer) planThroughProwlarr(x prowlarrIndexer, d *prowlarrData, item
 	seenURL[normURL(addr)] = true
 	item.Action = ActionAdd
 	item.Reason = why + ", so it stays on Prowlarr: added as Prowlarr's own feed for it, with Prowlarr's API key"
-	ipl.inst = indexers.Instance{Name: x.Name, Kind: kind, BaseURL: addr, APIKey: d.Key, Protocol: protocol, Enabled: x.Enable}
+	ipl.inst = indexers.Instance{Name: x.Name, Kind: kind, BaseURL: addr, APIKey: d.Key, Protocol: protocol, Enabled: x.Enable, Priority: x.Priority}
 	return true
 }
 

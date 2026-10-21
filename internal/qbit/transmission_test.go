@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // fakeTransmission is the part of Transmission's RPC Mediarium uses: the
@@ -20,6 +21,7 @@ type fakeTransmission struct {
 	mu       sync.Mutex
 	torrents map[string]*tmTorrent
 	added    []map[string]any
+	sets     []map[string]any
 	removed  []string
 	wipe     bool
 }
@@ -88,6 +90,8 @@ func newFakeTransmission(t *testing.T) *fakeTransmission {
 				}
 			}
 			out["arguments"] = map[string]any{"torrents": list}
+		case "torrent-set":
+			f.sets = append(f.sets, req.Arguments)
 		case "torrent-stop":
 			f.torrents[ids()[0]].Status = tmStopped
 		case "torrent-start":
@@ -255,5 +259,41 @@ func TestKindsIncludeTransmission(t *testing.T) {
 	}
 	if _, ok := NewAPI(QBittorrent, "http://x", "", "", http.DefaultClient).(*Client); !ok {
 		t.Fatal("the other kinds get the qBittorrent client")
+	}
+}
+
+func TestTransmissionAddSetsRatioLimitOnly(t *testing.T) {
+	cases := []struct {
+		name      string
+		share     ShareLimits
+		wantSet   bool
+		wantRatio float64
+	}{
+		{"ratio is passed on", ShareLimits{Ratio: 2, Time: 48 * time.Hour}, true, 2},
+		{"time alone has no Transmission equivalent", ShareLimits{Time: 48 * time.Hour}, false, 0},
+		{"no limits sends nothing", ShareLimits{}, false, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFakeTransmission(t)
+			c := NewTransmission(f.URL, "me", "secret", f.Client())
+			hash := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+			err := c.Add(context.Background(), AddOptions{Magnet: "magnet:?xt=urn:btih:" + hash, Hash: hash, Share: tc.share})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (len(f.sets) == 1) != tc.wantSet {
+				t.Fatalf("torrent-set calls = %d, want set=%v", len(f.sets), tc.wantSet)
+			}
+			if tc.wantSet {
+				a := f.sets[0]
+				if a["seedRatioLimit"] != tc.wantRatio || a["seedRatioMode"] != float64(1) {
+					t.Errorf("args = %v", a)
+				}
+				if _, ok := a["seedIdleLimit"]; ok {
+					t.Error("the idle limit must not be used for a seeding time")
+				}
+			}
+		})
 	}
 }

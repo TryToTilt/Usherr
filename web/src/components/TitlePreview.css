@@ -13,6 +13,23 @@
   text-align: center;
   min-width: 0;
 }
+.preview-person a {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  width: 100%;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 12px;
+}
+.preview-person a:hover strong {
+  color: var(--accent, inherit);
+}
+.preview-person a:focus-visible {
+  outline: 2px solid var(--accent, currentColor);
+  outline-offset: 3px;
+}
 .preview-photo {
   width: 72px;
   height: 72px;

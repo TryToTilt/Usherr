@@ -201,7 +201,7 @@ func (s *Server) searchMovieTitles(ctx context.Context, instances []indexers.Ins
 	if enough == nil {
 		ctx = indexers.AsManual(ctx) // a person asked for this search
 	}
-	outcomes := indexers.SearchAll(ctx, instances, m.Title, movieCategory)
+	outcomes := indexers.SearchAll(ctx, instances, indexerQuery(m.Title), movieCategory)
 	extra := 0
 	for _, t := range m.AltTitles {
 		if ctx.Err() != nil {
@@ -213,7 +213,7 @@ func (s *Server) searchMovieTitles(ctx context.Context, instances []indexers.Ins
 			}
 			extra++
 		}
-		outcomes = append(outcomes, indexers.SearchAll(ctx, instances, t, movieCategory)...)
+		outcomes = append(outcomes, indexers.SearchAll(ctx, instances, indexerQuery(t), movieCategory)...)
 	}
 	return outcomes
 }

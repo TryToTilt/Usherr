@@ -37,6 +37,29 @@ type fakeQbit struct {
 	actions []string
 	// state, when set, is the state the torrent reports instead of downloading.
 	state string
+	// adds records the share limit fields of every add call ("-" when a field
+	// was not sent); limitCalls records every setShareLimits call.
+	adds       []map[string]string
+	limitCalls []map[string]string
+	// hold keeps the torrent half way down for ever; failDelete makes the
+	// delete call fail; infos counts the status checks.
+	hold       bool
+	failDelete bool
+	infos      int
+}
+
+// formField is a multipart or url-encoded form value, or "-" when it is absent.
+func formField(r *http.Request, name string) string {
+	if r.MultipartForm != nil {
+		if v, ok := r.MultipartForm.Value[name]; ok && len(v) > 0 {
+			return v[0]
+		}
+		return "-"
+	}
+	if v, ok := r.PostForm[name]; ok && len(v) > 0 {
+		return v[0]
+	}
+	return "-"
 }
 
 func (f *fakeQbit) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -64,13 +87,20 @@ func (f *fakeQbit) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseMultipartForm(1 << 20)
 		f.tags = append(f.tags, r.FormValue("tags"))
 		f.cats = append(f.cats, r.FormValue("category"))
+		f.adds = append(f.adds, map[string]string{"ratioLimit": formField(r, "ratioLimit"), "seedingTimeLimit": formField(r, "seedingTimeLimit")})
 		fmt.Fprint(w, "Ok.")
+	case "/api/v2/torrents/setShareLimits":
+		_ = r.ParseForm()
+		f.limitCalls = append(f.limitCalls, map[string]string{
+			"hashes": formField(r, "hashes"), "ratioLimit": formField(r, "ratioLimit"), "seedingTimeLimit": formField(r, "seedingTimeLimit"),
+		})
 	case "/api/v2/torrents/info":
+		f.infos++
 		list := []map[string]any{}
 		if len(f.tags) > 0 && len(f.deleted) == 0 {
 			f.polls++
 			state, progress := "downloading", 0.5
-			if f.polls > 2 {
+			if f.polls > 2 && !f.hold {
 				state, progress = "stalledUP", 1.0
 			}
 			if f.state != "" {
@@ -84,6 +114,10 @@ func (f *fakeQbit) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
 		f.actions = append(f.actions, strings.TrimPrefix(r.URL.Path, "/api/v2/torrents/")+" "+r.PostForm.Get("hashes"))
 	case "/api/v2/torrents/delete":
+		if f.failDelete {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		_ = r.ParseForm()
 		f.deleted = append(f.deleted, r.PostForm.Get("hashes")+" "+r.PostForm.Get("deleteFiles"))
 	default:
@@ -377,6 +411,10 @@ func TestDownloadClientSettings(t *testing.T) {
 		{map[string]any{"kind": "qbittorrent", "url": e.qbURL, "remotePath": "/downloads"}, "Fill in both folders"},
 		{map[string]any{"kind": "qbittorrent", "url": e.qbURL, "remotePath": "/downloads", "localPath": "data"}, "isn't complete"},
 		{map[string]any{"kind": "qbittorrent", "url": e.qbURL, "category": "a//b"}, "category"},
+		{map[string]any{"kind": "qbittorrent", "url": e.qbURL, "categoryMovies": "/films"}, "The movies category"},
+		{map[string]any{"kind": "qbittorrent", "url": e.qbURL, "categoryTv": `a\b`}, "The TV shows category"},
+		{map[string]any{"kind": "qbittorrent", "url": e.qbURL, "categoryMusic": strings.Repeat("m", 101)}, "The music category"},
+		{map[string]any{"kind": "qbittorrent", "url": e.qbURL, "categoryBooks": "books/"}, "The books category"},
 		{map[string]any{"kind": "decypharr", "url": e.qbURL, "linkRoot": "mnt"}, "isn't complete"},
 	} {
 		got := postJSONMethod[map[string]any](t, e.client, http.MethodPut, e.url+"/api/download-client", tc.body, http.StatusBadRequest)
@@ -388,7 +426,7 @@ func TestDownloadClientSettings(t *testing.T) {
 	// A debrid service first; saving the client turns it off.
 	postJSONMethod[map[string]any](t, e.client, http.MethodPut, e.url+"/api/debrid", map[string]any{"service": "torbox", "apiKey": "tb-key"}, http.StatusOK)
 	saved := e.save(t, map[string]any{"category": ""})
-	if saved["kind"] != "qbittorrent" || saved["hasPassword"] != true || saved["password"] != nil || saved["category"] != "mediarium" {
+	if saved["kind"] != "qbittorrent" || saved["hasPassword"] != true || saved["password"] != nil || saved["category"] != "" {
 		t.Fatalf("saved = %v", saved)
 	}
 	raw, _ := json.Marshal(getJSON[map[string]any](t, e.client, e.url+"/api/download-client"))
@@ -411,5 +449,67 @@ func TestDownloadClientSettings(t *testing.T) {
 	postJSONMethod[map[string]any](t, e.client, http.MethodPut, e.url+"/api/debrid", map[string]any{"service": "torbox", "apiKey": "tb-key"}, http.StatusOK)
 	if c := getJSON[map[string]any](t, e.client, e.url+"/api/download-client"); c["kind"] != "" {
 		t.Fatalf("the download client should be off now: %v", c)
+	}
+}
+
+// A category per kind: a movie is added under the movies category, a torrent
+// added earlier under the main category is still listed as Mediarium's, and
+// leaving them empty changes nothing.
+func TestDownloadClientCategoryPerKind(t *testing.T) {
+	defer api.SetDownloadClientPollForTest(10 * time.Millisecond)()
+	e := newClientEnv(t)
+	local := filepath.Join(e.dir, "client-downloads")
+	e.qb.content = "/downloads/Fixture.Movie"
+	writeClientFile(t, filepath.Join(local, "Fixture.Movie", "movie.mkv"), movieBytes)
+	e.qb.extra = []map[string]any{
+		{"hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Added.Before", "progress": 0.4, "state": "downloading", "category": "reads", "added_on": 1},
+		{"hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "name": "Other.Film", "progress": 0.4, "state": "downloading", "category": "films/new", "added_on": 2},
+		{"hash": "cccccccccccccccccccccccccccccccccccccccc", "name": "Not.Mine", "progress": 1.0, "state": "stalledUP", "category": "linux", "added_on": 3},
+	}
+	saved := e.save(t, map[string]any{"categoryMovies": " films/new ", "categoryBooks": "reads", "remotePath": "/downloads", "localPath": local})
+	if saved["category"] != "" || saved["categoryMovies"] != "films/new" || saved["categoryBooks"] != "reads" || saved["categoryTv"] != "" {
+		t.Fatalf("saved = %v", saved)
+	}
+	if item, _ := e.grab(t); item["status"] != "completed" {
+		t.Fatalf("grab = %v", item)
+	}
+	e.qb.mu.Lock()
+	cats := append([]string(nil), e.qb.cats...)
+	e.qb.mu.Unlock()
+	if len(cats) != 1 || cats[0] != "films/new" {
+		t.Fatalf("the movie should be added under its own category, got %v", cats)
+	}
+	list := getJSON[map[string]any](t, e.client, e.url+"/api/download-client/torrents")["torrents"].([]any)
+	names := map[string]bool{}
+	for _, it := range list {
+		names[it.(map[string]any)["name"].(string)] = true
+	}
+	if len(list) < 2 || !names["Added.Before"] || !names["Other.Film"] || names["Not.Mine"] {
+		t.Fatalf("Mediarium's torrents in either category, and no one else's: %v", names)
+	}
+}
+
+// Clearing the main category stays cleared: the form is not refilled with the
+// default. With nothing set anywhere torrents still go in "mediarium".
+func TestDownloadClientEmptyCategoryStaysEmpty(t *testing.T) {
+	defer api.SetDownloadClientPollForTest(10 * time.Millisecond)()
+	e := newClientEnv(t)
+	local := filepath.Join(e.dir, "client-downloads")
+	e.qb.content = "/downloads/Fixture.Movie"
+	writeClientFile(t, filepath.Join(local, "Fixture.Movie", "movie.mkv"), movieBytes)
+	saved := e.save(t, map[string]any{"category": "", "remotePath": "/downloads", "localPath": local})
+	if saved["category"] != "" {
+		t.Fatalf("saved category = %v, want it empty", saved["category"])
+	}
+	if got := getJSON[map[string]any](t, e.client, e.url+"/api/download-client"); got["category"] != "" {
+		t.Fatalf("loaded category = %v, want it empty", got["category"])
+	}
+	if item, _ := e.grab(t); item["status"] != "completed" {
+		t.Fatalf("grab = %v", item)
+	}
+	e.qb.mu.Lock()
+	defer e.qb.mu.Unlock()
+	if len(e.qb.cats) != 1 || e.qb.cats[0] != "mediarium" {
+		t.Fatalf("with nothing set the default category is used, got %v", e.qb.cats)
 	}
 }

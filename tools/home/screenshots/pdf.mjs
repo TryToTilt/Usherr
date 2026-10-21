@@ -19,6 +19,9 @@ const PAGES = [
   ['finding.md', 'Finding something to watch'],
   ['watching.md', 'Watching it'],
   ['integrations.md', 'Setting up each part'],
+  ['live-tv.md', 'Live TV'],
+  ['ai.md', 'The AI'],
+  ['marquee.md', 'The Marquee'],
   ['troubleshooting.md', 'When something goes wrong'],
 ]
 

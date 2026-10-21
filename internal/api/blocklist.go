@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -79,7 +80,7 @@ func (s *Server) blocklistBadRelease(releaseTitle string, protocol indexers.Prot
 		log.Printf("api: %v", err)
 		return false
 	}
-	_ = s.QueueRepo.LogItemActivity(movieID, seriesID, "blocklisted", "Blocklisted \""+releaseTitle+"\": "+cause.Error())
+	_ = s.QueueRepo.LogItemActivity(movieID, seriesID, "blocklisted", fmt.Sprintf("Blocklisted \"%s\": %s", releaseTitle, cause.Error()))
 	return true
 }
 

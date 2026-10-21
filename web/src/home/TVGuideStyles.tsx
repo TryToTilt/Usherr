@@ -1,5 +1,6 @@
 // Usherr: the guide's other looks, and its options. Each person picks one:
 //   modern   – today's grid (TV.tsx)
+//   rounded  – the same grid with rounded tiles and gaps, for channels and shows
 //   cable    – the same grid as a '90s cable box: blocky, navy and cyan
 //   prevue   – the Prevue Channel: a preview on top, the line-up scrolling below
 //   listings – the day as a newspaper prints it
@@ -34,6 +35,7 @@ const after = (r: GRow, now: number) => r.programs.filter((p) => new Date(p.star
 
 export const STYLES: { key: GuideStyle; label: () => string }[] = [
   { key: 'modern', label: () => t('Modern grid') },
+  { key: 'rounded', label: () => t('Rounded tiles') },
   { key: 'cable', label: () => t('’90s cable box') },
   { key: 'prevue', label: () => t('Prevue Channel') },
   { key: 'listings', label: () => t('Newspaper listings') },
@@ -43,7 +45,7 @@ export const STYLES: { key: GuideStyle; label: () => string }[] = [
 // The options above the guide.
 export function GuideOptions() {
   const p = useTVPrefs()
-  const grid = p.style === 'modern' || p.style === 'cable'
+  const grid = p.style === 'modern' || p.style === 'rounded' || p.style === 'cable'
   return (
     <div className="tvo">
       <label className="tvo-style">

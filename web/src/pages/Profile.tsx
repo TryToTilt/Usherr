@@ -13,6 +13,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { useConfirm } from '../components/ConfirmProvider'
 import PasswordStrength from '../components/PasswordStrength'
 import TwoStepCard from '../components/TwoStepCard'
+import IdleSignOutCard from '../components/IdleSignOutCard'
 import SessionsCard from '../components/SessionsCard'
 import PlexWatchlistCard from '../components/PlexWatchlistCard'
 import ListenBrainzCard from '../components/ListenBrainzCard'
@@ -744,6 +745,7 @@ export function SecuritySettings() {
       <SsoLinkCard />
       {local && <TwoStepCard />}
       <SessionsCard />
+      {isAdmin(user) && <IdleSignOutCard />}
       {!viewer && <APIKeys />}
     </div>
   )

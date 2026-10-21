@@ -1,6 +1,9 @@
 package api
 
-import "time"
+import (
+	"net/http"
+	"time"
+)
 
 // SetBodyTimesForTest shortens the body read limits and answers a function that puts them back.
 func SetBodyTimesForTest(normal, long time.Duration) (restore func()) {
@@ -8,3 +11,6 @@ func SetBodyTimesForTest(normal, long time.Duration) (restore func()) {
 	bodyReadTime, longUploadTime = normal, long
 	return func() { bodyReadTime, longUploadTime = oldN, oldL }
 }
+
+// WithBodyDeadlineForTest exposes the middleware to the tests.
+func WithBodyDeadlineForTest(h http.Handler) http.Handler { return withBodyDeadline(h) }

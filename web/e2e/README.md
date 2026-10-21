@@ -14,6 +14,7 @@ MEDIARIUM_URL=http://localhost:8301 npx playwright test
 - `npx playwright install chromium` downloads the browser once. To use Edge or Chrome that's already installed, set `PW_CHANNEL=msedge` or `PW_CHANNEL=chrome` instead.
 - The setup test saves the session and the generated password in `e2e/.auth/` (ignored by git), and the other tests reuse them.
 - To run them again, start over with a new, empty config folder.
+- The same tests run at three sizes: `--project app` is the desktop run, `--project app-tablet` (820x1180) and `--project app-phone` (390x844, touch) reuse the administrator the first run created, so add `--no-deps` to them after the first run.
 - On a failure, `npx playwright show-report` shows a screenshot and a trace of each failed step.
 
 What they cover: the setup wizard from a fresh install, signing in (a wrong password is refused), every main page opening without an error, demo mode, the dark/light switch and changing the language.

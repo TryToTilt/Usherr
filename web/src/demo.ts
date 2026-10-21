@@ -13,6 +13,8 @@ import type {
   Episode,
   Movie,
   MovieDetail,
+  PersonCredit,
+  PersonPage,
   QueueItem,
   Series,
   SeriesDetail,
@@ -99,6 +101,24 @@ const SERIES_SEEDS: (Seed & { episodes: number; have: number })[] = [
   { id: 105, title: 'Paper Ghosts', year: 2022, genres: ['Crime', 'Drama'], rating: 8.2, overview: OV, state: 'pending', episodes: 30, have: 0, noPoster: true },
   { id: 106, title: 'Glass Orchard', year: 2021, genres: ['Animation', 'Fantasy'], rating: 8.8, overview: OV, state: 'downloaded', episodes: 18, have: 18 },
 ]
+
+// A long indexer list, mixed Usenet and torrent, so the Settings page shows
+// what many indexers look like.
+const demoIndexers = Array.from({ length: 15 }, (_, n) => {
+  const torrent = n % 3 === 1
+  return {
+    id: 100 + n,
+    name: ['NZBgeek', 'DrunkenSlug', 'NZBFinder', 'Tabula Rasa', 'altHUB', 'NinjaCentral', 'Abnzb', 'OZnzb', 'The Pirate Bay', '1337x', 'TorrentGalaxy', 'YTS', 'Nyaa', 'EZTV', 'LimeTorrents'][n],
+    definitionId: '',
+    baseUrl: torrent ? `https://torznab.example.org/api/v2.0/indexers/site-${n}/results/torznab/` : `https://api.indexer-${n}.example.com`,
+    protocol: torrent ? ('torrent' as const) : ('usenet' as const),
+    enabled: n !== 6,
+    kind: torrent ? ('torznab' as const) : ('newznab' as const),
+    priority: [10, 25, 25, 5, 40, 25, 15, 25, 30, 25, 20, 25, 35, 25, 50][n],
+    lastTestAt: new Date(Date.now() - (n + 1) * 3_600_000).toISOString(),
+    lastTestError: n === 4 ? 'The indexer did not answer in time.' : undefined,
+  }
+})
 
 const movies: Movie[] = MOVIE_SEEDS.map((s) => ({
   id: s.id,
@@ -208,7 +228,8 @@ const discoverPool = (offset: number, tv: boolean): DiscoverMovie[] => {
 const calendar: CalendarEntry[] = [
   { kind: 'episode', id: 1, seriesId: 102, season: 3, episode: 9, title: 'Salt & Static', subtitle: 'S03E09 · Second Service', releaseDate: day(1), status: 'missing', posterUrl: poster(102) },
   { kind: 'episode', id: 2, seriesId: 104, season: 2, episode: 5, title: 'Ember Road', subtitle: 'S02E05 · The Long Fuse', releaseDate: day(2), status: 'missing', posterUrl: poster(104) },
-  { kind: 'movie', id: 3, movieId: 10, tmdbId: 9010, title: 'Tidewalker', releaseDate: day(3), status: 'downloading', posterUrl: poster(10) },
+  { kind: 'movie', id: 3, movieId: 10, tmdbId: 9010, title: 'Tidewalker', releaseDate: day(3), release: 'cinema', status: 'downloading', posterUrl: poster(10) },
+  { kind: 'movie', id: 3, movieId: 10, tmdbId: 9010, title: 'Tidewalker', releaseDate: day(24), release: 'digital', status: 'downloading', posterUrl: poster(10) },
   { kind: 'episode', id: 4, seriesId: 101, season: 3, episode: 1, title: 'The Clean Floor', subtitle: 'S03E01 · Season premiere', releaseDate: day(5), status: 'missing', posterUrl: poster(101) },
   { kind: 'album', id: 21, albumId: 22, artistId: 2, title: 'Mira Calloway — Slow Weather', subtitle: 'Album', releaseDate: day(5), status: 'missing', posterUrl: poster(221) },
   { kind: 'episode', id: 10, seriesId: 106, season: 3, episode: 2, title: 'Glass Orchard', subtitle: 'S03E02 · Root Cellar', releaseDate: day(5), status: 'missing', posterUrl: poster(106) },
@@ -292,6 +313,30 @@ function seriesDetail(id: number): SeriesDetail | null {
   return { ...s, episodes: eps }
 }
 
+const DEMO_CAST = [
+  { id: 9001, name: 'Actor One', character: 'Lead' },
+  { id: 9002, name: 'Actor Two', character: 'Support' },
+  { id: 9003, name: 'Actor Three', character: 'Villain' },
+  { id: 9004, name: 'Actor Four', character: 'Friend' },
+]
+
+// A made-up person with an acting career and a few titles directed.
+const demoPerson = (id: number): PersonPage => {
+  const name = DEMO_CAST.find((c) => c.id === id)?.name ?? (id === 9101 ? 'Director One' : id === 9102 ? 'Creator One' : 'Actor One')
+  const movies = discoverPool(id % 5, false).map((m, i): PersonCredit => ({ ...m, roles: i % 3 === 2 ? ['directing'] : ['acting'], character: i % 3 === 2 ? undefined : 'Lead' }))
+  const shows = discoverPool(id % 5, true).slice(0, 4).map((m): PersonCredit => ({ ...m, roles: ['acting'], character: 'Guest' }))
+  return {
+    id,
+    name,
+    biography: 'A made-up person for demo mode. They have worked on a handful of invented films and shows, none of which exist.',
+    birthday: '1980-04-12',
+    placeOfBirth: 'Sampletown',
+    workKinds: ['acting', 'directing'],
+    movies,
+    shows,
+  }
+}
+
 const titleDetail = (m: Movie): MovieDetail => {
   const seed = MOVIE_SEEDS.find((x) => x.id === m.id)!
   return {
@@ -311,13 +356,11 @@ const titleDetail = (m: Movie): MovieDetail => {
     tagline: 'A sample tagline for demo mode.',
     certification: 'PG-13',
     releaseDate: `${m.year}-03-01`,
+    // Some films are still in cinemas with the digital date ahead, others have both behind them.
+    releaseDates: m.id % 2 === 0 ? { cinema: day(3), digital: day(24), region: 'US' } : { cinema: `${m.year}-03-01`, digital: `${m.year}-06-10`, region: 'US' },
     language: 'en',
-    cast: [
-      { name: 'Actor One', character: 'Lead' },
-      { name: 'Actor Two', character: 'Support' },
-      { name: 'Actor Three', character: 'Villain' },
-      { name: 'Actor Four', character: 'Friend' },
-    ],
+    cast: DEMO_CAST,
+    crew: [{ id: 9101, name: 'Director One', job: 'Director' }],
     trailers: [{ name: 'Official Trailer', site: 'YouTube', key: 'demo', url: 'https://www.youtube.com/results?search_query=' + encodeURIComponent(m.title + ' official trailer'), official: true }],
   } as MovieDetail
 }
@@ -342,7 +385,8 @@ const tvDetail = (tmdbId: number): TVDetail | null => {
     episodes: seed.episodes,
     networks: ['Sample Network'],
     releaseStatus: 'Returning Series',
-    cast: [{ name: 'Actor One', character: 'Lead' }, { name: 'Actor Two', character: 'Support' }],
+    cast: DEMO_CAST.slice(0, 2),
+    crew: [{ id: 9102, name: 'Creator One', job: 'Creator' }],
     trailers: [{ name: 'Official Trailer', site: 'YouTube', key: 'demo', url: 'https://www.youtube.com/results?search_query=' + encodeURIComponent(seed.title + ' official trailer'), official: true }],
   }
 }
@@ -361,6 +405,41 @@ function titleSearch(q: string): TitleResult[] {
     { kind: 'tv', tmdbId: 8802, title: `${q}: The Series`, year: 2020, overview: OV, posterUrl: poster(32), inLibrary: false },
   )
   return out
+}
+
+// A made-up interactive search: scored releases, with the formats that gave
+// each score and the reasons an automatic search would skip it.
+function demoReleases() {
+  const rel = (title: string, o: Record<string, unknown>) => ({ title, indexerName: 'Indexer One', protocol: 'usenet', downloadUrl: 'demo-' + title, sizeBytes: 12e9, publishDate: ago(300), ...o })
+  const limits = { minScore: 0, upgradeUntil: 300 }
+  return [
+    rel('Saltwind.Part.Two.2024.1080p.BluRay.REMUX.DTS-HD.MA.5.1.AVC-KESTREL', {
+      resolution: '1080p', source: 'BluRay', best: true, sizeBytes: 31e9, formatScore: 350, ...limits,
+      formats: [{ name: 'Remux Tier 01', score: 300 }, { name: 'DTS-HD MA', score: 50 }], acceptedBy: { profileId: 1, profileName: 'HD 1080p', fallback: false },
+    }),
+    rel('Saltwind.Part.Two.2024.1080p.BluRay.x265-FuN', {
+      resolution: '1080p', source: 'BluRay', codec: 'x265', sizeBytes: 9e9, formatScore: 0, ...limits,
+      formats: [], terms: [{ term: 'x265-FuN', score: 100 }, { term: 'x265', score: 50 }],
+      reasons: [{ kind: 'notBest', text: 'The best match has a higher score: 350 against 150. Best match: Remux Tier 01 +300, DTS-HD MA +50. This release: x265-FuN +100, x265 +50.' }],
+    }),
+    rel('Saltwind.Part.Two.2024.1080p.WEB-DL.DDP5.1.H.265-LUMEN', {
+      indexerName: 'Indexer Two', protocol: 'torrent', seeders: 41, peers: 6, resolution: '1080p', source: 'WEB-DL', codec: 'x265', sizeBytes: 4.2e9, formatScore: -50, ...limits,
+      formats: [{ name: 'x265 (HD)', score: -50 }],
+      reasons: [{ kind: 'profile', text: 'scores -50 with custom formats, and the "HD 1080p" profile needs at least 0' }],
+      rejections: ['scores -50 with custom formats, and the "HD 1080p" profile needs at least 0'],
+    }),
+    rel('Saltwind.Part.Two.2024.2160p.WEB-DL.DV.HDR10Plus.H.265-ORBIT', {
+      resolution: '2160p', source: 'WEB-DL', codec: 'x265', sizeBytes: 21e9, formatScore: 0, ...limits,
+      formats: [],
+      reasons: [{ kind: 'quality', text: "WEBDL-2160p isn't allowed by the \"HD 1080p\" profile" }, { kind: 'size', text: "larger than the \"HD 1080p\" profile's limit of 15 GB" }],
+      rejections: ["WEBDL-2160p isn't allowed by the \"HD 1080p\" profile", "larger than the \"HD 1080p\" profile's limit of 15 GB"],
+    }),
+    rel('Saltwind.Part.Two.2024.1080p.WEB-DL.DDP5.1.H.264-TINDER', {
+      indexerName: 'Indexer Two', protocol: 'torrent', seeders: 1, peers: 0, belowMinSeeders: true, minSeeders: 3, resolution: '1080p', source: 'WEB-DL', codec: 'x264', sizeBytes: 6.8e9, blocklisted: true, formatScore: 0, ...limits,
+      formats: [],
+      reasons: [{ kind: 'blocklist', text: 'This release failed before and is on the blocklist, so automatic searches leave it out.' }, { kind: 'seeders', text: 'Its seeder count (1) is below the minimum of 3 set for its indexer, so automatic searches leave it out.' }],
+    }),
+  ]
 }
 
 // Installs the demo layer over fetch. Anything it does not know is passed
@@ -397,6 +476,8 @@ export function installDemo() {
         return json([])
       case /^\/api\/(movies|series)\/\d+\/files$/.test(p):
         return json({ folder: '', files: [] })
+      case /^\/api\/movies\/\d+\/search$/.test(p):
+        return json({ results: demoReleases(), sources: 2, unanswered: [] })
       case p === '/api/movies':
         return json(movies)
       case /^\/api\/movies\/\d+$/.test(p):
@@ -503,6 +584,8 @@ export function installDemo() {
         const d = tvDetail(Number(p.split('/').pop()))
         return d ? json(d) : json({ tmdbId: 8802, title: 'Sample Series', year: 2020, overview: OV, posterUrl: poster(32), genres: ['Drama'], rating: 7.9 })
       }
+      case /^\/api\/tmdb\/people\/\d+$/.test(p):
+        return json(demoPerson(Number(p.split('/').pop())))
       case /^\/api\/tmdb\/movies\/\d+\/similar$/.test(p):
         return json(discoverPool(4, false).slice(0, 8))
       // Every other Discover list and filter: made-up titles, never the real
@@ -533,6 +616,8 @@ export function installDemo() {
         return json(demoBatch)
       case p === '/api/music/search':
         return json([])
+      case p === '/api/indexers':
+        return json(demoIndexers)
       default:
         return real(input, init)
     }

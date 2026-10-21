@@ -448,3 +448,59 @@ func TestFeedThatIsAWebPage(t *testing.T) {
 		}
 	}
 }
+
+// An RSS feed has <link>text</link>. Read with the HTML rules <link> is a
+// void element, so the closing tag was an error (nekoBT's feed).
+func TestParseXMLDocKeepsRSSLinkElements(t *testing.T) {
+	feed := `<?xml version="1.0"?>
+<rss version="1.0" xmlns:torznab="http://torznab.com/schemas/2015/feed">
+  <channel>
+    <title>Feed</title>
+    <item>
+      <title>A release</title>
+      <link>magnet:?xt=urn:btih:abc&amp;dn=A%20release</link>
+      <torznab:attr name="seeders" value="10"/>
+    </item>
+  </channel>
+</rss>`
+	doc, err := parseXMLDoc([]byte(feed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var link string
+	var walk func(n *html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "link" && n.FirstChild != nil {
+			link = n.FirstChild.Data
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(doc)
+	if link != "magnet:?xt=urn:btih:abc&dn=A%20release" {
+		t.Errorf("link = %q", link)
+	}
+}
+
+// A definition that cleans a title in several languages can have dozens of
+// filters on one field (Mazepa has 38): that is fine, a runaway list is not.
+func TestFilterListLimit(t *testing.T) {
+	list := func(n int) []FilterBlock {
+		fs := make([]FilterBlock, n)
+		for i := range fs {
+			fs[i] = FilterBlock{Name: "trim"}
+		}
+		return fs
+	}
+	v := &defValidator{def: &Definition{}}
+	v.filters("field title", list(40))
+	if len(v.problems) != 0 {
+		t.Errorf("40 filters were refused: %v", v.problems)
+	}
+	v = &defValidator{def: &Definition{}}
+	v.filters("field title", list(maxFilters+1))
+	if len(v.problems) == 0 {
+		t.Error("a list longer than the limit was accepted")
+	}
+}

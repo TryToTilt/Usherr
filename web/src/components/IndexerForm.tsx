@@ -7,6 +7,7 @@ import { FieldError, FormProblem, useValidation } from '../useValidation'
 import { apiKey as apiKeyCheck, firstError, maxLength, required, url as urlCheck } from '../validate'
 import { t, tx, st } from '../i18n'
 import TipLabel from './TipLabel'
+import KnownFixHint from './KnownFixHint'
 
 // Usenet indexers that are open to new members, offered as a quick fill for the
 // address. You still need your own account and API key on each one.
@@ -193,6 +194,7 @@ export default function IndexerForm({ onAdded, torrentDisabled }: { onAdded: (i:
       {test.forKey === detailsKey && test.state === 'fail' && (
         <div className="test-result fail">
           <Icon name="warning" size={15} /> {st(test.message)}
+          <KnownFixHint error={test.message} />
         </div>
       )}
         </>

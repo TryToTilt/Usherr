@@ -1,7 +1,7 @@
 import { sortProfiles } from './qualityBlurb'
 import { useEffect, useState } from 'react'
 import { defaultProfileFor } from '../profileDefaults'
-import { api, can, isAdmin, type QualityProfile, type SourcePref } from '../api'
+import { api, can, isAdmin, type QualityProfile, type SeasonPackChoice, type SourcePref } from '../api'
 import { useAuth } from '../AuthContext'
 import { t } from '../i18n'
 import InfoTip from './InfoTip'
@@ -28,6 +28,9 @@ function Picker({ kind, itemId, children }: { kind: 'movie' | 'series'; itemId: 
   const [current, setCurrent] = useState<number | null>(null)
   const [sources, setSources] = useState<SourcePref>('')
   const [noUpgrade, setNoUpgrade] = useState(false)
+  // Shows only: the show's own choice about season packs, and what the default is.
+  const [seasonPack, setSeasonPack] = useState<SeasonPackChoice>('')
+  const [defaultPacks, setDefaultPacks] = useState(false)
   // More than one library folder: which one the next files go to ('' = the main one).
   const [folders, setFolders] = useState<string[]>([])
   const [root, setRoot] = useState('')
@@ -45,9 +48,11 @@ function Picker({ kind, itemId, children }: { kind: 'movie' | 'series'; itemId: 
         setCurrent(item.profileId ?? 0)
         setSources(item.sources ?? '')
         setNoUpgrade(!!item.noUpgrade)
+        setSeasonPack((item as { seasonPack?: SeasonPackChoice }).seasonPack ?? '')
         setRoot(item.rootPath ?? '')
       })
       .catch(() => undefined)
+    if (kind === 'series') api.getSettings().then((st) => setDefaultPacks(!!st.seasonPacks)).catch(() => undefined)
     api
       .libraryFolders()
       .then((f) => setFolders(kind === 'movie' ? f.movies : f.tv))
@@ -110,6 +115,18 @@ function Picker({ kind, itemId, children }: { kind: 'movie' | 'series'; itemId: 
     }
   }
 
+  async function chooseSeasonPack(next: SeasonPackChoice) {
+    const previous = seasonPack
+    setSeasonPack(next)
+    try {
+      await api.setSeriesSeasonPack(itemId, next)
+      toast.success(next === '' ? t('Saved: season packs follow the default.') : next === 'on' ? t('Saved: this show takes a season pack once a season has ended.') : t('Saved: this show is fetched episode by episode.'))
+    } catch (e) {
+      setSeasonPack(previous)
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   if (current === null || profiles.length === 0) return null
   const defaultName = profiles.find((p) => p.id === defaultId)?.name ?? t('default')
 
@@ -151,6 +168,19 @@ function Picker({ kind, itemId, children }: { kind: 'movie' | 'series'; itemId: 
           <option value="leave">{t('Leave what I have alone')}</option>
         </select>
       </label>
+      {kind === 'series' && (
+        <label>
+          <span className="has-tip">
+            {t('Season packs')}
+            <InfoTip text={t('While a season is airing its episodes come one by one. Once every episode has aired, Mediarium can look for a season pack and take it when it is the same quality or better than the episodes you have.')} />
+          </span>
+          <select value={seasonPack} onChange={(e) => void chooseSeasonPack(e.target.value as SeasonPackChoice)}>
+            <option value="">{t('Default ({name})', { name: defaultPacks ? t('prefer packs') : t('episode by episode') })}</option>
+            <option value="on">{t('Prefer packs once a season has ended')}</option>
+            <option value="off">{t('Episode by episode')}</option>
+          </select>
+        </label>
+      )}
       {folders.length > 1 && (
         <label>
           <span className="has-tip">

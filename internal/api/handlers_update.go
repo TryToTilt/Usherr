@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -116,7 +117,11 @@ func (s *Server) handlePutOptions(w http.ResponseWriter, r *http.Request) {
 			state = "on"
 		}
 		slog.Warn("update: pushed updates switched "+state, "by", actor, "from", s.clientIP(r))
-		_ = s.QueueRepo.LogActivity(0, "update", "Updates pushed through the API were switched "+state+" by "+actor+".")
+		line := fmt.Sprintf("Updates pushed through the API were switched off by %s.", actor)
+		if *req.AllowPush {
+			line = fmt.Sprintf("Updates pushed through the API were switched on by %s.", actor)
+		}
+		_ = s.QueueRepo.LogActivity(0, "update", line)
 	}
 	writeJSON(w, http.StatusOK, s.options())
 }

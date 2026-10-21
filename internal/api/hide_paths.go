@@ -1,9 +1,19 @@
 package api
 
 import (
+	"net/http"
 	"path"
 	"strings"
 )
+
+// memberText is a line of text for the person asking: administrators get it as
+// it is, everyone else without the server's folder paths.
+func memberText(r *http.Request, msg string) string {
+	if isAdminRequest(r) {
+		return msg
+	}
+	return hideLibraryPaths(msg)
+}
 
 // hideLibraryPaths replaces every absolute file path in an activity line with
 // its last part (the file or folder name), for people who are not

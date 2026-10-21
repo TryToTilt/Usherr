@@ -4,6 +4,7 @@ Mediarium gets better because people who use it say what's missing or what broke
 
 | Who | Where | What came of it |
 |---|---|---|
+| [u/troelsdk](https://www.reddit.com/user/troelsdk) | Reddit | Finding that the Sonarr-compatible episode list ignored the season asked for |
 | [u/Embyverse](https://www.reddit.com/user/Embyverse) | Reddit | Custom formats with TRaSH Guides import; keeping two qualities of one title (second copies) |
 | [u/12_nick_12](https://www.reddit.com/user/12_nick_12) | Reddit | Never download season packs; a webhook for media servers without their own support; the Radarr, Sonarr and Lidarr-compatible API |
 | [u/paulojf](https://www.reddit.com/user/paulojf) | Reddit | Real-Debrid and TorBox |
@@ -30,9 +31,11 @@ Mediarium gets better because people who use it say what's missing or what broke
 | [@jdamner](https://github.com/jdamner) | GitHub | Keeping settings in one file for git or a script ([#43](https://github.com/rdborg/Mediarium/issues/43)) |
 | [@anguyen1776](https://github.com/anguyen1776) | GitHub | Different quality profiles for movies and TV, and finding missing episodes one season at a time ([#60](https://github.com/rdborg/Mediarium/issues/60)); the report that led to spacing out searches on one indexer ([#61](https://github.com/rdborg/Mediarium/issues/61)) |
 | [@varnakube](https://github.com/varnakube) | GitHub | Picking a book by hand when it is not found during an import ([#64](https://github.com/rdborg/Mediarium/issues/64)); setting a book's cover by hand ([#68](https://github.com/rdborg/Mediarium/issues/68)) |
-| [@SanketBaraiya](https://github.com/SanketBaraiya) | GitHub | Importing anime that is numbered by TheTVDB seasons, such as One Piece ([#69](https://github.com/rdborg/Mediarium/issues/69)) |
-| [@nexus4004](https://github.com/nexus4004) | GitHub | Subtitles in Croatian and Serbian, rescanning a movie that has no file, Library entries in the left menu and the busy message as a small notice (all from the website idea form); showing the folder where a title's files go ([#71](https://github.com/rdborg/Mediarium/issues/71)); pointing a title at a file or folder you renamed (same issue, reported by dxtrlws) |
+| [@SanketBaraiya](https://github.com/SanketBaraiya) | GitHub | Importing anime that is numbered by TheTVDB seasons, such as One Piece ([#69](https://github.com/rdborg/Mediarium/issues/69)); Knaben as a built-in site ([#73](https://github.com/rdborg/Mediarium/issues/73)) |
+| [@nexus4004](https://github.com/nexus4004) | GitHub | Subtitles in Croatian and Serbian, rescanning a movie that has no file, Library entries in the left menu and the busy message as a small notice (all from the website idea form); showing the folder where a title's files go ([#71](https://github.com/rdborg/Mediarium/issues/71)); pointing a title at a file or folder you renamed (same issue, reported by dxtrlws); preferring a season pack once a season has ended, and importing your Simkl lists (both from the website idea form) |
 | [@Jisevind](https://github.com/Jisevind) | GitHub | Keeping the original file names ([#75](https://github.com/rdborg/Mediarium/issues/75)) |
+| [@franciscojnneto](https://github.com/franciscojnneto) | GitHub | Pages for cast and crew ([discussion #72](https://github.com/rdborg/Mediarium/discussions/72)) |
+| [@Bayharbourbutcher1](https://github.com/Bayharbourbutcher1) | GitHub | Sending the seeding rules to an outside torrent client ([#79](https://github.com/rdborg/Mediarium/issues/79)) |
 | [@mirisbowring](https://github.com/mirisbowring) | GitHub | Replacing a movie with a smaller version ([discussion #65](https://github.com/rdborg/Mediarium/discussions/65)); only taking releases in the languages you list, and searching under another title such as the German one ([#67](https://github.com/rdborg/Mediarium/issues/67)) |
 | [@spamoom](https://github.com/spamoom) | GitHub | Sending indexer traffic through the VPN, with the code to do it ([#63](https://github.com/rdborg/Mediarium/issues/63), pull request [#62](https://github.com/rdborg/Mediarium/pull/62)) |
 | [@acortespr06](https://github.com/acortespr06) | GitHub | Transmission as a download client ([#53](https://github.com/rdborg/Mediarium/issues/53)) |

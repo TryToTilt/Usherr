@@ -88,6 +88,14 @@ type mediaServerPayload struct {
 	MachineIdentifier  string                     `json:"machineIdentifier"` // Plex machineIdentifier / Jellyfin or Emby server id, from the last good test
 	LastError          string                     `json:"lastError"`
 	LastCheckedAt      string                     `json:"lastCheckedAt,omitempty"` // RFC 3339
+	// SecretError is set when the saved token can't be read (a secret.key that
+	// doesn't belong to this database); the server isn't used until it is entered again.
+	SecretError string `json:"secretError,omitempty"`
+}
+
+// mediaSecretError is what a media server whose saved token can't be read is told.
+func mediaSecretError(name string) string {
+	return fmt.Sprintf("Mediarium can't read the saved token of %s, so it isn't used. Sign in again or enter the token again.", name)
 }
 
 func toMediaServerPayload(m mediaservers.Server) mediaServerPayload {
@@ -98,6 +106,9 @@ func toMediaServerPayload(m mediaservers.Server) mediaServerPayload {
 	}
 	if p.PathMap == nil {
 		p.PathMap = []mediaservers.PathMapping{}
+	}
+	if m.SecretUnreadable {
+		p.SecretError = mediaSecretError(m.Name)
 	}
 	if !m.LastCheckedAt.IsZero() {
 		p.LastCheckedAt = m.LastCheckedAt.UTC().Format(time.RFC3339)
@@ -151,7 +162,7 @@ func buildMediaServer(req mediaServerRequest, base mediaservers.Server) (mediase
 	}
 	if t := req.token(); t != "" {
 		out.Token = t
-	} else if base.Token != "" && base.BaseURL != "" && addrMoved(base.BaseURL, out.BaseURL) {
+	} else if (base.Token != "" || base.SecretUnreadable) && base.BaseURL != "" && addrMoved(base.BaseURL, out.BaseURL) {
 		return out, errors.New(retypeSecretMessage("token"))
 	}
 	if req.Enabled != nil {
@@ -214,7 +225,7 @@ func (s *Server) loadMediaServer(w http.ResponseWriter, id int64) (mediaservers.
 
 // handleListMediaServers lists the Plex, Jellyfin and Emby servers (tokens are never included).
 func (s *Server) handleListMediaServers(w http.ResponseWriter, r *http.Request) {
-	list, err := s.MediaServers.List()
+	list, err := s.MediaServers.ListAll()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -345,6 +356,10 @@ func (s *Server) handleTestMediaServerConfig(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if m.SecretUnreadable && m.Token == "" {
+		writeJSON(w, http.StatusOK, mediaServerTestResponse{Error: mediaSecretError(m.Name)})
+		return
+	}
 	writeJSON(w, http.StatusOK, s.runMediaServerTest(r.Context(), m))
 }
 
@@ -356,6 +371,10 @@ func (s *Server) handleTestMediaServer(w http.ResponseWriter, r *http.Request) {
 	}
 	m, ok := s.loadMediaServer(w, id)
 	if !ok {
+		return
+	}
+	if m.SecretUnreadable {
+		writeJSON(w, http.StatusOK, mediaServerTestResponse{Error: mediaSecretError(m.Name)})
 		return
 	}
 	res := s.runMediaServerTest(r.Context(), m)
@@ -380,6 +399,10 @@ func (s *Server) handleRefreshMediaServer(w http.ResponseWriter, r *http.Request
 	}
 	m, ok := s.loadMediaServer(w, id)
 	if !ok {
+		return
+	}
+	if m.SecretUnreadable {
+		writeJSON(w, http.StatusOK, mediaServerTestResponse{Error: mediaSecretError(m.Name)})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)

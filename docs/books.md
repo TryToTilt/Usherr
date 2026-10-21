@@ -189,6 +189,8 @@ It works with KOReader, Moon+ Reader, Librera, Marvin, Foliate and other OPDS ap
 
 Only ebooks are listed, not audiobooks. Making a new password stops the old one; **Turn it off** removes it.
 
+Big libraries stay quick: Mediarium keeps the pages it has already built in memory (a few megabytes at most) and builds them again only when a book is added, removed or changed. Saving your reading place does not count as a change. The Kobo sync uses the same list. Nothing is stored on disk, and a restart simply starts with an empty cache.
+
 The app sends the password with every request, so if you reach Mediarium from outside your home network, use an `https` address (through your reverse proxy). Over plain `http` on your own network it is fine.
 
 If someone tries too many wrong passwords, Mediarium makes them wait about 15 minutes. That counter is separate from the web sign-in, so it can't lock you out of the page.

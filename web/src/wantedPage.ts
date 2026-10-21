@@ -3,6 +3,7 @@
 // pageOfWanted does the same from a full list, for the demo and the tests, so
 // both sides follow one set of rules.
 import type { WantedItem, WantedPage, WantedPageQuery, WantedRow } from './api'
+import { looseIncludes } from './looseText.ts'
 
 // The rows of a full list: movies as they come, then one row per show in the
 // order the shows first appear. A show with a single episode is that episode.
@@ -44,7 +45,7 @@ export function wantedRows(items: readonly WantedItem[]): WantedRow[] {
 export function pageOfWanted(items: readonly WantedItem[], query: WantedPageQuery = {}): WantedPage {
   const needle = (query.q ?? '').trim().toLowerCase()
   const rows = wantedRows(items).filter(
-    (r) => (query.media !== 'movie' || r.kind === 'movie') && (query.media !== 'tv' || r.kind !== 'movie') && (needle === '' || r.title.toLowerCase().includes(needle)),
+    (r) => (query.media !== 'movie' || r.kind === 'movie') && (query.media !== 'tv' || r.kind !== 'movie') && (needle === '' || looseIncludes(r.title, needle)),
   )
   const limit = query.limit ?? 50
   const offset = query.offset ?? 0

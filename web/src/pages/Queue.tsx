@@ -24,7 +24,7 @@ import RequestsList from '../components/RequestsList'
 import IssuesList from '../components/IssuesList'
 import { failureHelp } from '../failureHelp'
 import { useModules } from '../ModulesContext'
-import { bulkState, groupQueue, RUNNING, stateNote, statusLabel, stillWaiting } from '../queueView'
+import { bulkState, groupQueue, RUNNING, stateNote, statusLabel, stillWaiting, unpackLine } from '../queueView'
 import { useLive } from '../useLive'
 import { etaText, nextSample, type RateSample } from '../transferRate'
 import { locale, plural, t, tx, st } from '../i18n'
@@ -185,8 +185,12 @@ function FailureTips({ q, link }: { q: QueueItem; link?: string | null }) {
 function useTransferRate(q: QueueItem): { rate: number; etaSec: number } | null {
   const [sample, setSample] = useState<RateSample | null>(null)
   const last = useRef<RateSample | null>(null)
-  const running = q.status === 'downloading' && q.sizeBytes > 0
-  const done = (q.sizeBytes * q.progressPct) / 100
+  // Unpacking is timed from the bytes of the archive read so far (one archive;
+  // with several the figures start over for each).
+  const unpacking = q.status === 'importing' && !!q.unpack && q.unpack.totalBytes > 0 && q.unpack.count === 1
+  const running = (q.status === 'downloading' && q.sizeBytes > 0) || unpacking
+  const size = unpacking ? q.unpack!.totalBytes : q.sizeBytes
+  const done = unpacking ? q.unpack!.doneBytes : (q.sizeBytes * q.progressPct) / 100
   useEffect(() => {
     if (!running) {
       last.current = null
@@ -197,7 +201,7 @@ function useTransferRate(q: QueueItem): { rate: number; etaSec: number } | null 
     setSample(last.current)
   }, [running, done])
   if (!running || !sample || sample.rate <= 0) return null
-  return { rate: sample.rate, etaSec: (q.sizeBytes - done) / sample.rate }
+  return { rate: sample.rate, etaSec: (size - done) / sample.rate }
 }
 
 // "Details" under a download: where it came from, where it goes, and what
@@ -355,6 +359,7 @@ function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProp
             </small>
           </div>
         )}
+        {q.status === 'importing' && q.unpack && <div className="qspeed">{unpackLine(q.unpack)}</div>}
         {transfer && (
           <div className="qspeed">
             {formatBytes(transfer.rate)}/s{etaText(transfer.etaSec) ? ' · ' + t('about {time} left', { time: etaText(transfer.etaSec) }) : ''}

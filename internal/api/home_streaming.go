@@ -36,6 +36,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/parser"
 )
 
@@ -249,6 +250,12 @@ type streamSession struct {
 	release   string // the release name, when known
 	streamFor string // "release" or "title"
 	onTV      bool   // playing on the TV, which reads StreamNZB directly
+	// Usherr's own engine: the releases still in line, for "another release"
+	// and when this one breaks.
+	engine   string
+	alts     []indexers.Result
+	ownToken string // the own engine's session, closed when the stream ends
+	gen      int    // how many times another release was asked for: the video address changes with it
 }
 
 // streamOption is a title stream offered to the page, kept here so the
@@ -257,6 +264,9 @@ type streamOption struct {
 	url, title string
 	userID     int64
 	at         time.Time
+	// Usherr's own engine: the release, and the others in line after it.
+	res  *indexers.Result
+	alts []indexers.Result
 }
 
 type streamStore struct {
@@ -291,6 +301,7 @@ func (st *streamStore) sweep(c *streamNZB) {
 	}
 	st.mu.Unlock()
 	for _, ss := range stale {
+		ustreamClose(ss.ownToken)
 		if c != nil {
 			c.closeSession(context.Background(), ss.snzbID)
 		}
@@ -313,6 +324,21 @@ func (st *streamStore) get(id string, userID int64) (*streamSession, bool) {
 // GET /api/stream/status: whether streaming is set up, and the qualities
 // that can be asked for.
 func (s *Server) handleStreamStatus(w http.ResponseWriter, r *http.Request) {
+	engine := s.streamEngine()
+	// Usherr's own engine, when it's the one chosen (or StreamNZB isn't there).
+	if engine == engineUsherr || !s.streamNZBReady(r.Context()) {
+		if problem := s.ownProblem(); problem == "" {
+			var qs []string
+			for _, p := range s.streamProfiles() {
+				qs = append(qs, p.Quality)
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"ready": true, "qualities": qs, "tv": s.tvStatus(), "engine": engineUsherr})
+			return
+		} else if engine == engineUsherr {
+			writeJSON(w, http.StatusOK, map[string]any{"ready": false, "problem": problem, "engine": engineUsherr})
+			return
+		}
+	}
 	c, err := s.streamNZB()
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"ready": false, "problem": err.Error()})
@@ -354,8 +380,26 @@ func (s *Server) handleStreamOptions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Say which movie, or which episode of which show.")
 		return
 	}
+	// Usherr: the engine chosen goes first; the other is the way out when it
+	// finds nothing (or isn't there).
+	var ownErr error
+	if s.streamEngine() == engineUsherr {
+		var ok bool
+		if ok, ownErr = s.ownStreamOptions(w, r, kind, tmdbID, season, episode, q.Get("quality")); ok {
+			return
+		}
+	}
 	c, err := s.streamNZB()
 	if err != nil {
+		if s.streamEngine() != engineUsherr {
+			if ok, oerr := s.ownStreamOptions(w, r, kind, tmdbID, season, episode, q.Get("quality")); ok {
+				return
+			} else if oerr != nil {
+				err = fmt.Errorf("%w (Usherr's own streaming: %v)", err, oerr)
+			}
+		} else if ownErr != nil {
+			err = ownErr
+		}
 		writeError(w, http.StatusServiceUnavailable, err.Error())
 		return
 	}
@@ -388,6 +432,11 @@ func (s *Server) handleStreamOptions(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
+	}
+	if len(list) == 0 && s.streamEngine() != engineUsherr {
+		if ok, _ := s.ownStreamOptions(w, r, kind, tmdbID, season, episode, q.Get("quality")); ok {
+			return
+		}
 	}
 	user := requestUserID(r)
 	out := make([]streamOptionPayload, 0, len(list))
@@ -449,16 +498,10 @@ func (s *Server) handleStreamStart(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Couldn't read that request.")
 		return
 	}
-	c, err := s.streamNZB()
-	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, err.Error())
-		return
-	}
-	streams.sweep(c)
+	c, cerr := s.streamNZB()
 	user := requestUserID(r)
-	ss := &streamSession{id: randomID("str_"), userID: user, last: time.Now(), title: strings.TrimSpace(req.Title)}
-	switch {
-	case req.Option != "":
+	var opt streamOption
+	if req.Option != "" {
 		streams.mu.Lock()
 		o, ok := streams.options[req.Option]
 		streams.mu.Unlock()
@@ -466,7 +509,39 @@ func (s *Server) handleStreamStart(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "That stream has expired. Look again.")
 			return
 		}
-		ss.target, ss.lanURL, ss.streamFor, ss.release = c.internalURL(o.url), o.url, "title", firstLine(o.title)
+		opt = o
+	}
+	// Usherr: a release found by the own engine, or a release from the list
+	// when the own engine is the one chosen (or StreamNZB isn't there).
+	useOwn := opt.res != nil || (req.Option == "" && req.DownloadURL != "" && (s.streamEngine() == engineUsherr || cerr != nil))
+	if cerr != nil && !useOwn {
+		writeError(w, http.StatusServiceUnavailable, cerr.Error())
+		return
+	}
+	streams.sweep(c) // c is nil when only Usherr's own engine is set up
+	ss := &streamSession{id: randomID("str_"), userID: user, last: time.Now(), title: strings.TrimSpace(req.Title)}
+	switch {
+	case useOwn:
+		list := []indexers.Result(nil)
+		if opt.res != nil {
+			list = append([]indexers.Result{*opt.res}, opt.alts...)
+		} else {
+			if !s.checkGrabURL(w, r, &req.DownloadURL) {
+				return
+			}
+			list = []indexers.Result{{Title: req.ReleaseTitle, DownloadURL: req.DownloadURL}}
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 150*time.Second)
+		defer cancel()
+		op, err := s.ownOpenFirst(ctx, list)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "Usherr couldn't start that: "+ownOpenError(err))
+			return
+		}
+		ss.target, ss.lanURL, ss.streamFor, ss.release = op.url, op.lanURL, "title", op.release
+		ss.engine, ss.alts, ss.ownToken = engineUsherr, op.rest, op.token
+	case req.Option != "":
+		ss.target, ss.lanURL, ss.streamFor, ss.release = c.internalURL(opt.url), opt.url, "title", firstLine(opt.title)
 	case req.DownloadURL != "":
 		if !s.checkGrabURL(w, r, &req.DownloadURL) {
 			return
@@ -501,10 +576,21 @@ func (s *Server) handleStreamStart(w http.ResponseWriter, r *http.Request) {
 	streams.mu.Lock()
 	streams.sessions[ss.id] = ss
 	streams.mu.Unlock()
-	writeJSON(w, http.StatusOK, map[string]any{
-		"id": ss.id, "videoUrl": "/api/stream/" + ss.id + "/video", "title": ss.title, "release": ss.release,
+	writeJSON(w, http.StatusOK, streamStartJSON(ss))
+}
+
+// streamStartJSON is the answer to starting a stream, and to asking for
+// another release.
+func streamStartJSON(ss *streamSession) map[string]any {
+	videoURL := "/api/stream/" + ss.id + "/video"
+	if ss.gen > 0 {
+		videoURL += "?v=" + strconv.Itoa(ss.gen) // a new address, so the player loads it again
+	}
+	return map[string]any{
+		"id": ss.id, "videoUrl": videoURL, "title": ss.title, "release": ss.release,
 		"codec": parser.Parse(ss.release).Codec, "hdr": hdrOf(ss.release), "audio": audioOf(ss.release),
-	})
+		"engine": ss.engine, "canNext": len(ss.alts) > 0,
+	}
 }
 
 var (
@@ -523,7 +609,10 @@ func (s *Server) handleStreamVideo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "This stream has ended. Start it again.")
 		return
 	}
-	req, err := http.NewRequestWithContext(r.Context(), r.Method, ss.target, nil)
+	streams.mu.Lock()
+	target := ss.target
+	streams.mu.Unlock()
+	req, err := http.NewRequestWithContext(r.Context(), r.Method, target, nil)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -594,7 +683,47 @@ func (s *Server) handleStreamLink(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "This stream has ended. Start it again.")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"homeUrl": ss.lanURL})
+	streams.mu.Lock()
+	home := ss.lanURL
+	streams.mu.Unlock()
+	writeJSON(w, http.StatusOK, map[string]any{"homeUrl": home})
+}
+
+// POST /api/stream/{id}/next: Usherr's own engine plays the next release in
+// line instead of this one (it broke, or the picture isn't right). The
+// stream keeps its address; the player loads it again where it was.
+func (s *Server) handleStreamNext(w http.ResponseWriter, r *http.Request) {
+	ss, ok := streams.get(r.PathValue("id"), requestUserID(r))
+	if !ok {
+		writeError(w, http.StatusNotFound, "This stream has ended. Start it again.")
+		return
+	}
+	streams.mu.Lock()
+	alts := append([]indexers.Result(nil), ss.alts...)
+	engine := ss.engine
+	streams.mu.Unlock()
+	if engine != engineUsherr || len(alts) == 0 {
+		writeError(w, http.StatusConflict, "There is no other release to try.")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 150*time.Second)
+	defer cancel()
+	op, err := s.ownOpenFirst(ctx, alts)
+	if err != nil {
+		streams.mu.Lock()
+		ss.alts = nil
+		streams.mu.Unlock()
+		writeError(w, http.StatusBadGateway, "No other release plays right now: "+ownOpenError(err))
+		return
+	}
+	streams.mu.Lock()
+	old := ss.ownToken
+	ss.target, ss.lanURL, ss.release, ss.alts, ss.ownToken = op.url, op.lanURL, op.release, op.rest, op.token
+	ss.gen++
+	defer ustreamClose(old)
+	out := streamStartJSON(ss)
+	streams.mu.Unlock()
+	writeJSON(w, http.StatusOK, out)
 }
 
 // POST /api/stream/{id}/stop ends a stream (the player closed).
@@ -607,6 +736,9 @@ func (s *Server) handleStreamStop(w http.ResponseWriter, r *http.Request) {
 		delete(streams.sessions, id)
 	}
 	streams.mu.Unlock()
+	if ok && ss.userID == user {
+		ustreamClose(ss.ownToken)
+	}
 	if ok && ss.userID == user && ss.snzbID != "" {
 		if c, err := s.streamNZB(); err == nil {
 			c.closeSession(r.Context(), ss.snzbID)

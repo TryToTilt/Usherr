@@ -156,7 +156,7 @@ func TestDefinitionIndexerEndToEnd(t *testing.T) {
 	if !strings.Contains(msg["error"].(string), "can't run yet") {
 		t.Fatalf("unsupported definition should say so: %v", msg)
 	}
-	postJSON[map[string]any](t, client, base+"/api/indexers", map[string]any{"definitionId": "fixtureprivate", "baseUrl": "https://elsewhere.test/", "settings": map[string]any{}}, http.StatusBadRequest)
+	postJSON[map[string]any](t, client, base+"/api/indexers", map[string]any{"definitionId": "fixtureprivate", "baseUrl": "ftp://elsewhere.test/", "settings": map[string]any{}}, http.StatusBadRequest)
 
 	// --- add the site (base URL defaults to the definition's first link) ---
 	created := postJSON[map[string]any](t, client, base+"/api/indexers", map[string]any{
@@ -292,7 +292,9 @@ func TestDefinitionIndexerEndToEnd(t *testing.T) {
 
 func waitForQueueStatus(t *testing.T, client *http.Client, base, status string) map[string]any {
 	t.Helper()
-	deadline := time.Now().Add(15 * time.Second)
+	// Generous: it only waits this long when something is wrong, but a loaded
+	// two-CPU machine running the race detector can be many times slower.
+	deadline := time.Now().Add(60 * time.Second)
 	var last []map[string]any
 	for time.Now().Before(deadline) {
 		last = getJSON[[]map[string]any](t, client, base+"/api/queue")

@@ -246,7 +246,7 @@ func (s *Server) addFourKCopy(req requests.Request) (note string, err error) {
 		if err != nil {
 			return "", err
 		}
-		_ = s.QueueRepo.LogActivity(m.ID, "added", m.Title+": a second copy in "+profiles.resolve(c.ProfileID).Name+" was added")
+		_ = s.QueueRepo.LogActivity(m.ID, "added", fmt.Sprintf("%s: a second copy in %s was added", m.Title, profiles.resolve(c.ProfileID).Name))
 		go s.searchMovieInBackground(c.ID)
 	case "tv":
 		sr, ok, _ := s.MovieRepo.GetSeriesByTMDBID(tmdbID)
@@ -263,7 +263,7 @@ func (s *Server) addFourKCopy(req requests.Request) (note string, err error) {
 		if err != nil {
 			return "", err
 		}
-		_ = s.QueueRepo.LogSeriesActivity(sr.ID, "added", sr.Title+": a second copy in "+profiles.resolve(c.ProfileID).Name+" was added")
+		_ = s.QueueRepo.LogSeriesActivity(sr.ID, "added", fmt.Sprintf("%s: a second copy in %s was added", sr.Title, profiles.resolve(c.ProfileID).Name))
 		go s.searchSeriesCopyInBackground(c.ID)
 	default:
 		return "", errors.New("Only movies and shows have a 4K copy.")

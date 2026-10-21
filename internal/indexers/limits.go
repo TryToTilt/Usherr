@@ -151,6 +151,8 @@ type limitState struct {
 	lastOK    map[int64]time.Time // when a real search or feed read last worked
 	lastProbe map[int64]time.Time // when a connection check last ran
 	lastFail  map[int64]time.Time // when a real search or feed read last failed
+	rssLast   map[int64]time.Time // when an RSS run last read the indexer (rss_budget.go)
+	rssUsed   map[int64]*usedNote // the RSS requests made today
 }
 
 type quotaNote struct {

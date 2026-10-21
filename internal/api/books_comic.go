@@ -483,7 +483,7 @@ func (s *Server) openComicOrFail(w http.ResponseWriter, b books.Book) (*comicBoo
 			writeError(w, http.StatusNotFound, "Couldn't find the file. It may have been moved or deleted.")
 			return nil, false
 		}
-		writeError(w, http.StatusUnprocessableEntity, "This comic couldn't be opened: "+problemTextOf(err))
+		writeError(w, http.StatusUnprocessableEntity, fmt.Sprintf("This comic couldn't be opened: %s", problemTextOf(err)))
 		return nil, false
 	}
 	return c, true

@@ -1256,7 +1256,7 @@ func (s *Server) retryVideoDownload(w http.ResponseWriter, item queue.Item) bool
 		return true
 	}
 	if reuse {
-		s.moveKeptDownload(keptDir, s.workDirFor(newID))
+		s.moveKeptDownload(keptDir, newID)
 	}
 	release()
 	_ = s.QueueRepo.Delete(item.ID)

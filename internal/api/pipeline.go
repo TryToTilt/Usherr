@@ -149,16 +149,25 @@ func (s *Server) runPipeline(queueID, movieID int64, movieTitle string, movieYea
 		policy, isBetter, replacing = smallerVersionPolicy(item.ReplacesFile, earlierFile, destPath, policy, isBetter)
 		replaceEarlier = replaceEarlier || replacing
 	}
-	result, err := s.importDownloaded(videoFile, destPath, policy, isBetter)
-	if err != nil {
-		return fail(fmt.Errorf("couldn't move the file into your library: %w", err))
+	// The title's file under another name stays when this release may not
+	// replace it: the import is turned away like a same-name collision.
+	existing := destPath
+	var result organizer.ImportResult
+	if keepsEarlierFile(earlierFile, destPath, replaceEarlier) {
+		existing = earlierFile
+		result.Skipped = true
+	} else {
+		result, err = s.importDownloaded(videoFile, destPath, policy, isBetter)
+		if err != nil {
+			return fail(fmt.Errorf("couldn't move the file into your library: %w", err))
+		}
 	}
 	if result.Skipped {
 		if policy == organizer.ConflictAsk {
 			if err := s.QueueRepo.SetConflict(queueID, videoFile, destPath); err != nil {
 				return fail(err)
 			}
-			message := fmt.Sprintf("%s: a file already exists at %s. Choose what to do in Activity.", movieTitle, destPath)
+			message := fmt.Sprintf("%s: a file already exists at %s. Choose what to do in Activity.", movieTitle, existing)
 			_ = s.QueueRepo.LogActivity(movieID, "conflict", message)
 			conflictItem := s.movieItemByID(movieID, movieTitle, movieYear, tmdbID)
 			conflictItem.Path, conflictItem.Release = destPath, releaseTitle
@@ -173,7 +182,7 @@ func (s *Server) runPipeline(queueID, movieID int64, movieTitle string, movieYea
 		}
 		s.discardWorkDir(incompleteDir, protocol)
 		_ = s.MovieRepo.SetStatus(movieID, restoreStatus, "", "")
-		_ = s.QueueRepo.LogActivity(movieID, "kept", fmt.Sprintf("%s: a file is already at %s, so Mediarium kept it and did not import %s.", movieTitle, destPath, releaseTitle))
+		_ = s.QueueRepo.LogActivity(movieID, "kept", fmt.Sprintf("%s: a file is already at %s, so Mediarium kept it and did not import %s.", movieTitle, existing, releaseTitle))
 		return nil
 	}
 
@@ -196,7 +205,7 @@ func (s *Server) runPipeline(queueID, movieID int64, movieTitle string, movieYea
 	s.cleanupWorkDir(incompleteDir, protocol)
 	// Earlier failed tries for this movie are settled now.
 	_, _ = s.QueueRepo.ClearFailedForMovie(movieID, queueID)
-	importedMessage := fmt.Sprintf("%s imported to %s", movieTitle, result.DestPath)
+	importedMessage := fmt.Sprintf("%s imported to %s", movieTitle, result.DestPath) + s.copiedFromTempNote(videoFile, result)
 	_ = s.QueueRepo.LogActivity(movieID, "imported", importedMessage)
 	importedItem := s.movieItemByID(movieID, movieTitle, movieYear, tmdbID)
 	importedItem.Quality, importedItem.SizeBytes, importedItem.Path = string(tier), fileSize(result.DestPath), result.DestPath
@@ -213,9 +222,19 @@ func (s *Server) runPipeline(queueID, movieID int64, movieTitle string, movieYea
 // failure handling.
 func (s *Server) prepareDownload(ctx context.Context, queueID int64, downloadURL string, protocol indexers.Protocol) (string, error) {
 	incompleteDir := s.workDirFor(queueID)
+	if protocol == indexers.ProtocolTorrent && s.downloadClientOn() {
+		// An external client's folder only holds links to its files: it stays in
+		// the downloads folder, never in the temporary download folder.
+		if _, started := s.existingWorkDir(queueID); !started {
+			incompleteDir = s.defaultWorkDirFor(queueID)
+		}
+	}
 	if protocol == indexers.ProtocolTorrent && !s.downloadClientOn() && !s.debridOn() {
 		// The built-in client files a torrent under its category's folder.
 		incompleteDir = s.assignTorrentDir(queueID)
+	}
+	if err := s.checkTempReady(incompleteDir); err != nil {
+		return "", err
 	}
 
 	// The same release for the same title (by name and size) is not fetched a
@@ -287,7 +306,10 @@ func (s *Server) prepareDownload(ctx context.Context, queueID int64, downloadURL
 	}
 	// Archives are unpacked into the download's own folder (for a download
 	// client, next to the links to its files, never into the client's folder).
-	if err := s.unpackStep(queueID, incompleteDir); err != nil {
+	if err := s.unpackStep(ctx, queueID, incompleteDir); err != nil {
+		if ctx.Err() != nil {
+			return "", ctx.Err() // paused or stopped part-way: the unpack starts over next time
+		}
 		return "", unpackFailure(err)
 	}
 	// What came out of the archives (or came as it is) is looked at once more
@@ -342,6 +364,13 @@ func (s *Server) downloadUsenet(ctx context.Context, queueID int64, nzbURL, inco
 		return 0, fmt.Errorf("couldn't load your Usenet servers: %w", err)
 	}
 	if len(servers) == 0 {
+		if all, err := s.ClientRepo.ListAll(); err == nil {
+			for _, sc := range all {
+				if sc.Enabled && sc.SecretUnreadable {
+					return 0, fmt.Errorf("Mediarium can't read the saved password of your Usenet server, so nothing can be downloaded. Enter the password again in Settings > Downloading > Usenet.")
+				}
+			}
+		}
 		return 0, fmt.Errorf("no Usenet server is set up. Add your provider's server in Settings > Downloading > Usenet first")
 	}
 	configs := make([]download.ClientConfig, len(servers))
@@ -674,7 +703,7 @@ func (s *Server) importConflictPolicy(movieID int64, incomingTier quality.Tier) 
 		if err != nil {
 			return "", false
 		}
-		return quality.Tier(current.Quality), true
+		return existingTier(current.Quality, current.ReleaseTitle, current.FilePath)
 	})
 }
 
@@ -755,6 +784,14 @@ func (s *Server) resolveConflict(queueID int64, overwrite bool) error {
 	if owner := otherFileOwner(s.trackedFileOwners(), item.DestPath, item.MovieID, nil); owner != "" {
 		return errFileOfAnother(owner, item.DestPath)
 	}
+	var earlierFile, earlierRoot, earlierTitle string
+	if m, err := s.MovieRepo.Get(item.MovieID); err == nil {
+		earlierFile, earlierTitle = m.FilePath, m.Title
+		earlierRoot = s.movieRootFor(m)
+		if m.CopyOf != 0 {
+			earlierRoot = s.movieCopiesRoot()
+		}
+	}
 	result, err := s.importDownloaded(item.SourcePath, item.DestPath, organizer.ConflictOverwrite, nil)
 	if err != nil {
 		return fmt.Errorf("couldn't replace the existing file: %w", err)
@@ -763,6 +800,9 @@ func (s *Server) resolveConflict(queueID int64, overwrite bool) error {
 	if err := s.MovieRepo.SetStatus(item.MovieID, library.StatusDownloaded, string(tier), result.DestPath); err != nil {
 		return err
 	}
+	// The earlier file had another name than the new one: it goes now that
+	// the new one is in the library.
+	s.removeReplacedFile(earlierRoot, earlierFile, result.DestPath, item.MovieID, 0, earlierTitle)
 	s.afterMovieImported(item.MovieID, item.ReleaseTitle)
 	if err := s.QueueRepo.SetStatus(queueID, queue.StatusCompleted, ""); err != nil {
 		return err
@@ -986,34 +1026,54 @@ func verifyAndRepair(dir string, missing int) error {
 // are unpacked natively; only .7z needs the external 7z tool (Extract
 // returns organizer.ErrSevenZipMissing if one turns up without it).
 func unpackArchives(dir string) error {
+	_, _, err := unpackArchivesWatched(context.Background(), dir, nil)
+	return err
+}
+
+// unpackArchivesWatched is unpackArchives that stops when ctx ends and tells w
+// how far it has come. It returns how many bytes of archives it unpacked and
+// how long that took.
+func unpackArchivesWatched(ctx context.Context, dir string, w *unpackWatch) (int64, time.Duration, error) {
 	extractor := organizer.NewExtractor()
+	extractor.Context = ctx
 	extractor.Password = readArchivePassword(dir)
 	// Archives inside a folder of the download count too (a torrent keeps its
 	// files in a folder of its own); each is unpacked next to where it lies.
 	archives, err := organizer.FindPrimaryArchivesDeep(dir)
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
-	for _, a := range archives {
+	var bytes int64
+	var took time.Duration
+	for i, a := range archives {
+		if w != nil {
+			w.begin(i+1, len(archives))
+			extractor.Progress = w.report
+		}
 		if err := extractor.Extract(a, filepath.Dir(a)); err != nil {
-			return err
+			return bytes, took, err
+		}
+		if w != nil {
+			n, d := w.end()
+			bytes, took = bytes+n, took+d
 		}
 	}
 	// Usherr: pieces cut by a file splitter (".cbr.000", ".mkv.001"...) are
-	// joined back, and a joined archive is unpacked in turn.
+	// joined back, and a joined archive is unpacked in turn. (Split 7z sets,
+	// "name.7z.001", are left to the loop above.)
 	joined, err := organizer.JoinSplitFiles(dir)
 	if err != nil {
-		return err
+		return bytes, took, err
 	}
 	for _, j := range joined {
 		switch strings.ToLower(filepath.Ext(j)) {
 		case ".rar", ".zip", ".7z":
 			if err := extractor.Extract(j, filepath.Dir(j)); err != nil {
-				return err
+				return bytes, took, err
 			}
 		}
 	}
-	return nil
+	return bytes, took, nil
 }
 
 // archivePasswordFile holds the password of a download's archives, inside the

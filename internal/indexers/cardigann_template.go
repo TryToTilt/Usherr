@@ -1,6 +1,7 @@
 package indexers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -83,6 +84,7 @@ var (
 var tmplFuncs = template.FuncMap{
 	"join":       tmplJoin,
 	"re_replace": tmplReReplace,
+	"tojson":     tmplToJSON,
 	"__mod":      func(s any) any { return s }, // replaced per execution
 	"__range":    func(v any) any { return v }, // replaced per execution
 }
@@ -172,6 +174,14 @@ func (r *tmplRun) funcs(mod func(any) (any, error)) template.FuncMap {
 		"html":     r.escaper(template.HTMLEscaper),
 		"js":       r.escaper(template.JSEscaper),
 		"urlquery": r.escaper(template.URLQueryEscaper),
+		// tojson writes a value as a JSON string with its quotes, for sites
+		// that take a JSON request body
+		"tojson": func(args ...any) (string, error) {
+			if err := r.fits(len(args), args); err != nil {
+				return "", err
+			}
+			return tmplToJSON(args...)
+		},
 		"join": func(list any, sep string) (string, error) {
 			if err := r.check(); err != nil {
 				return "", err
@@ -789,3 +799,13 @@ func dotNetReplacement(s string) string {
 // urlPathEscape encodes a value placed into a URL path the way Cardigann
 // does (form encoding: spaces become '+').
 func urlPathEscape(s string) string { return url.QueryEscape(s) }
+
+// tmplToJSON prints its arguments as one JSON string, quotes included, so
+// a search text with quotes or backslashes cannot break a JSON request body.
+func tmplToJSON(args ...any) (string, error) {
+	b, err := json.Marshal(fmt.Sprint(args...))
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}

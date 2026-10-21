@@ -120,7 +120,7 @@ func writeSignInError(w http.ResponseWriter, what string, err error) {
 // replaced instead of adding it twice, so signing in again repairs an
 // expired token. created is false then.
 func (s *Server) saveSignedIn(ctx context.Context, m mediaservers.Server, tested bool) (mediaServerPayload, bool, error) {
-	saved, err := s.MediaServers.List()
+	saved, err := s.MediaServers.ListAll() // a server with an unreadable token is repaired by signing in again
 	if err != nil {
 		return mediaServerPayload{}, false, err
 	}
@@ -188,7 +188,7 @@ func (s *Server) handleDiscoverMediaServers(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	res := d.Discover(r.Context(), nets)
-	saved, err := s.MediaServers.List()
+	saved, err := s.MediaServers.ListAll()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -275,7 +275,7 @@ func (s *Server) handlePollPlexSignIn(w http.ResponseWriter, r *http.Request) {
 		sess.accountToken, sess.servers, sess.done = pin.AuthToken, servers, true
 		slog.Info("signed in to Plex", "servers", len(servers))
 	}
-	saved, err := s.MediaServers.List()
+	saved, err := s.MediaServers.ListAll()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

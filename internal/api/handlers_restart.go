@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -76,9 +77,9 @@ func (s *Server) handleRestart(w http.ResponseWriter, r *http.Request) {
 	}
 	actor := actorName(r)
 	slog.Warn("restart requested", "by", actor, "from", s.clientIP(r), "safe", safe)
-	msg := "Mediarium was restarted by " + actor + "."
+	msg := fmt.Sprintf("Mediarium was restarted by %s.", actor)
 	if safe {
-		msg = "Mediarium was restarted by " + actor + " with automation paused."
+		msg = fmt.Sprintf("Mediarium was restarted by %s with automation paused.", actor)
 	}
 	_ = s.QueueRepo.LogActivity(0, "update", msg)
 	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "restarting": true, "safe": safe, "restartingIn": int(updateRestartDelay.Seconds())})
@@ -98,7 +99,7 @@ func (s *Server) handleShutdown(w http.ResponseWriter, r *http.Request) {
 	}
 	actor := actorName(r)
 	slog.Warn("shutdown requested", "by", actor, "from", s.clientIP(r))
-	_ = s.QueueRepo.LogActivity(0, "update", "Mediarium was shut down by "+actor+".")
+	_ = s.QueueRepo.LogActivity(0, "update", fmt.Sprintf("Mediarium was shut down by %s.", actor))
 	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "shuttingDown": true})
 	flush(w)
 	s.restartSoon(updateRestartDelay)

@@ -12,7 +12,7 @@ import { useConfirm } from '../../components/ConfirmProvider'
 import * as check from '../../validate'
 import { FieldError, FormProblem, useValidation, type Validation } from '../../useValidation'
 import PushDevice from '../../components/PushDevice'
-import { plural, t, tx } from '../../i18n'
+import { plural, t, tx, st } from '../../i18n'
 import TipLabel from '../../components/TipLabel'
 
 const EVENTS: { key: string; label: string; hint: string }[] = [
@@ -348,6 +348,7 @@ function TargetRow({
         <div className="ntarget-text">
           <strong>{target.name}</strong>
           <small>{[label, summaryOf(target)].filter(Boolean).join(' · ')}</small>
+          {target.secretError && <small className="error-text">{st(target.secretError)}</small>}
           <div className="target-events">
             {(target.events ?? []).map((e) => (
               <span key={e} className="badge" title={EVENTS.find((x) => x.key === e)?.hint}>

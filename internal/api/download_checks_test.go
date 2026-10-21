@@ -333,9 +333,8 @@ func TestDuplicateReleases(t *testing.T) {
 				if env.nntp.totalHits() != hitsBefore {
 					t.Error("a skipped duplicate must not fetch any article")
 				}
-				if got := env.movieStatus(t); got != library.StatusDownloaded {
-					t.Errorf("movie is %s, want it left downloaded", got)
-				}
+				// the movie goes back to downloaded a moment after the item is marked skipped
+				waitFor(t, "the movie to be left downloaded", func() bool { return env.movieStatus(t) == library.StatusDownloaded })
 				keys, _ := env.server.Blocklist.Keys()
 				if len(keys) != 0 {
 					t.Errorf("a duplicate is not a bad release, but the blocklist has %v", keys)

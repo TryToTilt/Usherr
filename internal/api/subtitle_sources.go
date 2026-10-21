@@ -106,7 +106,7 @@ func (s *Server) checkSourceSwitches(req *settingsPayload) string {
 }
 
 // saveSourceSwitches stores the switches a request carries.
-func (s *Server) saveSourceSwitches(req *settingsPayload) error {
+func (s *Server) saveSourceSwitches(st settingSetter, req *settingsPayload) error {
 	for _, c := range []struct {
 		key string
 		val *bool
@@ -118,7 +118,7 @@ func (s *Server) saveSourceSwitches(req *settingsPayload) error {
 		if c.val == nil {
 			continue
 		}
-		if err := setBool(s.Settings, c.key, *c.val); err != nil {
+		if err := setBool(st, c.key, *c.val); err != nil {
 			return err
 		}
 	}

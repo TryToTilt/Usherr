@@ -1,0 +1,73 @@
+/* A person's page: photo and facts side by side, then their work as the usual poster grids. */
+.person-head {
+  --hc: var(--accent);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px 32px;
+  align-items: flex-start;
+  margin-bottom: 28px;
+}
+.person-photo {
+  flex: 0 0 auto;
+  width: 200px;
+  aspect-ratio: 2 / 3;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+  font-size: 3rem;
+  font-weight: 600;
+}
+.person-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.person-info {
+  flex: 1 1 360px;
+  min-width: 0;
+  max-width: 76ch;
+  display: grid;
+  gap: 14px;
+}
+.person-info h1 {
+  margin: 0;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+.person-bio {
+  margin: 0 0 8px;
+  line-height: 1.6;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.person-bio.folded {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.person-filter {
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.person-empty {
+  color: var(--text-dim);
+}
+.person-credits {
+  margin-bottom: 28px;
+}
+.person-more {
+  margin-top: 16px;
+}
+@media (max-width: 520px) {
+  .person-photo {
+    width: 140px;
+  }
+}

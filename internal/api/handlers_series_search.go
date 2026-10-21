@@ -28,10 +28,15 @@ var (
 // title equality (like matchesMovie) plus a year check only when both
 // sides carry one — plenty of TV releases omit the year entirely.
 func matchesShow(releaseTitle string, series library.Series) bool {
-	rel := parser.Parse(releaseTitle)
+	return matchesShowRel(parser.Parse(releaseTitle), series)
+}
+
+// matchesShowRel is matchesShow for a release that is already parsed.
+func matchesShowRel(rel parser.Release, series library.Series) bool {
 	// A daily show's air date carries a year too ("Show.2024.03.15"): that
-	// is the episode's, not the show's.
-	if rel.Year != 0 && series.Year != 0 && rel.Year != series.Year && rel.AirDate == "" {
+	// is the episode's, not the show's. So is a year after an episode's marker
+	// ("Show.S09E01.2019.1080p"): it is more often the air year.
+	if rel.Year != 0 && series.Year != 0 && rel.Year != series.Year && rel.AirDate == "" && !(rel.YearLate && len(rel.Episodes) > 0) {
 		return false
 	}
 	want := normalizeTitle(rel.Title)
@@ -40,6 +45,9 @@ func matchesShow(releaseTitle string, series library.Series) bool {
 	}
 	if want == normalizeTitle(series.Title) {
 		return true
+	}
+	if tagged, ok := countryTagMatch(rel.Title, series); tagged {
+		return ok
 	}
 	if withCountryTag(want, normalizeTitle(series.Title), rel.Year, series.Year) {
 		return true
@@ -82,18 +90,23 @@ func withCountryTag(release, show string, releaseYear, showYear int) bool {
 // ("Show.The.Christmas.Invasion.720p"), so a name that starts with the show
 // is enough; mapSpecial then checks the special's title is there.
 func matchesShowFor(releaseTitle string, series library.Series, season int) bool {
-	if matchesShow(releaseTitle, series) {
+	return matchesShowForRel(parser.Parse(releaseTitle), series, season)
+}
+
+// matchesShowForRel is matchesShowFor for a release that is already parsed.
+func matchesShowForRel(rel parser.Release, series library.Series, season int) bool {
+	if matchesShowRel(rel, series) {
 		return true
 	}
 	if season != 0 {
 		return false
 	}
-	words := strings.Fields(metadata.TitleKey(parser.Parse(releaseTitle).Title))
+	words := strings.Fields(metadata.TitleKey(rel.Title))
 	if startsWithWords(words, series.Title) {
 		return true
 	}
 	// A special named by one of the show's other titles.
-	relWords := strings.Fields(metadata.TitleKey(parser.Parse(releaseTitle).Title))
+	relWords := words
 	for _, alt := range series.AltTitles {
 		if len(relWords) > 0 && startsWithKeyWords(relWords, alt) {
 			return true
@@ -143,6 +156,7 @@ func startsWithKeyWords(words []string, title string) bool {
 // one episode ("Show S01E02") — the shape Newznab-family indexers match
 // best, same as Sonarr's own fallback text query.
 func tvSearchQuery(title string, season, episode int) string {
+	title = indexerQuery(title)
 	if episode > 0 {
 		return fmt.Sprintf("%s S%02dE%02d", title, season, episode)
 	}
@@ -209,19 +223,24 @@ func (s *Server) handleSeriesSearch(w http.ResponseWriter, r *http.Request) {
 	blocked := s.searchSkipKeys()
 	sizeReasons := s.tvSizeRejections(r.Context(), series, profile)
 	out := []searchResultPayload{}
+	var found []indexers.Result
 	for _, res := range merged {
-		if !matchesShowFor(res.Title, series, season) || !coversTarget(parseFor(mapper, res.Title), season, episode) {
+		parsed := res.Parsed()
+		if !matchesShowForRel(parsed, series, season) || !coversTarget(mapped(mapper, parsed), season, episode) {
 			continue
 		}
 		payload := s.toSearchResultPayload(res)
 		payload.MatchedTitle = matchedOtherTitle(res.Title, series.Title, series.AltTitles)
 		payload.Blocklisted = blocked[blocklist.Key(res.Title)]
-		payload.Rejections = append(payload.Rejections, rejectionsFor(res.Title, profile, false, "", "")...)
-		payload.Rejections = append(payload.Rejections, sizeReasons(res.Title, res.SizeBytes)...)
+		payload.addReasonList(rejectionReasonsFor(res.Title, profile, false, "", ""))
+		payload.addReasons("size", sizeReasons(res.Title, res.SizeBytes))
+		payload.addStateReasons()
 		setFormatScore(&payload, profile, res.Title)
 		payload.AcceptedBy = acceptedBy(profile, res.Title)
 		out = append(out, payload)
+		found = append(found, res)
 	}
+	markBestMatch(out, found, profile)
 	s.markCachedPayloads(r.Context(), out)
 	writeSearch(w, r, out, len(instances), outcomes)
 }
@@ -259,7 +278,11 @@ func coversTarget(rel parser.Release, season, episode int) bool {
 // — the TV counterpart of the movie resolve-add-grab flow in
 // handleSearchGrab.
 func (s *Server) grabFromSearchTV(w http.ResponseWriter, r *http.Request, req grabRequest, release parser.Release) {
-	shows, err := s.TMDB().SearchTV(r.Context(), release.Title)
+	query := release.Title
+	if base, code := parser.SplitCountryTag(query); code != "" {
+		query = base // the search finds the show by its name; the tag picks among the results
+	}
+	shows, err := s.TMDB().SearchTV(r.Context(), query)
 	if err != nil {
 		writeUpstreamError(w, "look up that show", err)
 		return
@@ -303,17 +326,47 @@ func (s *Server) grabFromSearchTV(w http.ResponseWriter, r *http.Request, req gr
 func bestTVMatch(shows []metadata.Show, release parser.Release) *metadata.Show {
 	var exact *metadata.Show
 	want := normalizeTitle(release.Title)
+	base, code := parser.SplitCountryTag(release.Title)
 	for i := range shows {
 		name := normalizeTitle(shows[i].Name)
-		if want == "" || (want != name && !withCountryTag(want, name, release.Year, shows[i].Year())) {
+		if want == "" {
+			continue
+		}
+		if code != "" && len(shows[i].OriginCountry) > 0 && normalizeTitle(base) == name {
+			// "Shameless.UK": the show of that name made in that country.
+			if !hasCountry(shows[i].OriginCountry, code) {
+				continue
+			}
+		} else if want != name && !withCountryTag(want, name, release.Year, shows[i].Year()) {
 			continue
 		}
 		if release.Year != 0 && shows[i].Year() == release.Year {
 			return &shows[i]
 		}
-		if exact == nil {
+		// Without a tag, shows of one name go to the American one first.
+		if exact == nil || (code == "" && !hasCountry(exact.OriginCountry, "US") && hasCountry(shows[i].OriginCountry, "US")) {
 			exact = &shows[i]
 		}
 	}
 	return exact // none named like the release: no guess, the person picks
+}
+
+// indexerQuery is a title as it is searched for at an indexer. A lone "&"
+// ("Law & Order") is left out: releases are named "Law.and.Order" as often as
+// "Law.&.Order", and an indexer matches the words either way, while a search
+// with the "&" in it finds only one of the two spellings, or none. An "&"
+// inside a word ("AT&T", "R&B") is part of the name and stays. HTML's "&amp;"
+// that some metadata sources leave in a title counts as the same "&".
+func indexerQuery(title string) string {
+	words := strings.Fields(strings.ReplaceAll(title, "&amp;", "&"))
+	kept := words[:0]
+	for _, w := range words {
+		if w != "&" {
+			kept = append(kept, w)
+		}
+	}
+	if len(kept) == 0 {
+		return title
+	}
+	return strings.Join(kept, " ")
 }

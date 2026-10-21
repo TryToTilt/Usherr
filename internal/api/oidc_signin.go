@@ -462,7 +462,7 @@ func (s *Server) handlePutOIDC(w http.ResponseWriter, r *http.Request) {
 	}
 	if c.Enabled {
 		if err := c.Check(); err != nil {
-			writeError(w, http.StatusBadRequest, "Can't switch single sign-on on yet: "+err.Error()+".")
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("Can't switch single sign-on on yet: %s.", err.Error()))
 			return
 		}
 		if _, err := oidcauth.RedirectURL(s.configuredPublicURL()); err != nil {
@@ -472,7 +472,7 @@ func (s *Server) handlePutOIDC(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 		defer cancel()
 		if _, err := s.sso().oidc.Discover(ctx, c.Issuer); err != nil {
-			writeError(w, http.StatusBadRequest, "Can't switch single sign-on on yet: "+discoverProblem(err)+".")
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("Can't switch single sign-on on yet: %s.", discoverProblem(err)))
 			return
 		}
 	}

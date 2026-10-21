@@ -8,6 +8,7 @@ import { useModules } from '../ModulesContext'
 import Icon from './Icon'
 import TrailerDialog from './TrailerDialog'
 import { PosterFallback } from './PosterCard'
+import { PeopleLinks } from './TitlePreview'
 
 export interface HeroInfo {
   kind: 'movie' | 'tv'
@@ -24,7 +25,7 @@ export interface HeroInfo {
   overview?: string
   trailers?: Trailer[]
   cast?: CastMember[]
-  facts?: { label: string; value: string }[]
+  facts?: { label: string; value: ReactNode }[]
   links?: { label: string; url: string }[] // the film's website, IMDb, TMDB
 }
 
@@ -262,7 +263,7 @@ export default function TitleHero({ info, status, actions, children, onPlay }: {
     info.year ? { label: t('Year'), value: String(info.year) } : null,
     info.runtime ? { label: t('Runtime'), value: runtimeLabel(info.runtime) } : null,
     ...(info.facts ?? []),
-  ].filter(Boolean) as { label: string; value: string }[]
+  ].filter(Boolean) as { label: string; value: ReactNode }[]
 
   return (
     <section className={`title-hero kind-${info.kind}`}>
@@ -430,7 +431,7 @@ export default function TitleHero({ info, status, actions, children, onPlay }: {
 
         {info.cast && info.cast.length > 0 && (
           <p className="title-cast">
-            <strong>{t('Starring')}</strong> {info.cast.slice(0, 6).map((c) => c.name).join(', ')}
+            <strong>{t('Starring')}</strong> <PeopleLinks people={info.cast.slice(0, 6)} />
           </p>
         )}
 

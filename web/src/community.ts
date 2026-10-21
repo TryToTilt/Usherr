@@ -16,6 +16,7 @@ const github = (name: string) => `https://github.com/${name}`
 export function helpers(): Helper[] {
   return [
     { name: 'ShuanYu', where: 'Reddit', href: reddit('ShuanYu'), ideas: [t('Different quality profiles for movies and TV, and finding missing episodes one season at a time')] },
+    { name: 'troelsdk', where: 'Reddit', href: reddit('troelsdk'), ideas: [t('Finding that the Sonarr-compatible episode list ignored the season asked for')] },
     { name: 'Embyverse', where: 'Reddit', href: reddit('Embyverse'), ideas: [t('Custom formats with TRaSH Guides import'), t('Keeping two qualities of one title')] },
     {
       name: '12_nick_12',
@@ -48,9 +49,11 @@ export function helpers(): Helper[] {
     { name: 'jdamner', where: 'GitHub', href: github('jdamner'), ideas: [t('Keeping settings in one file for git or a script')] },
     { name: 'anguyen1776', where: 'GitHub', href: github('anguyen1776'), ideas: [t('Different quality profiles for movies and TV, and finding missing episodes one season at a time')] },
     { name: 'varnakube', where: 'GitHub', href: github('varnakube'), ideas: [t('Picking a book by hand when it is not found during an import'), t("Setting a book's cover by hand")] },
-    { name: 'SanketBaraiya', where: 'GitHub', href: github('SanketBaraiya'), ideas: [t('Importing anime that is numbered by TheTVDB seasons, such as One Piece')] },
-    { name: 'nexus4004', where: 'GitHub', href: github('nexus4004'), ideas: [t("Showing the folder where a title's files go"), t('Pointing a title at a file or folder you renamed'), t('Subtitles in Croatian and Serbian'), t('Rescanning a movie that has no file'), t('Library entries in the left menu'), t('The busy message as a small notice in the corner')] },
+    { name: 'SanketBaraiya', where: 'GitHub', href: github('SanketBaraiya'), ideas: [t('Importing anime that is numbered by TheTVDB seasons, such as One Piece'), t('Knaben as a built-in site')] },
+    { name: 'nexus4004', where: 'GitHub', href: github('nexus4004'), ideas: [t("Showing the folder where a title's files go"), t('Pointing a title at a file or folder you renamed'), t('Subtitles in Croatian and Serbian'), t('Rescanning a movie that has no file'), t('Library entries in the left menu'), t('The busy message as a small notice in the corner'), t('Preferring a season pack once a season has ended'), t('Importing your Simkl lists')] },
     { name: 'Jisevind', where: 'GitHub', href: github('Jisevind'), ideas: [t('Keeping the original file names')] },
+    { name: 'franciscojnneto', where: 'GitHub', href: github('franciscojnneto'), ideas: [t('Pages for cast and crew')] },
+    { name: 'Bayharbourbutcher1', where: 'GitHub', href: github('Bayharbourbutcher1'), ideas: [t('Sending the seeding rules to an outside torrent client')] },
     { name: 'mirisbowring', where: 'GitHub', href: github('mirisbowring'), ideas: [t('Replacing a movie with a smaller version'), t('Searching under another title of a movie or show, such as the German one')] },
     { name: 'spamoom', where: 'GitHub', href: github('spamoom'), ideas: [t('Sending indexer traffic through the VPN, with the code to do it')] },
     { name: 'acortespr06', where: 'GitHub', href: github('acortespr06'), ideas: [t('Transmission as a download client')] },

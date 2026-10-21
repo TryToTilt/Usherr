@@ -3,6 +3,49 @@
 Usherr's own releases. Each one is built on a Mediarium release by rdborg,
 whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
+## [Unreleased]
+
+## [2.0.0] - 2026-10-20
+
+Built on **Mediarium 3.2.16**.
+
+**New**
+- **A choice of streaming engine**: *Settings → Extras → Streaming engine* picks Usherr's own engine or StreamNZB for Stream now, the streamed library and streamed Live TV. The one chosen goes first; the other is the way out when it finds nothing. StreamNZB stays the default.
+- Usherr's engine now serves **Stream now**: movies and episodes are searched on your indexers (daily shows by date), listed best first, and played straight from Usenet. A release that breaks part-way hands over to the next one in line, from where you were; **Try another release** does the same by hand.
+- **Device qualities** (4K, 1080p, 720p): the biggest file and the words to leave out, for the TV and for a phone.
+- **StreamNZB is optional**: a new install streams with Usherr's own engine and needs nothing else (the setup wizard's Extras step and the setup checklist count either engine as ready). An install that already has StreamNZB connected keeps it until you choose Usherr.
+- **Import from StreamNZB**: on the Streaming engine card, copy StreamNZB's Usenet providers, indexers and size limits from its `config.json`. You see what is in it first, what Usherr already has is left alone, only what you tick is copied, and logins are never shown.
+- **Real TV picks from the whole lineup**: instead of six network buttons, the dialog lists every channel at your zip code to tick (up to 40 at a time), with search and News, Sports, Movies, Family and Talk filters. *Channels from* chooses the stations on the air (every affiliate and subchannel: MeTV, Cozi, ION, Telemundo...) or a cable or satellite provider's lineup (ESPN, HGTV, TNT...). The main networks start ticked. Channels are built four at a time, and subchannels get their own numbers (4.2 is channel 42).
+- **Stremio and Nuvio add-on**: *Settings → Extras → Stremio and Nuvio* gives each person a private link (with a QR code and an Install in Stremio button on an https address) to add once in each app. The apps then show *Usherr Movies*, *Usherr TV*, *Usherr Watchlist* (thumbs up) and *Usherr Live TV*, and any title they open gets streams: your library's file first, then the best releases Usherr's engine finds on your indexers, opened when picked and handing over to the next if one can't be read. Subtitles come from your library's files. *Make a new link* stops the old one.
+- **Live TV tunes in without a long wait**: when a streamed program's release takes more than a few seconds to find, the channel stays on its static and asks again shortly, instead of holding the page; every asker shares one lookup. A few minutes after start-up (and every three hours) the programs on now, or starting within half an hour, on every channel are looked up in advance, three at a time.
+- **Fewer failed tunes**: a stream that can't be read at first look is looked at once more before the channel falls back to its backup, and the log now says why a look failed (ffprobe's own words).
+- **Real TV's AI has room for every slot**: the answer's length now grows with the number of slots (a full day with backups ran past 4000 tokens and was asked twice), and a cut-off answer is asked again with up to 16000.
+- A **Right now** panel on the card: speed, connections in use on each Usenet server, what is streaming and the searches each indexer has done today.
+- **Sound in the browser, and 4K stays 4K**: a stream in Dolby (E-AC3, Atmos), TrueHD or DTS no longer plays silently in Chrome and Edge. The picture plays as it is and the sound comes beside it, converted to AAC with its channels, in step and seeking as usual. Every conversion now keeps what the browser plays: a picture it shows is copied (4K, HDR, HEVC), a sound it plays is copied, 5.1 stays 5.1, and nothing is made smaller unless you pick a lower quality. That holds for files on disk (converted by Jellyfin or by Usherr), streams and Live TV, which no longer turns pictures into 720p.
+- **Sound sync**: the sound played beside a stream's picture allows for the delay your speakers add (Dolby Atmos or DTS:X processing, a receiver, Bluetooth), and the player's *− Sync +* buttons move it earlier or later, 50 ms a tap, kept on each device. Releases whose sound begins a moment after the picture start in step.
+- **Marquee screens in your own order**: up and down arrows on *Marquee → Screens* (and the phone remote) set the order the screens are listed in; it stays put instead of moving whichever is on to the top.
+- **Pick the language of a stream**: *Audio & subtitles* in the player now lists a stream's sound tracks too, and a MULTi release starts in the language you listen in, even when the file's first track is another.
+- **Your stack**: the films and shows you want to watch next, as a stack of tickets in the menu. Put a title on it with the stack button on any poster card (Discover, the Library) or on its page; swipe through it (or use the arrows), move a title up or down, take it off, and tap the poster for its page or **Play now** (a film that isn't downloaded offers Stream). Each person has their own, kept on the server, so a phone has it too. To make room, *Settings* folds away in the menu until you open it.
+- **The Marquee gets its own page** (*Marquee* in the menu, and in Settings), with tabs for Screens, Look and scenes, Slides and pre-show, and Home Assistant and API:
+  - Every screen is listed, with what it shows now. A screen can have settings of its own, and a **phone remote** (`/marquee/remote`) steers it: previous, pause, next, pin, dim, blank, info, the pre-show, its look and *Show now*.
+  - **Seven looks** (Usherr, Cinema, One-sheet, the Poster wall and more), each with its own themes, fonts, frames and effects.
+  - New scenes: tonight on Live TV, spotlights, trivia, your own **slides** (pictures, videos, web pages and words), a **pre-show** before the film, and **theme music**.
+  - **Home Assistant** (over MQTT: each screen appears by itself, with buttons, switches for pause, pin, dim and blank, and its look and scene) and an **API** for scripts and buttons.
+- **Ticket services for In theaters**: *Tickets from* chooses Fandango (the default in the US), Atom Tickets, Cinemark, Moviefone, Showtimes.com, a link of your own (with `{title}` and `{zip}`), or none. Each service's button can show a picture you upload, such as its logo. With Fandango, *All showtimes near* lists everything playing near your ZIP.
+- The setup wizard's Extras step has the **In theaters** and **Marquee** cards, the setup checklist counts them, and the first-visit tour points at your stack.
+- **The user guide** has pages of its own for Live TV, the AI and the Marquee, and the gaps elsewhere are filled, with new pictures.
+
+**New** (from Mediarium 3.2.16)
+- **Custom formats from the TRaSH Guides** are scored with TRaSH's own scores, can be added to several profiles at once, and can be kept up to date by themselves (*Keep TRaSH formats up to date*, daily or weekly) or with *Update from TRaSH*, which shows what would change first.
+- **Why a release was picked**: a manual search marks the release an automatic search would take as *Best match*, and an arrow after each score lists the custom formats behind it.
+- **Minimum seeders** on each torrent indexer, and stopping or removing a download also removes it from qBittorrent or Transmission (a switch on the download client card).
+- **Country for release dates** under *Settings → Info, lists and subtitles*; a film's page shows when it's in cinemas and when it comes out digitally, for your country.
+- Indexers are listed by priority in compact cards, and the problem report form says when a newer version is out.
+
+**Fixed** (from Mediarium 3.2.16)
+- An indexer's seeding rules now reach the download client; SubDL subtitles download again; shows with the same name and folders shared by several shows are matched correctly.
+- Everything else in Mediarium 3.1.4 to 3.2.16, listed in [CHANGELOG.md](CHANGELOG.md).
+
 ## [1.0.4] - 2026-10-17
 
 Built on **Mediarium 3.1.3**.

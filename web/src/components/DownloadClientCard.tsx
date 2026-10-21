@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, TORRENT_ROUTE_EVENT, type DownloadClientInput, type DownloadClientKind, type DownloadClientSettings } from '../api'
 import { t } from '../i18n'
 import Icon from './Icon'
 import { useToast } from './Toast'
 import TipLabel from './TipLabel'
+import { reloadForm } from './downloadClientForm'
 
 const LABEL: Record<Exclude<DownloadClientKind, ''>, string> = {
   qbittorrent: 'qBittorrent',
@@ -17,10 +18,15 @@ const blank: DownloadClientInput = {
   url: '',
   username: '',
   password: '',
-  category: 'mediarium',
+  category: '',
+  categoryMovies: '',
+  categoryTv: '',
+  categoryMusic: '',
+  categoryBooks: '',
   remotePath: '',
   localPath: '',
   removeAfterImport: false,
+  removeOnStop: true,
   linkRoot: '',
 }
 
@@ -31,9 +37,14 @@ function toInput(s: DownloadClientSettings): DownloadClientInput {
     username: s.username,
     password: '',
     category: s.category,
+    categoryMovies: s.categoryMovies,
+    categoryTv: s.categoryTv,
+    categoryMusic: s.categoryMusic,
+    categoryBooks: s.categoryBooks,
     remotePath: s.remotePath,
     localPath: s.localPath,
     removeAfterImport: s.removeAfterImport,
+    removeOnStop: s.removeOnStop,
     linkRoot: s.linkRoot,
   }
 }
@@ -49,14 +60,22 @@ export default function DownloadClientCard() {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<{ ok: boolean; version?: string; error?: string } | null>(null)
 
+  const [loadFailed, setLoadFailed] = useState(false)
+  // The saved copy the form was last in step with, so a reload keeps what the
+  // person typed and did not save.
+  const savedRef = useRef<DownloadClientSettings | null>(null)
+
   const load = useCallback(() => {
     api
       .downloadClient()
       .then((d) => {
+        const was = savedRef.current ? toInput(savedRef.current) : blank
+        savedRef.current = d
         setSaved(d)
-        setForm(toInput(d))
+        setForm((f) => reloadForm(f, was, toInput(d)))
+        setLoadFailed(false)
       })
-      .catch(() => undefined)
+      .catch(() => setLoadFailed(true))
   }, [])
   useEffect(load, [load])
   useEffect(() => {
@@ -90,6 +109,7 @@ export default function DownloadClientCard() {
     setBusy(true)
     try {
       const d = await api.saveDownloadClient(form)
+      savedRef.current = d
       setSaved(d)
       setForm(toInput(d))
       window.dispatchEvent(new Event(TORRENT_ROUTE_EVENT))
@@ -145,8 +165,25 @@ export default function DownloadClientCard() {
             <label>
               {t('Category')}
               <input value={form.category} onChange={(e) => set('category', e.target.value)} placeholder="mediarium" autoComplete="off" spellCheck={false} />
-              <small className="field-help">{form.kind === 'transmission' ? t('Torrents get this label, so they are easy to find in Transmission (it needs version 3 or newer).') : t('Torrents are added in this category, so they are easy to find in the client.')}</small>
+              <small className="field-help">{form.kind === 'transmission' ? t('Torrents get this label, so they are easy to find in Transmission (it needs version 3 or newer). If you clear it and fill in a label below, a kind with none of its own gets no label. With everything empty, "mediarium" is used.') : t('Torrents are added in this category, so they are easy to find in the client. If you clear it and fill in a category below, a kind with none of its own gets no category. With everything empty, "mediarium" is used.')}</small>
             </label>
+            <label>
+              {t('Category for movies')}
+              <input value={form.categoryMovies} onChange={(e) => set('categoryMovies', e.target.value)} autoComplete="off" spellCheck={false} />
+            </label>
+            <label>
+              {t('Category for TV shows')}
+              <input value={form.categoryTv} onChange={(e) => set('categoryTv', e.target.value)} autoComplete="off" spellCheck={false} />
+            </label>
+            <label>
+              {t('Category for music')}
+              <input value={form.categoryMusic} onChange={(e) => set('categoryMusic', e.target.value)} autoComplete="off" spellCheck={false} />
+            </label>
+            <label>
+              {t('Category for books')}
+              <input value={form.categoryBooks} onChange={(e) => set('categoryBooks', e.target.value)} autoComplete="off" spellCheck={false} />
+            </label>
+            <small className="field-help" style={{ gridColumn: '1 / -1' }}>{t('The four categories above are optional. Fill one in to keep that kind of download apart in the client (a label in Transmission). An empty one uses the main category.')}</small>
           </>
         )}
       </div>
@@ -174,6 +211,13 @@ export default function DownloadClientCard() {
             </label>
           </div>
           <label className="check-hint">
+            <input type="checkbox" checked={form.removeOnStop} onChange={(e) => set('removeOnStop', e.target.checked)} />
+            <span>
+              {t('When I stop or remove a download, remove it from the client too')}
+              <small>{t("Only for a torrent that Mediarium sent and that hasn't finished: it is removed with what it downloaded. A finished torrent, and one that was in the client before, stays. Blocklist & search again also removes a finished one.")}</small>
+            </span>
+          </label>
+          <label className="check-hint">
             <input type="checkbox" checked={form.removeAfterImport} onChange={(e) => set('removeAfterImport', e.target.checked)} />
             <span>
               {t('Remove from the client after import')}
@@ -192,6 +236,11 @@ export default function DownloadClientCard() {
           {t('Save')}
         </button>
       </div>
+      {loadFailed && (
+        <div className="indexer-result bad" role="alert">
+          <Icon name="warning" size={14} /> {t("Couldn't load the download client settings. Try reloading the page.")}
+        </div>
+      )}
       {result && (
         <div className={`indexer-result ${result.ok ? 'ok' : 'bad'}`}>
           <Icon name={result.ok ? 'check' : 'warning'} size={14} /> {result.ok ? t('Connected to {name} {version}.', { name, version: result.version ?? '' }) : result.error}

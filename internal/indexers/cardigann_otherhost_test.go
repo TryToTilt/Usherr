@@ -169,3 +169,34 @@ func TestAddressRulesWithAndWithoutCredentials(t *testing.T) {
 		})
 	}
 }
+
+// YTS and The Pirate Bay save the API address the definition suggests with
+// the form. That is no sign-in, so the site may still use that other host.
+func TestSavedDefaultsAreNotCredentials(t *testing.T) {
+	def := &Definition{Settings: []SettingField{
+		{Name: "apiurl", Type: "text", Default: "movies-api.accel.li"},
+		{Name: "uploader", Type: "text"},
+		{Name: "top100", Type: "select", Default: "recent"},
+	}}
+	tests := []struct {
+		name     string
+		settings map[string]string
+		want     bool
+	}{
+		{"nothing saved", nil, false},
+		{"the suggested address saved with the form", map[string]string{"apiurl": "movies-api.accel.li", "top100": "recent"}, false},
+		{"an uploader filter", map[string]string{"uploader": "SomeUser"}, false},
+		{"a different address typed in", map[string]string{"apiurl": "mirror.example.net"}, false},
+	}
+	for _, tt := range tests {
+		s := &cgSession{def: def, settings: tt.settings}
+		if got := s.sendsCredentials(); got != tt.want {
+			t.Errorf("%s: sendsCredentials = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+	// A setting named like a sign-in is a credential even when it equals its default.
+	login := &Definition{Settings: []SettingField{{Name: "username", Type: "text", Default: "guest"}}}
+	if !(&cgSession{def: login, settings: map[string]string{"username": "guest"}}).sendsCredentials() {
+		t.Error("a username equal to its default must still count as a credential")
+	}
+}

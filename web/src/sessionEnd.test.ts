@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { noteSessionEnded, onSessionEnded, sessionEnded } from './sessionEnd.ts'
+import { clearEndReason, noteEndReason, noteSessionEnded, onSessionEnded, sessionEnded, signedOutForIdle } from './sessionEnd.ts'
 
 const gone = JSON.stringify({ error: 'You need to sign in first.' })
 
@@ -31,4 +31,21 @@ test('listeners hear about it until they stop', () => {
   stop()
   noteSessionEnded()
   assert.equal(heard, 1)
+})
+
+test('a 401 that says the browser was idle is remembered until someone signs in', () => {
+  const idle = JSON.stringify({ error: 'You need to sign in first.', reason: 'idle' })
+  assert.equal(signedOutForIdle(), false)
+  noteEndReason(200, idle) // only a 401 counts
+  assert.equal(signedOutForIdle(), false)
+  noteEndReason(401, 'unauthorized')
+  noteEndReason(401, gone)
+  noteEndReason(401, 'not json')
+  assert.equal(signedOutForIdle(), false)
+  // The idle answer still counts as the session having ended.
+  assert.equal(sessionEnded('/movies', 401, idle), true)
+  noteEndReason(401, idle)
+  assert.equal(signedOutForIdle(), true)
+  clearEndReason()
+  assert.equal(signedOutForIdle(), false)
 })

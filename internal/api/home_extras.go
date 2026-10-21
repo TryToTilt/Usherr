@@ -35,6 +35,10 @@ var errNoAddress = errors.New("Mediarium's address on your network isn't set (Se
 func (s *Server) registerExtrasRoutes(admin routeGroup) {
 	admin.HandleFunc("GET /api/home/extras", s.handleGetExtras)
 	admin.HandleFunc("PUT /api/home/extras", s.handlePutExtras)
+	admin.HandleFunc("GET /api/home/streaming", s.handleGetStreamingEngine) // Usherr: the streaming engine
+	admin.HandleFunc("PUT /api/home/streaming", s.handlePutStreamingEngine)
+	admin.HandleFunc("POST /api/home/streaming/import/preview", s.handleSNZBImportPreview) // Usherr: from StreamNZB
+	admin.HandleFunc("POST /api/home/streaming/import", s.handleSNZBImport)
 	admin.HandleFunc("POST /api/home/extras/test/{what}", s.handleTestExtra)
 	admin.HandleFunc("POST /api/home/extras/tv-pair", s.handlePairTV)
 }

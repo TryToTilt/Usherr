@@ -33,6 +33,12 @@ function AutomationSection() {
     (saved) => (saved ? t('Saved: finished shows stop being monitored once complete.') : t('Saved: finished shows stay monitored.')),
     false,
   )
+  const seasonPacks = useAutosaveSetting<boolean>(
+    (s) => s.seasonPacks ?? false,
+    (v) => ({ seasonPacks: v }),
+    (saved) => (saved ? t('Saved: season packs are preferred once a season has ended.') : t('Saved: episodes are fetched one by one.')),
+    false,
+  )
 
   return (
     <section className="card">
@@ -62,6 +68,13 @@ function AutomationSection() {
         disabled={!unmonitorFinished.loaded || unmonitorFinished.saving}
         label={t('Stop monitoring a show once it has ended and every episode is in')}
         description={t("Checked when the show's details are refreshed and after each import. Shows that are still running stay monitored.")}
+      />
+      <Switch
+        checked={seasonPacks.value}
+        onChange={seasonPacks.change}
+        disabled={!seasonPacks.loaded || seasonPacks.saving}
+        label={t('Prefer season packs once a season has ended')}
+        description={t("While a season is airing, episodes are fetched one by one. Once it has ended, Mediarium looks for a season pack and takes it if it's the same quality or better than the episodes. A show can choose for itself on its page.")}
       />
     </section>
   )
@@ -98,7 +111,7 @@ function LanguageSection() {
     <section className="card">
       <h2><TipLabel help="quality#audio-language">{t('Audio language')}</TipLabel></h2>
       <p style={{ color: 'var(--text-dim)' }}>
-        {t("List the languages you'd watch in, best first. A release in an earlier language is picked over one in a later language, and releases with two or more audio tracks count when one of them matches. Releases with no language in the name count as English. Releases only in some other language, like GERMAN, are skipped.")}
+        {t("List the languages you'd watch in, best first. A release in an earlier language is picked over one in a later language, and releases with two or more audio tracks count when one of them matches. With one language, a release that names only that language is picked over a multi-language one. With several, like German and English, a multi-language release that has the first one is picked over a plain one, because it also carries the others. Releases with no language in the name count as English. Releases only in some other language, like GERMAN, are skipped.")}
       </p>
       <ol className="lang-order">
         {list.map((l, i) => (

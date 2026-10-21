@@ -221,7 +221,7 @@ export default function AddDownloadDialog({ onClose, onAdded }: { onClose: () =>
           )}
           <label>
             {t('Release name (optional)')}
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={200} placeholder={t('Taken from the file or address if you leave it empty')} disabled={busy} />
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={200} placeholder={t('Taken from the file or address')} disabled={busy} />
           </label>
           {error && <p className="error-text">{error}</p>}
         </div>

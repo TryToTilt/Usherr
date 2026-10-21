@@ -227,6 +227,7 @@ func (s *Server) runTVPipeline(queueID int64, series library.Series, season int,
 
 	mapper := s.releaseMapper(series) // anime and daily file names
 	imported, skipped := 0, 0
+	copiedNote := "" // set when files had to be copied over from the temporary download folder
 	// Files the library has down for other titles, and the places this run
 	// has already filled: two episodes of one pack never overwrite each other,
 	// and no file of another episode or movie is ever replaced.
@@ -272,12 +273,22 @@ func (s *Server) runTVPipeline(queueID int64, series library.Series, season int,
 			continue
 		}
 		policy, isBetter := s.conflictPolicy(tier, !series.NoUpgrade, func() (quality.Tier, bool) {
-			return quality.Tier(eps[0].Quality), true
+			return existingTier(eps[0].Quality, eps[0].ReleaseTitle, eps[0].FilePath)
 		})
 		replaceEarlier := replacesOldFiles(policy, isBetter)
 		earlierFiles := make([]string, len(eps))
 		for i, ep := range eps {
 			earlierFiles[i] = ep.FilePath
+		}
+		keepsEarlier := false
+		for _, old := range earlierFiles {
+			keepsEarlier = keepsEarlier || keepsEarlierFile(old, destPath, replaceEarlier)
+		}
+		if keepsEarlier {
+			// An episode's file under another name stays when this release may not
+			// replace it: no second copy next to it.
+			skipped++
+			continue
 		}
 		result, err := s.importDownloaded(file, destPath, policy, isBetter)
 		if err != nil {
@@ -289,6 +300,9 @@ func (s *Server) runTVPipeline(queueID int64, series library.Series, season int,
 			// for TV it behaves like skip — the existing file is kept.
 			skipped++
 			continue
+		}
+		if n := s.copiedFromTempNote(file, result); n != "" {
+			copiedNote = n
 		}
 		usedDest[filepath.Clean(result.DestPath)] = true
 		usedDest[filepath.Clean(destPath)] = true
@@ -357,7 +371,7 @@ func (s *Server) runTVPipeline(queueID int64, series library.Series, season int,
 		_, _ = s.QueueRepo.ClearFailedForEpisodes(series.ID, sn, eps, queueID)
 	}
 	s.autoSubtitlesFor(subtitleItems...)
-	message := fmt.Sprintf("%s: imported %s from %s", series.Title, plural(imported, "episode"), releaseTitle)
+	message := fmt.Sprintf("%s: imported %s from %s", series.Title, plural(imported, "episode"), releaseTitle) + copiedNote
 	_ = s.QueueRepo.LogSeriesActivity(series.ID, "imported", message)
 	s.checkFinishedShowSoon(series.ID)
 	importedItem := seriesItemFor(series, season, importedEps)

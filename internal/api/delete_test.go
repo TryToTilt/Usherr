@@ -39,6 +39,9 @@ func tree(t *testing.T, dir string) string {
 			if strings.HasPrefix(filepath.ToSlash(r), ".mediarium-trash") {
 				return nil // the recycle bin is not part of the library
 			}
+			if filepath.ToSlash(r) == ".mediarium-root" {
+				return nil // the marker that shows the folder is the real, mounted one
+			}
 			out = append(out, filepath.ToSlash(r))
 		}
 		return nil

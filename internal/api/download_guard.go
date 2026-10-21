@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rdborg/mediarium/internal/organizer"
 	"github.com/rdborg/mediarium/internal/queue"
@@ -125,7 +127,10 @@ func (s *Server) keptDownload(item queue.Item) (string, bool) {
 	if item.Protocol != queue.ProtocolUsenet && item.Protocol != "" {
 		return "", false
 	}
-	dir := filepath.Join(s.downloadsIncompleteDir(), fmt.Sprintf("queue-%d", item.ID))
+	dir, ok := s.existingWorkDir(item.ID)
+	if !ok {
+		return "", false
+	}
 	if fileExists(filepath.Join(dir, downloadedMarker)) || keptResume(dir) {
 		return dir, true
 	}
@@ -134,13 +139,23 @@ func (s *Server) keptDownload(item queue.Item) (string, bool) {
 
 // moveKeptDownload moves the working folder of an earlier attempt to the
 // retry's own folder, so the retry starts from those files (see
-// reuseDownloaded). Only queue folders directly inside the downloads folder
-// are ever moved. It reports whether the files are now in place.
-func (s *Server) moveKeptDownload(old, dir string) bool {
-	root := filepath.Clean(s.downloadsIncompleteDir())
-	if filepath.Dir(filepath.Clean(old)) != root || filepath.Dir(filepath.Clean(dir)) != root {
+// reuseDownloaded). The new folder is made beside the old one, in the same work
+// folder, so the move is a rename even when that is the temporary download
+// folder. Only queue folders directly inside a work folder are ever moved. It
+// reports whether the files are now in place.
+func (s *Server) moveKeptDownload(old string, newID int64) bool {
+	old = filepath.Clean(old)
+	root := filepath.Dir(old)
+	known := false
+	for _, r := range s.workRoots() {
+		if r == root {
+			known = true
+		}
+	}
+	if !known {
 		return false
 	}
+	dir := filepath.Join(root, fmt.Sprintf("queue-%d", newID))
 	if err := os.Rename(old, dir); err != nil {
 		slog.Warn("retry: move the earlier download's files", "from", old, "to", dir, "err", err)
 		return false
@@ -208,17 +223,56 @@ func (s *Server) verifyStep(queueID int64, dir string, missing int) error {
 
 // unpackStep is the unpack step of post-processing, recorded in the item's
 // activity.
-func (s *Server) unpackStep(queueID int64, dir string) error {
+//
+// While it runs, the Activity page shows how much has been unpacked (see
+// unpackTracker), and the log says so when it takes long or gets stuck.
+func (s *Server) unpackStep(ctx context.Context, queueID int64, dir string) error {
 	archives, _ := organizer.FindPrimaryArchivesDeep(dir)
 	if len(archives) == 0 {
 		return unpackArchives(dir)
 	}
 	s.queueEvent(queueID, "postprocess", queue.LevelInfo, fmt.Sprintf("Unpacking %s", plural(len(archives), "archive")))
 	setQueueStage(queueID, "Unpacking") // home fork
-	if err := unpackArchives(dir); err != nil {
-		s.queueEvent(queueID, "postprocess", queue.LevelError, fmt.Sprintf("Unpacking failed (%v)", err))
+	w := newUnpackWatch(queueID, func(st unpackStatus) { s.unpacking.set(queueID, st) })
+	defer s.unpacking.clear(queueID)
+	bytes, took, err := unpackArchivesWatched(ctx, dir, w)
+	if err != nil {
+		if ctx.Err() == nil {
+			s.queueEvent(queueID, "postprocess", queue.LevelError, fmt.Sprintf("Unpacking failed (%v)", err))
+		}
 		return err
 	}
-	s.queueEvent(queueID, "postprocess", queue.LevelInfo, "Unpacked")
+	s.queueEvent(queueID, "postprocess", queue.LevelInfo, unpackedMessage(bytes, took))
 	return nil
+}
+
+// unpackedMessage is the activity line for a finished unpack: just "Unpacked"
+// when it was quick, and how much and how long when it was not.
+func unpackedMessage(bytes int64, took time.Duration) string {
+	if took < 10*time.Second || bytes <= 0 {
+		return "Unpacked"
+	}
+	return fmt.Sprintf("Unpacked %s in %s", humanBytes(bytes), humanDuration(took))
+}
+
+// humanDuration is a length of time in words: "45 seconds", "5 minutes",
+// "1 hour 20 minutes".
+func humanDuration(d time.Duration) string {
+	secs := int(d.Round(time.Second).Seconds())
+	switch {
+	case secs < 60:
+		return plural(max(secs, 1), "second")
+	case secs < 3570:
+		return plural((secs+30)/60, "minute")
+	case secs < 3600:
+		return "1 hour"
+	}
+	h, m := secs/3600, (secs%3600+30)/60
+	if m == 60 {
+		h, m = h+1, 0
+	}
+	if m == 0 {
+		return plural(h, "hour")
+	}
+	return plural(h, "hour") + " " + plural(m, "minute")
 }

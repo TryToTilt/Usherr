@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 )
 
 // Series is a TV show in the library. Metadata is keyed by TMDB id (TMDB
@@ -43,6 +45,21 @@ type Series struct {
 	// RootPath is the library folder the show's files go to (one of the TV
 	// folders in Settings); "" = the default folder.
 	RootPath string
+	// SeasonPack is the show's own choice about taking a season pack once a
+	// season has ended: "" follows the setting in Settings, "on" or "off" decides
+	// for this show.
+	SeasonPack string
+
+	// OriginCountry lists the countries TMDB gives for the show, as two-letter
+	// codes ("US", "GB"). nil means not read yet (the next refresh fills it
+	// in); an empty, non-nil list means TMDB names none.
+	OriginCountry []string
+
+	// YieldsUntagged is set when the list was loaded for the automatic searches
+	// (never stored): another show in the library has the same name and takes
+	// the releases that carry no country tag, so this one does not. See
+	// markSameName in the api package.
+	YieldsUntagged bool
 
 	// Aliases are other names the show is known by, found with its numbering
 	// (see aliases.go); release names that use one are taken for the show.
@@ -81,8 +98,9 @@ const seriesSelect = `
 	       (SELECT COUNT(*) FROM episodes e WHERE e.series_id = s.id AND (e.season > 0 OR e.monitored = 1 OR e.status = 'downloaded')),
 	       (SELECT COUNT(*) FROM episodes e WHERE e.series_id = s.id AND e.status = 'downloaded'),
 	       COALESCE(s.profile_id, 0), s.source_pref, COALESCE(s.added_by, 0), s.genres, s.no_upgrade, s.details_state, s.details_note, s.series_type,
-	       COALESCE(s.copy_of, 0), s.tvdb_id, s.imdb_id, s.tmdb_status, s.root_path,
-	       COALESCE((SELECT names FROM title_names WHERE kind = 'tv' AND tmdb_id = s.tmdb_id), '')
+	       COALESCE(s.copy_of, 0), s.tvdb_id, s.imdb_id, s.tmdb_status, s.root_path, s.season_pack,
+	       COALESCE((SELECT names FROM title_names WHERE kind = 'tv' AND tmdb_id = s.tmdb_id), ''),
+	       s.origin_country
 	FROM series s`
 
 func scanSeries(scan func(dest ...any) error) (Series, error) {
@@ -90,10 +108,12 @@ func scanSeries(scan func(dest ...any) error) (Series, error) {
 		s      Series
 		genres sql.NullString
 		alts   string
+		origin sql.NullString
 	)
-	if err := scan(&s.ID, &s.TMDBID, &s.Title, &s.Year, &s.Overview, &s.PosterPath, &s.FirstAirDate, &s.Monitored, &s.EpisodeCount, &s.DownloadedCount, &s.ProfileID, &s.SourcePref, &s.AddedBy, &genres, &s.NoUpgrade, &s.DetailsState, &s.DetailsNote, &s.SeriesType, &s.CopyOf, &s.TVDBID, &s.IMDBID, &s.TMDBStatus, &s.RootPath, &alts); err != nil {
+	if err := scan(&s.ID, &s.TMDBID, &s.Title, &s.Year, &s.Overview, &s.PosterPath, &s.FirstAirDate, &s.Monitored, &s.EpisodeCount, &s.DownloadedCount, &s.ProfileID, &s.SourcePref, &s.AddedBy, &genres, &s.NoUpgrade, &s.DetailsState, &s.DetailsNote, &s.SeriesType, &s.CopyOf, &s.TVDBID, &s.IMDBID, &s.TMDBStatus, &s.RootPath, &s.SeasonPack, &alts, &origin); err != nil {
 		return Series{}, fmt.Errorf("scan series: %w", err)
 	}
+	s.OriginCountry = decodeCountries(origin)
 	s.Genres = decodeGenres(genres)
 	s.AltTitles = decodeTitleNames(alts)
 	return s, nil
@@ -281,8 +301,8 @@ func (r *Repo) AddSeriesCopy(mainID, profileID int64) (Series, error) {
 	}
 	defer tx.Rollback()
 	res, err := tx.Exec(
-		`INSERT INTO series (tmdb_id, title, year, overview, poster_path, first_air_date, monitored, profile_id, source_pref, added_by, genres, series_type, copy_of)
-		 SELECT tmdb_id, title, year, overview, poster_path, first_air_date, monitored, ?, source_pref, added_by, genres, series_type, id FROM series WHERE id = ?
+		`INSERT INTO series (tmdb_id, title, year, overview, poster_path, first_air_date, monitored, profile_id, source_pref, added_by, genres, series_type, origin_country, copy_of)
+		 SELECT tmdb_id, title, year, overview, poster_path, first_air_date, monitored, ?, source_pref, added_by, genres, series_type, origin_country, id FROM series WHERE id = ?
 		 AND NOT EXISTS (SELECT 1 FROM series WHERE copy_of = ? AND profile_id = ?)`, profileID, mainID, mainID, profileID)
 	if err != nil {
 		return Series{}, fmt.Errorf("add a second copy: %w", err)
@@ -366,13 +386,84 @@ func (r *Repo) SetSeriesSourcePref(id int64, pref string) error {
 // after date (or has no date yet) and unmonitored when it aired earlier, so
 // a newly added show can track only what is still to come.
 func (r *Repo) MonitorFromDate(seriesID int64, date string) error {
-	_, err := r.db.Exec(
-		`UPDATE episodes SET monitored = CASE WHEN COALESCE(air_date, '') = '' OR air_date >= ? THEN 1 ELSE 0 END WHERE series_id = ? AND season > 0`,
-		date, seriesID)
-	if err != nil {
-		return fmt.Errorf("set series %d episode monitoring: %w", seriesID, err)
+	_, err := r.ApplyMonitorMode(seriesID, MonitorFuture, date, false)
+	return err
+}
+
+// The ways to choose which episodes of a show are monitored, when adding it
+// and from its page afterwards.
+const (
+	MonitorAll    = "all"
+	MonitorFuture = "future"
+	MonitorNone   = "none"
+)
+
+// MonitorChange is how many episodes stopped being monitored and how many
+// started.
+type MonitorChange struct {
+	Stopped int `json:"stopped"`
+	Started int `json:"started"`
+}
+
+// ApplyMonitorMode sets which episodes of a show are monitored and returns
+// how many stopped and how many started. all monitors every episode but the specials, future
+// monitors the ones that air on or after today (a YYYY-MM-DD date) or have
+// no air date yet and stops monitoring the ones that aired earlier (specials
+// stay as they are), none stops monitoring everything. Only the monitored
+// flag changes: files, status and downloads are left alone. dryRun counts
+// without changing anything.
+func (r *Repo) ApplyMonitorMode(seriesID int64, mode, today string, dryRun bool) (MonitorChange, error) {
+	var set, scope string
+	var setArgs []any
+	switch mode {
+	case MonitorAll:
+		set, scope = "1", "season > 0"
+	case MonitorFuture:
+		set, scope = "CASE WHEN COALESCE(air_date, '') = '' OR air_date >= ? THEN 1 ELSE 0 END", "season > 0"
+		setArgs = []any{today}
+	case MonitorNone:
+		set, scope = "0", "1 = 1"
+	default:
+		return MonitorChange{}, fmt.Errorf("unknown monitor mode %q", mode)
 	}
-	return nil
+	tx, err := r.db.Begin()
+	if err != nil {
+		return MonitorChange{}, fmt.Errorf("begin series %d episode monitoring: %w", seriesID, err)
+	}
+	defer tx.Rollback()
+	var change MonitorChange
+	rows, err := tx.Query(`SELECT monitored, COUNT(*) FROM episodes WHERE series_id = ? AND `+scope+` AND monitored <> (`+set+`) GROUP BY monitored`,
+		append([]any{seriesID}, setArgs...)...)
+	if err != nil {
+		return MonitorChange{}, fmt.Errorf("count series %d episode monitoring: %w", seriesID, err)
+	}
+	for rows.Next() {
+		var was bool
+		var n int
+		if err := rows.Scan(&was, &n); err != nil {
+			rows.Close()
+			return MonitorChange{}, fmt.Errorf("count series %d episode monitoring: %w", seriesID, err)
+		}
+		if was {
+			change.Stopped = n
+		} else {
+			change.Started = n
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return MonitorChange{}, fmt.Errorf("count series %d episode monitoring: %w", seriesID, err)
+	}
+	if dryRun || change.Stopped+change.Started == 0 {
+		return change, nil
+	}
+	if _, err := tx.Exec(`UPDATE episodes SET monitored = `+set+` WHERE series_id = ? AND `+scope, append(setArgs, seriesID)...); err != nil {
+		return MonitorChange{}, fmt.Errorf("set series %d episode monitoring: %w", seriesID, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return MonitorChange{}, fmt.Errorf("commit series %d episode monitoring: %w", seriesID, err)
+	}
+	return change, nil
 }
 
 // SetAllEpisodesMonitored sets the monitored flag on every episode of a series.
@@ -391,6 +482,108 @@ func (r *Repo) SetSeriesNoUpgrade(id int64, noUpgrade bool) error {
 	_, err := r.db.Exec(`UPDATE series SET no_upgrade = ? WHERE id = ?`, noUpgrade, id)
 	if err != nil {
 		return fmt.Errorf("set series %d no-upgrade: %w", id, err)
+	}
+	return nil
+}
+
+// Values of a show's own season pack choice (Series.SeasonPack).
+const (
+	SeasonPackDefault = ""
+	SeasonPackOn      = "on"
+	SeasonPackOff     = "off"
+)
+
+// ValidSeasonPack reports whether v is one of the three choices.
+func ValidSeasonPack(v string) bool {
+	return v == SeasonPackDefault || v == SeasonPackOn || v == SeasonPackOff
+}
+
+// SetSeriesSeasonPack sets the show's own choice about season packs ("" = follow
+// the setting in Settings).
+func (r *Repo) SetSeriesSeasonPack(id int64, choice string) error {
+	if !ValidSeasonPack(choice) {
+		return fmt.Errorf("set series %d season pack: %q is not a choice", id, choice)
+	}
+	_, err := r.db.Exec(`UPDATE series SET season_pack = ? WHERE id = ?`, choice, id)
+	if err != nil {
+		return fmt.Errorf("set series %d season pack: %w", id, err)
+	}
+	// A changed choice is a reason to look for packs again.
+	return r.ResetSeasonPackTries(id)
+}
+
+// SeasonPackGiveUpDays is how long a season that kept finding no season pack is
+// left alone after its last search.
+const SeasonPackGiveUpDays = 60
+
+// PackSearch is what is remembered about the searches for a season pack of one
+// season.
+type PackSearch struct {
+	At       string // when it was last searched for (RFC 3339)
+	Tries    int    // searches in a row that found no pack
+	Episodes int    // how many episodes the season had then
+}
+
+// SeasonPackSearches returns what is remembered about the searches for a season
+// pack of each season of the show, keyed by season.
+func (r *Repo) SeasonPackSearches(seriesID int64) (map[int]PackSearch, error) {
+	rows, err := r.db.Query(`SELECT season, searched_at, tries, episodes FROM season_pack_searches WHERE series_id = ?`, seriesID)
+	if err != nil {
+		return nil, fmt.Errorf("list season pack searches: %w", err)
+	}
+	defer rows.Close()
+	out := map[int]PackSearch{}
+	for rows.Next() {
+		var season int
+		var p PackSearch
+		if err := rows.Scan(&season, &p.At, &p.Tries, &p.Episodes); err != nil {
+			return nil, fmt.Errorf("scan season pack search: %w", err)
+		}
+		out[season] = p
+	}
+	return out, rows.Err()
+}
+
+// NoteSeasonPackSearch records that a season (with this many episodes) was
+// searched for a season pack at the given time (RFC 3339). found says a pack
+// was taken, which clears the count of searches that found nothing; otherwise
+// the count goes up by one, or starts again at one when the season has
+// another number of episodes than at the last search or that search was more
+// than SeasonPackGiveUpDays ago.
+func (r *Repo) NoteSeasonPackSearch(seriesID int64, season int, at string, episodes int, found bool) error {
+	tries := 1
+	if found {
+		tries = 0
+	}
+	cutoff := ""
+	if t, err := time.Parse(time.RFC3339, at); err == nil {
+		cutoff = t.UTC().AddDate(0, 0, -SeasonPackGiveUpDays).Format(time.RFC3339)
+	}
+	_, err := r.db.Exec(`INSERT INTO season_pack_searches (series_id, season, searched_at, tries, episodes) VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(series_id, season) DO UPDATE SET
+			tries = CASE WHEN ? = 0 THEN 0
+				WHEN season_pack_searches.episodes <> excluded.episodes OR season_pack_searches.searched_at <= ? THEN 1
+				ELSE season_pack_searches.tries + 1 END,
+			searched_at = excluded.searched_at, episodes = excluded.episodes`,
+		seriesID, season, at, tries, episodes, tries, cutoff)
+	if err != nil {
+		return fmt.Errorf("note season pack search: %w", err)
+	}
+	return nil
+}
+
+// ResetSeasonPackTries lets the seasons of a show (every show when seriesID is
+// 0) be searched for a season pack again, as after a pack setting was changed.
+// When each season was last searched stays as it is.
+func (r *Repo) ResetSeasonPackTries(seriesID int64) error {
+	var err error
+	if seriesID == 0 {
+		_, err = r.db.Exec(`UPDATE season_pack_searches SET tries = 0`)
+	} else {
+		_, err = r.db.Exec(`UPDATE season_pack_searches SET tries = 0 WHERE series_id = ?`, seriesID)
+	}
+	if err != nil {
+		return fmt.Errorf("reset season pack searches: %w", err)
 	}
 	return nil
 }
@@ -517,6 +710,63 @@ func (r *Repo) SetSeriesExternalIDs(id int64, tvdbID int, imdbID, status string)
 		return fmt.Errorf("set series external ids: %w", err)
 	}
 	return nil
+}
+
+// decodeCountries reads the stored country list: NULL is nil (not read yet),
+// "" an empty list, otherwise the comma-separated codes.
+func decodeCountries(v sql.NullString) []string {
+	if !v.Valid {
+		return nil
+	}
+	out := []string{}
+	for _, c := range strings.Split(v.String, ",") {
+		if c = strings.ToUpper(strings.TrimSpace(c)); c != "" {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// SetSeriesOriginCountry stores the countries TMDB gives for a show (an empty
+// list says it names none, so the show is not asked about again). A second
+// copy shares the main show's countries.
+func (r *Repo) SetSeriesOriginCountry(id int64, countries []string) error {
+	clean := make([]string, 0, len(countries))
+	for _, c := range countries {
+		if c = strings.ToUpper(strings.TrimSpace(c)); c != "" {
+			clean = append(clean, c)
+		}
+	}
+	if _, err := r.db.Exec(`UPDATE series SET origin_country = ? WHERE id = ? OR copy_of = ?`, strings.Join(clean, ","), id, id); err != nil {
+		return fmt.Errorf("set series %d country: %w", id, err)
+	}
+	return nil
+}
+
+// SeriesGap is a show whose origin country has not been read yet.
+type SeriesGap struct {
+	ID     int64
+	TMDBID int
+	Title  string
+}
+
+// MissingOriginCountry lists up to limit shows (newest first, second copies
+// left out) whose origin country is still unknown.
+func (r *Repo) MissingOriginCountry(limit int) ([]SeriesGap, error) {
+	rows, err := r.db.Query(`SELECT id, tmdb_id, title FROM series WHERE origin_country IS NULL AND copy_of IS NULL ORDER BY added_at DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list shows without a country: %w", err)
+	}
+	defer rows.Close()
+	var out []SeriesGap
+	for rows.Next() {
+		var g SeriesGap
+		if err := rows.Scan(&g.ID, &g.TMDBID, &g.Title); err != nil {
+			return nil, fmt.Errorf("scan show without a country: %w", err)
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
 }
 
 // SetSeriesRoot chooses the library folder a show's next files go to ("" = the

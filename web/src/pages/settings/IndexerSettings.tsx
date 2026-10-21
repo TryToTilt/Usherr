@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, type FlareSolverrStatus, type IndexerConfig } from '../../api'
 import Icon from '../../components/Icon'
 import IndexerCard from '../../components/IndexerCard'
@@ -11,6 +11,7 @@ import { FieldError, FormProblem, useValidation } from '../../useValidation'
 import { url as urlCheck } from '../../validate'
 import { t, tx } from '../../i18n'
 import TipLabel from '../../components/TipLabel'
+import { FILTER_FROM, sortIndexers, visibleIndexers } from './indexerOrder'
 
 // Indexers: search services for releases. One form adds either kind (Usenet or
 // torrent); everything you have added is listed together on the right.
@@ -39,6 +40,7 @@ export default function IndexerSettings() {
     else toast.error(t('{failed} of {total} did not answer: {names}.', { failed: failed.length, total: on.length, names: failed.join(', ') }))
   }
   const [list, setList] = useState<IndexerConfig[] | null>(null)
+  const [query, setQuery] = useState('')
   const [torrentOn, setTorrentOn] = useState(true)
   const [flare, setFlare] = useState('')
   const [flareSaved, setFlareSaved] = useState('')
@@ -47,9 +49,11 @@ export default function IndexerSettings() {
   // Blank is fine: it turns the helper off (or falls back to the built-in one).
   const v = useValidation({ flare: urlCheck(flare, { requireScheme: true, example: 'http://flaresolverr:8191' }) })
 
+  const shown = useMemo(() => (list ? visibleIndexers(list, query) : []), [list, query])
+
   const reload = useCallback(() => {
     // A refresh that fails keeps what is showing instead of claiming there are none.
-    api.listIndexers().then(setList).catch(() => setList((cur) => cur ?? []))
+    api.listIndexers().then((l) => setList(sortIndexers(l))).catch(() => setList((cur) => cur ?? []))
   }, [])
   useEffect(reload, [reload])
   useLive(reload, 15000)
@@ -108,27 +112,29 @@ export default function IndexerSettings() {
         {tx('{indexers} are the sites Mediarium searches for downloads. Sign up on one, then add its address and API key here.', { indexers: <strong>{t('Indexers')}</strong> })}
       </p>
       <div className="indexer-cols span-all">
-      <fieldset className="group usenet">
+      <fieldset className="group usenet indexer-add">
         <legend>
           <Icon name="plus" size={14} /> {t('Add an indexer')}
         </legend>
         <IndexerForm onAdded={reload} torrentDisabled={!torrentOn} />
       </fieldset>
-      <fieldset className="group folders">
+      <fieldset className="group folders indexer-list">
         <legend>
           <Icon name="list" size={14} /> {t('Your indexers')} {list && <small>({list.length})</small>}
         </legend>
-        {list && list.length === 0 && <p style={{ margin: 0, color: 'var(--text-dim)' }}>{t('None yet. Pick a site from the list on the left, or paste a link.')}</p>}
+        {list && list.length === 0 && <p style={{ margin: 0, color: 'var(--text-dim)' }}>{t('None yet. Pick a site from the list above, or paste a link.')}</p>}
         {list && list.length > 1 && (
-          <p style={{ margin: '0 0 12px' }}>
+          <div className="indexer-toolbar">
+            {list.length > FILTER_FROM && <input type="search" className="indexer-filter" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('Filter by name')} aria-label={t('Filter by name')} />}
             <button className="btn-sm" disabled={testingAll} onClick={() => void testAll()}>
               {testingAll ? t('Testing…') : t('Test all')}
             </button>
-          </p>
+          </div>
         )}
-        {list && list.length > 0 && (
+        {list && list.length > 0 && shown.length === 0 && <p style={{ margin: 0, color: 'var(--text-dim)' }}>{t('No indexer has that name.')}</p>}
+        {shown.length > 0 && (
           <div className="indexer-cards">
-            {list.map((i) => (
+            {shown.map((i) => (
               <IndexerCard key={i.id} indexer={i} onChanged={reload} onToggle={() => void toggle(i)} onRemove={() => void remove(i)} />
             ))}
           </div>

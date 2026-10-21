@@ -25,17 +25,28 @@ To do the same thing to many titles at once, use **Select**.
 
 If you delete or rename files outside Mediarium, its list doesn't know until you tell it. **Rescan files** (on a show's page, and on a movie's page) looks at every downloaded file of that title: a file that is still there is fine, a file that was renamed (for example `.mp4` to `.mkv`) is found under its new name, and a file that is gone makes its episode or movie **wanted** again. The media servers are asked to scan the folder afterwards. Administrators only.
 
+On a show's page, **Rescan files** also reads the show's own folder (the one its episodes are in, or the one Mediarium would use for it) and picks up video files you put there by hand. Each file is matched to an episode the way **Import existing** reads names: `S01E05`, the number counted from the first episode for an anime (`[Group] Show - 105`), or the air date for a daily show (`Show.2026.10.17.1080p.mkv`). A matched file becomes that episode's file where it lies: nothing is moved, renamed or deleted, no download is started, and whether the episode is wanted stays as it was. The message says "Found 3 episodes you added yourself". Files that match no episode are not guessed: the message lists their names (up to ten) so you can rename them. An episode that already has its own file keeps it, a file that belongs to another movie or show is never taken, and a link that leads out of your library folders is not followed. If the folder is shared with other shows, a file is only given to this show when the title in its name is the show's own (its title, its other names, or the title of a file it already has); a file named for another show stays where it is and is listed with the ones that matched nothing. A name with no title at all, such as `S01E02.mkv`, is fine when it sits in the show's own folder or a season folder. A smaller file for two episodes is no longer dropped just because a bigger file for the first of them is already attached to an episode. The button is there for a show with no files yet too.
+
 A movie that has **no file yet** gets one too. On a wanted movie's page, **Rescan files** looks in the movie's folder (the one Mediarium would put it in, such as `Movies/The Matrix (1999)`, or the one folder in your movies folder whose name reads like the movie and names the same year, when the movie has one) and, if you put a video file there by hand, adds the biggest one as the movie's file, where it lies. Trailers, extras, samples and files that belong to another movie are left out, and nothing is moved, renamed or deleted. The message says what happened: "Found movie.mkv and added it", or "No video file found in" and the folder it looked in. A movie that is being downloaded is left alone, and so is a second copy while no folder for second copies is set (Mediarium says so instead of looking in the main title's folder). It is for administrators, like the rest of the button.
 
-A rescan won't believe that everything is gone when the library folder itself is empty or missing (a drive that isn't plugged in): those files are left alone and the message says so. The same goes for a file it can't check (the disk gives an error, or two files with the same name and different extensions are there): it is skipped, never marked missing. **Refresh episodes** is a different thing: it only reloads the episode list from TMDB. Scripts: `POST /api/movies/{id}/rescan` and `POST /api/series/{id}/rescan` answer with `found`, `renamed`, `missing` and `skipped`. For a movie with no file the answer also has `added` (the file name it was given), `looked` (the folder it searched when there was nothing) or `busy` (a download of the movie is running).
+A rescan won't believe that everything is gone when the library folder itself is empty or missing (a drive that isn't plugged in): those files are left alone and the message says so. The same goes for a file it can't check (the disk gives an error, or two files with the same name and different extensions are there): it is skipped, never marked missing. **Refresh episodes** is a different thing: it only reloads the episode list from TMDB. Scripts: `POST /api/movies/{id}/rescan` and `POST /api/series/{id}/rescan` answer with `found`, `renamed`, `missing` and `skipped`; for a show also `addedEpisodes` (episodes that took a file you added by hand), `notMatched` (up to ten file names that matched no episode) and `notMatchedTotal`. For a movie with no file the answer also has `added` (the file name it was given), `looked` (the folder it searched when there was nothing) or `busy` (a download of the movie is running).
 
 ## Where a title's files are
 
-Only administrators see where files lie on the server: everyone else sees a title's file by name only (`Heat (1995).mkv`), not its folder.
+Only administrators see where files lie on the server: everyone else sees a title's file by name only (`Heat (1995).mkv`), not its folder, and the folder choice in the Add dialog lists the folders by name (`movies`, `kids`) instead of by path.
 
 On a movie's page and on a show's page, administrators see a line **Folder for its files** with the full folder and a **Copy** button. It is where you put files by hand. For a movie it is the folder its file is in; when it has no file yet, it is the folder Mediarium would create for it (such as `/movies/The Matrix (1999)`), or the one folder in your movies folder that is named like the movie. For a show it is the show folder above the season folders where its episodes are, or the one Mediarium would create (such as `/tv/Show Name (2008)`). A title kept in another folder, or a second copy, shows the folder it really uses.
 
 The path is the one Mediarium sees inside its container. With Docker it can differ from the path on your computer or NAS: the volume mapping in your compose file says which host folder is behind it (for example `/mnt/media/movies:/movies` makes `/movies/The Matrix (1999)` the folder `/mnt/media/movies/The Matrix (1999)` on the host). Put a video file there and press **Rescan files** on the movie's page to add it to the movie. For episodes you pasted in by hand, use **Import existing** on the Library page.
+
+### When a drive isn't connected
+
+If a library folder lives on a network drive and the drive isn't connected (a NAS that is off, a share that didn't mount after a restart), the folder is an empty one on the machine's own disk. Importing into it would fill that disk, and the files would seem to vanish the moment the drive comes back. Mediarium refuses to write there:
+
+- Before it imports, moves or renames anything under a library folder, it checks that the folder is there. If it can't be found, the import fails with a plain message, nothing is written, and the dashboard's Health list says which folder it is.
+- Once a library folder is known to be the real one, Mediarium keeps a small hidden file named `.mediarium-root` in it. It is put there when you choose the folder in Settings > Library > Folders, and for a folder that already holds files the first time Mediarium imports into it. A folder that has been seen with the file and then loses it is treated as disconnected: imports and moves into it wait (the download stays where it is, and you can retry it from Activity once the drive is back), and Health says so.
+- A folder that never got the file keeps working as before. If you delete the file on purpose, or move to a new drive, put an empty file named `.mediarium-root` into the folder, or choose the folder again in Settings.
+- A folder Mediarium knows to be on the container's own disk (not mapped from the host) never gets the file, so it can't be mistaken for a connected drive.
 
 ### When you renamed a file or a folder
 
@@ -155,6 +166,18 @@ Limits: the services follow TheTVDB's numbering for scene episodes, which matche
 
 Scripts: `GET /api/series/{id}/numbering` answers with `anilist`, `anidb`, `mal` and their `...Url` links, `sceneState` (`mapped`, `none`, `offline` or empty when never looked up), `sceneRows`, `sceneDiffers`, `listsState`, `entries` (`anidb`, `anilist`, `mal`, `type`, `season`, `offset`, `name`), `names`, `note` and `checkedAt`. `POST /api/series/{id}/numbering/refresh` reads it again now (accounts with the Manage permission). The setting is `numbering.lookup` (`numberingLookup` in `GET`/`PUT /api/settings`).
 
+## Only monitoring new episodes of a show you already have
+
+If you delete old episodes as you watch them and don't want them downloaded again, open the show's page and use **Which episodes to monitor** next to the Monitored switch. It has the same three choices as when you add a show:
+
+- **All episodes** monitors every episode (specials are left alone, see below).
+- **Only episodes that haven't aired yet** stops monitoring every episode that has already aired and keeps the ones that haven't, or that have no air date yet. The show stays monitored, so new episodes that turn up later are monitored too.
+- **None** stops monitoring every episode.
+
+When episodes would stop being monitored, a confirmation says how many, for example "This stops monitoring 214 episodes that have already aired. Nothing is deleted." Only the monitoring changes: your files stay where they are, nothing is searched for and no download is started. Episodes that already have a file are treated like any other. You can still switch single episodes or seasons on again by hand.
+
+Scripts: `POST /api/series/{id}/monitor-mode` with `{"mode": "all"}`, `"future"` or `"none"` answers with how many episodes stopped (`stopped`) and started (`started`) being monitored. Add `"dryRun": true` to only count.
+
 ## Specials
 
 When TMDB drops or renumbers an episode (two parts merged, a placeholder removed), the daily refresh removes the old entry if it is still missing and has no file. An episode that has a file, or is being downloaded, is never removed. If TMDB sends a list that looks wrong (empty, or less than half of what you have), nothing is removed.
@@ -167,6 +190,16 @@ To get a special, tick its box: from then on it's looked for like any other epis
 - **By title**, `Show The Winter Visitor`, because many are posted under their own name with no number at all. A release counts as the special when every telling word of the special's title comes after the show's name (the show's own words and little words like "the" or "special" don't count). A one-word title has to be at least six letters long, so a release isn't taken for a special by chance. When two specials fit equally well, the one whose whole title appears in order wins; otherwise the release is left alone. A dated release counts when exactly one special aired that day.
 
 A downloaded special goes in the show's `Season 00` folder as `Show - S00E05 - Title`, which Plex, Jellyfin, Emby and Kodi all read as a special. Scripts: `GET /api/series/{id}/search?season=0&episode=5` searches for one special; `POST /api/series/{id}/search-now` with `{"season": 0, "episode": 5}` grabs it, and with `{"season": 0}` grabs every monitored special that's missing.
+
+## Shows with the same name
+
+Some names belong to more than one show: Shameless (US and UK), The Office (US and UK), Top Gear, Doctor Who (1963 and 2005). Mediarium keeps the country each show comes from (the first one TMDB lists for it) and uses it to keep the two apart.
+
+- **A release with a country tag** (`Shameless.UK.S02E03`, `Shameless (US) S01E01`, `The Office US`) only goes to a show from that country. UK and GB are the same, and so are US and USA. A show whose country isn't known yet takes a `US` tag, and any other tag only when the release also carries the show's year.
+- **A release without a tag**, when two shows of that name are in your library, goes to the American one, or to the one you added first if neither is American, never to both. A show that is being searched for (monitored) always comes before one that isn't: if the American show is unmonitored and the British one is monitored, the British one gets the untagged releases. The American-then-first-added rule only decides between shows that are all monitored, or all unmonitored. The show that gives way still gets releases tagged for its country, and releases that carry its own year. This applies to the automatic searches, the RSS feeds and IRC announces. The search results you open yourself on a show's page list every release of that name, tagged or not, so you can still pick one by hand; only a release tagged for another country is left out. Same-name shows that come from the same country are told apart by their year, as before.
+- **In the app**, when two shows in a list share a name, the second part is added to the title: **Shameless (UK)**, or the year when the countries don't tell them apart. This is used in the library, on the show's page, in search results and in the import review. A name only one show has stays as it is.
+- **The country** is read the next time a show is refreshed, or by a background job for shows added before (a few every hour). Until then a show behaves as it did before.
+- **Importing an existing library:** a folder called `Shameless (UK)` or `Shameless UK` is matched to the UK show. A folder without a tag that fits two shows is left for you to pick.
 
 ## Second copies (two qualities of one title)
 
@@ -193,7 +226,7 @@ Each kind of media has a main library folder (Settings > Library > Folders), plu
 - A movie's or show's own page has the same choice, next to the quality profile (administrators). Changing it only decides where the **next** files go; files already in the library stay where they are.
 - Importing, renaming, the recycle bin, the disk space checks, Statistics, the health check and the Radarr and Sonarr compatible root folder list all know about the extra folders. The folders have to be separate from each other and from the main ones, not inside one another.
 - Add every folder to Plex, Jellyfin or Emby as a library of its own.
-- Scripts: `moviesExtraPaths` and `tvExtraPaths` in `PUT /api/settings` (the whole list, sent as it should be saved); `rootPath` in `POST /api/movies` and `POST /api/series`; `PUT /api/movies/{id}/folder` and `PUT /api/series/{id}/folder` with `{"rootPath": "/usb/movies"}`; `GET /api/library/folders` lists what can be chosen (any account). The settings keys are `library.movies_extra_paths` and `library.tv_extra_paths`.
+- Scripts: `moviesExtraPaths` and `tvExtraPaths` in `PUT /api/settings` (the whole list, sent as it should be saved); `rootPath` in `POST /api/movies` and `POST /api/series`; `PUT /api/movies/{id}/folder` and `PUT /api/series/{id}/folder` with `{"rootPath": "/usb/movies"}`; `GET /api/library/folders` lists what can be chosen (any account): administrators get the full paths, everyone else gets a label for each folder (its name, with a number after it when two folders have the same name), and a label is accepted wherever a folder is chosen (`rootPath`). A title's `rootPath` is shown to members as that label too. The settings keys are `library.movies_extra_paths` and `library.tv_extra_paths`.
 
 ### Moving titles to another folder
 

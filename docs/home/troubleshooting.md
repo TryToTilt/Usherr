@@ -27,6 +27,17 @@ importing, unpacking or verifying. A restart part-way through an import can
 leave a finished download unimported, or tidy it away as a leftover.
 **Settings → System → Server** can pause downloads first.
 
+## No sound in the browser
+
+Films with Dolby (E-AC3, Atmos), TrueHD or DTS sound play silently in Chrome
+and Edge. Usherr notices within a few seconds and plays the sound converted
+beside the picture; the picture isn't touched. If it stays silent:
+
+- Check the browser tab isn't muted, and the player's own volume.
+- A file played from the library is converted by Jellyfin when it's
+  connected (**Settings → Connections → Media servers**), else by Usherr.
+- **Play on TV** or the Jellyfin app play these sounds as they are.
+
 ## A stream plays sound but no picture
 
 The release is probably AV1, which some TV boxes (the NVIDIA Shield among

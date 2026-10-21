@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -118,7 +119,7 @@ func queueIDOf(tags string) int64 {
 	return 0
 }
 
-func toClientTorrent(t qbit.Torrent, category string, now time.Time) clientTorrent {
+func toClientTorrent(t qbit.Torrent, categories []string, now time.Time) clientTorrent {
 	stage, text := clientStage(t.State)
 	out := clientTorrent{
 		Hash: t.Hash, Name: t.Name, Stage: stage, StageText: text, Progress: t.Progress * 100, SizeBytes: t.Size,
@@ -126,7 +127,7 @@ func toClientTorrent(t qbit.Torrent, category string, now time.Time) clientTorre
 		Ratio: t.Ratio, Category: t.Category, QueueID: queueIDOf(t.Tags), Downloaded: t.Downloaded, Uploaded: t.Uploaded, SavePath: t.SavePath,
 		CanPause: stage != "paused" && stage != "done", CanResume: stage == "paused" || stage == "done",
 	}
-	out.Mine = out.QueueID > 0 || (category != "" && t.Category == category)
+	out.Mine = out.QueueID > 0 || (t.Category != "" && slices.Contains(categories, t.Category))
 	if t.ETA > 0 && t.ETA < qbitInfinity {
 		out.EtaSeconds = t.ETA
 	}
@@ -152,23 +153,26 @@ func (s *Server) handleClientTorrents(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, out)
 		return
 	}
-	out.Configured, out.Kind, out.Label, out.Category = true, cfg.Kind, qbit.Label(cfg.Kind), cfg.category()
+	out.Configured, out.Kind, out.Label, out.Category = true, cfg.Kind, qbit.Label(cfg.Kind), strings.Join(cfg.allCategories(), ", ")
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
 	c := newDownloadClient(cfg.Kind, cfg.URL, cfg.Username, cfg.Password)
-	category := cfg.category()
-	if r.URL.Query().Get("scope") == "all" {
-		category = ""
-	}
-	list, err := c.List(ctx, category)
+	all := r.URL.Query().Get("scope") == "all"
+	// The client's own filter takes one category, so Mediarium's torrents (the
+	// main category and those of the kinds) are picked out of the whole list.
+	list, err := c.List(ctx, "")
 	if err != nil {
 		out.Error = clientErrorText(out.Label, s.downloadClientError(out.Label, err))
 		writeJSON(w, http.StatusOK, out)
 		return
 	}
 	now := time.Now()
+	cats := cfg.allCategories()
 	for _, t := range list {
-		out.Torrents = append(out.Torrents, toClientTorrent(t, cfg.category(), now))
+		ct := toClientTorrent(t, cats, now)
+		if all || ct.Mine {
+			out.Torrents = append(out.Torrents, ct)
+		}
 	}
 	sort.SliceStable(out.Torrents, func(i, j int) bool {
 		a, b := out.Torrents[i], out.Torrents[j]

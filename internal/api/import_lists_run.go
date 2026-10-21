@@ -19,6 +19,8 @@ import (
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/metadata"
 	"github.com/rdborg/mediarium/internal/plainerror"
+	"github.com/rdborg/mediarium/internal/settings"
+	"github.com/rdborg/mediarium/internal/simkl"
 	"github.com/rdborg/mediarium/internal/trakt"
 )
 
@@ -42,6 +44,7 @@ func (s *Server) setListAgents() {
 	listAgentOnce.Do(func() {
 		agent := "Mediarium/" + s.version + " (+https://mediarium.app)"
 		trakt.UserAgent = agent
+		simkl.UserAgent = agent
 		importlists.UserAgent = agent
 	})
 }
@@ -78,6 +81,8 @@ func listRef(it importlists.Item) string {
 		return fmt.Sprintf("tmdb:%s:%d", kind, it.TMDBID)
 	case it.IMDBID != "":
 		return "imdb:" + it.IMDBID + ":" + kind
+	case it.TVDBID > 0:
+		return fmt.Sprintf("tvdb:%d", it.TVDBID)
 	}
 	return "title:" + importlists.NormalizeTitle(it.Title) + "|" + strconv.Itoa(it.Year) + "|" + kind
 }
@@ -100,6 +105,7 @@ func dedupeListItems(items []importlists.Item) []importlists.Item {
 func listErrorText(err error) string {
 	var rl *importlists.RateLimitError
 	var tl *trakt.RateLimitError
+	var sl *simkl.RateLimitError
 	var se *metadata.StatusError
 	switch {
 	case errors.Is(err, metadata.ErrNoAPIKey):
@@ -110,9 +116,19 @@ func listErrorText(err error) string {
 		return "Add your Trakt client ID first (Settings > Info, lists and subtitles > Import lists)."
 	case errors.Is(err, trakt.ErrInvalidClientID):
 		return "Trakt rejected the client ID. Check it in Settings."
+	case errors.Is(err, simkl.ErrNoClientID):
+		return "Add your Simkl client ID first (Settings > Info, lists and subtitles > Import lists)."
+	case errors.Is(err, simkl.ErrInvalidClientID):
+		return "Simkl rejected the client ID. Check it in Settings."
+	case errors.Is(err, simkl.ErrNotConnected):
+		return "Connect your Simkl account first (Settings > Info, lists and subtitles > Import lists)."
+	case errors.Is(err, simkl.ErrUnauthorized):
+		return "Simkl no longer accepts the saved sign-in. Connect your Simkl account again."
+	case errors.Is(err, errSimklTokenUnreadable):
+		return "The saved Simkl sign-in can't be read. Connect your Simkl account again."
 	case errors.As(err, &se) && se.Code == http.StatusNotFound && strings.HasPrefix(se.Path, "/list/"):
 		return "TMDB has no public list with that number."
-	case errors.As(err, &rl), errors.As(err, &tl),
+	case errors.As(err, &rl), errors.As(err, &tl), errors.As(err, &sl),
 		errors.Is(err, trakt.ErrNotFound), errors.Is(err, trakt.ErrPrivate),
 		errors.Is(err, importlists.ErrBlocked), errors.Is(err, importlists.ErrMDBListKey), errors.Is(err, importlists.ErrNotAList):
 		return sentence(err.Error())
@@ -223,6 +239,32 @@ func (s *Server) fetchListItems(ctx context.Context, l importList) ([]importlist
 			}
 			if it.Kind == "" || wanted[it.Kind] {
 				out = append(out, it)
+			}
+		}
+		return out, nil
+
+	case listSimkl:
+		sc := s.Simkl()
+		if !sc.HasClientID() {
+			return nil, simkl.ErrNoClientID
+		}
+		token, terr := s.Settings.Get(settings.KeySimklToken)
+		if terr != nil {
+			slog.Warn("simkl: the saved sign-in can't be read", "err", terr)
+			return nil, errSimklTokenUnreadable
+		}
+		status := cfg.Status
+		if status == "" {
+			status = simkl.StatusPlanToWatch
+		}
+		media, err := sc.Items(ctx, token, status, s.lists.gap(time.Second))
+		if err != nil {
+			return nil, err
+		}
+		out := make([]importlists.Item, 0, len(media))
+		for _, m := range media {
+			if wanted[m.Kind] {
+				out = append(out, importlists.Item{Kind: m.Kind, TMDBID: m.TMDBID, IMDBID: m.IMDBID, TVDBID: m.TVDBID, Title: m.Title, Year: m.Year})
 			}
 		}
 		return out, nil
@@ -632,7 +674,18 @@ func (s *Server) resolveListItem(ctx context.Context, it importlists.Item, media
 		case showID > 0:
 			return "tv", showID, nil
 		}
-		return kind, 0, nil
+		if it.TVDBID == 0 { // a show that also has a TheTVDB id is tried that way next
+			return kind, 0, nil
+		}
+	}
+	if it.TVDBID > 0 && kind != "movie" {
+		showID, err := tm.FindShowByTVDB(ctx, it.TVDBID)
+		if err != nil {
+			return "", 0, err
+		}
+		if showID > 0 && wantedKinds(media)["tv"] {
+			return "tv", showID, nil
+		}
 	}
 	if strings.TrimSpace(it.Title) == "" {
 		return kind, 0, nil

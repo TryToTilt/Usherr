@@ -208,3 +208,25 @@ func TestTitleKeyDropsAnyAccentAndKeepsOtherLetters(t *testing.T) {
 		}
 	}
 }
+
+func TestTitleKeyReadsAmpersandsAndTheirEntity(t *testing.T) {
+	want := "tom and jerry"
+	for _, in := range []string{
+		"Tom & Jerry", "Tom &amp; Jerry", "Tom &AMP; Jerry", "Tom and Jerry",
+		"Tom&Jerry", "Tom.&.Jerry", "Tom.&amp;.Jerry", "tom_and_jerry",
+	} {
+		if got := metadata.TitleKey(in); got != want {
+			t.Errorf("TitleKey(%q) = %q, want %q", in, got, want)
+		}
+	}
+	// A name with an ampersand inside a word keeps both sides.
+	for in, want := range map[string]string{
+		"R&B Divas":       "r and b divas",
+		"AT&amp;T Story":  "at and t story",
+		"Law &amp; Order": "law and order",
+	} {
+		if got := metadata.TitleKey(in); got != want {
+			t.Errorf("TitleKey(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

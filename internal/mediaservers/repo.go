@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/crypto"
@@ -91,6 +92,19 @@ func (r *Repo) Update(s Server) (Server, error) {
 	if old.Kind != s.Kind || old.BaseURL != s.BaseURL || old.Token != s.Token {
 		serverID, lastErr, checked = "", "", sql.NullString{}
 	}
+	if old.SecretUnreadable && s.Token == "" {
+		// The saved token can't be read, so there is nothing to carry over: it is
+		// left in the database as it is rather than replaced by an empty one.
+		_, err = r.db.Exec(
+			`UPDATE media_servers SET name = ?, kind = ?, base_url = ?, public_url = ?, enabled = ?,
+			 refresh_after_import = ?, path_map = ?, server_id = ?, last_error = ?, last_checked_at = ? WHERE id = ?`,
+			s.Name, string(s.Kind), s.BaseURL, s.PublicURL, s.Enabled, s.RefreshAfterImport, pm, serverID, lastErr, checked, s.ID,
+		)
+		if err != nil {
+			return Server{}, fmt.Errorf("update media server %d: %w", s.ID, err)
+		}
+		return r.Get(s.ID)
+	}
 	_, err = r.db.Exec(
 		`UPDATE media_servers SET name = ?, kind = ?, base_url = ?, public_url = ?, token_encrypted = ?, enabled = ?,
 		 refresh_after_import = ?, path_map = ?, server_id = ?, last_error = ?, last_checked_at = ? WHERE id = ?`,
@@ -132,8 +146,25 @@ func (r *Repo) Get(id int64) (Server, error) {
 	return s, err
 }
 
-// List returns every server in the order they were added.
+// List returns the servers that can be used, in the order they were added: a
+// server whose saved token can't be read is left out (see ListAll).
 func (r *Repo) List() ([]Server, error) {
+	all, err := r.ListAll()
+	if err != nil {
+		return nil, err
+	}
+	out := all[:0]
+	for _, s := range all {
+		if !s.SecretUnreadable {
+			out = append(out, s)
+		}
+	}
+	return out, nil
+}
+
+// ListAll returns every server in the order they were added, those whose
+// saved token can't be read included (flagged with SecretUnreadable).
+func (r *Repo) ListAll() ([]Server, error) {
 	rows, err := r.db.Query(`SELECT ` + serverColumns + ` FROM media_servers ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("list media servers: %w", err)
@@ -184,9 +215,11 @@ func (r *Repo) scan(sc scanner) (Server, error) {
 	if tok != "" {
 		plain, err := r.box.Decrypt(tok)
 		if err != nil {
-			return Server{}, fmt.Errorf("decrypt token for media server %d: %w", s.ID, err)
+			s.SecretUnreadable = true
+			slog.Warn("media server: the saved token can't be read", "server", s.ID)
+		} else {
+			s.Token = plain
 		}
-		s.Token = plain
 	}
 	if pm != "" {
 		if err := json.Unmarshal([]byte(pm), &s.PathMap); err != nil {

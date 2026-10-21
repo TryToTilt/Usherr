@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -35,22 +34,6 @@ func hasEbook(b books.Book) bool {
 // books once they are turned into EPUB. PDFs stay out (a Kobo reads those from
 // a cable, not through sync).
 func koboKind(ext string) bool { return ext == "epub" || kindleFormat(ext) }
-
-// ebookBooks lists the books that have an ebook, oldest first by number.
-func (s *Server) ebookBooks() ([]books.Book, error) {
-	all, err := s.BookRepo.List()
-	if err != nil {
-		return nil, err
-	}
-	out := make([]books.Book, 0, len(all))
-	for _, b := range all {
-		if hasEbook(b) {
-			out = append(out, b)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out, nil
-}
 
 // openEbook opens a book's file the way the reader does: it has to be inside
 // the ebooks folder.

@@ -101,7 +101,7 @@ func rarSingle(entries ...rarEntry) []byte {
 }
 
 // rarSplit builds one file spread over len(names) volumes and writes them.
-func rarSplit(t *testing.T, dir string, names []string, newNaming bool, e rarEntry) {
+func rarSplit(t testing.TB, dir string, names []string, newNaming bool, e rarEntry) {
 	t.Helper()
 	n := len(names)
 	chunk := (len(e.data) + n - 1) / n
@@ -129,7 +129,7 @@ func rarSplit(t *testing.T, dir string, names []string, newNaming bool, e rarEnt
 	}
 }
 
-func writeTestFile(t *testing.T, path string, data []byte) {
+func writeTestFile(t testing.TB, path string, data []byte) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)

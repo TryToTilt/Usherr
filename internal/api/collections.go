@@ -142,6 +142,7 @@ func (s *Server) handleGetCollection(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	payload.FollowRootPath = folderShown(r, s.movieFolders(), payload.FollowRootPath)
 	writeJSON(w, http.StatusOK, payload)
 }
 
@@ -363,7 +364,7 @@ func collectionAddMessage(r addCollectionResult, name string) string {
 	var msg string
 	switch {
 	case r.Added == 0 && len(r.Failed) == 0:
-		msg = "Everything in the " + name + " is in your library already."
+		msg = fmt.Sprintf("Everything in the %s is in your library already.", name)
 	case r.Added == 0:
 		msg = "Nothing was added."
 	default:
@@ -440,6 +441,7 @@ func (s *Server) handleFollowCollection(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	payload.FollowRootPath = folderShown(r, s.movieFolders(), payload.FollowRootPath)
 	writeJSON(w, http.StatusOK, payload)
 }
 
