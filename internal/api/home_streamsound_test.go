@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/rdborg/mediarium/internal/mediaservers"
 )
 
 func TestPickStreamAudio(t *testing.T) {
@@ -141,5 +143,47 @@ func TestDeviceProfileKeepsTheBest(t *testing.T) {
 	tp = browserCaps{}.deviceProfile()["TranscodingProfiles"].([]map[string]any)[0]
 	if tp["Container"] != "ts" || tp["VideoCodec"] != "h264" {
 		t.Errorf("a browser without HEVC gets H.264: %v", tp)
+	}
+}
+
+func TestReleaseSound(t *testing.T) {
+	cases := []struct{ release, sound, chans string }{
+		{"Star.Wars.1977.2160p.UHD.BluRay.REMUX.HEVC.HDR10.10bit.TrueHD.7.1.Multi", "TrueHD", "7.1"},
+		{"Dune.Part.Two.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265", "Dolby Atmos", "5.1"},
+		{"Show.S01E01.1080p.WEB.h264-GRP", "", ""},
+		{"Film.2020.1080p.BluRay.DTS-HD.MA.5.1.x264", "DTS-HD MA", "5.1"},
+		{"Film.2020.1080p.AMZN.WEB-DL.DD+.2.0.H.264", "Dolby Digital+", "Stereo"},
+	}
+	for _, c := range cases {
+		if s, ch := releaseSound(c.release); s != c.sound || ch != c.chans {
+			t.Errorf("releaseSound(%q) = %q %q, want %q %q", c.release, s, ch, c.sound, c.chans)
+		}
+	}
+}
+
+// The media info's codec names read as the right sound.
+func TestMediaInfoSound(t *testing.T) {
+	cases := []struct {
+		codec, title string
+		atmos        bool
+		ch           int
+		want         string
+	}{
+		{"TrueHD", "", true, 8, "Dolby Atmos"},
+		{"TrueHD", "", false, 8, "TrueHD"},
+		{"E-AC-3", "", false, 6, "Dolby Digital+"},
+		{"E-AC-3", "", true, 6, "Dolby Atmos"},
+		{"DTS-HD MA", "DTS:X 7.1", false, 8, "DTS:X"},
+		{"DTS-HD MA", "", false, 6, "DTS-HD MA"},
+		{"AC-3", "", false, 6, "Dolby Digital"},
+	}
+	for _, c := range cases {
+		about := c.codec + " " + c.title
+		if c.atmos {
+			about += " atmos"
+		}
+		if got, _ := mediaservers.SoundLabel(mediaInfoCodec(c.codec), about, c.ch); got != c.want {
+			t.Errorf("%s %q atmos=%v: %q, want %q", c.codec, c.title, c.atmos, got, c.want)
+		}
 	}
 }

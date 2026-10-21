@@ -218,7 +218,7 @@ func SearchAll(ctx context.Context, instances []Instance, query string, categori
 			}()
 			timeout := FeedWait(inst.BaseURL)
 			if inst.IsCardigann() {
-				timeout = cardigannTimeout
+				timeout = inst.Cardigann.SearchBudget()
 			}
 			// One search after another on an indexer, never a burst.
 			if err := inst.Tracker.Pace(ctx, inst.ID, inst.Tracker.SearchGap(inst.ID)); err != nil {

@@ -40,6 +40,7 @@ type Event struct {
 	PosterURL   string   // a hosted poster image, or empty
 	LinkURL     string   // where the title is in Mediarium, or empty
 	SettingsURL string   // the notification settings in Mediarium, or empty
+	Subtitles   string   // for an import: where the subtitles stand, or empty when subtitles are off
 }
 
 // rich reports whether the event carries the structure Compose adds.
@@ -268,6 +269,9 @@ func (s *WebhookSender) Send(ctx context.Context, event Event) error {
 		}
 		if event.PosterURL != "" {
 			payload["poster"] = event.PosterURL
+		}
+		if event.Subtitles != "" {
+			payload["subtitles"] = event.Subtitles
 		}
 	}
 	return doJSONPost(ctx, s.Client, s.URL, payload)

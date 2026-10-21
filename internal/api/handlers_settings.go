@@ -40,6 +40,10 @@ type settingsPayload struct {
 	MovieNameFormat   string  `json:"movieNameFormat"`
 	// EpisodeNameFormat is the custom file name format for episodes.
 	EpisodeNameFormat string `json:"episodeNameFormat"`
+	// MovieFolderFormat and SeriesFolderFormat name the folder a new movie or
+	// show gets (Custom style only); empty keeps the usual "Title (Year)".
+	MovieFolderFormat  string `json:"movieFolderFormat"`
+	SeriesFolderFormat string `json:"seriesFolderFormat"`
 	// KeepOriginalNames keeps the file name an imported video came with
 	// (folders are still named by the preset). A pointer so an omitted field
 	// leaves it alone.
@@ -337,6 +341,8 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	namingPreset, _ := s.Settings.Get(settings.KeyNamingPreset)
 	movieFormat, _ := s.Settings.Get(settings.KeyMovieNameFormat)
 	episodeFormat, _ := s.Settings.Get(settings.KeyEpisodeNameFormat)
+	movieFolderFormat, _ := s.Settings.Get(settings.KeyMovieFolderFormat)
+	seriesFolderFormat, _ := s.Settings.Get(settings.KeySeriesFolderFormat)
 	keepOriginalNames := s.keepOriginalNames()
 	onboardingDone, _ := s.Settings.GetBool(settings.KeyOnboardingDone)
 	torrentPort := strconv.Itoa(s.torrentListenPort()) // the port in use, 58264 unless changed
@@ -418,6 +424,8 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 		NamingPreset:             namingPreset,
 		MovieNameFormat:          movieFormat,
 		EpisodeNameFormat:        episodeFormat,
+		MovieFolderFormat:        movieFolderFormat,
+		SeriesFolderFormat:       seriesFolderFormat,
 		KeepOriginalNames:        &keepOriginalNames,
 		HasTMDBAPIKey:            s.TMDB().HasAPIKey(),
 		OnboardingDone:           onboardingDone,
@@ -703,6 +711,8 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		{settings.KeyNamingPreset, req.NamingPreset},
 		{settings.KeyMovieNameFormat, req.MovieNameFormat},
 		{settings.KeyEpisodeNameFormat, req.EpisodeNameFormat},
+		{settings.KeyMovieFolderFormat, req.MovieFolderFormat},
+		{settings.KeySeriesFolderFormat, req.SeriesFolderFormat},
 		{settings.KeyTorrentListenPort, req.TorrentListenPort},
 		{settings.KeyTorrentSeedRatioLimit, req.TorrentSeedRatioLimit},
 		{settings.KeyTorrentSeedTimeLimitH, req.TorrentSeedTimeLimitH},
@@ -1273,6 +1283,15 @@ func (s *Server) handleNamingPreview(w http.ResponseWriter, r *http.Request) {
 	}
 	format := r.URL.Query().Get("format")
 	problem := ""
+	folderFormat := r.URL.Query().Get("folder")
+	if folderFormat == "" {
+		folderFormat = organizer.DefaultMovieFolder
+		if tv {
+			folderFormat = organizer.DefaultSeriesFolder
+		}
+	} else {
+		problem = organizer.CheckFolderFormat(folderFormat, kind)
+	}
 	if format == "" {
 		if preset, ok := presets[r.URL.Query().Get("preset")]; ok {
 			format = preset
@@ -1280,11 +1299,13 @@ func (s *Server) handleNamingPreview(w http.ResponseWriter, r *http.Request) {
 			format = presets["plex"]
 		}
 	} else {
-		problem = organizer.CheckFormat(format, kind)
+		if m := organizer.CheckFormat(format, kind); m != "" {
+			problem = m
+		}
 	}
 	mode, replacement := s.illegalCharSettings()
 	clean := func(f string) string { return organizer.Sanitize(organizer.Render(f, sample), mode, replacement) }
-	out := namingPreviewPayload{Folder: clean(organizer.Presets["plex"]), Filename: clean(format) + ".mkv", Problem: problem}
+	out := namingPreviewPayload{Folder: clean(folderFormat), Filename: clean(format) + ".mkv", Problem: problem}
 	if r.URL.Query().Get("keep") == "1" {
 		// "Keep the original file names": the sample file keeps its own name.
 		if name, ok := organizer.OriginalName(sample.OriginalFilename+".mkv", mode, replacement); ok {
@@ -1292,7 +1313,7 @@ func (s *Server) handleNamingPreview(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if tv {
-		out.Folder = clean(organizer.TVSeriesFolder) + "/" + clean(organizer.TVSeasonFolder)
+		out.Folder = clean(folderFormat) + "/" + clean(organizer.TVSeasonFolder)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -1300,7 +1321,7 @@ func (s *Server) handleNamingPreview(w http.ResponseWriter, r *http.Request) {
 // handleNamingTokens lists the tokens a custom format can use and the
 // ready-made formats to start from, for the builder in Settings.
 func (s *Server) handleNamingTokens(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"tokens": organizer.Tokens(), "schemes": organizer.Schemes})
+	writeJSON(w, http.StatusOK, map[string]any{"tokens": organizer.Tokens(), "schemes": organizer.Schemes, "folderSchemes": organizer.FolderSchemes})
 }
 
 // nearestExisting walks up from path to the closest folder that exists, and

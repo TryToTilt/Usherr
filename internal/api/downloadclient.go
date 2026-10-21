@@ -624,6 +624,10 @@ next:
 // are symlinks (Decypharr), which the library's new links still need, or the
 // torrent was in the client before Mediarium asked for it.
 func (s *Server) afterClientImport(dir string) {
+	if id := readUsenetJob(dir); id != "" {
+		s.afterUsenetImport(id)
+		return
+	}
 	cfg := s.downloadClientConfig()
 	if !cfg.RemoveAfterImport || !s.downloadClientOn() {
 		return

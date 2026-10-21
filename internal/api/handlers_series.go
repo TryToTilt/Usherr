@@ -58,6 +58,9 @@ type seriesPayload struct {
 	// ShowStatus is where the show stands: "ended", "continuing" or "upcoming"
 	// (from TMDB); left out until the show has been refreshed once.
 	ShowStatus string `json:"showStatus,omitempty"`
+	// Media is what the downloaded episodes' files hold: the different values
+	// across the show, for the Library's filters (see media_info.go).
+	Media *mediaSummaryPayload `json:"media,omitempty"`
 	// OriginCountry is where TMDB says the show comes from ("US", "GB"); empty
 	// until the show is refreshed. NameTag is what tells the show apart from
 	// another show of the same name in the library ("US", "UK" or the year),
@@ -108,6 +111,9 @@ type episodePayload struct {
 	Monitored bool   `json:"monitored"`
 	// SizeBytes is the size of the episode's file on disk (downloaded episodes only).
 	SizeBytes int64 `json:"sizeBytes,omitempty"`
+	// FileInfo is what the episode's file holds: video, audio and subtitle
+	// tracks. Left out until the file has been read.
+	FileInfo *fileInfoPayload `json:"fileInfo,omitempty"`
 }
 
 func toEpisodePayload(e library.Episode) episodePayload {
@@ -175,8 +181,10 @@ func (s *Server) handleListSeries(w http.ResponseWriter, r *http.Request) {
 	out := make([]seriesPayload, len(list))
 	tvFolders := s.tvFolders()
 	nameTags := sameNameTags(list)
+	media := s.mediaSummaryNow().series
 	for i, sr := range list {
 		out[i] = toSeriesPayload(sr, who)
+		out[i].Media = mediaSummaryOf(media[sr.ID]...)
 		out[i].RootPath = folderShown(r, tvFolders, sr.RootPath)
 		out[i].NameTag = nameTags[sr.ID]
 		if brief {
@@ -225,8 +233,12 @@ func (s *Server) handleGetSeries(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now()
 	var files []string
+	fileInfos, _ := s.MovieRepo.EpisodeMediaInfo(id)
 	for i, e := range eps {
 		out.Episodes[i] = toEpisodePayload(e)
+		if row, ok := fileInfos[e.ID]; ok && e.Status == library.StatusDownloaded {
+			out.Episodes[i].FileInfo = fileInfoOf(row)
+		}
 		out.Episodes[i].FilePath = fileLabel(r, e.FilePath)
 		if e.Status == library.StatusDownloaded {
 			out.Episodes[i].SizeBytes = cachedFileSize(e.FilePath, now)

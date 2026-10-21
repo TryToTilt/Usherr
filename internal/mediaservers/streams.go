@@ -3,6 +3,7 @@ package mediaservers
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -62,6 +63,7 @@ type Playing struct {
 	HDR        string   `json:"hdr,omitempty"`        // "Dolby Vision", "HDR10+", "HDR10" or "HLG"
 	Audio      string   `json:"audio,omitempty"`      // "Dolby Atmos", "DTS:X", "TrueHD", "DTS-HD MA", "Dolby Digital+", ...
 	Channels   string   `json:"channels,omitempty"`   // "7.1", "5.1", "Stereo"
+	Aspect     string   `json:"aspect,omitempty"`     // Usherr: "2.39:1", "1.85:1", "16:9"
 	Overview   string   `json:"overview,omitempty"`
 	Genres     []string `json:"genres,omitempty"`
 	Rated      string   `json:"rated,omitempty"`
@@ -100,16 +102,7 @@ func describeStreams(p *Playing, streams []mediaStream, audioIndex int) {
 		}
 	}
 	if video != nil {
-		switch h, w := video.Height, video.Width; {
-		case w >= 3200 || h >= 2000:
-			p.Resolution = "4K"
-		case w >= 1700 || h >= 1000:
-			p.Resolution = "1080p"
-		case w >= 1200 || h >= 700:
-			p.Resolution = "720p"
-		case w > 0:
-			p.Resolution = "SD"
-		}
+		p.Resolution = ResolutionLabel(video.Width, video.Height)
 		switch r := strings.ToUpper(video.VideoRangeType); {
 		case strings.HasPrefix(r, "DOVI"):
 			p.HDR = "Dolby Vision"
@@ -120,37 +113,94 @@ func describeStreams(p *Playing, streams []mediaStream, audioIndex int) {
 		case r == "HLG":
 			p.HDR = "HLG"
 		}
+		p.Aspect = AspectLabel(float64(video.Width), float64(video.Height))
 	}
 	if audio != nil {
-		all := strings.ToLower(audio.DisplayTitle + " " + audio.Profile)
-		codec := strings.ToLower(audio.Codec)
-		switch {
-		case strings.Contains(all, "atmos"):
-			p.Audio = "Dolby Atmos"
-		case strings.Contains(all, "dts:x") || strings.Contains(all, "dts-x"):
-			p.Audio = "DTS:X"
-		case codec == "truehd":
-			p.Audio = "TrueHD"
-		case codec == "dts" && (strings.Contains(all, "ma") || strings.Contains(all, "hd")):
-			p.Audio = "DTS-HD MA"
-		case codec == "dts":
-			p.Audio = "DTS"
-		case codec == "eac3":
-			p.Audio = "Dolby Digital+"
-		case codec == "ac3":
-			p.Audio = "Dolby Digital"
-		case codec == "flac":
-			p.Audio = "FLAC"
-		}
-		switch c := audio.Channels; {
-		case c >= 8:
-			p.Channels = "7.1"
-		case c >= 6:
-			p.Channels = "5.1"
-		case c == 2:
-			p.Channels = "Stereo"
+		p.Audio, p.Channels = SoundLabel(audio.Codec, audio.DisplayTitle+" "+audio.Profile, audio.Channels)
+	}
+}
+
+// ResolutionLabel is "4K", "1080p", "720p", "SD" or "" for a picture's size.
+func ResolutionLabel(w, h int) string {
+	switch {
+	case w >= 3200 || h >= 2000:
+		return "4K"
+	case w >= 1700 || h >= 1000:
+		return "1080p"
+	case w >= 1200 || h >= 700:
+		return "720p"
+	case w > 0:
+		return "SD"
+	}
+	return ""
+}
+
+// SoundLabel names a sound track ("Dolby Atmos", "DTS:X", "TrueHD", "DTS-HD
+// MA", "Dolby Digital+", ...) and its channels ("7.1", "5.1", "Stereo") from
+// its codec, what it says about itself (profile, title) and its channel count.
+func SoundLabel(codec, about string, channels int) (sound, chans string) {
+	all := strings.ToLower(about)
+	codec = strings.ToLower(codec)
+	switch {
+	case strings.Contains(all, "atmos"):
+		sound = "Dolby Atmos"
+	case strings.Contains(all, "dts:x") || strings.Contains(all, "dts-x"):
+		sound = "DTS:X"
+	case codec == "truehd":
+		sound = "TrueHD"
+	case codec == "dts" && (strings.Contains(all, "ma") || strings.Contains(all, "hd")):
+		sound = "DTS-HD MA"
+	case codec == "dts":
+		sound = "DTS"
+	case codec == "eac3":
+		sound = "Dolby Digital+"
+	case codec == "ac3":
+		sound = "Dolby Digital"
+	case codec == "flac":
+		sound = "FLAC"
+	}
+	switch {
+	case channels >= 8:
+		chans = "7.1"
+	case channels >= 6:
+		chans = "5.1"
+	case channels == 2:
+		chans = "Stereo"
+	case channels == 1:
+		chans = "Mono"
+	}
+	return sound, chans
+}
+
+// aspects are the shapes films are made in, as they're usually written.
+var aspects = []struct {
+	r     float64
+	label string
+}{
+	{1.33, "4:3"}, {1.375, "1.37:1"}, {1.43, "1.43:1"}, {1.66, "1.66:1"}, {1.78, "16:9"}, {1.85, "1.85:1"},
+	{1.90, "1.90:1"}, {2.0, "2:1"}, {2.2, "2.20:1"}, {2.39, "2.39:1"}, {2.55, "2.55:1"}, {2.76, "2.76:1"},
+}
+
+// AspectLabel names a picture's shape from its width and height ("2.39:1",
+// "1.85:1", "16:9"): the nearest usual one, else the ratio itself.
+func AspectLabel(w, h float64) string {
+	if w <= 0 || h <= 0 {
+		return ""
+	}
+	r := w / h
+	best, diff := "", 1.0
+	for _, a := range aspects {
+		if d := math.Abs(r-a.r) / a.r; d < diff {
+			best, diff = a.label, d
 		}
 	}
+	if r >= 2.3 && r <= 2.45 { // 2.35, 2.39 and 2.40 are all "scope"
+		return "2.39:1"
+	}
+	if diff <= 0.025 {
+		return best
+	}
+	return strconv.FormatFloat(math.Round(r*100)/100, 'f', 2, 64) + ":1"
 }
 
 // NowPlaying lists what Jellyfin or Emby is playing right now. Other servers

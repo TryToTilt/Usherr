@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/url"
 	"sort"
+	"strings"
 )
 
 // Genre is one entry of TMDB's genre tables.
@@ -255,6 +256,7 @@ type MovieDetail struct {
 				Certification string `json:"certification"`
 				Type          int    `json:"type"`
 				Date          string `json:"release_date"`
+				Note          string `json:"note"` // Usherr: "IMAX", "Dolby Cinema", "70mm"...
 			} `json:"release_dates"`
 		} `json:"results"`
 	} `json:"release_dates"`
@@ -276,6 +278,44 @@ func (c *Client) GetMovieDetail(ctx context.Context, tmdbID int) (*MovieDetail, 
 	}
 	c.pages.put(key, &d)
 	return &d, nil
+}
+
+// cinemaFormatWords are what TMDB's release notes say about how a film was
+// shown, in the order they're listed (Usherr).
+var cinemaFormatWords = []struct{ word, label string }{
+	{"imax 70", "IMAX 70mm"}, {"imax", "IMAX"}, {"dolby cinema", "Dolby Cinema"}, {"dolby vision", "Dolby Cinema"},
+	{"70mm", "70mm"}, {"70 mm", "70mm"}, {"35mm", "35mm"}, {"35 mm", "35mm"},
+	{"4dx", "4DX"}, {"screenx", "ScreenX"}, {"3d", "3D"},
+}
+
+// CinemaFormats are the premium formats the film was shown in, as TMDB's
+// release notes name them ("IMAX", "Dolby Cinema", "70mm"); empty when they
+// say nothing (Usherr).
+func (d *MovieDetail) CinemaFormats() []string {
+	have := map[string]bool{}
+	for _, r := range d.ReleaseDates.Results {
+		for _, x := range r.ReleaseDates {
+			n := strings.ToLower(x.Note)
+			for _, w := range cinemaFormatWords {
+				if !strings.Contains(n, w.word) {
+					continue
+				}
+				if w.label == "IMAX" && have["IMAX 70mm"] {
+					continue
+				}
+				have[w.label] = true
+			}
+		}
+	}
+	out := []string{}
+	seen := map[string]bool{}
+	for _, w := range cinemaFormatWords {
+		if have[w.label] && !seen[w.label] && !(w.label == "IMAX" && have["IMAX 70mm"]) {
+			seen[w.label] = true
+			out = append(out, w.label)
+		}
+	}
+	return out
 }
 
 // Directors are the people credited as director, at most three.

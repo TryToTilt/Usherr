@@ -10,7 +10,17 @@ import { Sign } from './marqueeParts'
 
 // ---- Badges: what the picture and the sound are. ----
 export function Badges({ p }: { p: Playing }) {
-  const list = [p.resolution, p.hdr, p.audio, p.audio ? undefined : p.channels].filter(Boolean) as string[]
+  const list = [...(p.formats ?? []), p.resolution, p.hdr, p.aspect, p.audio, p.channels].filter(Boolean) as string[]
+  return <BadgeRow list={list} />
+}
+
+// FormatBadges are how cinemas showed a film (IMAX, Dolby Cinema, 70mm), for
+// a film that isn't playing.
+export function FormatBadges({ formats }: { formats?: string[] }) {
+  return <BadgeRow list={formats ?? []} />
+}
+
+function BadgeRow({ list }: { list: string[] }) {
   if (!list.length) return null
   return (
     <div className="mqx-badges">
@@ -207,7 +217,7 @@ export function TriviaView({ f, fact, header }: { f: Feature; fact: string; head
 }
 
 // ---- Your slides and pre-show pieces. ----
-export function MediaSlide({ m, sound, onEnd, header }: { m: MediaItem; sound: boolean; onEnd: () => void; header?: boolean }) {
+export function MediaSlide({ m, sound, onEnd, header, fit }: { m: MediaItem; sound: boolean; onEnd: () => void; header?: boolean; fit?: MarqueeSettings['trailerFit'] }) {
   const done = useRef(onEnd)
   useEffect(() => {
     done.current = onEnd
@@ -230,7 +240,7 @@ export function MediaSlide({ m, sound, onEnd, header }: { m: MediaItem; sound: b
     case 'video':
       return (
         <div className="lk lk-x lk-media">
-          <video className="mqx-media-fill contain" src={m.fileUrl} autoPlay muted={!sound} playsInline onEnded={() => done.current()} onError={() => done.current()} />
+          <video className={`mqx-media-fill${fit === 'fill' ? '' : ' contain'}`} src={m.fileUrl} autoPlay muted={!sound} playsInline onEnded={() => done.current()} onError={() => done.current()} />
         </div>
       )
     case 'web':
@@ -339,7 +349,7 @@ function Piece({ piece, onEnd }: { piece: PreShowPiece; onEnd: () => void }) {
   }
 }
 
-function TrailerStep({ f, sound, seconds, onEnd }: { f: Feature; sound: boolean; seconds: number; onEnd: () => void }) {
+function TrailerStep({ f, sound, seconds, onEnd, fit = 'letterbox' }: { f: Feature; sound: boolean; seconds: number; onEnd: () => void; fit?: MarqueeSettings['trailerFit'] }) {
   const done = useRef(onEnd)
   useEffect(() => {
     done.current = onEnd
@@ -350,9 +360,11 @@ function TrailerStep({ f, sound, seconds, onEnd }: { f: Feature; sound: boolean;
   }, [seconds])
   const q = new URLSearchParams({ autoplay: '1', mute: sound ? '0' : '1', controls: '0', rel: '0', modestbranding: '1', playsinline: '1', iv_load_policy: '3', origin: window.location.origin })
   return (
-    <div className="lk lk-x ps ps-trailer">
-      <div className="lk-video">
-        <iframe referrerPolicy="strict-origin-when-cross-origin" src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(f.trailer ?? '')}?${q}`} title={f.title} allow="autoplay; encrypted-media" />
+    <div className={`lk lk-x ps ps-trailer tf-${fit}`}>
+      <div className="ps-trailer-box lk-fit">
+        <div className={`lk-video tf-${fit}`}>
+          <iframe referrerPolicy="strict-origin-when-cross-origin" src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(f.trailer ?? '')}?${q}`} title={f.title} allow="autoplay; encrypted-media" />
+        </div>
       </div>
       <p className="lk-meta">{f.title}</p>
     </div>
@@ -391,9 +403,9 @@ export function PreShow({ data, set, sound, trailerSeconds, onDone }: { data: Da
     case 'piece':
       return <Piece key={i} piece={step.piece} onEnd={next} />
     case 'media':
-      return <MediaSlide key={i} m={step.m} sound={sound} onEnd={next} />
+      return <MediaSlide key={i} m={step.m} sound={sound} onEnd={next} fit={set.trailerFit} />
     default:
-      return <TrailerStep key={i} f={step.f} sound={sound} seconds={Math.min(trailerSeconds, 150)} onEnd={next} />
+      return <TrailerStep key={i} f={step.f} sound={sound} seconds={Math.min(trailerSeconds, 150)} onEnd={next} fit={set.trailerFit} />
   }
 }
 

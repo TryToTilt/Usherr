@@ -135,7 +135,7 @@ func (s *Server) collectHealth() []healthItem {
 	}
 
 	servers, _ := s.ClientRepo.ListAll() // a server with an unreadable password is named on its own Health item
-	if usenetIndexers > 0 && len(servers) == 0 {
+	if usenetIndexers > 0 && len(servers) == 0 && !s.usenetClientOn() {
 		addHealth("no-usenet-server", "warn", "No Usenet provider added",
 			"Your Usenet indexer finds releases but there's nowhere to download them from. Add your provider's news server.",
 			"Add your provider", "/settings/usenet")

@@ -112,7 +112,7 @@ After the download is repaired and unpacked (as for movies), Mediarium finds the
 <music folder>/<Artist>/<Album> (<Year>)/2-01 - Title.flac      albums with several discs
 ```
 
-Plex, Jellyfin and Navidrome all read this layout. Files are hardlinked from the downloads folder when both are on the same disk (no extra space), otherwise copied. `cover.jpg` and `folder.jpg` (or `.png`) are kept beside the tracks. Other files (`.nfo`, `.log`, `.cue`) aren't copied.
+Plex, Jellyfin and Navidrome all read this layout. Files are hardlinked from the downloads folder when both are on the same disk (no extra space), otherwise copied. `cover.jpg` and `folder.jpg` (or `.png`, or `.webp`) are kept beside the tracks. Other files (`.nfo`, `.log`, `.cue`) aren't copied.
 
 Files are matched by disc and track number first (from the file name, or a `CD1`/`Disc 2` folder), then by title, then by number alone. If none of a release's files can be matched, the release is blocklisted as bad and the next-best one is tried, as for movies. Tracks the release doesn't have, and extra files it has, are listed in the album's activity. When an album is upgraded (MP3 to FLAC), the old files are removed once the new ones are in place.
 
@@ -269,6 +269,21 @@ If your music is already in the music folder as `Artist/Album/tracks` (a year in
 
 `GET /api/music/import/scan/{id}` answers `{id, root, phase: "scanning"|"matching"|"done"|"failed"|"stopped", done, total, current, summary: {artists, albums, imported, already, unmatched, failed}, results: [{artist, album, folder, files, status: "imported"|"already"|"unmatched"|"failed", message, note, artistId, albumId, quality, tracks}], error?}`. `GET /api/music/import/scan` answers the latest scan the same way (`{"id": ""}` when none has run since the server started), and `DELETE /api/music/import/scan/{id}` stops a running one. Starting a scan while one is running returns the running one.
 
+## Rescanning an album's folder and deleting a file
+
+The import above skips albums that are already in your library. When you change an album's folder by hand (you copy in the tracks that are missing, replace a damaged file, or remove one), press **Rescan album folder** on the album's card (administrators only). Mediarium reads the audio files in the album's folder again and matches them to the album's tracks the same way the import and a download do: by the tags, the track numbers and the titles. Then:
+
+- A track that now has a file is linked to it, where the file lies. Nothing is moved, renamed or deleted.
+- A track whose file is gone from the folder loses its link.
+- The album's quality is read from the files again (the lowest one among them), and the album's status follows: **downloaded** while at least one track has a file, **missing** (wanted again, if it is monitored) when no audio file is left.
+- Files that fit no track are counted and left alone.
+
+The card then says how many tracks have a file, which ones are missing, and the quality. If the album is still incomplete and monitored, it says so and offers **Search for missing tracks**, which searches right away and accepts any release your profile allows, not only an upgrade over what is there. An album that isn't monitored says that Mediarium won't look for the rest. Automatic searches don't go looking for albums that are only partly there, so use that button, or **Choose a release**, when you want the rest.
+
+In the album's **Files** tab, **Delete file** (administrators only) asks first and then removes that one file from the album's folder. It goes to the recycle bin when that is on, and is deleted otherwise. Only a file inside the album's folder, which must lie inside the music folder, can be removed: no `../`, no absolute paths, no link leading out. The track that used the file loses its link, the album's quality and status are worked out again (the album is wanted again when no audio file is left), and the card says what is left. A file can't be deleted while its album is downloading.
+
+`POST /api/music/albums/{id}/rescan` and `DELETE /api/music/albums/{id}/files?path=<relative path>` (both administrators only) answer with `{status, quality, folder, files, tracks, matched, linked, dropped, extra, complete, missingTitles, monitored}`; the deletion also has `deleted` (the path) and `trashed`. `matched` is the number of tracks with a file, `linked` how many of them this rescan linked, `dropped` how many links it removed because the file is gone, `extra` the files that fit no track, and `missingTitles` the first 25 tracks without a file. A rescan of an album that is downloading answers 409.
+
 ## Removing an artist
 
 Removing an artist (administrators) always cancels its downloads and deletes their files in the downloads folder. With **Delete files** its album folders in the music folder go too, and the artist folder once it's empty. Nothing outside the music folder is ever deleted.
@@ -297,6 +312,8 @@ Album, artist and release information, cover art and the popular and new-release
 | DELETE | `/api/music/artists/{id}?deleteFiles=true` | | admin only |
 | GET | `/api/music/albums/{id}` | | album with `artistName` and `tracks` |
 | PUT | `/api/music/albums/{id}/monitored` | `{monitored}` | |
+| POST | `/api/music/albums/{id}/rescan` | | `{status, quality, folder, files, tracks, matched, linked, dropped, extra, complete, missingTitles, monitored}`; admin only |
+| DELETE | `/api/music/albums/{id}/files?path=` | | the same, plus `deleted` and `trashed`; admin only |
 | POST | `/api/music/albums/{id}/search` | | `[release]` with `rejections` |
 | POST | `/api/music/albums/{id}/grab` | `{releaseTitle, downloadUrl, sizeBytes, protocol?}` | 202 `{queueId}` |
 | POST | `/api/music/albums/{id}/search-now` | | `{grabbed, message}` |

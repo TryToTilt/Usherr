@@ -4,6 +4,8 @@ Many apps were made to work with Radarr, Sonarr and Lidarr: request apps (Overse
 
 The page **Settings > Connections > Other apps** shows the addresses to use and makes the key.
 
+Chat programs and voice assistants that support MCP connect in a different way, with their own address and switch. See [mcp.md](./mcp.md).
+
 ## What to fill in
 
 Each app gets its own address, because Radarr and Sonarr use the same paths:
@@ -35,7 +37,7 @@ From then on, an approved request adds the title to your library, with the seaso
 - **Homepage**: add a `radarr`, `sonarr` or `lidarr` widget with `url: http://<mediarium>:8264/radarr` (or `/sonarr`, `/lidarr`) and the key. It shows what's wanted, missing and downloading.
 - **Homarr**: add a Radarr, Sonarr or Lidarr integration with the full address and the key. The calendar and the download list work.
 - **matcharr** (group movie picking): add Radarr with the address `http://<mediarium>:8264/radarr` and the key. A match is added to your library and searched for; a movie you already have counts as done.
-- **nzb360, LunaSea, Ruddarr**: add a Radarr or Sonarr instance with the full address and the key. You can browse the library, add movies and shows, change monitoring and quality profile, search, and follow the download queue and the calendar.
+- **nzb360, LunaSea, Ruddarr**: add a Radarr or Sonarr instance with the full address and the key. You can browse the library, add movies and shows, change monitoring and quality profile, search, and follow the download queue and the calendar. The interactive release search works too: the app lists what your indexers have for a movie, an episode or a season, and tapping one downloads it. Each release comes with what Radarr and Sonarr report: its quality and revision (repack or proper), the custom formats from your quality profile that it matches and their total score, the edition, seeders and leechers for torrents, and the reasons an automatic search would skip it. The best match is listed first, as in the web app. If an app shows an error, check the log: a request Mediarium does not answer is written there with its address (never the key).
 
 ## Tdarr and other apps that change your files
 
@@ -59,10 +61,12 @@ Tdarr and similar apps change a file after it was imported (a new codec, sometim
 | Monitoring a title, season or episode; quality profile; tags; show type | Also through the "editor" endpoints that change many titles at once. |
 | Searching (one movie, a show, a season, episodes, everything missing) | Show and season searches only look for monitored episodes, as in Sonarr. A search for everything missing searches up to 25 titles; the scheduled search does the rest. |
 | Removing a title | Files go to the recycle bin when the app asks to delete them. |
+| History (also since a date, and per movie or show), episode and movie files (with `mediaInfo`: codecs, bit depth, HDR, resolution, audio channels and languages, subtitles), parsing a release name | History is made from your downloads: each one is a "grabbed" line, and one that finished or failed gets a second line (imported or failed). Filter by event type, include the movie, show or episode, and page through it, as the apps do. |
 | Download queue, queue counts, wanted and missing, calendar | A season pack is one entry per episode, as Sonarr shows it. Removing an entry stops the download. |
+| Cutoff unmet (monitored movies and episodes whose file is below what the profile is after), custom formats, saved filters | The custom formats are listed by name only, without their conditions. Saved filters are always empty. |
 | Root folders, disk space, quality profiles, tags | |
 
-Not available: history (an empty list is answered), manual imports, renaming, the app's own settings pages, and changing quality profiles from the app. Anything an app asks that has no meaning in Mediarium (such as a "refresh downloads" command) is accepted and does nothing.
+Not available: manual imports and renaming (an empty list is answered), deleted or renamed file lines in history, the app's own settings pages (the lists and pages an app loads at start, such as notifications, import lists, remote path mappings and display settings, are answered with empty or fixed values), releases pushed from other tools (always turned down), and changing quality profiles from the app. Anything an app asks that has no meaning in Mediarium (such as a "refresh downloads" command) is accepted and does nothing.
 
 ## For scripts
 

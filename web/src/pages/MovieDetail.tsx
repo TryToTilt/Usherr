@@ -19,6 +19,7 @@ import CollectionCard from '../components/CollectionCard'
 import CopiesCard from '../components/CopiesCard'
 import TitleRequestActions from '../components/TitleRequestActions'
 import FilesPanel from '../components/FilesPanel'
+import FileChips from '../components/FileChips'
 import SubtitlesOffNote from '../components/SubtitlesOffNote'
 import SubtitlesPanel from '../components/SubtitlesPanel'
 import Switch from '../components/Switch'
@@ -383,6 +384,7 @@ function MoviePage() {
             {movie.filePath && <code className="filepath">{movie.filePath}</code>}
           </div>
         )}
+        {inLibrary && movie.status === 'downloaded' && <FileChips info={movie.fileInfo} />}
         {inLibrary && admin && movie.folderPath && (
           <FolderLine path={movie.folderPath} kind="movie">
             {movie.libraryId && (

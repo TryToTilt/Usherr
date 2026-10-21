@@ -11,7 +11,7 @@ How Mediarium's built-in downloaders use your network and disk: the torrent port
 Settings > Downloading has four pages: **Usenet**, **Torrents**, **VPN and proxy** and **Download rules**. The cards below are on **Download rules**, **Usenet** and **Torrents**. The settings in [Speed and space](#speed-and-space) and [Checks on releases](#checks-on-releases) are on Download rules (the age of Usenet posts is on the Usenet page), and you can [add a download by hand](activity.md#add-a-download-by-hand) from Activity.
 
 - **Where to download from** (Download rules): **Usenet and torrents**, **Usenet only** or **Torrents only** for every movie and show. You can change it for a single title when you add it or on its page. When a Usenet release and a torrent release are equally good, Usenet wins. Choosing Usenet only also switches the torrent client off.
-- **Downloads at the same time** (Download rules): how many downloads run together (1 to 5). See [below](#downloads-at-the-same-time-the-download-line).
+- **Downloads at the same time** (Download rules): how many downloads run together (1 to 500). See [below](#downloads-at-the-same-time-the-download-line).
 - **Usenet (NZB)** (Usenet page): the built-in downloader needs only your provider's login. **Add your Usenet provider** takes the server address, port, username, password, number of connections and whether to use SSL. Press **Test connection** first. With SSL on, the server needs a certificate a public authority vouches for: a self-signed one is refused, and the test says so in plain words ("The server's certificate isn't trusted ..."), as it does for a certificate made out to another name or one that has expired. **Add server** (or **Save server**) works once the test has passed. Each server has **Test**, **Edit**, **Disable** and **Remove**. A second server (**Add a backup provider**) is used for articles your main one is missing. Priority 0 is the main provider, higher numbers are backups.
 - **Torrents** (Torrents page): the switch **Use the built-in torrent client**, **Client settings** (listen port, seed ratio limit, seed time limit; press **Save**), **Stalled torrents**, **Torrent options** (the router port, new torrents in order, upload limit, categories), a **Debrid service** and **Use your own torrent client**. The Download clients tab in Activity shows the router port and links here.
 
@@ -99,6 +99,8 @@ If the provider says "too many connections" (usually because another program, li
 
 When the provider keeps refusing connections, the dashboard's **Needs your attention** list also says so ("news.example.com allows fewer connections than you set", with a button to the test), for twelve hours after the last refusal.
 
+Using SABnzbd or NZBGet instead? See [SABnzbd and NZBGet](#sabnzbd-and-nzbget).
+
 Connections close when a download finishes, fails or is cancelled, and when you remove or switch off a server or change its address or login. Lowering the number of connections takes effect at once, even for a download that's running.
 
 ## What is checked when you save
@@ -107,7 +109,7 @@ Every field in Settings points out a mistake under the box when you leave it, or
 
 - **Usenet servers:** the server is a bare host name or IP address (`news.example.com`, no `https://`, no port and no path), the port is 1 to 65535, connections are 1 to 100 and the priority is 0 to 99. A username and password go together.
 - **Torrents:** the listen port is 0 (use the default) or 1 to 65535, the seed ratio is 0 to 1000 and the seed time is 0 to 87,600 hours. 0 means unlimited for both.
-- **Downloads at the same time:** a whole number from 1 to 5.
+- **Downloads at the same time:** a whole number from 1 to 500.
 - **VPN:** the endpoint is `host:port` with a port from 1 to 65535, the two keys are 44-character WireGuard keys, and the tunnel address is an IP address with an optional `/prefix`.
 - **Folders:** each folder must be a full path, starting with `/`, a drive letter such as `D:\`, or a network path such as `\\server\share`. A custom movie file name must include the movie's title and an episode file name its season and episode; both use only known tokens and can't contain `/` or `\` (see [library.md](./library.md#file-names)).
 
@@ -199,13 +201,51 @@ A download the client saved at `/downloads/Movie.2024.1080p` is then looked for 
 - **What happens when the limit is reached is the client's choice.** In qBittorrent that is a global setting, and Mediarium doesn't change it: to have qBittorrent remove the torrent (or pause it, or stop it) at the limit, set it in qBittorrent under Options > BitTorrent > Seeding Limits, **then** (pause, stop or remove torrent). This is separate from **Remove from the client after import**, which removes the torrent as soon as it is in your library, whatever its limits are. Limits are set when the torrent is added; changing a rule later doesn't change torrents already in the client.
 - The VPN settings for the built-in torrent client don't apply: the client handles its own traffic.
 
+## SABnzbd and NZBGet
+
+Mediarium downloads from Usenet by itself and that stays the default. If you already run SABnzbd or NZBGet, you can have Mediarium hand Usenet releases to it instead. The downloader fetches, repairs and unpacks into its own folder, and when it is done Mediarium imports the files straight from that folder. It never moves or renames the downloader's files. They are only deleted when you stop or remove a download before it finished, or when you switch on removal after import (see below).
+
+**Set up:** Settings > Downloading > Usenet > **Use SABnzbd or NZBGet** (the last card on the page). Pick the downloader, then fill in:
+
+- **Address:** where you open its web page, for example `http://192.168.1.10:8080` for SABnzbd or `http://192.168.1.10:6789` for NZBGet. In Docker, use the container name if both are on the same network (`http://sabnzbd:8080`).
+- **API key** (SABnzbd): in SABnzbd under Config > General. It is stored encrypted and never shown again.
+- **User name** and **Password** (NZBGet): the `ControlUsername` and `ControlPassword` from NZBGet's settings (Security). Stored encrypted.
+- **Category:** NZBs are added in this category (`mediarium` if you never set anything). It has to exist in the downloader already: in SABnzbd under Config > Categories, in NZBGet under Settings > Categories. That is also where its download folder is set. As with torrent clients, you can clear it when you fill in a category for some kinds: a kind without one then gets no category.
+- **Category for movies, TV shows, music and books:** optional, to keep each kind in its own category and folder.
+- **Priority:** low, normal, high or force, sent with every release.
+- **Send Usenet releases to SABnzbd/NZBGet:** the switch that makes it the downloader. It is off until you turn it on, so you can save and test everything first. Off, or with no downloader chosen, the built-in downloader is used. Turning it on does not change what is already downloading.
+- **Let it fetch the NZB file itself:** off by default. Mediarium then gets the NZB from the indexer, checks it (no programs or scripts in it, not the same NZB as an earlier download of the title, the other checks under [Checks on releases](#checks-on-releases)) and sends the file. On, only the link is sent, so the indexer's address, which holds your key, ends up in the downloader and Mediarium can't look at the file first. A release that only Mediarium can open (an indexer that needs its sign-in, or an NZB you uploaded) is always sent as a file.
+
+Press **Test**. It says which part is wrong: that nothing answers at the address, that the API key or the login was refused, that the address is something else than SABnzbd or NZBGet, or that a category doesn't exist in the downloader (it names the category). On success it shows the downloader's version. Then **Save**.
+
+The Usenet provider is then the downloader's business: Mediarium doesn't need a news server of its own while the switch is on, and the "No Usenet provider added" warning goes away.
+
+### Path mapping
+
+The downloader reports where it saved a finished download as it sees it. If it runs in another container or on another computer, that path can be different inside Mediarium. Fill in both fields, exactly as for a [torrent client](#path-mapping): **The downloader's folder** (for example `/downloads/complete`) and **The same folder in Mediarium** (for example `/data/usenet/complete`). Leave both empty when the paths are the same. Mounting one parent folder (for example `/data`) into both containers, with the same path inside each, needs no mapping and lets imports use hardlinks instead of copies. When Mediarium can't see a finished download, it fails with a message that points here.
+
+### How a download goes
+
+- The NZB is sent to the downloader with the category of its kind and your priority. Mediarium keeps the job's id in the download's own folder (`incomplete/queue-N`), so a restart or a retry picks the job up again instead of sending it twice.
+- Mediarium asks every few seconds how it is doing. The progress bar follows the downloader's. Waiting, downloading, paused, "checking and unpacking" (repair and unpack) and done are shown the same way as for torrents, on the Queue tab and under Activity > Download clients.
+- When the job is done, the download's own folder gets a link to each file in the downloader's folder, and the import goes on as for any download. Files are imported with a hardlink when possible, otherwise copied. Mediarium does not repair or unpack in the downloader's folder: the downloader already did.
+- **If the downloader gives up** on a release (SABnzbd's history says Failed, NZBGet's says FAILURE or WARNING such as too many articles missing, a repair or unpack that failed, or a password), that is the release's fault: it goes on the [blocklist](#when-a-download-fails), the job is removed from the downloader with what it had, and with automation on the next-best release is tried, exactly as for a failure of the built-in downloader.
+- The downloader's own trouble (a full disk, a folder it can't write to, NZBGet failing to move the files) is not held against the release. It is not blocklisted, the job stays in the downloader for you to look at, and the download fails with a message saying so. The same goes for a job deleted by hand in the downloader.
+- **Pause** in Mediarium pauses the job in the downloader, and **Resume** starts it again. A download left paused in the downloader by hand keeps waiting there.
+- **When I stop or remove a download, remove it from the downloader too** is on by default (`usenetclient.remove_on_stop`). Stopping, removing a download, removing its movie or show, or **Blocklist & search again** also removes the job from the downloader, with what it downloaded. It only touches a job that Mediarium sent and that hasn't finished. A finished job stays, and a download that was already imported is never touched.
+- **Remove from the downloader after import** is off by default, so nothing is ever deleted there. Switch it on to have the job removed once it is in your library. SABnzbd deletes the finished files with it. NZBGet's API can only take the job out of its history, so its files stay in its folder unless NZBGet is set to clean up by itself.
+
+Not supported: the downloader's own post-processing scripts are left to it, Mediarium doesn't change the downloader's settings, and the speed limit of Mediarium only applies to the built-in downloader. I could only test SABnzbd and NZBGet against copies of their web APIs, not the real programs, so please say how it goes.
+
+Scripts (administrators): `GET` and `PUT /api/usenet-client` (the secrets are `apiKey` and `password`, write only), `POST /api/usenet-client/test`, `GET /api/usenet-client/jobs?scope=mine|all`, `POST /api/usenet-client/jobs/{id}/pause|resume|remove|remove-files`.
+
 ## Seeding
 
 A finished torrent is imported straight away and keeps seeding in the background until its **seeding goal** is met: the seed ratio limit (`torrent.seed_ratio_limit`, uploaded divided by size, for example 2.0) or the seed time limit (`torrent.seed_time_limit_h`, hours), whichever comes first. A torrent indexer can have rules of its own, and a torrent from it follows those instead (see [Seeding rules for one indexer](#seeding-rules-for-one-indexer)). With both at 0, a torrent seeds until Mediarium stops or torrents are switched off. Seeding doesn't survive a restart. When the goal is met the torrent stops and its data is deleted from the downloads folder (see below).
 
 ## Downloads at the same time (the download line)
 
-Downloads run in a line. **Downloads at the same time** (Settings > Downloading > Download rules, saved as `downloads.concurrent`) is 1 to 5 and starts at **1**, the safest choice. Usenet and torrents share the number, so 1 means one download in total.
+Downloads run in a line. **Downloads at the same time** (Settings > Downloading > Download rules, saved as `downloads.concurrent`) is a number from 1 to 500 and starts at **1**, the safest choice. Usenet and torrents share the number, so 1 means one download in total. A high number is for a [download client](#download-clients-qbittorrent-transmission-rdt-client-decypharr) such as qBittorrent, which can run a hundred torrents side by side the way it did for Radarr and Sonarr. The built-in downloaders keep their own limit however high the number is: built-in Usenet downloads run at most as many at once as your provider allows connections (never fewer than 5, never more than 50), and built-in torrents at most 20. The rest wait in line. With the built-in clients more downloads at once mostly share the same bandwidth anyway, so a handful is usually enough.
 
 - **A download keeps its place for the whole trip:** downloading, repairing (PAR2), unpacking and moving into your library. When it's done, or fails, the next one in line starts. A failed download waits in Activity to retry and doesn't stop the line.
 - **Releases that cannot be finished stop early:** Usenet posts lose articles over time. If articles are missing on all your servers and the release has no PAR2 repair files, or too few to rebuild what is gone, Mediarium stops at once instead of downloading the rest. The release goes on the blocklist and, when automation is on, the next-best release is tried. The reason shows in Activity and in Logs and errors as "Parts of a download are missing". A second Usenet provider from a different company often has the missing pieces.

@@ -14,8 +14,13 @@ export default function MarqueeShowsForm({ m, change }: { m: MarqueeSettings; ch
       <h3>{t('On a film')}</h3>
       <div className="grid-form">
         <label className="cx-check">
-          <input type="checkbox" checked={m.badges === 'on'} onChange={(e) => change({ badges: e.target.checked ? 'on' : 'off' })} /> {t('Show 4K, HDR, Dolby Vision and Atmos on what’s playing')}
+          <input type="checkbox" checked={m.badges === 'on'} onChange={(e) => change({ badges: e.target.checked ? 'on' : 'off' })} /> {t('Badges: the picture, its shape, the sound and the cinema format (IMAX, 70mm…)')}
         </label>
+        {m.badges === 'on' && (
+          <label className="cx-check">
+            <input type="checkbox" checked={!m.noImdb} onChange={(e) => change({ noImdb: !e.target.checked })} /> {t('Cinema formats from IMDb (how it was shot and shown; for personal use). Off: TMDB’s notes only.')}
+          </label>
+        )}
         <label>
           {t('The info panel (plot, cast, director)')}
           <select value={m.infoPanel} onChange={(e) => change({ infoPanel: e.target.value as MarqueeSettings['infoPanel'] })}>

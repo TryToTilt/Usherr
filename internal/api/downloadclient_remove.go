@@ -32,13 +32,19 @@ func (s *Server) removeOnStopOn() bool {
 type clientRef struct {
 	queueID int64
 	hash    string // "" when it was never recorded: the tag finds it
+	// usenetJob is the job's id in an external Usenet downloader; set instead of
+	// hash for a Usenet download.
+	usenetJob string
 }
 
 // clientRefFor says whether stopping or removing this item should also remove
 // its torrent from the download client, and which torrent. Call it before the
 // item's folder is deleted.
 func (s *Server) clientRefFor(item queue.Item) (clientRef, bool) {
-	if item.Protocol != queue.ProtocolTorrent || !s.removeOnStopOn() || !s.downloadClientOn() {
+	if item.Protocol != queue.ProtocolTorrent {
+		return s.usenetRefFor(item)
+	}
+	if !s.removeOnStopOn() || !s.downloadClientOn() {
 		return clientRef{}, false
 	}
 	switch item.Status {
@@ -60,7 +66,13 @@ func (s *Server) removeFromClient(ref clientRef, ok, force bool) {
 	if !ok {
 		return
 	}
-	s.background(func() { s.removeClientTorrent(ref, force) })
+	s.background(func() {
+		if ref.usenetJob != "" {
+			s.removeUsenetJob(ref, force)
+			return
+		}
+		s.removeClientTorrent(ref, force)
+	})
 }
 
 // removeClientTorrent finds the torrent by its hash or, when that was never

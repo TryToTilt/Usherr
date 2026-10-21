@@ -171,6 +171,9 @@ func (s *HomeAssistantSender) Send(ctx context.Context, ev Event) error {
 			if u := httpsURL(ev.LinkURL); u != "" {
 				payload["link"] = u
 			}
+			if ev.Subtitles != "" {
+				payload["subtitles"] = ev.Subtitles
+			}
 			if u := httpsURL(ev.PosterURL); u != "" {
 				payload["poster"] = u
 			}

@@ -5,14 +5,33 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-21
+
+Built on **Mediarium 3.3.0**.
+
 **New**
+- **Marquee badges for everything that plays**: the sound (Dolby Atmos, DTS:X, TrueHD, DTS-HD MA, Dolby Digital+... and 7.1, 5.1, Stereo), the picture's shape (2.39:1, 1.85:1, 16:9; measured inside black bars) and the cinema format: how it was shown and shot (IMAX, IMAX 70mm, Dolby Cinema, 70mm, 65mm or 35mm film, Digital, Black & white), from IMDb's technical specifications, with TMDB's release notes when IMDb has nothing; *Cinema formats from IMDb* turns IMDb off. What Usherr plays itself is looked at once, so a file marked HDR10 that is really Dolby Vision says so.
+- **Trailers fill** on the Marquee: trailers on a portrait screen can be zoomed to a poster's size or to all the space there is, instead of a small letterboxed strip; the pre-show's trailers and your own videos too.
 - **The Marquee shows what's playing, wherever it plays**: Usherr's own player in the browser (library files, Stream now, Live TV with its channel) and its Stremio and Nuvio add-on now count, next to Jellyfin, Emby and StreamNZB, with progress and the picture's badges. *Usherr itself* under *Now showing comes from* turns it off.
 
 **Fixed**
+- A Marquee screen keeps only the settings changed for it (a look picked on the remote, say) and follows the shared settings for everything else. Before, picking a look gave it a frozen copy of every setting, so later changes on *Look and scenes* seemed not to work. Screens that had a copy keep just what differed. *Look and scenes* lists what each screen keeps of its own, with a button to drop it.
 - Security: built with Go 1.27.3, which fixes a flaw in Go's own certificate checking (GO-2026-6809).
 - A long sign such as *Feature presentation* fits a portrait Marquee screen in the Cinema and Posterr looks, and the trailer and title under it stay centred instead of being pushed off to one side.
 - A stream played from a title's page shows that title's poster and details on the Marquee; a stream started from a list of releases is looked up by its name.
 - The Marquee in Home Assistant could be left showing a screen's old look after a new one was chosen there.
+
+**New** (from Mediarium 3.3.0)
+- **SABnzbd or NZBGet for Usenet**: *Settings → Downloading → Usenet → Use SABnzbd or NZBGet* sends Usenet releases to your own downloader instead of the built-in one (off unless switched on; streaming isn't affected).
+- **What's inside your files**: codec, resolution, HDR10, HDR10+, Dolby Vision, every audio track (with Atmos) and subtitle track, read from the files' headers in the background and shown on a film's page and each episode. The Library's Filters gain video codec, HDR, resolution, audio and subtitle language and "no {language} audio", each a chip when on. The Marquee's badges use these details for library films.
+- **Ask your library from an AI assistant or Home Assistant's voice assistant** (MCP, *Settings → Other apps*; off until switched on, administrator key only, asks before changing anything).
+- **Quality order and groups** in a quality profile, like Radarr and Sonarr, with a TRaSH layout.
+- **nzb360 and other Radarr/Sonarr phone apps**: release search, history, scores and more.
+- Music: rescan an album folder, delete one file, search for missing tracks. Separate size limits for movies and TV, a switch for the built-in minimum size, up to 500 downloads at once, TRaSH folder name presets, settings in the search box, WebP covers.
+
+**Fixed** (from Mediarium 3.3.0)
+- Short TV episodes are no longer skipped as too small; a FlareSolverr check no longer times out while it solves; the search list's Score shows the whole score; Open Library searches with odd characters work.
+- Everything else in Mediarium 3.2.17 to 3.3.0, listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## [2.0.0] - 2026-10-20
 

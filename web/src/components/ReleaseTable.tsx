@@ -3,7 +3,7 @@ import type { SearchResult } from '../api'
 import { formatBytes, nameParts } from '../format'
 import { locale, st, t } from '../i18n'
 import { loadShowWhy, saveShowWhy, signed, whyOf, type WhyInfo } from '../releaseWhy'
-import { FIRST_DIRECTION, ageOf, defaultOrder, filterReleases, indexersIn, publishedAt, qualitiesIn, sortReleases, type ReleaseSortKey, type SortDir } from '../releaseSort'
+import { FIRST_DIRECTION, ageOf, defaultOrder, filterReleases, indexersIn, publishedAt, qualitiesIn, scoreOf, sortReleases, type ReleaseSortKey, type SortDir } from '../releaseSort'
 import Dropdown from './Dropdown'
 import Icon from './Icon'
 
@@ -35,7 +35,7 @@ export default function ReleaseTable({
   streaming?: string | null
 }) {
   const showLanguage = results.some((r) => r.language)
-  const showScore = results.some((r) => r.formatScore !== undefined)
+  const showScore = results.some((r) => scoreOf(r) !== undefined)
   const [sort, setSort] = useState<{ key: ReleaseSortKey; dir: SortDir } | null>(null)
   const [words, setWords] = useState('')
   const [indexer, setIndexer] = useState('')
@@ -134,7 +134,7 @@ export default function ReleaseTable({
                 {head('release', t('Release'))}
                 {head('quality', t('Quality'))}
                 {showLanguage && head('language', t('Language'))}
-                {showScore && head('score', t('Score'), t("Custom format score in this title's quality profile"))}
+                {showScore && head('score', t('Score'), t("Score in this title's quality profile: custom formats plus preferred terms"))}
                 {head('indexer', t('Indexer'))}
                 {head('size', t('Size'))}
                 {head('age', t('Age'), t('How long ago the indexer posted it'))}
@@ -216,8 +216,8 @@ export default function ReleaseTable({
                     </td>
                   )}
                   {showScore && (
-                    <td className={`rel-fit format-score-cell${(r.formatScore ?? 0) < 0 ? ' neg' : ''}`} title={r.formats?.length ? r.formats.join('\n') : t('No custom format matches')}>
-                      {r.formatScore === undefined ? '—' : signed(r.formatScore)}
+                    <td className={`rel-fit format-score-cell${(scoreOf(r) ?? 0) < 0 ? ' neg' : ''}`} title={scoreTip(r)}>
+                      {scoreOf(r) === undefined ? '—' : signed(scoreOf(r) ?? 0)}
                       {why && whyButton(r, why, t('Why this score'))}
                     </td>
                   )}
@@ -259,15 +259,25 @@ export default function ReleaseTable({
   )
 }
 
+// scoreTip lists the parts of a release's score for the tooltip of its cell.
+function scoreTip(r: SearchResult): string {
+  const lines = [
+    ...(r.formats ?? []).map((f) => `${f.name} ${signed(f.score)}`),
+    ...(r.terms ?? []).map((x) => `${x.term} ${signed(x.score)}`),
+    ...(r.fixScore ? [`${t('Fixed release (PROPER or REPACK)')} ${signed(r.fixScore)}`] : []),
+  ]
+  return lines.length ? lines.join('\n') : t('No custom format matches')
+}
+
 // The details under a release: where the score comes from, and everything that
 // makes an automatic search skip it. Grabbing it by hand always works.
 function WhyDetails({ why }: { why: WhyInfo }) {
   return (
     <div className="rel-why">
-      {(why.score !== undefined || why.terms.length > 0) && (
+      {(why.score !== undefined || why.terms.length > 0 || why.fix !== 0) && (
         <div className="rel-why-col">
           <h4>{t('Why this score')}</h4>
-          {why.formats.length + why.terms.length > 0 ? (
+          {why.formats.length + why.terms.length + (why.fix !== 0 ? 1 : 0) > 0 ? (
             <ul className="rel-why-formats">
               {why.formats.map((f) => (
                 <li key={`f${f.name}`}>
@@ -281,6 +291,12 @@ function WhyDetails({ why }: { why: WhyInfo }) {
                   <span className={`format-score-cell${x.score < 0 ? ' neg' : ''}`}>{signed(x.score)}</span>
                 </li>
               ))}
+              {why.fix !== 0 && (
+                <li>
+                  <span>{t('Fixed release (PROPER or REPACK)')}</span>
+                  <span className="format-score-cell">{signed(why.fix)}</span>
+                </li>
+              )}
             </ul>
           ) : (
             <p className="rel-why-none">{t('No custom format matches')}</p>

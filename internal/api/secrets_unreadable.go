@@ -24,6 +24,8 @@ var savedSettingNames = map[string]string{
 	settings.KeyHardcoverToken:         "the Hardcover token",
 	settings.KeyDebridAPIKey:           "the debrid service key",
 	settings.KeyDownloadClientPassword: "the download client password",
+	settings.KeyUsenetClientPassword:   "the Usenet downloader password",
+	settings.KeyUsenetClientAPIKey:     "the Usenet downloader API key",
 	settings.KeyOpenSubtitlesPassword:  "the OpenSubtitles password",
 	settings.KeyOpenSubtitlesAPIKey:    "the OpenSubtitles key",
 	settings.KeySubDLAPIKey:            "the SubDL key",

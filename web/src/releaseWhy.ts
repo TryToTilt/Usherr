@@ -20,6 +20,8 @@ export interface WhyTerm {
 
 export interface WhySource {
   formatScore?: number
+  // The bonus of a fixed release (PROPER, REPACK) when bad releases are skipped.
+  fixScore?: number
   formats?: WhyFormat[]
   terms?: WhyTerm[]
   minScore?: number
@@ -33,7 +35,10 @@ export interface WhyInfo {
   score?: number
   formats: WhyFormat[]
   terms: WhyTerm[]
-  // Formats and preferred terms added up: what the pick compares.
+  // The bonus of a fixed release (PROPER, REPACK), 0 for none.
+  fix: number
+  // Formats, preferred terms and the fix bonus added up: what the pick
+  // compares, and what the Score column shows.
   total: number
   minScore: number
   upgradeUntil: number
@@ -57,13 +62,15 @@ export function whyOf(r: WhySource): WhyInfo | null {
   const reasons = all.filter((x) => x.kind !== 'notBest')
   const notBest = all.filter((x) => x.kind === 'notBest').map((x) => x.text)
   const terms = r.terms ?? []
-  if (r.formatScore === undefined && reasons.length === 0 && notBest.length === 0 && terms.length === 0) return null
+  const fix = r.fixScore ?? 0
+  if (r.formatScore === undefined && reasons.length === 0 && notBest.length === 0 && terms.length === 0 && fix === 0) return null
   const minScore = r.minScore ?? 0
   return {
     score: r.formatScore,
     formats: r.formats ?? [],
     terms,
-    total: (r.formatScore ?? 0) + terms.reduce((sum, x) => sum + x.score, 0),
+    fix,
+    total: (r.formatScore ?? 0) + terms.reduce((sum, x) => sum + x.score, 0) + fix,
     notBest,
     minScore,
     upgradeUntil: r.upgradeUntil ?? 0,

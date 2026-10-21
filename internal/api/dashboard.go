@@ -496,6 +496,9 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	if servers, err := s.ClientRepo.List(); err == nil {
 		out.Setup.Servers = len(servers)
 	}
+	if s.usenetClientOn() {
+		out.Setup.Servers = max(out.Setup.Servers, 1) // the downloader stands in for a provider
+	}
 	out.Setup.VPN = s.VPNManager.Status().Connected
 	out.Setup.Torrents = torrentSource && s.torrentReleasesOn()
 	if list, err := s.MediaServers.ListAll(); err == nil {

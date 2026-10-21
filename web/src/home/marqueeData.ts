@@ -22,6 +22,8 @@ export interface Playing {
   hdr?: string
   audio?: string
   channels?: string
+  aspect?: string // Usherr: "2.39:1", "1.85:1", "16:9"
+  formats?: string[] // Usherr: "IMAX", "Dolby Cinema", "70mm"
   overview?: string
   genres?: string[]
   rated?: string
@@ -59,6 +61,32 @@ export interface MediaItem {
   enabled: boolean
   sort: number
 }
+// ownLabel names the settings a screen keeps of its own ("look, text size"),
+// from their JSON names (Usherr).
+const OWN_LABELS: Record<string, () => string> = {
+  style: () => t('look'),
+  theme: () => t('theme'),
+  palette: () => t('colours'),
+  font: () => t('font'),
+  frame: () => t('frame'),
+  textScale: () => t('text size'),
+  posterScale: () => t('poster size'),
+  scenes: () => t('scenes'),
+  trailerFit: () => t('trailer fill'),
+  trailerSound: () => t('trailer sound'),
+  badges: () => t('badges'),
+  footer: () => t('footer'),
+  quietOn: () => t('quiet hours'),
+  quietFrom: () => t('quiet hours'),
+  quietTo: () => t('quiet hours'),
+}
+export function ownLabel(keys: string[] | undefined): string {
+  const names = [...new Set((keys ?? []).map((k) => OWN_LABELS[k]?.()).filter(Boolean) as string[])]
+  const other = (keys ?? []).filter((k) => !OWN_LABELS[k]).length
+  if (other) names.push(other === 1 ? t('1 other setting') : t('{n} other settings', { n: other }))
+  return names.join(', ')
+}
+
 export interface Feature {
   tmdbId: number
   title: string
@@ -72,6 +100,7 @@ export interface Feature {
   backdropUrl?: string
   trailer?: string
   reason: 'new' | 'theaters' | 'coming'
+  formats?: string[] // Usherr: how cinemas showed it ("IMAX", "Dolby Cinema", "70mm")
   releaseDate?: string
   overview?: string
   cast?: Person[]
@@ -107,6 +136,8 @@ export interface MarqueeSettings {
   posterScale: number
   scrollSpeed: 'slow' | 'normal' | 'fast'
   trailerSound: boolean
+  trailerFit?: 'letterbox' | 'poster' | 'fill'
+  noImdb?: boolean // Usherr: cinema formats from TMDB's notes only
   fromJellyfin: boolean
   fromStreamNZB: boolean
   hideUsherr?: boolean

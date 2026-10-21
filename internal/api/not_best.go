@@ -17,10 +17,18 @@ type preferredHit struct {
 }
 
 // setPreferredHits lists the preferred terms a release matches, for the
-// "why this score" details.
+// "why this score" details, and sets Score: the number the pick compares
+// (Profile.Score), which is what the Score column shows. Score is only set
+// when the profile scores something, so a list with nothing to score has no
+// Score column.
 func (p *searchResultPayload) setPreferredHits(profile quality.Profile, title string) {
 	for _, h := range profile.PreferredHits(title) {
 		p.Terms = append(p.Terms, preferredHit{Term: h.Term, Score: h.Score})
+	}
+	if len(profile.Formats) > 0 || len(profile.Preferred) > 0 {
+		score := profile.Score(title)
+		p.Score = &score
+		p.FixScore = profile.FixScore(title)
 	}
 }
 
@@ -44,6 +52,9 @@ func scoreParts(profile quality.Profile, title string) string {
 	for _, h := range profile.PreferredHits(title) {
 		parts = append(parts, h.Term+" "+signedScore(h.Score))
 	}
+	if fix := profile.FixScore(title); fix != 0 {
+		parts = append(parts, "fixed release "+signedScore(fix))
+	}
 	if len(parts) == 0 {
 		return "0"
 	}
@@ -52,7 +63,7 @@ func scoreParts(profile quality.Profile, title string) string {
 
 // whyNotBest says in plain words which step made the best match win over a
 // release that was accepted too. It walks the pick key in the order the pick
-// does (alive, language, quality tier, cached, score) and names the first step
+// does (alive, language, quality tier, the order inside a group, cached, score) and names the first step
 // where the two differ; an exact tie is settled the way preferOver settles it
 // (indexer priority, protocol, cached, seeders), or by the order they were found.
 func whyNotBest(profile quality.Profile, best *indexers.Result, bestRel parser.Release, res *indexers.Result, rel parser.Release) releaseReason {
@@ -68,6 +79,8 @@ func whyNotBest(profile quality.Profile, best *indexers.Result, bestRel parser.R
 		}
 	case bk.tier != k.tier:
 		text = fmt.Sprintf("The best match has a higher quality: %s against %s.", quality.Classify(bestRel), quality.Classify(rel))
+	case bk.sub != k.sub:
+		text = fmt.Sprintf("Both are in the same quality group, but the best match is the better one in it: %s against %s.", quality.Classify(bestRel), quality.Classify(rel))
 	case bk.cached != k.cached:
 		text = "The best match is cached at your debrid service, and your settings put a cached release ahead of a higher score."
 	case bk.score != k.score:

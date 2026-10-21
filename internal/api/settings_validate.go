@@ -20,7 +20,7 @@ import (
 // Limits for what Settings accepts.
 const (
 	maxPathLen          = 4096
-	maxNameFormatLen    = 200
+	maxNameFormatLen    = 500
 	maxHistoryDays      = 36500
 	maxMonitorMinutes   = 10080 // a week
 	maxSeedRatio        = 1000
@@ -137,6 +137,34 @@ func (s *Server) validateSettings(req *settingsPayload) string {
 			format, _ = s.Settings.Get(f.key)
 		}
 		if m := organizer.CheckFormat(format, f.kind); m != "" {
+			return m
+		}
+	}
+	// The folder formats follow the same rules as the file name formats.
+	for _, f := range []struct {
+		value *string
+		key   string
+		label string
+		kind  organizer.TokenKind
+	}{
+		{&req.MovieFolderFormat, settings.KeyMovieFolderFormat, "The movie folder format", organizer.TokenMovie},
+		{&req.SeriesFolderFormat, settings.KeySeriesFolderFormat, "The show folder format", organizer.TokenTV},
+	} {
+		*f.value = strings.TrimSpace(*f.value)
+		format := *f.value
+		edited := format != "" && s.changed(f.key, format)
+		if edited {
+			if m := firstProblem(checkMaxLen(format, f.label, maxNameFormatLen), checkNoControl(format, f.label)); m != "" {
+				return m
+			}
+		}
+		if preset != "custom" || (!edited && !toCustom) {
+			continue
+		}
+		if format == "" {
+			format, _ = s.Settings.Get(f.key)
+		}
+		if m := organizer.CheckFolderFormat(format, f.kind); m != "" {
 			return m
 		}
 	}

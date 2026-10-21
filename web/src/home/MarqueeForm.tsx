@@ -121,6 +121,14 @@ export default function MarqueeForm({ m, profiles, change, name }: { m: MarqueeS
         <label className="cx-check">
           <input type="checkbox" checked={m.trailerSound} onChange={(e) => change({ trailerSound: e.target.checked })} /> {t('Play trailers with sound (the tablet’s browser must allow it)')}
         </label>
+        <label>
+          {t('Trailers fill')}
+          <select value={m.trailerFit ?? 'letterbox'} onChange={(e) => change({ trailerFit: e.target.value as MarqueeSettings['trailerFit'] })} style={{ width: 'auto' }}>
+            <option value="letterbox">{t('As they are (letterboxed)')}</option>
+            <option value="poster">{t('A poster’s size (zoomed in)')}</option>
+            <option value="fill">{t('All the space there is (zoomed in)')}</option>
+          </select>
+        </label>
       </div>
 
       <h3>{t('Now showing comes from')}</h3>

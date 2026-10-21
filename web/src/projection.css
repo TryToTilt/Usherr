@@ -1602,3 +1602,6 @@ fieldset.group { border-radius: 6px 26px 26px 26px; }
   .info-disk { grid-template-columns: minmax(0, 1fr); }
   .info-disk small { text-align: left; }
 }
+
+/* An open menu is always on top. Every card is its own layer (the rise-in animation, container queries), so a menu that drops out of a card used to be drawn under the card below it. The card that holds an open menu is lifted above its neighbours while the menu is open, which moves nothing. */
+:is(.qrow, .client-card, .card, .ncard, .info-card, .request-row, .target-row, .wrow):has(.dropdown.open) { position: relative; z-index: 30; }

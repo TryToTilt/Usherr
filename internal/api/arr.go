@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/rdborg/mediarium/internal/brand" // Usherr
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -103,9 +104,27 @@ func (s *Server) arrHandler(app arrApp) http.Handler {
 	h("DELETE", "/queue/{id}", s.arrDeleteQueueItem(app))
 	h("GET", "/wanted/missing", s.arrWantedMissing(app))
 	h("GET", "/calendar", s.arrCalendar(app))
-	h("GET", "/history", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, arrPage{Page: 1, PageSize: 10, SortKey: "date", SortDirection: "descending", Records: []any{}})
-	})
+	h("GET", "/indexer", s.arrIndexers)
+	h("GET", "/downloadclient", arrDownloadClients)
+	h("GET", "/customformat", s.arrCustomFormats)
+	h("GET", "/customfilter", arrEmptyList)
+	h("GET", "/wanted/cutoff", s.arrWantedCutoff(app))
+	h("GET", "/tag/detail", s.arrTagDetails(app))
+	h("GET", "/ui/config", arrUIConfig)
+	h("GET", "/config/ui", arrUIConfig)
+	h("GET", "/config/host", arrHostConfig(app))
+	h("GET", "/remotepathmapping", arrEmptyList)
+	h("GET", "/notification", arrEmptyList)
+	h("GET", "/importlist", arrEmptyList)
+	h("GET", "/metadata", arrEmptyList)
+	h("GET", "/update", arrEmptyList)
+	h("GET", "/system/task", arrEmptyList)
+	h("GET", "/log", arrLogPage)
+	h("GET", "/history", s.arrHistory(app))
+	h("GET", "/history/since", s.arrHistoryList(app))
+	h("GET", "/parse", s.arrParse(app))
+	h("GET", "/rename", arrEmptyList)
+	h("GET", "/manualimport", arrEmptyList)
 
 	switch app {
 	case arrRadarr:
@@ -119,6 +138,11 @@ func (s *Server) arrHandler(app arrApp) http.Handler {
 		h("PUT", "/movie/{id}", s.arrUpdateMovie)
 		h("DELETE", "/movie/{id}", s.arrDeleteMovie)
 		h("GET", "/moviefile", s.arrMovieFiles)
+		h("GET", "/moviefile/{id}", s.arrGetMovieFile)
+		h("GET", "/history/movie", s.arrHistoryList(arrRadarr))
+		h("GET", "/release", s.arrListReleases(arrRadarr))
+		h("POST", "/release", s.arrGrabRelease(arrRadarr))
+		h("POST", "/release/push", arrPushRelease)
 	case arrSonarr:
 		h("GET", "/series", s.arrListSeries)
 		h("GET", "/series/lookup", s.arrSeriesLookup)
@@ -132,7 +156,12 @@ func (s *Server) arrHandler(app arrApp) http.Handler {
 		h("GET", "/episode/{id}", s.arrGetEpisode)
 		h("PUT", "/episode/{id}", s.arrUpdateEpisode)
 		h("PUT", "/episode/monitor", s.arrMonitorEpisodes)
-		h("GET", "/episodefile", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, []any{}) })
+		h("GET", "/episodefile", s.arrEpisodeFiles)
+		h("GET", "/episodefile/{id}", s.arrGetEpisodeFile)
+		h("GET", "/history/series", s.arrHistoryList(arrSonarr))
+		h("GET", "/release", s.arrListReleases(arrSonarr))
+		h("POST", "/release", s.arrGrabRelease(arrSonarr))
+		h("POST", "/release/push", arrPushRelease)
 	case arrLidarr:
 		h("GET", "/artist", s.arrListArtists)
 		h("GET", "/artist/lookup", s.arrArtistLookup)
@@ -172,8 +201,36 @@ func (s *Server) arrHandler(app arrApp) http.Handler {
 		u := *r.URL
 		u.Path, u.RawPath = path, ""
 		r2.URL = &u
-		mux.ServeHTTP(w, r2)
+		// A request nothing here answers is logged (the path and the names of
+		// the query values, never the values: one is the API key), so an app
+		// that says "something went wrong" can be followed, and it gets the
+		// JSON "not found" the real apps send rather than plain text.
+		if _, pattern := mux.Handler(r2); pattern == "" {
+			names := make([]string, 0, len(r.URL.Query()))
+			for k := range r.URL.Query() {
+				if !strings.EqualFold(k, "apikey") {
+					names = append(names, k)
+				}
+			}
+			slog.Info("arr: an app asked for something Mediarium does not answer", "app", string(app), "method", r.Method, "path", r.URL.Path, "query", strings.Join(names, ","))
+			arrNotFound(w)
+			return
+		}
+		sw := &arrStatusWriter{ResponseWriter: w, status: http.StatusOK}
+		mux.ServeHTTP(sw, r2)
+		slog.Debug("arr: request answered", "app", string(app), "method", r.Method, "path", r.URL.Path, "status", sw.status)
 	})
+}
+
+// arrStatusWriter remembers the status an answer was sent with, for the log.
+type arrStatusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *arrStatusWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
 }
 
 // arrUser is the account behind the API key, from the X-Api-Key header (in
@@ -661,11 +718,20 @@ type arrLanguage struct {
 
 var arrEnglish = arrLanguage{ID: 1, Name: "English"}
 
+// arrProfileItem is one entry of a profile's quality list: a quality, or (with
+// Name, ID and Items set and no Quality) a group of them, as Radarr and Sonarr
+// show it.
 type arrProfileItem struct {
-	Quality arrQualityName `json:"quality"`
-	Items   []any          `json:"items"`
-	Allowed bool           `json:"allowed"`
+	ID      int             `json:"id,omitempty"`
+	Name    string          `json:"name,omitempty"`
+	Quality *arrQualityName `json:"quality"`
+	Items   []any           `json:"items"`
+	Allowed bool            `json:"allowed"`
 }
+
+// arrGroupIDBase is where the ids of quality groups start, above every
+// quality id, as Radarr and Sonarr number theirs.
+const arrGroupIDBase = 1000
 
 type arrProfile struct {
 	ID                int64            `json:"id"`
@@ -686,11 +752,42 @@ func toArrProfile(app arrApp, p quality.Profile) arrProfile {
 	}
 	out := arrProfile{ID: p.ID, Name: p.Name, UpgradeAllowed: p.UpgradeAllowed, Cutoff: arrQualityOf(app, p.Cutoff).ID,
 		MinFormatScore: p.MinFormatScore, CutoffFormatScore: p.CutoffFormatScore, FormatItems: []map[string]any{}}
+	single := func(t quality.Tier, ok bool) arrProfileItem {
+		q := arrQualityOf(app, t)
+		return arrProfileItem{Quality: &q, Items: []any{}, Allowed: ok}
+	}
 	for _, t := range quality.AllTiers() {
 		if app == arrSonarr && t == quality.TierPreRelease {
 			continue
 		}
-		out.Items = append(out.Items, arrProfileItem{Quality: arrQualityOf(app, t), Items: []any{}, Allowed: allowed[t]})
+		if p.HasCustomOrder() && p.ItemOf(t) >= 0 {
+			continue // listed below, in the profile's own order
+		}
+		out.Items = append(out.Items, single(t, allowed[t]))
+	}
+	// Radarr and Sonarr list the worst quality first, so the profile's order
+	// (best first) is written backwards.
+	for i := len(p.QualityOrder) - 1; i >= 0; i-- {
+		it := p.QualityOrder[i]
+		if !it.IsGroup() {
+			if app == arrSonarr && it.Tiers[0] == quality.TierPreRelease {
+				continue
+			}
+			out.Items = append(out.Items, single(it.Tiers[0], true))
+			continue
+		}
+		id := arrGroupIDBase + len(p.QualityOrder) - i
+		group := arrProfileItem{ID: id, Name: it.Name, Items: []any{}, Allowed: true}
+		for j := len(it.Tiers) - 1; j >= 0; j-- {
+			if app == arrSonarr && it.Tiers[j] == quality.TierPreRelease {
+				continue
+			}
+			group.Items = append(group.Items, single(it.Tiers[j], true))
+		}
+		out.Items = append(out.Items, group)
+		if ci := p.ItemOf(p.Cutoff); ci == i {
+			out.Cutoff = id
+		}
 	}
 	for _, f := range p.Formats {
 		out.FormatItems = append(out.FormatItems, map[string]any{"format": f.Format.ID, "name": f.Format.Name, "score": f.Score})

@@ -231,7 +231,7 @@ func pickTVResultFor(results []indexers.Result, series library.Series, season, e
 		if eps == 0 {
 			eps = quality.SeasonPack
 		}
-		if !quality.SizePlausible(quality.Classify(rel), results[i].SizeBytes, eps) || !profile.SizeAllowed(results[i].SizeBytes) {
+		if !builtinSizeOK(quality.Classify(rel), results[i].SizeBytes, eps, knownEpisodeMinutes(series)) || !profile.SizeAllowed(results[i].SizeBytes) {
 			continue
 		}
 		key := keyFor(profile, rel, &results[i])

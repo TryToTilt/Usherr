@@ -9,10 +9,13 @@ import { useToast } from './Toast'
 // profile.
 export default function AddFormatsPicker({
   candidates,
+  total,
   onAdd,
 }: {
   // The formats the profile doesn't score yet.
   candidates: CustomFormat[]
+  // How many custom formats there are in all.
+  total: number
   // Gets every format that was ticked, and the score for each one that has one.
   onAdd: (ids: number[], scores: Record<number, string>) => void
 }) {
@@ -60,7 +63,7 @@ export default function AddFormatsPicker({
     }
   }
 
-  if (candidates.length === 0) return null
+  if (candidates.length === 0) return total > 0 ? <small style={{ color: 'var(--text-dim)' }}>{t('Every custom format is already in this profile.')}</small> : null
   if (!open) {
     return (
       <div>

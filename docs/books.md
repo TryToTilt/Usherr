@@ -12,7 +12,7 @@ You can also pick them in the first-run wizard, on the **What do you want to man
 
 ## Adding a book
 
-Open **Library**, then the **Ebooks** or **Audiobooks** tab, and press **Add**. Type a title or an author's name. The results come from [Open Library](https://openlibrary.org), with their covers. Press **Add** on the right one.
+Open **Library**, then the **Ebooks** or **Audiobooks** tab, and press **Add**. Type a title or an author's name. The results come from [Open Library](https://openlibrary.org), with their covers. If Open Library can't read what you typed (it answers 422 to text such as an unclosed bracket or quote, or a lone colon), Mediarium searches again with just the words, and if that is refused too the search box says "Open Library couldn't read that search" instead of showing an empty list. Press **Add** on the right one.
 
 - From the Ebooks tab the book is added as an ebook, from the Audiobooks tab as an audiobook. When the other format is switched on too, tick **Get the audiobook too** (or **Get the ebook too**) to want both.
 - Mediarium starts looking for it straight away. After that, the automatic search tries again on its usual schedule for every book still missing.
@@ -303,7 +303,7 @@ The dashboard has an **Ebooks** and an **Audiobooks** card with how many books y
 | GET | `/api/books/{id}/releases?format=` | The matching releases, best first |
 | POST | `/api/books/{id}/grab` | `{"format", "releaseTitle", "downloadUrl", "sizeBytes", "protocol"}` |
 | DELETE | `/api/books/{id}?deleteFiles=` | Remove a book (administrators) |
-| POST | `/api/books/{id}/cover` | Give the book a cover by uploading a picture: a multipart form with the picture in `file` (JPEG or PNG, up to 8 MB). Answers the book. Needs permission to manage |
+| POST | `/api/books/{id}/cover` | Give the book a cover by uploading a picture: a multipart form with the picture in `file` (JPEG, PNG or WebP, up to 8 MB; it is kept as a JPEG). Answers the book. Needs permission to manage |
 | POST | `/api/books/{id}/cover/link` | The same from a link: `{"url": "https://..."}`. Only the public internet is fetched; a link to this machine or the home network is refused with 400. Needs permission to manage |
 | GET | `/api/books/{id}/cover/editions` | The covers Open Library has for the book: `editions` (`coverId`, `url`) and `current`, the one shown now (0 when the book shows a picture of its own). Needs permission to manage |
 | PUT | `/api/books/{id}/cover/edition` | Show one of those covers: `{"coverId": 123}`. 400 for a cover that isn't in the list |

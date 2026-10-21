@@ -10,7 +10,7 @@ import { buildShelves, rowsByOptions, type RowsBy } from '../home/shelfGroups' /
 import { ActiveChips, CompactBar, FiltersButton, KindPicker, type ActiveFilter } from '../components/CompactBar' // Usherr
 import type { ShowStatus } from '../home/showStatus' // home fork
 import { Link, useNavigate } from 'react-router-dom'
-import { api, can, isAdmin, type Book, type BookFormat, type BulkResult, type BulkTitle, type CollectionListItem, type Movie, type MusicArtist, type QualityProfile, type QueueItem, type Series, type SourcePref } from '../api'
+import { api, can, isAdmin, type Book, type BookFormat, type BulkResult, type BulkTitle, type CollectionListItem, type MediaSummary, type Movie, type MusicArtist, type QualityProfile, type QueueItem, type Series, type SourcePref } from '../api'
 import { useAuth } from '../AuthContext'
 import { playTitle } from '../home/Player' // play hook (home fork)
 import { useComicsOn, useNsfwOn } from '../home/libraryKinds' // library hook (home fork)
@@ -46,6 +46,7 @@ import { useUrlState } from '../useUrlState'
 import { plural, t, tx, st } from '../i18n'
 import { compareTitles } from '../titleSort'
 import { looseIncludes } from '../looseText'
+import { fileFilterOptions, fileFiltersActive, langName, matchesFileFilters, NO_FILE_FILTERS, type FileFilters } from '../fileInfo'
 
 type Kind = 'movie' | 'tv'
 type View = 'grid' | 'list' | 'shelves' // shelves: home fork
@@ -84,6 +85,8 @@ interface Item {
   streamedId?: number
   streams?: boolean
   showStatus?: ShowStatus // home fork: shows that have ended wear a ribbon
+  ended: boolean // a show that has finished (TMDB says Ended or Canceled)
+  media?: MediaSummary // what the files hold (codecs, HDR, audio and subtitle languages), once they have been read
 }
 
 // home fork: a title in the streamed collection, as /api/streamed lists it.
@@ -108,7 +111,7 @@ function fromStreamed(t: StreamedTitle): Item {
     key: `s-${t.id}`, kind: t.kind === 'movie' ? 'movie' : 'tv', id: -t.id, tmdbId: t.tmdbId, title: t.title, year: t.year, posterUrl: t.poster,
     monitored: true, profileId: 0, status: 'missing', quality: q, have: 0, total: t.kind === 'series' ? t.files : 1,
     state: STREAMS_STATE, genres: t.genres ?? [], tags: [], gettingDetails: false, streamedId: t.id,
-    copies: 0, released: t.year ? String(t.year) : '', sizeBytes: 0,
+    copies: 0, released: t.year ? String(t.year) : '', sizeBytes: 0, ended: false,
   }
 }
 
@@ -153,6 +156,8 @@ function fromMovie(m: Movie, queue: QueueItem[]): Item {
     copies: m.copies ?? 0,
     released: m.releaseDate || (m.year ? String(m.year) : ''),
     sizeBytes: m.sizeBytes ?? 0,
+    ended: false,
+    media: m.media,
   }
 }
 
@@ -167,6 +172,8 @@ function fromSeries(s: Series, queue: QueueItem[]): Item {
     released: s.firstAirDate || (s.year ? String(s.year) : ''),
     sizeBytes: s.sizeBytes ?? 0,
     showStatus: s.showStatus,
+    ended: s.showStatus === 'ended',
+    media: s.media,
   }
 }
 
@@ -211,7 +218,7 @@ export default function Library() {
   const comicsOn = useComicsOn(admin) // library hook (home fork)
   const nsfwOn = useNsfwOn(admin) // library hook (home fork)
   // The tab and the filters live in the address, so Back from a title brings the list back as it was.
-  const [ui, patchUi] = useUrlState({ kind: 'movie', st: 'all', q: '', genre: '', tag: '', decade: '', collection: '' })
+  const [ui, patchUi] = useUrlState({ kind: 'movie', st: 'all', q: '', genre: '', tag: '', decade: '', collection: '', ...NO_FILE_FILTERS })
   const { on } = useModules()
   const musicOn = on('music')
   const booksOn = on('ebooks') || on('audiobooks')
@@ -289,6 +296,8 @@ export default function Library() {
   const decade = ui.decade
   const setDecade = (v: string) => patchUi({ decade: v })
   const collection = ui.collection
+  // What the files hold: video codec, HDR, resolution, audio and subtitle languages (read from the files' headers).
+  const fileFilters: FileFilters = useMemo(() => ({ vc: ui.vc, hdr: ui.hdr, res: ui.res, al: ui.al, ac: ui.ac, sl: ui.sl, nal: ui.nal }), [ui.vc, ui.hdr, ui.res, ui.al, ui.ac, ui.sl, ui.nal])
   const setCollection = (v: string) => patchUi({ collection: v })
   // The series of films (trilogies, franchises) with a film in the library, for the Collection filter.
   const [collections, setCollections] = useState<CollectionListItem[]>([])
@@ -395,7 +404,8 @@ export default function Library() {
         (!genre || i.genres.includes(genre)) &&
         (!tag || i.tags.some((t) => t.toLowerCase() === tag.toLowerCase())) &&
         (!decade || (i.year >= Number(decade) && i.year < Number(decade) + 10)) &&
-        (!inCollection || inCollection.has(i.id)),
+        (!inCollection || inCollection.has(i.id)) &&
+        matchesFileFilters(i.media, fileFilters),
     )
     // home fork: titles compare without a leading "The", "A" or "An"
     if (sort === 'title') list.sort((a, b) => compareTitles(a.title, b.title))
@@ -413,11 +423,11 @@ export default function Library() {
     }
     if (reverse) list.reverse()
     return list
-  }, [items, kind, filter, text, sort, reverse, genre, tag, decade, collection, collections, voteOf, taste])
+  }, [items, kind, filter, text, sort, reverse, genre, tag, decade, collection, collections, voteOf, taste, fileFilters])
   // Everything that narrows the list (sorting does not), and the way back.
-  const filtersActive = text.trim() !== '' || filter !== 'all' || genre !== '' || tag !== '' || decade !== '' || (kind === 'movie' && collection !== '')
+  const filtersActive = text.trim() !== '' || filter !== 'all' || genre !== '' || tag !== '' || decade !== '' || (kind === 'movie' && collection !== '') || fileFiltersActive(fileFilters)
   function clearFilters() {
-    patchUi({ q: '', st: 'all', genre: '', tag: '', decade: '', collection: '' })
+    patchUi({ q: '', st: 'all', genre: '', tag: '', decade: '', collection: '', ...NO_FILE_FILTERS })
   }
   // Usherr: the filters that are on, each a chip with an x.
   const activeFilters: ActiveFilter[] = [
@@ -427,7 +437,30 @@ export default function Library() {
     ...(genre ? [{ key: 'genre', label: genre, clear: () => setGenre('') }] : []),
     ...(decade ? [{ key: 'decade', label: t('{decade}s', { decade }), clear: () => setDecade('') }] : []),
     ...(kind === 'movie' && collection ? [{ key: 'collection', label: collections.find((c) => String(c.id) === collection)?.name ?? t('Collection'), clear: () => setCollection('') }] : []),
+    // The file filters (Mediarium 3.3.0), each a chip too.
+    ...(ui.vc ? [{ key: 'vc', label: ui.vc, clear: () => patchUi({ vc: '' }) }] : []),
+    ...(ui.hdr ? [{ key: 'hdr', label: ui.hdr === 'hdr' ? t('Any HDR') : ui.hdr, clear: () => patchUi({ hdr: '' }) }] : []),
+    ...(ui.res ? [{ key: 'res', label: ui.res, clear: () => patchUi({ res: '' }) }] : []),
+    ...(ui.al ? [{ key: 'al', label: t('{language} audio', { language: langName(ui.al) }), clear: () => patchUi({ al: '' }) }] : []),
+    ...(ui.nal ? [{ key: 'nal', label: t('No {language} audio', { language: langName(ui.nal) }), clear: () => patchUi({ nal: '' }) }] : []),
+    ...(ui.ac ? [{ key: 'ac', label: ui.ac, clear: () => patchUi({ ac: '' }) }] : []),
+    ...(ui.sl ? [{ key: 'sl', label: t('{language} subtitles', { language: langName(ui.sl) }), clear: () => patchUi({ sl: '' }) }] : []),
   ]
+  const fileOptions = useMemo(() => fileFilterOptions(items ?? []), [items])
+  const langOption = (code: string) => ({ value: code, label: `${langName(code)} (${code.toUpperCase()})` })
+  // How many of the files have had their video and audio tracks read; the rest are read a few at a time in the background.
+  const [fileProgress, setFileProgress] = useState<{ done: number; total: number } | null>(null)
+  useEffect(() => {
+    if (!onMovies && !onTV) return
+    let stop = false
+    const look = () => api.fileDetailsStatus().then((p) => !stop && setFileProgress((prev) => (prev && prev.done === p.done && prev.total === p.total ? prev : p))).catch(() => undefined)
+    void look()
+    const timer = setInterval(() => void look(), 20000)
+    return () => {
+      stop = true
+      clearInterval(timer)
+    }
+  }, [onMovies, onTV])
   const genreOptions = useMemo(() => [...new Set((items ?? []).flatMap((i) => i.genres))].sort(), [items])
   const tagOptions = useMemo(() => [...new Set((items ?? []).flatMap((i) => i.tags))].sort((a, b) => a.localeCompare(b)), [items])
   const decadeOptions = useMemo(() => [...new Set((items ?? []).filter((i) => i.year).map((i) => Math.floor(i.year / 10) * 10))].sort((a, b) => b - a), [items])
@@ -861,6 +894,18 @@ export default function Library() {
               <Dropdown icon="film" label={t('Collection')} value={collection} onChange={setCollection} options={[{ value: '', label: t('All collections') }, ...collections.map((c) => ({ value: String(c.id), label: c.name }))]} />
             )}
             <Dropdown icon="calendar" label={t('Year')} value={decade} onChange={setDecade} options={[{ value: '', label: t('Any year') }, ...decadeOptions.map((d) => ({ value: String(d), label: t('{decade}s', { decade: String(d) }) }))]} />
+            {/* What the files hold (Mediarium 3.3.0): codec, HDR, size, sound and subtitle languages */}
+            {fileOptions.videoCodecs.length > 0 && (
+              <>
+                <Dropdown icon="film" label={t('Video codec')} value={ui.vc} onChange={(v) => patchUi({ vc: v })} options={[{ value: '', label: t('Video codec') }, ...fileOptions.videoCodecs.map((c) => ({ value: c, label: c }))]} />
+                <Dropdown icon="sparkles" label={t('HDR')} value={ui.hdr} onChange={(v) => patchUi({ hdr: v })} options={[{ value: '', label: t('HDR') }, { value: 'SDR', label: 'SDR' }, ...(fileOptions.hdr.length > 0 ? [{ value: 'hdr', label: t('Any HDR') }] : []), ...fileOptions.hdr.map((k) => ({ value: k, label: k }))]} />
+                <Dropdown icon="monitor" label={t('Resolution')} value={ui.res} onChange={(v) => patchUi({ res: v })} options={[{ value: '', label: t('Resolution') }, ...fileOptions.resolutions.map((r) => ({ value: r, label: r }))]} />
+                <Dropdown icon="volume" label={t('Audio language')} value={ui.al} onChange={(v) => patchUi({ al: v })} options={[{ value: '', label: t('Audio language') }, ...fileOptions.audioLangs.map(langOption)]} />
+                <Dropdown icon="volume-off" label={t('Missing audio language')} value={ui.nal} onChange={(v) => patchUi({ nal: v })} options={[{ value: '', label: t('Missing audio') }, ...fileOptions.audioLangs.map((c) => ({ value: c, label: t('No {language} audio', { language: langName(c) }) }))]} />
+                <Dropdown icon="headphones" label={t('Audio codec')} value={ui.ac} onChange={(v) => patchUi({ ac: v })} options={[{ value: '', label: t('Audio codec') }, ...fileOptions.audioCodecs.map((c) => ({ value: c, label: c }))]} />
+                <Dropdown icon="chat" label={t('Subtitle language')} value={ui.sl} onChange={(v) => patchUi({ sl: v })} options={[{ value: '', label: t('Subtitles') }, ...fileOptions.subLangs.map(langOption)]} />
+              </>
+            )}
             <button className={`btn-with-icon cbar-reverse-p${reverse ? ' primary' : ''}`} onClick={() => setReverse(!reverse)} aria-pressed={reverse}>
               <Icon name="sort" size={16} /> {t('Reverse the order')}
             </button>
@@ -897,6 +942,9 @@ export default function Library() {
         }
         chips={<ActiveChips filters={activeFilters} onClearAll={clearFilters} />}
       />
+      {fileProgress && fileProgress.total > 0 && fileProgress.done < fileProgress.total && fileFiltersActive(fileFilters) && (
+        <p className="file-note">{t('Reading the video and audio details of your files in the background: {done} of {total} done. The file filters cover the files read so far.', { done: fileProgress.done.toLocaleString(), total: fileProgress.total.toLocaleString() })}</p>
+      )}
 
       {selecting && admin && (
         <BulkBar text={selText} onSelectAll={() => shown && setSelected(selectAllKeys(shown))} onSelectNone={() => setSelected(new Set())} onDone={stopSelecting} busy={busy}>

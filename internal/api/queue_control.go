@@ -95,6 +95,7 @@ func (s *Server) pauseItem(item queue.Item) error {
 		return errNotRunning
 	}
 	if s.pipelines.interrupt(item.ID, false, false, stopWait) {
+		s.pauseUsenetJob(item)
 		return nil
 	}
 	// Nothing was running it. It may still have finished a moment ago: then
@@ -105,6 +106,7 @@ func (s *Server) pauseItem(item queue.Item) error {
 		}
 		return err
 	}
+	s.pauseUsenetJob(item)
 	return nil
 }
 

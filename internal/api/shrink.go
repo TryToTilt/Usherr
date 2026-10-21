@@ -44,7 +44,7 @@ func pickSmallerResult(results []indexers.Result, profile quality.Profile, curre
 		if !smallerEnough(res.SizeBytes, currentSize) {
 			continue
 		}
-		if tierKnown(string(currentTier)) && quality.Rank(quality.Classify(res.Parsed())) > quality.Rank(currentTier) {
+		if tierKnown(string(currentTier)) && profile.TierRank(quality.Classify(res.Parsed())) > profile.TierRank(currentTier) {
 			continue
 		}
 		smaller = append(smaller, res)

@@ -13,7 +13,7 @@ import { dayLabel, hours, inQuiet, typeLabel, type Data, type Feature, type Medi
 import { applyPalette, markSrc } from '../palette'
 import { Board, ItemLook, itemsFor, Wall, wallItems, type Item } from './MarqueeLooks'
 import { FitLine, SceneFrame, Stage } from './marqueeParts'
-import { Badges, InfoPanel, MediaSlide, PreShow, preShowHasSomething, QR, qrFor, SpotlightView, ThemeMusic, TonightView, trivia, TriviaView } from './MarqueeExtras'
+import { Badges, FormatBadges, InfoPanel, MediaSlide, PreShow, preShowHasSomething, QR, qrFor, SpotlightView, ThemeMusic, TonightView, trivia, TriviaView } from './MarqueeExtras'
 import './marqueeFonts'
 import './marquee.css'
 import './marqueeLook.css'
@@ -750,6 +750,7 @@ function SceneView({ scene, data, sound, badges }: { scene: Scene; data: Data; s
           {f.tagline && <p className="mq-tagline">“{f.tagline}”</p>}
           <p className="mq-meta">{meta}</p>
           {f.genres && f.genres.length > 0 && <p className="mq-meta mq-dim">{f.genres.slice(0, 3).join(' · ')}</p>}
+          {badges && <FormatBadges formats={f.formats} />}
           {f.reason === 'coming' && f.releaseDate && <p className="mq-meta mq-gold">{t('Opens {date}', { date: dayLabel(f.releaseDate) })}</p>}
           {f.reason === 'theaters' && data.theatre && <p className="mq-meta mq-gold">{data.theatre}</p>}
         </div>

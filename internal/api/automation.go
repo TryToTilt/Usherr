@@ -79,6 +79,8 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "home-autostream", Interval: autostreamEvery, Run: s.heavy(s.autostreamJob)},        // home fork: Streams for you
 		automation.Job{Name: "import-details", Interval: importDetailsInterval, Run: s.heavy(s.importDetailsJob)},
 		automation.Job{Name: "trash-formats", Interval: time.Hour, Run: s.heavy(s.trashFormatsJob)}, // does nothing until switched on; reads the guides once a day
+		// media-info reads the video, audio and subtitle tracks of the library's files, a few minutes at a time.
+		automation.Job{Name: "media-info", Interval: mediaInfoInterval, Run: s.heavy(s.mediaInfoJob)},
 		automation.Job{Name: "episode-quality", Interval: 24 * time.Hour, Run: s.heavy(func(context.Context) { s.backfillEpisodeQuality() })},
 		automation.Job{Name: "import-added-dates", Interval: 24 * time.Hour, Run: s.heavy(func(context.Context) { s.backfillImportedAddedDates() })},
 		automation.Job{Name: "watched", Interval: watchedJobTick, Run: s.heavy(s.watchedJob)},                     // does nothing until switched on
@@ -435,7 +437,7 @@ func pickBestFor(results []indexers.Result, profile quality.Profile, wantYear in
 		if wantYear != 0 && release.Year != 0 && release.Year != wantYear {
 			continue
 		}
-		if !quality.SizePlausible(quality.Classify(release), results[i].SizeBytes, 0) || !profile.SizeAllowed(results[i].SizeBytes) {
+		if !builtinSizeOK(quality.Classify(release), results[i].SizeBytes, 0, 0) || !profile.SizeAllowed(results[i].SizeBytes) {
 			continue
 		}
 		key := keyFor(profile, release, &results[i])
@@ -466,7 +468,7 @@ func pickUpgradeResult(results []indexers.Result, profile quality.Profile, curre
 		if wantYear != 0 && release.Year != 0 && release.Year != wantYear {
 			continue
 		}
-		if !quality.SizePlausible(quality.Classify(release), results[i].SizeBytes, 0) || !profile.SizeAllowed(results[i].SizeBytes) {
+		if !builtinSizeOK(quality.Classify(release), results[i].SizeBytes, 0, 0) || !profile.SizeAllowed(results[i].SizeBytes) {
 			continue
 		}
 		key := keyFor(profile, release, &results[i])

@@ -1,7 +1,7 @@
 // Run with: npm test (uses node's built-in test runner, no extra packages).
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { syncFormatScores } from './profileScoreSync.ts'
+import { hasScore, syncFormatScores, withoutScore } from './profileScoreSync.ts'
 
 type S = Record<number, string>
 
@@ -19,3 +19,15 @@ for (const c of cases) {
     assert.deepEqual(syncFormatScores(c.base, c.draft, c.server), c.want)
   })
 }
+
+test('a score of 0 keeps the format in the list, an empty box does not', () => {
+  const scores = { 1: '0', 2: ' ', 3: '-5', 4: '120' }
+  assert.deepEqual([1, 2, 3, 4, 5].map((id) => hasScore(scores, id)), [true, false, true, true, false])
+})
+
+test('removing a format takes out its row, a 0 row too, and nothing else', () => {
+  const scores = { 1: '0', 2: '50' }
+  assert.deepEqual(withoutScore(scores, 1), { 2: '50' })
+  assert.deepEqual(withoutScore(scores, 9), scores)
+  assert.deepEqual(scores, { 1: '0', 2: '50' })
+})

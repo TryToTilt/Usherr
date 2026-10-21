@@ -23,3 +23,17 @@ export function syncFormatScores(base: Scores, draft: Scores, server: Scores): S
   }
   return out
 }
+
+// hasScore: the format is in the profile's list. A score of 0 counts, since
+// the format is added and does nothing until it is raised; only an empty box
+// leaves it out.
+export function hasScore(scores: Scores, id: number): boolean {
+  return (scores[id] ?? '').trim() !== ''
+}
+
+// withoutScore takes one format out of the list (the bin button on its row).
+export function withoutScore(scores: Scores, id: number): Scores {
+  const out = { ...scores }
+  delete out[id]
+  return out
+}

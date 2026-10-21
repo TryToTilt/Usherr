@@ -26,6 +26,7 @@ type Item struct {
 	Release   string // the release name that was grabbed
 	Reason    string // why a download failed, in plain words
 	Language  string // a subtitle's language
+	Subtitles string // for an import: where the subtitles stand, like "Already there (en, nl)"; empty when subtitles are off
 	PosterURL string // a hosted poster image, or empty
 	LinkPath  string // where the title lives in Mediarium, like /title/597
 }
@@ -89,7 +90,8 @@ func Compose(eventType string, it Item, links Links, at time.Time) Event {
 	case EventImported:
 		ev.Title = fmt.Sprintf("%s is %s", name, watch)
 		ev.Lead = fmt.Sprintf("%s was downloaded and added to your library.", name)
-		rows = append(rows, Detail{"Saved to", it.Path})
+		rows = append(rows, Detail{"Saved to", it.Path}, Detail{"Subtitles", it.Subtitles})
+		ev.Subtitles = strings.TrimSpace(it.Subtitles)
 	case EventAdded:
 		ev.Title = "Downloading " + name
 		ev.Lead = fmt.Sprintf("Mediarium found a release for %s and added it to the downloads.", name)

@@ -132,6 +132,7 @@ func (s *Server) handleManualImport(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		dest = s.keepMovieFolder(m, s.movieRootFor(m), dest)
 		if err := s.checkLibraryRoot(dest); err != nil {
 			writeError(w, http.StatusConflict, err.Error())
 			return

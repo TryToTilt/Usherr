@@ -9,7 +9,7 @@ import { useToast } from '../components/Toast'
 import { useDocumentTitle } from '../documentTitle'
 import { t } from '../i18n'
 import { marqueeCall } from './marqueeCall'
-import type { MarqueeSettings } from './marqueeData'
+import { ownLabel, type MarqueeSettings } from './marqueeData'
 import MarqueeConnect from './MarqueeConnect'
 import MarqueeForm from './MarqueeForm'
 import MarqueeMedia from './MarqueeMedia'
@@ -74,6 +74,13 @@ function SharedLook() {
   const [m, setM] = useState<MarqueeSettings | null>(null)
   const [profiles, setProfiles] = useState<string[]>([])
   const [dirty, setDirty] = useState(false)
+  // Screens with settings of their own don't follow these: said plainly,
+  // with a way to put them back on the shared ones.
+  const [own, setOwn] = useState<{ id: string; name: string; what: string }[]>([])
+  const loadOwn = () =>
+    marqueeCall<{ screens: { id: string; name: string; own: boolean; ownKeys?: string[] }[] }>('GET', '/api/home/marquee/screens')
+      .then((d) => setOwn((d.screens ?? []).filter((sc) => sc.own).map((sc) => ({ id: sc.id, name: sc.name, what: ownLabel(sc.ownKeys) }))))
+      .catch(() => undefined)
   useEffect(() => {
     marqueeCall<{ settings: MarqueeSettings; profiles: string[] }>('GET', '/api/home/marquee/settings')
       .then((d) => {
@@ -81,8 +88,18 @@ function SharedLook() {
         setProfiles(d.profiles ?? [])
       })
       .catch(() => undefined)
+    void loadOwn()
   }, [])
   if (!m) return null
+  const backToShared = async (sc: { id: string; name: string; what: string }) => {
+    try {
+      await marqueeCall('PUT', `/api/home/marquee/screens/${sc.id}`, { settings: null })
+      toast.success(t('{name} shows these settings now.', { name: sc.name }))
+      void loadOwn()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
   const change = (patch: Partial<MarqueeSettings>) => {
     setM({ ...m, ...patch })
     setDirty(true)
@@ -92,7 +109,11 @@ function SharedLook() {
       const d = await marqueeCall<{ settings: MarqueeSettings }>('PUT', '/api/home/marquee/settings', m)
       setM(d.settings)
       setDirty(false)
-      toast.success(t('Marquee settings saved. The screens show them now.'))
+      toast.success(
+        own.length
+          ? t('Saved. {names} keep some of their own (see above); the rest of these apply there too.', { names: own.map((sc) => sc.name).join(', ') })
+          : t('Marquee settings saved. The screens show them now.'),
+      )
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
     }
@@ -100,6 +121,24 @@ function SharedLook() {
   return (
     <section className="card mqh-card">
       <p className="hint">{t('These settings apply to every screen that has none of its own. Under Screens, any screen can get its own.')}</p>
+      {own.length > 0 && (
+        <div className="mqh-own" role="status">
+          <Icon name="warning" size={18} />
+          <div>
+            <strong>{t('Some screens keep a few settings of their own; everything else here applies to them too.')}</strong>
+            <ul className="mqh-own-list">
+              {own.map((sc) => (
+                <li key={sc.id}>
+                  <span>{t('{name} keeps its own {what}.', { name: sc.name, what: sc.what })}</span>
+                  <button className="btn-sm" onClick={() => void backToShared(sc)}>
+                    {t('Use these on {name} too', { name: sc.name })}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
       <div className="mq-set">
         <MarqueeForm m={m} profiles={profiles} change={change} name="mq-shared" />
       </div>

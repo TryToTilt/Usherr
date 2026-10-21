@@ -8,6 +8,92 @@ under [Unreleased]. How releases are cut: [docs/RELEASING.md](docs/RELEASING.md)
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-10-21
+
+In short: connect AI assistants to your library, use SABnzbd or NZBGet for Usenet, see what is inside your video files, order and group qualities, and rescan music albums.
+
+### Added
+
+- Ask your library questions from a chat program or a voice assistant. Mediarium now has an MCP address (`/mcp`) that programs supporting MCP, and Home Assistant's voice assistant, can use to answer things like "which movies are not FuN releases?", "how many movies are over 15 GB?" or "which downloads failed?". It is off until you switch on Let AI assistants connect (MCP) under Settings > Other apps, and it only works with an administrator's API key. A read-only key can only ask questions. Adding titles, switching a profile, retrying a failed download and adding a preferred term are shown first and only happen after a yes. Idea from mirisbowring on GitHub, #97. See docs/mcp.md.
+- Usenet releases can now go to SABnzbd or NZBGet instead of the built-in downloader. Settings > Downloading > Usenet > "Use SABnzbd or NZBGet": pick the downloader, enter its address and API key (SABnzbd) or login (NZBGet), a category (plus one per movies, TV, music and books) and a priority, press Test, then switch on "Send Usenet releases to ...". The built-in downloader stays the default. Progress, pause, resume and remove show under Activity > Download clients, a release the downloader gives up on is blocklisted and the next one is tried, and finished files are imported from the downloader's folder (with path mapping) without being moved or deleted. Thanks to xrandallx1 on GitHub, #92.
+- Music: a **Rescan album folder** button on an album (administrators) re-reads the audio files in the album's folder, matches them to the tracks by tags, track numbers and titles, and updates which tracks have a file, the album's quality and its status. It works for albums already in your library, which the import scan skips, and for an album that has no folder recorded yet (it looks in the folder Mediarium would use, or one of the artist's folders with the album's name). If the album is still incomplete and monitored it says so, lists the missing tracks and offers **Search for missing tracks**. Idea from u/troelsdk on Reddit.
+- Music: **Delete file** in an album's Files tab (administrators) removes one file from the album folder after you confirm (recycle bin when it is on). The track loses its link and the album's status and quality are worked out again; with no audio left the album is wanted again so a better release can be searched. Only files inside the album's folder, inside the music folder, can be deleted. Idea from u/troelsdk on Reddit.
+- Music: **Search for missing tracks** (and "Look for better") now also works for a downloaded album with tracks missing, and takes any release the profile accepts, not only an upgrade. Idea from u/troelsdk on Reddit.
+- Quality profiles can have their own quality order and groups, like the quality list in Radarr and Sonarr. In a profile's editor (under Show advanced options) unfold "Quality order and groups" and press "Customise order and groups": drag the qualities, use the arrows (or the arrow keys on a row's handle) to rank them your way, and tick "Pick" on several to put them in a group that counts as one rank. The cutoff can be a whole group. "Use TRaSH layout", "Treat web and TV as equal" and "Reset to default order" help you start. Automatic search, the best match in the search list, upgrades, the "below cutoff" lists and the delay profile all follow the order. Profiles without a custom order behave exactly as before. Importing a TRaSH Guides profile sets the order when the guide groups or ranks qualities differently. The Radarr/Sonarr compatible quality profile answers show groups the way those apps do. Thanks to Bayharbourbutcher1 on GitHub, #87.
+- Mediarium now reads what is inside your video files: the video codec, picture size, 8 or 10 bit, SDR, HDR10, HDR10+, Dolby Vision or HLG, every audio track (codec, channels, language, Atmos when the track says so) and every subtitle track. A movie's page and each downloaded episode show it as a short line of chips (`HEVC 10-bit HDR10`, `2160p`, `TrueHD 7.1 Atmos`, `EN, DE audio`, `EN, NL subs`). It reads only the headers of MKV, WebM, MP4, M4V and MOV files, needs no extra program, and goes through your existing library slowly in the background. Thanks to nexus4004 (GitHub) for the idea (#89).
+- New Library filters: video codec, HDR, resolution, audio language, audio codec, subtitle language, and "missing audio" for a language (for example 4K films with no German track). They are kept in the address like the other filters.
+- The Radarr and Sonarr style API now fills `mediaInfo` on movie and episode files (`videoCodec`, `videoBitDepth`, `videoDynamicRangeType`, `audioCodec`, `audioChannels`, `audioLanguages`, `subtitles`, `resolution`, `runTime`), and the assistant (MCP) `library_search` tool can filter by `audio_language` and `video_codec`.
+- WebP covers. A book cover that is a WebP picture (in an EPUB, from Open Library, from the Cover Art Archive, as comic pages or uploaded) is now read and kept as a JPEG instead of being refused. A `cover.webp` or `folder.webp` in an album folder is kept and shown too. (No issue found for this, so no credit line.)
+
+### Changed
+
+- The search box popup keeps settings out of the way. The All tab shows at most three settings matches (a "Show all" row opens the rest) and they come after the titles unless what you typed is a setting's name; All | Media | Settings tabs appear when settings match, and the last tab you picked is remembered in this browser. Thanks to mirisbowring on GitHub, #93.
+- Mediarium now requires Go 1.26.10 to build, after a security scan reported a certificate-handling problem in 1.26.9 (the Docker images were already built with a newer Go).
+
+### Fixed
+
+- Book search: Open Library answered "422" for text its search syntax can't read (an unclosed bracket or quote, a lone colon). Mediarium now retries with just the words, and when Open Library still refuses it says "Open Library couldn't read that search. Try fewer or simpler words." The search box in the header showed an empty list in that case; it now shows the message.
+- Interactive search: the **Score** column showed only the custom-format part of the score. It now shows the whole score the pick uses (formats + preferred terms + the small bonus of a PROPER/REPACK), equal to the total in the "Why this score" row, and sorting by Score uses it. A profile with preferred terms but no custom formats now gets the column too.
+- Checking a site that needs FlareSolverr no longer shows "the check timed out" while FlareSolverr is still solving the Cloudflare challenge. The background check gave up after 30 seconds, the Test button waited 100; both now wait up to 100 seconds when FlareSolverr is set up, searches up to 150. The Test button says "Solving the Cloudflare check, this can take up to a minute" while it waits, and a real timeout now names FlareSolverr, how long it waited and what to try. Thanks to Bayharbourbutcher1 on GitHub, #86.
+
+## [3.2.20] - 2026-10-21
+
+In short: phone apps get a real history, notifications mention subtitles, optional automatic single sign-on, up to 500 downloads at once, and several fixes.
+
+### Added
+
+- Apps like nzb360 now get a real history from Mediarium, so their "Recently downloaded" cards fill up instead of saying "No results found". Each download shows as grabbed, and as imported or failed once it ends. Also answered: history since a date, history of one movie or show, episode and movie files, the calendar with the episode file, parsing a release name, and empty lists for rename and manual import. Thanks to Bayharbourbutcher1 on GitHub, #94.
+- The "ready to watch" notification now says where the subtitles stand: "Already there (en, nl)", "None yet, searching for en" and so on. It appears in every channel (Discord, Telegram, email, push, webhook) and only while subtitles are switched on. Webhooks get a new `subtitles` field, and custom webhook bodies get `{{subtitles}}`. (SanketBaraiya on GitHub, #106)
+- New setting "Sign in automatically with" (Settings > Account & Access > All accounts). With single sign-on chosen, visitors who are not signed in go straight to the provider and come back to the page they asked for. Open the address with `?no-redirect=1` (or `?disable-auth-redirect`) for the normal sign-in page. Off by default. (mirisbowring on GitHub, #105)
+- A switch "Built-in minimum size check" (Settings > Library > Quality > Size limits). On by default. Off, automatic searches no longer skip a release for being too small for its quality, and the release list stops showing "smaller than a real ... release is likely to be". Reported from inside the app (Mediarium reference 20261020-200637-1fa7f504).
+- **Downloads at the same time** is a number box from 1 to 500 instead of five buttons, so a download client such as qBittorrent can run as many torrents at once as it did for Radarr and Sonarr. It saves by itself a moment after you stop typing. The built-in Usenet and torrent downloaders keep their own limit (Usenet: your provider's connections, 5 to 50; torrents: 20), the rest wait in line. Thanks to WassawRoki on GitHub, #102.
+
+### Changed
+
+- The built-in minimum for a TV episode now shrinks with the episode length when TMDB says it is under 30 minutes (table value times runtime over 30, never under 15 MB), so real releases of short shows (a 5 minute WEB-DL 1080p episode needs about 25 MB instead of 150 MB) are no longer skipped. Movies and normal episodes are unchanged.
+- Development: vite 8.3.5 (Dependabot, #103).
+
+### Fixed
+
+- Adding custom formats that a quality profile already has no longer re-scores them silently. They are skipped and keep their score, and the message says per profile how many were added and how many were already there. A new box, "Replace the score if the profile already has the format", gives them the new score on purpose. The Add formats list in a profile says when every format is already in it. Thanks to Bayharbourbutcher1 on GitHub, #87.
+- The "More" menu on a torrent card in Activity > Download clients no longer opens behind the next card. An open menu now sits above the cards around it, and it scrolls into view when it opens near the bottom of the window. Thanks to nexus4004 on GitHub, #107.
+
+## [3.2.19] - 2026-10-20
+
+In short: nzb360 and other phone apps show scores, naming has folder formats and TRaSH presets that save, size limits are separate for movies and TV, and long cards fold away.
+
+### Added
+
+- Separate Movie folder and Show folder formats under Settings > Library > File names and importing > Custom, with ready-made choices (Mediarium default, TRaSH recommended, and TMDb id versions for Plex, Emby and Jellyfin) and a live preview. They only name the folder of a new title; a movie or show that already has files keeps its folder. (Bayharbourbutcher1 on GitHub, #95)
+- Release lists in apps like nzb360 now show what Radarr and Sonarr show: the custom formats a release matches and their score, the quality revision (repack or proper), the edition, seeders and leechers, and the reasons an automatic search would skip it. The best match is listed first. Reported by Bayharbourbutcher1 on GitHub, #94.
+- The apps' "cutoff unmet" list, saved filters, custom format list and the settings lists they load at start (tags in detail, display and host settings, notifications, import lists, remote path mappings, updates, tasks, log, metadata) now get a proper answer instead of "not found". Releases pushed from other tools are answered with a clear refusal. Reported by Bayharbourbutcher1 on GitHub, #94.
+
+### Changed
+
+- Size limits are now separate for Movies and TV, each with its own tab, switch and Apply TRaSH sizes. Radarr's TRaSH lists fill the Movies table and Sonarr's the TV table. On upgrade the TV table starts as a copy of your current table, so no check changes. (Bayharbourbutcher1 on GitHub, #95)
+- The Custom formats card, the Size limits card and the Music card on the Quality page are folded away until opened, with a short summary and your choice remembered. Custom format scores in the profile editor are folded too, and open by themselves when you add formats or a score has a mistake. (Bayharbourbutcher1 on GitHub, #95)
+
+### Fixed
+
+- The TRaSH file name formats (Plex, Emby, Jellyfin with TMDb id) no longer fail to save with "at most 200 characters". A format can now be up to 500 characters. (Bayharbourbutcher1 on GitHub, #95)
+
+## [3.2.17] - 2026-10-20
+
+In short: phone apps can search for releases, the search box finds settings, and more TRaSH help.
+
+### Added
+
+- Each row in a profile's Custom format scores list has a bin button that takes the format out of the profile. (Bayharbourbutcher1 on GitHub, #87)
+- New file name choices under Settings > File names and importing > Custom > Start from: "TRaSH recommended", plus Plex, Emby and Jellyfin versions with the TMDb id. Nothing existing changes. (Bayharbourbutcher1 on GitHub, #95)
+- "Apply TRaSH sizes" on the Size limits card fills the table with the sizes the TRaSH Guides recommend (movies, streaming and 4K SQP, anime, series, anime series). It shows what changed first and saves nothing until you press Save. (Bayharbourbutcher1 on GitHub, #95)
+- Phone apps built for Radarr and Sonarr (nzb360 and others) can now run an interactive release search: pick a movie, episode or season, see what your indexers have, and tap one to download it (Bayharbourbutcher1 on GitHub, #94).
+- Radarr and Sonarr apps also get the list of your indexers and a download client entry, and a request Mediarium does not answer is written to the log with its address instead of failing without a trace (Bayharbourbutcher1 on GitHub, #94).
+- The search box at the top also finds settings. Type "folders" or "temp folder" and a Settings group shows the page or the setting; picking one opens the page, scrolls to the card and lights it up for a moment (mirisbowring on GitHub, #93).
+
+### Fixed
+
+- Importing TRaSH custom formats that score 0 now adds them to the quality profile with a score of 0 instead of skipping them, from the TRaSH tab, "Add to profiles" and "Add formats" on a profile. They show in the profile's Custom format scores list. A 0 changes no release's score. (Bayharbourbutcher1 on GitHub, #87)
+
 ## [3.2.16] - 2026-10-20
 
 In short: Usenet downloads with a split 7z archive are unpacked.

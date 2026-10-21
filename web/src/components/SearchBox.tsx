@@ -1,7 +1,8 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useStreamed } from '../home/useHave' // Usherr
 import { useLocation, useNavigate } from 'react-router-dom'
-import { api, type BookFound, type MusicArtistResult, type TitleResult } from '../api'
+import { api, isAdmin, isViewer, type BookFound, type MusicArtistResult, type TitleResult } from '../api'
+import { useAuth } from '../AuthContext'
 import { useModules } from '../ModulesContext'
 import AddMusicDialog from './AddMusicDialog'
 import { BookAddDialog } from './BookDiscover'
@@ -11,6 +12,8 @@ import Icon from './Icon'
 import { MusicFallback, PosterFallback } from './PosterCard'
 import { resultState } from './state'
 import { isTypingTarget } from '../shortcuts'
+import { buildSettingsIndex, searchSettings, type SettingsEntry } from '../settingsIndex'
+import { effectiveTab, planSettings, readSearchTab, rememberSearchTab, type SearchTab } from '../searchGroups'
 import { t } from '../i18n'
 
 // The always-visible search bar. It searches the movie and TV databases live
@@ -39,14 +42,23 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
   const [active, setActive] = useState(-1)
   const box = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLInputElement>(null)
+  const panel = useRef<HTMLDivElement>(null)
   const { on } = useModules()
+  const { user } = useAuth()
   const musicOn = on('music')
   const titlesOn = on('movies') || on('tv')
   const [artists, setArtists] = useState<MusicArtistResult[] | null>(null)
   const [addingArtist, setAddingArtist] = useState<MusicArtistResult | null>(null)
   const booksOn = on('ebooks') || on('audiobooks')
   const [bookHits, setBookHits] = useState<BookFound[] | null>(null)
+  const [bookError, setBookError] = useState('')
   const [addingBook, setAddingBook] = useState<BookFound | null>(null)
+  // All | Media | Settings: the last one used is kept in this browser.
+  const [tab, setTab] = useState<SearchTab>(() => readSearchTab())
+  const [allSettings, setAllSettings] = useState(false)
+
+  // A new search starts with the short list of settings again.
+  useEffect(() => setAllSettings(false), [q])
 
   useEffect(() => {
     const term = q.trim()
@@ -114,14 +126,23 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
     const term = q.trim()
     if (!booksOn || term.length < 2) {
       setBookHits(null)
+      setBookError('')
       return
     }
     let stale = false
     const t = setTimeout(() => {
       api
         .searchBooks(term)
-        .then((r) => !stale && setBookHits(r.slice(0, 5)))
-        .catch(() => !stale && setBookHits([]))
+        .then((r) => {
+          if (stale) return
+          setBookHits(r.slice(0, 5))
+          setBookError('')
+        })
+        .catch((e) => {
+          if (stale) return
+          setBookHits([])
+          setBookError(e instanceof Error ? e.message : String(e))
+        })
     }, 450)
     return () => {
       stale = true
@@ -154,6 +175,14 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [noShortcut])
 
+  // Settings pages and settings: found in the browser, so they show at once.
+  const admin = isAdmin(user)
+  const viewer = isViewer(user)
+  const modKey = (['movies', 'tv', 'music', 'ebooks', 'audiobooks'] as const).map((m) => (on(m) ? 1 : 0)).join('')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const settingsIndex = useMemo(() => buildSettingsIndex(admin, viewer, (m) => on(m)), [admin, viewer, modKey])
+  const hits = useMemo(() => (q.trim().length >= 2 ? searchSettings(q, settingsIndex) : []), [q, settingsIndex])
+
   const openItem = (r: TitleResult) => {
     setOpen(false)
     navigate(r.kind === 'movie' ? `/title/${r.tmdbId}` : `/series/${r.libraryId}`)
@@ -174,15 +203,47 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
     setOpen(false)
     navigate(b.libraryId ? `/book/${b.libraryId}` : `/books/work/${b.key}`)
   }
+  const chooseSetting = (e: SettingsEntry) => {
+    setOpen(false)
+    navigate(e.to, { state: e.anchor ? { find: e.anchor } : undefined })
+  }
   const seeAll = () => {
     setOpen(false)
     if (q.trim()) navigate(`/search?q=${encodeURIComponent(q.trim())}`)
   }
 
+  // The rows run in one list for the arrow keys. A settings match that is
+  // what you typed (or starts with it) leads the list; a looser one comes
+  // last, so it never pushes the titles down. Either way the All tab lists
+  // three settings at most; the Media tab none and the Settings tab only them.
+  const showPanel = open && q.trim().length >= 2
+  const nHits = hits.length
+  const shownTab = effectiveTab(tab, nHits)
+  const plan = planSettings(nHits, hits[0]?.score ?? 0, shownTab, allSettings)
+  const titleList = plan.media ? results : null
+  const artistList = plan.media ? artists : null
+  const bookList = plan.media ? bookHits : null
+  const nSettings = plan.show ? plan.shown : 0
+  const nSettingRows = nSettings + (plan.show && plan.more > 0 ? 1 : 0) // the "Show all" row is one more
+  const settingsFirst = plan.show && plan.lead
+  const lead = settingsFirst ? nSettingRows : 0
+  const titleCount = titleList?.length ?? 0
+  const titleEnd = lead + titleCount
+  const artistEnd = titleEnd + (artistList?.length ?? 0)
+  const mediaEnd = artistEnd + (bookList?.length ?? 0)
+  const settingsStart = settingsFirst ? 0 : mediaEnd
+  const count = mediaEnd + nSettingRows
+  const nothingFound = !plan.show && results !== null && results.length === 0 && (!musicOn || (artists !== null && artists.length === 0)) && (!booksOn || (bookHits !== null && bookHits.length === 0)) && !bookError
+
+  function pickTab(next: SearchTab) {
+    setTab(next)
+    rememberSearchTab(next)
+    setActive(-1)
+    panel.current?.scrollTo({ top: 0 })
+    input.current?.focus()
+  }
+
   function onKey(e: KeyboardEvent<HTMLInputElement>) {
-    const titleCount = results?.length ?? 0
-    const artistEnd = titleCount + (artists?.length ?? 0)
-    const count = artistEnd + (bookHits?.length ?? 0)
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setOpen(true)
@@ -192,9 +253,12 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
       setActive((a) => (a < 0 ? count - 1 : a - 1))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      if (active >= 0 && active < titleCount && results?.[active]) choose(results[active])
-      else if (active >= titleCount && active < artistEnd && artists?.[active - titleCount]) chooseArtist(artists[active - titleCount])
-      else if (active >= artistEnd && bookHits?.[active - artistEnd]) chooseBook(bookHits[active - artistEnd])
+      if (active >= settingsStart && active < settingsStart + nSettings) chooseSetting(hits[active - settingsStart].entry)
+      else if (plan.show && plan.more > 0 && active === settingsStart + nSettings) setAllSettings(true)
+      else if (active >= lead && active < titleEnd && titleList?.[active - lead]) choose(titleList[active - lead])
+      else if (active >= titleEnd && active < artistEnd && artistList?.[active - titleEnd]) chooseArtist(artistList[active - titleEnd])
+      else if (active >= artistEnd && active < mediaEnd && bookList?.[active - artistEnd]) chooseBook(bookList[active - artistEnd])
+      else if (settingsFirst && (!plan.media || (results !== null && results.length === 0))) chooseSetting(hits[0].entry)
       else seeAll()
     } else if (e.key === 'Escape') {
       // Escape closes the list; pressed again (nothing left to close) it leaves the box.
@@ -202,11 +266,6 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
       else e.currentTarget.blur()
     }
   }
-
-  const showPanel = open && q.trim().length >= 2
-  const titleCount = results?.length ?? 0
-  const artistEnd = titleCount + (artists?.length ?? 0)
-  const nothingFound = results !== null && results.length === 0 && (!musicOn || (artists !== null && artists.length === 0)) && (!booksOn || (bookHits !== null && bookHits.length === 0))
 
   // A plain function, not a component: a component made inside another one is a
   // new type on every render, which would rebuild every row each time the mouse moves.
@@ -248,6 +307,54 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
     )
   }
 
+  function settingsRows() {
+    return (
+      <>
+        <div className="searchbox-group">{t('Settings')}</div>
+        {hits.slice(0, nSettings).map(({ entry }, i) => {
+          const idx = settingsStart + i
+          return (
+            <div
+              key={`${entry.to}-${entry.anchor ?? ''}`}
+              id={`searchbox-opt-${idx}`}
+              className={`searchbox-row${idx === active ? ' active' : ''}`}
+              role="option"
+              aria-selected={idx === active}
+              onMouseEnter={() => setActive(idx)}
+              onClick={() => chooseSetting(entry)}
+            >
+              <span className="searchbox-settings-icon" aria-hidden="true">
+                <Icon name="sliders" size={18} />
+              </span>
+              <div className="searchbox-text">
+                <strong>{entry.label}</strong>
+                <span className="searchbox-hit-trail">{entry.trail}</span>
+              </div>
+            </div>
+          )
+        })}
+        {plan.more > 0 && (
+          <div
+            id={`searchbox-opt-${settingsStart + nSettings}`}
+            className={`searchbox-row searchbox-more${settingsStart + nSettings === active ? ' active' : ''}`}
+            role="option"
+            aria-selected={settingsStart + nSettings === active}
+            onMouseEnter={() => setActive(settingsStart + nSettings)}
+            onClick={() => setAllSettings(true)}
+          >
+            {t('Show all {n} settings matches', { n: nHits })}
+          </div>
+        )}
+      </>
+    )
+  }
+
+  const tabLabels: [SearchTab, string][] = [
+    ['all', t('All')],
+    ['media', t('Media')],
+    ['settings', t('Settings')],
+  ]
+
   const kinds = [on('movies') && t('movies'), on('tv') && (on('movies') ? t('shows') : t('TV shows')), musicOn && t('artists'), booksOn && t('books')].filter((k): k is string => !!k)
   const placeholder = placeholderText ?? t('Search {what}', {
     what: kinds.length > 1 ? t('{list} and {last}', { list: kinds.slice(0, -1).join(', '), last: kinds[kinds.length - 1] }) : kinds[0] || 'Mediarium',
@@ -283,8 +390,22 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
       />
       {extra}
       {showPanel && (
-        <div className="searchbox-panel" id={panelId} role="listbox">
-          {loading && !results && (
+        <div className="searchbox-panel" ref={panel}>
+          {nHits > 0 && (
+            <div className="searchbox-tabbar">
+              <div className="seg" role="tablist" aria-label={t('Narrow the search results')}>
+                {tabLabels.map(([k, label]) => (
+                  <button key={k} type="button" role="tab" aria-selected={shownTab === k} className={shownTab === k ? 'active' : ''} onMouseDown={(e) => e.preventDefault()} onClick={() => pickTab(k)}>
+                    {label}
+                    {k === 'settings' && <span className="searchbox-tab-count">{nHits}</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* Usherr: an id of its own, as two search boxes can be on a page */}
+          <div id={panelId} role="listbox">
+          {plan.media && loading && !results && (
             <>
               {[0, 1, 2].map((i) => (
                 <div key={i} className="searchbox-row">
@@ -297,21 +418,23 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
               ))}
             </>
           )}
-          {error && <div className="searchbox-empty error-text">{error}</div>}
+          {plan.media && error && <div className="searchbox-empty error-text">{error}</div>}
+          {plan.media && booksOn && bookError && <div className="searchbox-empty error-text">{bookError}</div>}
           {nothingFound && <div className="searchbox-empty">{t('Nothing found for “{q}”.', { q: q.trim() })}</div>}
-          {results && results.some((r) => r.inLibrary) && <div className="searchbox-group">{t('In your library')}</div>}
-          {results?.map((r, i) => r.inLibrary && row(r, i))}
-          {results && results.some((r) => !r.inLibrary) && <div className="searchbox-group">{t('Add new')}</div>}
-          {results?.map((r, i) => !r.inLibrary && row(r, i))}
-          {musicOn && artists && artists.length > 0 && <div className="searchbox-group">{t('Artists')}</div>}
-          {artists?.map((a, i) => (
+          {settingsFirst && settingsRows()}
+          {titleList && titleList.some((r) => r.inLibrary) && <div className="searchbox-group">{t('In your library')}</div>}
+          {titleList?.map((r, i) => r.inLibrary && row(r, lead + i))}
+          {titleList && titleList.some((r) => !r.inLibrary) && <div className="searchbox-group">{t('Add new')}</div>}
+          {titleList?.map((r, i) => !r.inLibrary && row(r, lead + i))}
+          {musicOn && artistList && artistList.length > 0 && <div className="searchbox-group">{t('Artists')}</div>}
+          {artistList?.map((a, i) => (
             <div
               key={a.mbid}
-              id={`searchbox-opt-${titleCount + i}`}
-              className={`searchbox-row${titleCount + i === active ? ' active' : ''}`}
+              id={`searchbox-opt-${titleEnd + i}`}
+              className={`searchbox-row${titleEnd + i === active ? ' active' : ''}`}
               role="option"
-              aria-selected={titleCount + i === active}
-              onMouseEnter={() => setActive(titleCount + i)}
+              aria-selected={titleEnd + i === active}
+              onMouseEnter={() => setActive(titleEnd + i)}
               onClick={() => chooseArtist(a)}
             >
               <MusicFallback />
@@ -339,8 +462,8 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
               )}
             </div>
           ))}
-          {booksOn && bookHits && bookHits.length > 0 && <div className="searchbox-group">{t('Books')}</div>}
-          {bookHits?.map((b, i) => (
+          {booksOn && bookList && bookList.length > 0 && <div className="searchbox-group">{t('Books')}</div>}
+          {bookList?.map((b, i) => (
             <div
               key={b.key}
               id={`searchbox-opt-${artistEnd + i}`}
@@ -375,7 +498,9 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
               )}
             </div>
           ))}
-          {results && results.length > 0 && (
+          {!settingsFirst && plan.show && settingsRows()}
+          </div>
+          {plan.media && results && results.length > 0 && (
             <button className="searchbox-all" onClick={seeAll}>
               {t('See all results for “{q}”', { q: q.trim() })}
               <Icon name="open" size={15} />

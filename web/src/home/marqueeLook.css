@@ -105,6 +105,15 @@
 .lk-pic-blank { display: grid; place-items: center; height: 100%; padding: calc(var(--u) * 4); text-align: center; font-family: var(--mq-display); font-size: calc(var(--u) * 7 * var(--mq-t)); color: var(--mq-hi); }
 .lk-video { width: 100%; aspect-ratio: 16 / 9; align-self: center; border-radius: calc(var(--u) * 1.2 * var(--mq-r)); overflow: hidden; background: #000; }
 .lk-video iframe { width: 100%; height: 100%; border: 0; pointer-events: none; }
+/* Usherr: a trailer zoomed to a poster's size or to fill the screen. The
+   16:9 player is made as tall as the box and centred; what's wider than the
+   box is cut off left and right. */
+.lk-video.tf-poster, .lk-video.tf-fill { position: relative; aspect-ratio: auto; align-self: center; }
+.lk-video.tf-poster { width: min(100cqw, 66.667cqh); height: min(100cqh, 150cqw); }
+.lk-video.tf-fill { width: 100cqw; height: 100cqh; border-radius: 0; }
+.lk-video.tf-poster iframe, .lk-video.tf-fill iframe { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.lk-video.tf-poster iframe { height: min(100cqh, 150cqw); width: calc(min(100cqh, 150cqw) * 16 / 9); }
+.lk-video.tf-fill iframe { height: max(100cqh, 100cqw * 9 / 16); width: max(100cqw, 100cqh * 16 / 9); }
 .lk-ambi { position: absolute; inset: -12%; background-size: cover; background-position: center; filter: blur(calc(var(--u) * 9)) saturate(1.7); opacity: 0.55; }
 .lk-clock { font-variant-numeric: tabular-nums; }
 

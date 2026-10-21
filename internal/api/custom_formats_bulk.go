@@ -36,7 +36,7 @@ func (s *Server) trashDefaultScores(ctx context.Context, formats []quality.Custo
 		} else if f.TrashScore != nil {
 			score, known = *f.TrashScore, true
 		}
-		if known && score != 0 {
+		if known {
 			out[f.ID] = score
 		}
 	}
@@ -107,12 +107,67 @@ type formatAssignRequest struct {
 	// "score" (every format gets Score; 0 takes the format out of the profile).
 	Mode  string `json:"mode"`
 	Score int    `json:"score"`
+	// ReplaceScores says a format the profile already has gets the new score.
+	// Left out, such a format is skipped and keeps the score it has.
+	ReplaceScores bool `json:"replaceScores"`
+}
+
+// profileScoreChange says what adding formats did in one quality profile.
+type profileScoreChange struct {
+	ProfileID int64  `json:"profileId"`
+	Name      string `json:"name"`
+	// Added are formats the profile did not have, now scored.
+	Added int `json:"added"`
+	// AlreadyThere are formats the profile had and that were left alone.
+	AlreadyThere int `json:"alreadyThere"`
+	// Replaced are formats the profile had whose score was changed because
+	// the person asked for that.
+	Replaced int `json:"replaced"`
+	// Removed are formats taken out (a typed score of 0).
+	Removed int `json:"removed"`
+}
+
+// applyFormatScores gives the formats their scores in the profile and counts
+// what happened. A format the profile already has is only touched when
+// replace is set. takeOutOnZero makes a score of 0 take the format out of the
+// profile (always, for a format that is in it): that is the "typed 0" case.
+func applyFormatScores(p *quality.Profile, scores map[int64]int, replace, takeOutOnZero bool) profileScoreChange {
+	ch := profileScoreChange{ProfileID: p.ID, Name: p.Name}
+	if p.FormatScores == nil {
+		p.FormatScores = map[int64]int{}
+	}
+	for id, sc := range scores {
+		_, has := p.FormatScores[id]
+		switch {
+		case takeOutOnZero && sc == 0:
+			if has {
+				delete(p.FormatScores, id)
+				ch.Removed++
+			}
+		case !has:
+			p.FormatScores[id] = sc
+			ch.Added++
+		case replace:
+			if p.FormatScores[id] != sc {
+				p.FormatScores[id] = sc
+				ch.Replaced++
+			} else {
+				ch.AlreadyThere++
+			}
+		default:
+			ch.AlreadyThere++
+		}
+	}
+	return ch
 }
 
 type formatAssignResult struct {
 	Profiles int `json:"profiles"`
-	// Scored is how many scores were written in total (formats times profiles).
+	// Scored is how many scores were written in total: formats added or
+	// replaced, over all the profiles.
 	Scored int `json:"scored"`
+	// Changes says per profile what was added, skipped, replaced or removed.
+	Changes []profileScoreChange `json:"changes"`
 	// Unscored names the formats the TRaSH Guides give no score; with mode
 	// "trash" they are left as they are.
 	Unscored []string `json:"unscored"`
@@ -120,7 +175,8 @@ type formatAssignResult struct {
 
 // handleAssignCustomFormats gives the chosen formats a score in each of the
 // chosen quality profiles: TRaSH's own score for each, or one score typed in.
-// A score a profile already has for a format is replaced.
+// A format a profile already has is skipped and keeps its score, unless
+// replaceScores is set.
 func (s *Server) handleAssignCustomFormats(w http.ResponseWriter, r *http.Request) {
 	var req formatAssignRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -153,7 +209,7 @@ func (s *Server) handleAssignCustomFormats(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	scores := map[int64]int{}
-	res := formatAssignResult{Unscored: []string{}}
+	res := formatAssignResult{Unscored: []string{}, Changes: []profileScoreChange{}}
 	if req.Mode == "trash" {
 		scores = s.trashDefaultScores(r.Context(), formats)
 		for _, f := range formats {
@@ -183,16 +239,14 @@ func (s *Server) handleAssignCustomFormats(w http.ResponseWriter, r *http.Reques
 		profiles = append(profiles, p)
 	}
 	for _, p := range profiles {
-		if p.FormatScores == nil {
-			p.FormatScores = map[int64]int{}
-		}
-		for id, sc := range scores {
-			if sc == 0 {
-				delete(p.FormatScores, id)
-			} else {
-				p.FormatScores[id] = sc
-			}
-			res.Scored++
+		// A typed 0 takes the format out; TRaSH's own 0 adds it with a
+		// score of 0.
+		ch := applyFormatScores(&p, scores, req.ReplaceScores, req.Mode == "score")
+		res.Scored += ch.Added + ch.Replaced
+		res.Changes = append(res.Changes, ch)
+		if ch.Added+ch.Replaced+ch.Removed == 0 {
+			res.Profiles++
+			continue
 		}
 		if _, err := s.QualityRepo.Update(p); err != nil {
 			writeProfileError(w, err)

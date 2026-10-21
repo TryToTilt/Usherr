@@ -129,7 +129,7 @@ func personFilms(p *metadata.PersonDetail, directed bool) []marqueeSpotFilm {
 			continue
 		}
 		seen[c.ID] = true
-		out = append(out, marqueeSpotFilm{TMDBID: c.ID, Title: c.Title, Year: yearOf(c.ReleaseDate), PosterURL: metadata.ImageURL("w342", c.PosterPath)})
+		out = append(out, marqueeSpotFilm{TMDBID: c.ID, Title: c.Title, Year: dateYear(c.ReleaseDate), PosterURL: metadata.ImageURL("w342", c.PosterPath)})
 	}
 	return out
 }

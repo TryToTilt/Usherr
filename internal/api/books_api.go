@@ -168,6 +168,11 @@ func (s *Server) handleBookSearch(w http.ResponseWriter, r *http.Request) {
 		query += " " + author
 	}
 	found, err := s.OpenLibrary.Search(r.Context(), query, 24)
+	if errors.Is(err, books.ErrBadQuery) {
+		slog.Info("open library refused a book search", "err", err)
+		writeError(w, http.StatusUnprocessableEntity, "Open Library couldn't read that search. Try fewer or simpler words.")
+		return
+	}
 	if err != nil {
 		writeUpstreamError(w, "look up books", err)
 		return

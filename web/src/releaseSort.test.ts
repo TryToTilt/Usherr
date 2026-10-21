@@ -1,7 +1,7 @@
 // Run with: npm test (uses node's built-in test runner, no extra packages).
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { ageOf, defaultOrder, filterReleases, indexersIn, qualitiesIn, resolutionOf, sortReleases, sortSubtitles, subtitleFit, subtitleRating, subtitleSite, type SortableRelease } from './releaseSort.ts'
+import { ageOf, defaultOrder, filterReleases, indexersIn, qualitiesIn, resolutionOf, scoreOf, sortReleases, sortSubtitles, subtitleFit, subtitleRating, subtitleSite, type SortableRelease } from './releaseSort.ts'
 
 const base = { protocol: 'usenet', sizeBytes: 0 }
 const list: SortableRelease[] = [
@@ -86,4 +86,13 @@ test('a subtitle shows its own site or add-on name, and only the rating and fit 
   assert.equal(subtitleRating(addon), '')
   assert.equal(subtitleFit(addon), '130')
   assert.equal(subtitleFit(nameless), '')
+})
+
+test('the score column sorts by the whole score the pick uses, not the formats alone', () => {
+  const r = (title: string, score?: number, formatScore?: number): SortableRelease => ({ ...base, title, indexerName: 'A', score, formatScore })
+  // "b" has fewer format points but a preferred term lifts it above "a".
+  const rows = [r('a', 100, 100), r('b', 130, 80), r('c', 40, 40)]
+  assert.deepEqual(sortReleases(rows, 'score', -1).map((x) => x.title), ['b', 'a', 'c'])
+  assert.deepEqual(defaultOrder(rows).map((x) => x.title), ['b', 'a', 'c'])
+  assert.equal(scoreOf(r('x', undefined, 7)), 7)
 })

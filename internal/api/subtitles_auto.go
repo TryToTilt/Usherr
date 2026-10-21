@@ -727,6 +727,80 @@ func (s *Server) subtitleSweepJob(ctx context.Context) {
 	}
 }
 
+// subtitleNoteText says where the subtitles of a just-imported title stand, in
+// a few plain words for the "imported" notification. have are the wanted
+// languages already there, missing the slots still without one ("nl",
+// "en.forced"), searching whether Mediarium is about to look for them.
+func subtitleNoteText(have, missing []string, searching bool) string {
+	var b strings.Builder
+	switch {
+	case len(missing) == 0 && len(have) == 0:
+		return ""
+	case len(missing) == 0:
+		return "Already there (" + strings.Join(have, ", ") + ")"
+	case len(have) > 0:
+		b.WriteString("Already there (" + strings.Join(have, ", ") + "), ")
+	default:
+		b.WriteString("None yet, ")
+	}
+	names := make([]string, len(missing))
+	for i, m := range missing {
+		names[i] = strings.ReplaceAll(m, ".", " ")
+	}
+	list := strings.Join(names, ", ")
+	if searching {
+		b.WriteString("searching for " + list)
+	} else if len(have) > 0 {
+		b.WriteString(list + " still missing")
+	} else {
+		b.WriteString("not downloaded")
+	}
+	return b.String()
+}
+
+// importSubtitleNote is the subtitle line for the "imported" notification of
+// the given items, or empty when subtitles are off or none are wanted. It must
+// be worked out before autoSubtitlesFor starts, so a subtitle that is just
+// being downloaded is not reported as already there; that download sends its
+// own "subtitles added" message.
+func (s *Server) importSubtitleNote(items ...subtitleItem) string {
+	if !s.subtitlesEnabled() || len(items) == 0 {
+		return ""
+	}
+	dismissed := s.dismissedSubtitles()
+	missingSet := map[string]bool{}
+	var missing []string
+	counted := 0
+	for _, it := range items {
+		if it.filePath == "" || dismissed[it.ref()] {
+			continue
+		}
+		counted++
+		for _, m := range s.missingSubtitleLanguages(it) {
+			if !missingSet[m] {
+				missingSet[m] = true
+				missing = append(missing, m)
+			}
+		}
+	}
+	if counted == 0 {
+		return ""
+	}
+	var have []string
+	for _, l := range s.subtitleLanguages() {
+		lacks := false
+		for m := range missingSet {
+			if m == l || strings.HasPrefix(m, l+".") {
+				lacks = true
+			}
+		}
+		if !lacks {
+			have = append(have, l)
+		}
+	}
+	return subtitleNoteText(have, missing, s.autoSubtitlesEnabled() && s.hasSubtitleSource())
+}
+
 // autoSubtitlesFor fetches the configured languages for a just-imported
 // item, in the background, when automatic downloading is on.
 func (s *Server) autoSubtitlesFor(items ...subtitleItem) {

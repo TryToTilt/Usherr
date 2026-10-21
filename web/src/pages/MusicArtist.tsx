@@ -2,6 +2,7 @@ import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, u
 import VoteButtons from '../home/VoteButtons' // home fork
 import { MoreLikeArtist } from '../home/AIMusic' // home fork
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { albumRescanNote, type AlbumRescanReport } from '../albumRescan'
 import { api, can, isAdmin, type MusicAlbum, type MusicArtist as MusicArtistData, type MusicProfile, type MusicRelease, type QueueItem, type SearchResult } from '../api'
 import { useAuth } from '../AuthContext'
 import { useConfirm } from '../components/ConfirmProvider'
@@ -442,6 +443,23 @@ function AlbumCard({
   const player = useMusicPlayer()
   const artistName = useContext(ArtistName)
   const toast = useToast()
+  const [note, setNote] = useState<AlbumRescanReport | null>(null)
+  const [rescanning, setRescanning] = useState(false)
+  // Looks at the files in the album's folder again (administrators): files put
+  // there by hand are matched to tracks, files removed by hand are let go.
+  async function rescan() {
+    setRescanning(true)
+    try {
+      const report = await api.rescanAlbum(album.id)
+      setNote(report)
+      onChanged()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRescanning(false)
+    }
+  }
+  const noteText = note ? albumRescanNote(note) : null
   async function playAlbum() {
     try {
       const full = await api.getAlbum(album.id)
@@ -499,6 +517,11 @@ function AlbumCard({
             <Icon name="list" size={14} /> {t('Choose a release')}
           </button>
         )}
+        {isAdmin(me) && album.status !== 'downloading' && !live && (
+          <button className="btn-sm btn-with-icon" onClick={() => void rescan()} disabled={rescanning} title={t('Looks at the files in the album folder again and matches them to the tracks, so files you added or removed by hand are picked up.')}>
+            <Icon name="folder" size={14} /> {rescanning ? t('Checking…') : t('Rescan album folder')}
+          </button>
+        )}
         {album.status === 'downloaded' && (
           <>
             <button className="btn-sm btn-with-icon btn-play" onClick={() => void playAlbum()}>
@@ -515,12 +538,42 @@ function AlbumCard({
           <Icon name={open ? 'chevron-up' : 'chevron-down'} size={14} /> {t('Details')}
         </button>
       </div>
-      {open && <AlbumPanel album={album} tab={open} onTab={onOpen} onChanged={onChanged} />}
+      {noteText && (
+        <div className={`notice ${noteText.good ? 'notice-info' : 'notice-warn'} album-note`} role="status">
+          {noteText.lines.map((line, i) => (
+            <p key={i} style={{ margin: i === 0 ? 0 : '4px 0 0' }}>
+              {line}
+            </p>
+          ))}
+          <div className="album-note-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+            {noteText.offerSearch && can(me, 'manage') && (
+              <button className="btn-sm btn-with-icon primary" onClick={onSearchNow} disabled={busy || !!live}>
+                <Icon name="search" size={14} /> {busy ? t('Searching…') : t('Search for missing tracks')}
+              </button>
+            )}
+            <button className="btn-sm" onClick={() => setNote(null)}>
+              {t('Dismiss')}
+            </button>
+          </div>
+        </div>
+      )}
+      {open && (
+        <AlbumPanel
+          album={album}
+          tab={open}
+          onTab={onOpen}
+          onChanged={onChanged}
+          onFilesChanged={(r) => {
+            setNote(r)
+            onChanged()
+          }}
+        />
+      )}
     </article>
   )
 }
 
-function AlbumPanel({ album, tab, onTab, onChanged }: { album: MusicAlbum; tab: Tab; onTab: (t: Tab) => void; onChanged: () => void }) {
+function AlbumPanel({ album, tab, onTab, onChanged, onFilesChanged }: { album: MusicAlbum; tab: Tab; onTab: (t: Tab) => void; onChanged: () => void; onFilesChanged: (r: AlbumRescanReport) => void }) {
   return (
     <div className="album-panel">
       <div className="seg">
@@ -539,7 +592,7 @@ function AlbumPanel({ album, tab, onTab, onChanged }: { album: MusicAlbum; tab: 
       </div>
       {tab === 'tracks' && <TracksPanel album={album} />}
       {tab === 'releases' && <ReleasesPanel album={album} onChanged={onChanged} />}
-      {tab === 'files' && <FilesPanel kind="album" id={album.id} />}
+      {tab === 'files' && <FilesPanel kind="album" id={album.id} onAlbumChanged={onFilesChanged} />}
       {tab === 'events' && (
         <div className="album-events">
           {album.status === 'missing' && album.monitored && <SearchStatus kind="album" id={album.id} />}

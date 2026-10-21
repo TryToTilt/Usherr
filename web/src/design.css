@@ -1310,6 +1310,9 @@ fieldset.group .card, fieldset.group table { max-width: 100%; }
 .naming-token-group .chip-row { gap: 6px; }
 .chip.naming-token { font-family: var(--font-mono); font-size: 0.75rem; padding: 4px 9px; border: 1px solid var(--border); cursor: pointer; }
 .chip.naming-token:hover { color: var(--accent); border-color: var(--accent); }
+.naming-builder > * { min-width: 0; }
+.naming-builder-forms input, .naming-builder-forms select { width: 100%; min-width: 0; box-sizing: border-box; }
+.naming-folder-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 14px; }
 @media (max-width: 900px) { .naming-builder { grid-template-columns: 1fr; } }
 
 /* Selected main item: a soft pill in its own colour instead of a tab that
@@ -1574,6 +1577,42 @@ fieldset.group .card, fieldset.group table { max-width: 100%; }
 .fallback-name small { color: var(--text-dim); font-size: 0.78rem; }
 .fallback-arrows { display: flex; gap: 2px; }
 .fallback-summary { margin-top: 4px; font-size: 0.78rem; color: var(--c-settings); }
+/* Quality order and groups (QualityOrderEditor) */
+.qo { display: grid; gap: 10px; margin-top: 8px; }
+.qo-help, .qo-simple p { margin: 0; color: var(--text-dim); font-size: 0.85rem; }
+.qo-simple { display: grid; gap: 10px; justify-items: start; margin-top: 8px; }
+.qo-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.qo-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.qo-row { display: grid; grid-template-columns: 30px 22px 22px minmax(0, 1fr) auto; align-items: center; gap: 8px 10px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.qo-row.on { border-color: color-mix(in srgb, var(--c-settings) 40%, var(--border)); background: color-mix(in srgb, var(--c-settings) 6%, var(--surface)); }
+.qo-row.off { opacity: 0.7; }
+.qo-row.group { border-left: 3px solid var(--c-settings); }
+.qo-row.dragging { opacity: 0.45; }
+.qo-row input[type='checkbox'] { width: auto; margin: 0; }
+.qo-grip { display: grid; place-items: center; width: 30px; height: 36px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--text-dim); cursor: grab; }
+.qo-grip:disabled { cursor: default; opacity: 0.4; }
+.qo-grip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.qo-step { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 0.75rem; font-weight: 700; background: var(--c-settings); color: var(--on-sec); }
+.qo-row.off .qo-step { background: transparent; }
+.qo-name { display: grid; gap: 4px; min-width: 0; }
+.qo-name strong { overflow-wrap: anywhere; }
+.qo-group-name { width: 100%; max-width: 280px; min-width: 0; }
+.qo-row.off .qo-actions { display: none; }
+.qo-row.group { grid-template-columns: 30px 22px 22px minmax(0, 1fr); }
+.qo-row.group .qo-actions { grid-column: 1 / -1; }
+.qo-members { display: flex; flex-wrap: wrap; gap: 4px; }
+.qo-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 4px 1px 8px; border-radius: 999px; font-size: 0.75rem; background: var(--surface-2); color: var(--text-dim); }
+.qo-chip-x { display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; }
+.qo-chip-x:hover { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+.qo-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.qo-pick { display: inline-flex; flex-direction: row; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--text-dim); cursor: pointer; }
+.qo-arrows { display: flex; gap: 2px; }
+.qo-arrows .icon-btn { min-width: 36px; min-height: 36px; }
+.qo-count { margin: 0; color: var(--text-dim); font-size: 0.8rem; }
+@media (max-width: 640px) {
+  .qo-row { grid-template-columns: 30px 22px 22px minmax(0, 1fr); }
+  .qo-actions { grid-column: 1 / -1; justify-content: space-between; }
+}
 
 /* Title activity log ("What happened") */
 .title-events { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
@@ -2232,8 +2271,23 @@ legend .srv-dot { margin-left: 6px; }
 /* Custom format scores in the profile form, and the Custom formats card. */
 .format-scores { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 6px 14px; max-height: 320px; overflow-y: auto; padding-right: 4px; }
 .grid-form .format-score-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; color: var(--text); font-size: 0.85rem; }
-.format-score-row > span { min-width: 0; overflow-wrap: anywhere; }
+.format-score-row > span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 .format-score-row small { color: var(--text-dim); }
+.format-score-row .icon-btn { flex: none; }
+/* A part of a page that folds away (components/Collapsible.tsx): one button across the width. */
+.collapsible-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.collapsible-head:hover { border-color: var(--accent); }
+.collapsible-label { font-weight: 600; }
+.collapsible-summary { color: var(--text-dim); font-size: 0.88rem; min-width: 0; overflow-wrap: anywhere; }
+.collapsible-chevron { margin-left: auto; flex: none; transition: transform 0.15s ease; }
+.collapsible[data-open="true"] > .collapsible-head > .collapsible-chevron { transform: rotate(180deg); }
+.collapsible-body { margin-top: 12px; }
+.collapsible-body[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .collapsible-chevron { transition: none; } }
+.size-trash { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 14px; }
+.size-trash label { display: flex; flex-direction: column; gap: 4px; min-width: min(100%, 220px); }
+.size-trash-result { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.88rem; }
+.size-trash-result ul { margin: 2px 0; padding-left: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 2px 18px; }
 .format-score-row input { width: 84px; flex: none; text-align: right; font-family: var(--font-mono); }
 .format-thresholds { display: flex; flex-wrap: wrap; gap: 12px; }
 .format-thresholds > label { flex: 1 1 180px; }
@@ -3182,3 +3236,28 @@ img[data-broken] { visibility: hidden; }
 /* Episode list: dates, status, quality and size stay whole; only the title wraps. */
 .ep-table th, .ep-table td:not(:nth-child(3)) { white-space: nowrap; }
 .ep-table td:nth-child(3) { overflow-wrap: anywhere; }
+
+.searchbox-hit-trail { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* All | Media | Settings along the top of the search popup; it stays in view while the rows scroll. */
+.searchbox-tabbar { position: sticky; top: -6px; z-index: 1; margin: -6px -6px 6px; padding: 8px; background: var(--surface); border-radius: 14px 14px 0 0; }
+.searchbox-tabbar .seg { display: flex; width: 100%; }
+.searchbox-tabbar .seg button, .searchbox-tabbar .seg button + button { flex: 1 1 0; padding: 6px 10px; font-size: 0.85rem; }
+.searchbox-tab-count { margin-left: 6px; padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text-dim); font-size: 0.75rem; }
+.searchbox-tabbar .seg button.active .searchbox-tab-count { color: var(--text); }
+.searchbox-more { justify-content: center; color: var(--accent); font-size: 0.85rem; padding: 8px; }
+.searchbox-settings-icon { flex: 0 0 auto; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; background: var(--surface-2); color: var(--text-dim); }
+
+/* An album file with a Delete file button next to Play: on a phone the buttons go under the name instead of squeezing it. */
+@media (max-width: 520px) {
+  .file-list li:has(.danger-ghost) { flex-wrap: wrap; }
+  .file-list li:has(.danger-ghost) .file-name { flex: 1 1 calc(100% - 52px); }
+  .file-list li:has(.danger-ghost) > .btn-sm { margin-left: 0; }
+  .file-list li:has(.danger-ghost) > .btn-sm:first-of-type { margin-left: 44px; }
+}
+/* ---- What a video file holds (codec, picture size, audio, subtitles) ---- */
+.file-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; }
+.file-chip { font-size: 0.76rem; line-height: 1; padding: 5px 9px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim); white-space: nowrap; cursor: default; }
+.file-chips.compact { gap: 4px; margin: 4px 0 0; }
+.file-chips.compact .file-chip { font-size: 0.7rem; padding: 3px 7px; }
+.ep-table td .file-chips { white-space: normal; }
+.file-note { font-size: 0.8rem; color: var(--text-faint); margin: 0 0 12px; }

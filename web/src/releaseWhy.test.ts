@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { loadShowWhy, saveShowWhy, signed, whyOf } from './releaseWhy.ts'
+import { scoreOf } from './releaseSort.ts'
 
 test('a score is shown with its sign, zero plain', () => {
   assert.deepEqual([100, -50, 0].map(signed), ['+100', '-50', '0'])
@@ -81,4 +82,19 @@ test('why a release was not the best match is kept apart from the reasons it is 
   const both = whyOf({ reasons: [{ kind: 'notBest', text: 'a' }, { kind: 'size', text: 'b' }] })
   assert.deepEqual(both?.notBest, ['a'])
   assert.deepEqual(both?.reasons, [{ kind: 'size', text: 'b' }])
+})
+
+test('the Score column equals the sum of the parts listed in the details, fix bonus included', () => {
+  const rows = [
+    { score: 150, formatScore: 100, formats: [{ name: 'HDR', score: 100 }], terms: [{ term: 'x265', score: 50 }] },
+    { score: 5, fixScore: 5, formatScore: 0, formats: [] },
+    { score: -20, terms: [{ term: 'GRP', score: -20 }] },
+    { score: 155, fixScore: 5, formatScore: 100, formats: [{ name: 'HDR', score: 100 }], terms: [{ term: 'x265', score: 50 }] },
+  ]
+  for (const r of rows) {
+    const w = whyOf(r)
+    assert.ok(w)
+    assert.equal(scoreOf(r), w.total)
+    assert.equal(w.total, w.formats.reduce((n, f) => n + f.score, 0) + w.terms.reduce((n, x) => n + x.score, 0) + w.fix)
+  }
 })

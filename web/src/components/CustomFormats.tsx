@@ -5,8 +5,10 @@ import { useConfirm } from './ConfirmProvider'
 import { api, type CustomFormat, type FormatTestResult, type QualityProfile, type TrashFormat, type TrashProfile } from '../api'
 import { plural, t, tx, st } from '../i18n'
 import TipLabel from './TipLabel'
+import Collapsible from './Collapsible'
 import TrashUpdateBar from './TrashUpdateBar'
-import { profileForApp, scorePreview, signed } from '../trashScores'
+import { importScoreAction, profileForApp, scorePreview, signed } from '../trashScores'
+import { changeCount, profileChangeText, profileChangesText } from '../formatChanges'
 
 type Panel = 'list' | 'trash' | 'paste' | 'test'
 type App = 'radarr' | 'sonarr'
@@ -26,6 +28,8 @@ export default function CustomFormatsSection({ rev = 0, onChanged }: { rev?: num
   const [profiles, setProfiles] = useState<QualityProfile[]>([])
   const [defaults, setDefaults] = useState({ id: 0, tvId: 0 })
   const [error, setError] = useState('')
+  // The card is folded away until wanted; a change made in it (an import, say) keeps it open.
+  const [openSignal, setOpenSignal] = useState(0)
 
   const load = useCallback(() => {
     api
@@ -43,6 +47,7 @@ export default function CustomFormatsSection({ rev = 0, onChanged }: { rev?: num
   useEffect(load, [load, rev])
 
   const changed = () => {
+    setOpenSignal((n) => n + 1)
     load()
     onChanged?.()
   }
@@ -66,6 +71,7 @@ export default function CustomFormatsSection({ rev = 0, onChanged }: { rev?: num
         {t('A custom format spots something in a release name, like HDR, a codec or a release group. Each quality profile gives the formats it cares about a score: releases scoring higher win, and a negative score keeps a release out. Most people start from the TRaSH Guides.')}
       </p>
       {error && <p className="error-text">{error}</p>}
+      <Collapsible id="custom-formats" label={t('Custom formats')} summary={plural(formats.length, '{n} format', '{n} formats')} openSignal={openSignal}>
       {formats.some((f) => f.trashId) && <TrashUpdateBar onUpdated={changed} />}
       <div className="seg" role="tablist" aria-label={t('Custom formats')} style={{ marginBottom: 14 }}>
         <button role="tab" aria-selected={panel === 'list'} className={panel === 'list' ? 'active' : ''} onClick={() => setPanel('list')}>
@@ -92,6 +98,7 @@ export default function CustomFormatsSection({ rev = 0, onChanged }: { rev?: num
         />
       )}
       {panel === 'test' && <TestPanel profiles={profiles} hasFormats={formats.length > 0} />}
+      </Collapsible>
     </section>
   )
 }
@@ -237,14 +244,17 @@ function AssignBar({ formats, profiles, onClear, onDone }: { formats: CustomForm
   const [chosen, setChosen] = useState<Set<number>>(new Set())
   const [useTrash, setUseTrash] = useState(true)
   const [score, setScore] = useState('')
+  const [replace, setReplace] = useState(false)
   const [busy, setBusy] = useState(false)
   const typedOk = /^-?\d{1,5}$/.test(score.trim())
 
   async function assign() {
     setBusy(true)
     try {
-      const r = await api.assignCustomFormats(formats.map((f) => f.id), [...chosen], useTrash ? { trash: true } : { score: Number(score.trim()) })
-      toast.success(plural(r.profiles, 'Scored the formats in {n} profile.', 'Scored the formats in {n} profiles.'))
+      const r = await api.assignCustomFormats(formats.map((f) => f.id), [...chosen], useTrash ? { trash: true } : { score: Number(score.trim()) }, replace)
+      const text = profileChangesText(r.changes)
+      if (r.changes.some((c) => changeCount(c) > 0)) toast.success(text)
+      else toast.info(text)
       if (r.unscored.length > 0) toast.info(t("TRaSH gives no score to {names}, so those weren't scored.", { names: r.unscored.join(', ') }))
       onDone()
     } catch (e) {
@@ -305,7 +315,11 @@ function AssignBar({ formats, profiles, onClear, onDone }: { formats: CustomForm
               {chosen.size === 0 ? t('Pick the profiles') : plural(chosen.size, 'Score in {n} profile', 'Score in {n} profiles')}
             </button>
           </div>
-          <small style={{ color: 'var(--text-dim)' }}>{t('A score a profile already has for one of these formats is replaced. 0 takes the format out of the profile.')}</small>
+          <label className="check">
+            <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} />
+            <span>{t('Replace the score if the profile already has the format')}</span>
+          </label>
+          <small style={{ color: 'var(--text-dim)' }}>{t('A format a profile already has is skipped and keeps its score, unless you tick the box. A score of 0 takes the format out of the profile.')}</small>
         </div>
       )}
     </div>
@@ -342,7 +356,12 @@ function TrashPanel({ profiles, defaults, onImported }: { profiles: QualityProfi
     return p ? new Map((p.formatScores ?? []).map((s) => [s.formatId, s.score])) : null
   }, [profiles, scoreIn])
   const scoredProfile = profiles.find((p) => String(p.id) === scoreIn)
-  const unscored = (data?.formats ?? []).filter((f) => picked.has(f.trashId) && f.defaultScore === 0)
+  const [replaceScores, setReplaceScores] = useState(false)
+  const pickedFormats = (data?.formats ?? []).filter((f) => picked.has(f.trashId))
+  const actions = pickedFormats.map((f) => ({ f, what: importScoreAction(f, profileScores, replaceScores) }))
+  const scoredNow = actions.filter((a) => a.what === 'add' || a.what === 'replace')
+  const skippedNow = actions.filter((a) => a.what === 'skip').length
+  const zeroScored = scoredNow.filter((a) => a.f.defaultScore === 0)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -383,13 +402,11 @@ function TrashPanel({ profiles, defaults, onImported }: { profiles: QualityProfi
   async function importFormats() {
     setBusy(true)
     try {
-      const r = await api.importTrashFormats(app, [...picked], scoreIn ? Number(scoreIn) : undefined)
+      const r = await api.importTrashFormats(app, [...picked], scoreIn ? Number(scoreIn) : undefined, replaceScores)
       const changes = [r.added && t('{n} added', { n: r.added }), r.updated && t('{n} updated', { n: r.updated })].filter(Boolean).join(', ')
-      toast.success(
-        scoreIn
-          ? t('Custom formats {changes} and scored in {profile}.', { changes, profile: profiles.find((p) => String(p.id) === scoreIn)?.name ?? '' })
-          : t('Custom formats {changes}.', { changes }),
-      )
+      const line = [changes && t('Custom formats {changes}.', { changes }), r.profile && profileChangeText(r.profile)].filter(Boolean).join(' ')
+      if (changes || (r.profile && changeCount(r.profile) > 0)) toast.success(line)
+      else toast.info(line || t('Nothing was added.'))
       onImported()
       load(app)
     } catch (e) {
@@ -475,12 +492,12 @@ function TrashPanel({ profiles, defaults, onImported }: { profiles: QualityProfi
                         <>
                           {f.defaultScore !== 0 && <small className="trash-score">{signed(f.defaultScore)}</small>}
                           {pv.flag === 'zero' && (
-                            <span className="badge conflict" title={t('This format is already added but scores 0 in {profile}, so it does nothing there. TRaSH scores it {score}. Adding it again with this profile chosen sets that score.', { profile: scoredProfile?.name ?? '', score: signed(f.defaultScore) })}>
+                            <span className="badge conflict" title={t('This format is already added but scores 0 in {profile}, so it does nothing there. TRaSH scores it {score}. It stays at 0 unless you tick the replace box below.', { profile: scoredProfile?.name ?? '', score: signed(f.defaultScore) })}>
                               {t('0 in {profile}', { profile: scoredProfile?.name ?? '' })}
                             </span>
                           )}
                           {pv.flag === 'differs' && (
-                            <span className="badge" title={t('This format is already scored {current} in {profile}. TRaSH scores it {score}. Adding it again with this profile chosen sets the TRaSH score.', { current: signed(pv.current ?? 0), profile: scoredProfile?.name ?? '', score: signed(f.defaultScore) })}>
+                            <span className="badge" title={t('This format is already scored {current} in {profile}. TRaSH scores it {score}. It keeps its score unless you tick the replace box below.', { current: signed(pv.current ?? 0), profile: scoredProfile?.name ?? '', score: signed(f.defaultScore) })}>
                               {t('{score} in {profile}', { score: signed(pv.current ?? 0), profile: scoredProfile?.name ?? '' })}
                             </span>
                           )}
@@ -495,8 +512,13 @@ function TrashPanel({ profiles, defaults, onImported }: { profiles: QualityProfi
             {picked.size > 0 && (
               <p className="trash-score-note">
                 {scoredProfile
-                  ? plural(unscored.length === picked.size ? 0 : picked.size - unscored.length, '{n} of the picked formats gets its TRaSH score in {profile}.', '{n} of the picked formats get their TRaSH score in {profile}.', { profile: scoredProfile.name }) +
-                    (unscored.length > 0 ? ' ' + plural(unscored.length, "{n} has no TRaSH score, so it stays unscored.", "{n} have no TRaSH score, so they stay unscored.") : '')
+                  ? [
+                      scoredNow.length > 0 ? plural(scoredNow.length - zeroScored.length, '{n} of the picked formats gets its TRaSH score in {profile}.', '{n} of the picked formats get their TRaSH score in {profile}.', { profile: scoredProfile.name }) : '',
+                      zeroScored.length > 0 ? plural(zeroScored.length, "{n} has a TRaSH score of 0, so it is added with 0.", "{n} have a TRaSH score of 0, so they are added with 0.") : '',
+                      skippedNow > 0 ? t('Already in {profile} and left as they are: {n}.', { profile: scoredProfile.name, n: skippedNow }) : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')
                   : t("Without a profile the picked formats are added without a score. They don't count anywhere until you score them.")}
               </p>
             )}
@@ -510,6 +532,12 @@ function TrashPanel({ profiles, defaults, onImported }: { profiles: QualityProfi
                   onChange={setScoreIn}
                 />
               </label>
+              {scoredProfile && (
+                <label className="check">
+                  <input type="checkbox" checked={replaceScores} onChange={(e) => setReplaceScores(e.target.checked)} />
+                  <span>{t('Replace the score if the profile already has the format')}</span>
+                </label>
+              )}
               <button className="primary" disabled={picked.size === 0 || busy} onClick={() => void importFormats()}>
                 {picked.size === 0 ? t('Pick formats to add') : plural(picked.size, 'Add {n} format', 'Add {n} formats')}
               </button>

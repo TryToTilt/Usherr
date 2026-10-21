@@ -58,7 +58,7 @@ func rejectionReasonsFor(title string, profile quality.Profile, downloaded bool,
 			out = append(out, releaseReason{"upgrade", "doesn't score higher with custom formats than the file you have"})
 		case profile.ReachedCutoffTier(quality.Tier(currentQuality)):
 			out = append(out, releaseReason{"upgrade", fmt.Sprintf("already at the profile cutoff (%s)", currentQuality)})
-		case quality.Rank(tier) <= quality.Rank(quality.Tier(currentQuality)):
+		case profile.TierRank(tier) <= profile.TierRank(quality.Tier(currentQuality)):
 			out = append(out, releaseReason{"upgrade", fmt.Sprintf("not an upgrade over %s", currentQuality)})
 		}
 	}
@@ -373,7 +373,7 @@ func (s *Server) wantedMovieItems(ctx context.Context, kind string, profiles pro
 				item.Subtitle = "Second copy"
 			}
 			if kind == "cutoff" {
-				item.Quality, item.Cutoff = m.Quality, string(p.Cutoff)
+				item.Quality, item.Cutoff = m.Quality, p.CutoffName()
 			}
 			out = append(out, item)
 		}
@@ -410,7 +410,7 @@ func (s *Server) wantedEpisodeItems(ctx context.Context, kind string, profiles p
 			Title: ep.SeriesTitle, Subtitle: label, Date: ep.AirDate, ProfileName: p.Name, Copy: ep.CopyOf != 0, Year: ep.SeriesYear, PosterURL: wantedPoster(ep.SeriesPoster),
 		}
 		if kind == "cutoff" {
-			item.Quality, item.Cutoff = ep.Quality, string(p.Cutoff)
+			item.Quality, item.Cutoff = ep.Quality, p.CutoffName()
 		}
 		out = append(out, item)
 	}

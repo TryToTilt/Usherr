@@ -44,8 +44,10 @@ type marqueeSettings struct {
 	PosterScale  int            `json:"posterScale"` // percent, 60-120
 	ScrollSpeed  string         `json:"scrollSpeed"` // "slow", "normal" or "fast"
 	TrailerSound bool           `json:"trailerSound"`
+	TrailerFit   string         `json:"trailerFit"` // Usherr: "letterbox", "poster" (zoomed to a poster's size) or "fill"
 	FromJellyfin bool           `json:"fromJellyfin"`
 	FromStream   bool           `json:"fromStreamNZB"`
+	NoIMDb       bool           `json:"noImdb"`     // Usherr: don't ask IMDb for cinema formats (TMDB's notes only)
 	HideUsherr   bool           `json:"hideUsherr"` // Usherr: leave out what Usherr itself plays (off, so it's shown)
 	Profiles     []string       `json:"profiles"`   // StreamNZB profiles to show; empty is all
 	QuietOn      bool           `json:"quietOn"`
@@ -171,6 +173,9 @@ func (m marqueeSettings) clean() marqueeSettings {
 	if m.PosterScale < 60 || m.PosterScale > 120 {
 		m.PosterScale = d.PosterScale
 	}
+	if m.TrailerFit != "poster" && m.TrailerFit != "fill" {
+		m.TrailerFit = "letterbox"
+	}
 	if m.ScrollSpeed != "slow" && m.ScrollSpeed != "fast" {
 		m.ScrollSpeed = "normal"
 	}
@@ -285,7 +290,7 @@ func (s *Server) handlePutMarqueeSettings(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "The marquee settings couldn't be saved.")
 		return
 	}
-	s.marqueeLive.send("", marqueeEvent{Type: "settings"}) // screens with their own settings ignore it
+	s.marqueeLive.send("", marqueeEvent{Type: "settings"}) // every screen: those with some of their own keep those
 	s.marqueeMQTTState(r.Context(), "")                    // their look, in Home Assistant
 	s.handleGetMarqueeSettings(w, r)
 }

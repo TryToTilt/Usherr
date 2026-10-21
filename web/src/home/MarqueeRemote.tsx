@@ -10,7 +10,7 @@ import { useConfirm } from '../components/ConfirmProvider'
 import { useToast } from '../components/Toast'
 import { useDocumentTitle } from '../documentTitle'
 import { t } from '../i18n'
-import type { MarqueeSettings, MarqueeStyle, SceneKind } from './marqueeData'
+import { ownLabel, type MarqueeSettings, type MarqueeStyle, type SceneKind } from './marqueeData'
 import MarqueeForm, { MQ_SCENE_LABEL } from './MarqueeForm'
 import { MQ_STYLES } from './MarqueeLookForm'
 import './cinema.css'
@@ -34,6 +34,7 @@ interface Screen {
   width: number
   height: number
   own: boolean
+  ownKeys?: string[] // which settings it keeps of its own
   settings: MarqueeSettings
   showing?: Showing
 }
@@ -323,7 +324,7 @@ function ScreenCard({
             </option>
           ))}
         </select>
-        {!sc.own && <small className="hint">{t('Picking a look here gives this screen its own settings.')}</small>}
+        <small className="hint">{t('A look picked here is this screen’s own; everything else follows the shared settings.')}</small>
       </label>
 
       <label className="mqr-scene">
@@ -345,10 +346,10 @@ function ScreenCard({
       </label>
 
       <details className="mqr-settings" onToggle={(e) => !(e.target as HTMLDetailsElement).open && setOwn(null)}>
-        <summary>{sc.own ? t('Its own settings') : t('Settings: the shared ones')}</summary>
+        <summary>{sc.own ? t('Its own: {what}; the rest is shared', { what: ownLabel(sc.ownKeys) }) : t('Settings: the shared ones')}</summary>
         {!sc.own && !own && (
           <div className="mqr-row">
-            <p className="hint">{t('This screen shows the shared settings. Give it its own to change what it shows, its sizes and its quiet hours apart from the others.')}</p>
+            <p className="hint">{t('This screen shows the shared settings. Change any of them for this screen only; what you change is its own, and the rest keeps following the shared settings.')}</p>
             <button className="btn-sm" onClick={() => setOwn(sc.settings)}>
               {t('Give it its own settings')}
             </button>
@@ -360,7 +361,7 @@ function ScreenCard({
               {t('Change its settings')}
             </button>
             <button className="btn-sm" disabled={busy} onClick={() => void put({ settings: null }, t('{name} shows the shared settings again.', { name: sc.name }))}>
-              {t('Use the shared settings again')}
+              {t('Use the shared settings for all of it')}
             </button>
           </div>
         )}

@@ -12,6 +12,7 @@ import TitleTags from '../components/Tags'
 import WatchedLine from '../components/WatchedLine'
 import NumberingCard from '../components/NumberingCard'
 import SeriesTypePicker from '../components/SeriesTypePicker'
+import FileChips from '../components/FileChips'
 import Switch from '../components/Switch'
 import MonitorModePicker from '../components/MonitorModePicker'
 import TitleHero from '../components/TitleHero'
@@ -558,7 +559,10 @@ function SeriesPage() {
                         />
                       </td>
                       <td>{e.episode}</td>
-                      <td>{e.title || <span style={{ color: 'var(--text-dim)' }}>{t('TBA')}</span>}</td>
+                      <td>
+                        {e.title || <span style={{ color: 'var(--text-dim)' }}>{t('TBA')}</span>}
+                        {e.status === 'downloaded' && <FileChips info={e.fileInfo} className="compact" />}
+                      </td>
                       <td style={{ color: 'var(--text-dim)' }}>{e.airDate || '—'}</td>
                       <td>
                         {e.status === 'missing' && unaired ? (

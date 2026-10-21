@@ -118,6 +118,9 @@ func (s *Server) runPipeline(queueID, movieID int64, movieTitle string, movieYea
 	if err != nil {
 		return fail(err)
 	}
+	if m, err := s.MovieRepo.Get(movieID); err == nil {
+		destPath = s.keepMovieFolder(m, root, destPath) // a movie that has a folder keeps it
+	}
 
 	// Classified up front (not just the bare resolution) so it's available
 	// both for ConflictOverwriteIfBetter's comparison below and for what
@@ -198,7 +201,9 @@ func (s *Server) runPipeline(queueID, movieID int64, movieTitle string, movieYea
 	// Subtitles that came with the release go next to the movie before any
 	// download is considered, so they count as already there.
 	s.importSidecarSubtitles(s.sidecarsIn(incompleteDir), result.DestPath, movieID, movieTitle)
-	s.autoSubtitlesFor(subtitleItem{kind: "movie", id: movieID, title: movieTitle, tmdbID: tmdbID, filePath: result.DestPath})
+	movieSub := subtitleItem{kind: "movie", id: movieID, title: movieTitle, tmdbID: tmdbID, filePath: result.DestPath}
+	subtitleNote := s.importSubtitleNote(movieSub)
+	s.autoSubtitlesFor(movieSub)
 	if err := s.QueueRepo.SetStatus(queueID, queue.StatusCompleted, ""); err != nil {
 		return fail(err)
 	}
@@ -209,6 +214,7 @@ func (s *Server) runPipeline(queueID, movieID int64, movieTitle string, movieYea
 	_ = s.QueueRepo.LogActivity(movieID, "imported", importedMessage)
 	importedItem := s.movieItemByID(movieID, movieTitle, movieYear, tmdbID)
 	importedItem.Quality, importedItem.SizeBytes, importedItem.Path = string(tier), fileSize(result.DestPath), result.DestPath
+	importedItem.Subtitles = subtitleNote
 	s.notifyItem("imported", importedItem)
 	s.movieImported(result.DestPath)
 	s.pushTagsAfterImport(library.TagMovie, movieID)
@@ -222,7 +228,10 @@ func (s *Server) runPipeline(queueID, movieID int64, movieTitle string, movieYea
 // failure handling.
 func (s *Server) prepareDownload(ctx context.Context, queueID int64, downloadURL string, protocol indexers.Protocol) (string, error) {
 	incompleteDir := s.workDirFor(queueID)
-	if protocol == indexers.ProtocolTorrent && s.downloadClientOn() {
+	// Usenet releases go to an external downloader (SABnzbd, NZBGet) when the
+	// person chose that.
+	usenetViaClient := protocol != indexers.ProtocolTorrent && s.usenetClientOn()
+	if (protocol == indexers.ProtocolTorrent && s.downloadClientOn()) || usenetViaClient {
 		// An external client's folder only holds links to its files: it stays in
 		// the downloads folder, never in the temporary download folder.
 		if _, started := s.existingWorkDir(queueID); !started {
@@ -266,11 +275,26 @@ func (s *Server) prepareDownload(ctx context.Context, queueID int64, downloadURL
 	case protocol == indexers.ProtocolTorrent && s.debridOn():
 		downloadErr = s.downloadDebrid(ctx, queueID, downloadURL, incompleteDir)
 	case protocol == indexers.ProtocolTorrent:
-		downloadErr = s.downloadTorrent(ctx, queueID, downloadURL, incompleteDir)
+		// The built-in engines keep their own cap, whatever "Downloads at the
+		// same time" is set to (builtin_slots.go).
+		if release, err := s.torrentSlots.acquire(ctx, builtinTorrentLimit); err != nil {
+			downloadErr = err
+		} else {
+			downloadErr = s.downloadTorrent(ctx, queueID, downloadURL, incompleteDir)
+			release()
+		}
 	case protocol == indexers.ProtocolDirect: // home fork: GetComics
 		downloadErr = s.downloadDirect(ctx, queueID, downloadURL, incompleteDir)
+	case usenetViaClient:
+		viaClient = true
+		downloadErr = s.downloadViaUsenetClient(ctx, queueID, downloadURL, incompleteDir)
 	default:
-		missing, downloadErr = s.downloadUsenet(ctx, queueID, downloadURL, incompleteDir)
+		if release, err := s.usenetSlots.acquire(ctx, s.builtinUsenetLimit); err != nil {
+			downloadErr = err
+		} else {
+			missing, downloadErr = s.downloadUsenet(ctx, queueID, downloadURL, incompleteDir)
+			release()
+		}
 	}
 	if downloadErr != nil {
 		// A release held back for what it contains, or as a duplicate, did not
@@ -281,7 +305,7 @@ func (s *Server) prepareDownload(ctx context.Context, queueID int64, downloadURL
 		}
 		return "", fmt.Errorf("the download failed: %w", downloadErr)
 	}
-	if !reused && protocol != indexers.ProtocolTorrent {
+	if !reused && protocol != indexers.ProtocolTorrent && !viaClient {
 		markDownloaded(incompleteDir, missing)
 	}
 
@@ -326,36 +350,8 @@ func (s *Server) prepareDownload(ctx context.Context, queueID int64, downloadURL
 // enabled Usenet server, primary first. It returns how many articles no
 // server had: those are left for PAR2 repair rather than failing outright.
 func (s *Server) downloadUsenet(ctx context.Context, queueID int64, nzbURL, incompleteDir string) (int, error) {
-	if isMagnetURI(nzbURL) {
-		return 0, errors.New("this is a torrent (a magnet link), but its indexer is set up as a Usenet indexer. Open Settings > Indexers & Search, remove it and add it again on the Torrent tab")
-	}
-	nzbBytes, err := s.fetchRelease(ctx, nzbURL)
+	nzb, _, err := s.fetchCheckedNZB(ctx, queueID, nzbURL)
 	if err != nil {
-		return 0, fmt.Errorf("couldn't get the NZB file: %w", err)
-	}
-	if looksLikeTorrentFile(nzbBytes) {
-		return 0, errors.New("this is a .torrent file, but its indexer is set up as a Usenet indexer. Open Settings > Indexers & Search, remove it and add it again on the Torrent tab")
-	}
-	// An indexer at its daily limit, or showing a login or maintenance page,
-	// sends something that is not an NZB: that says nothing about the release,
-	// so it is not blocklisted.
-	if err := notAnNZB(nzbBytes, nzbURL); err != nil {
-		return 0, err
-	}
-	nzb, err := download.ParseNZB(nzbBytes)
-	if err != nil {
-		return 0, badRelease(fmt.Errorf("couldn't read the NZB file: %w", err))
-	}
-	// Before a single article is fetched: no programs or scripts in the file
-	// list, and not the same NZB as an earlier download of this title.
-	if err := s.checkNZBSafe(nzb); err != nil {
-		return 0, err
-	}
-	fingerprint := nzb.Fingerprint()
-	if err := s.QueueRepo.SetNZBHash(queueID, fingerprint); err != nil {
-		slog.Warn("api: save the NZB fingerprint", "queueId", queueID, "err", err)
-	}
-	if err := s.checkDuplicate(queueID, fingerprint); err != nil {
 		return 0, err
 	}
 
@@ -695,10 +691,14 @@ func (s *Server) vpnRequiredForTorrents() bool {
 // movie import. See conflictPolicy for the shared logic.
 func (s *Server) importConflictPolicy(movieID int64, incomingTier quality.Tier) (organizer.ConflictPolicy, func() bool) {
 	upgrades := false
+	profile := quality.Profile{}
 	if m, err := s.MovieRepo.Get(movieID); err == nil {
 		upgrades = !m.NoUpgrade
+		if ps, err := s.loadProfiles(); err == nil {
+			profile = s.profileForMovie(ps, m)
+		}
 	}
-	return s.conflictPolicy(incomingTier, upgrades, func() (quality.Tier, bool) {
+	return s.conflictPolicy(incomingTier, upgrades, profile, func() (quality.Tier, bool) {
 		current, err := s.MovieRepo.Get(movieID)
 		if err != nil {
 			return "", false
@@ -718,7 +718,7 @@ func (s *Server) importConflictPolicy(movieID int64, incomingTier quality.Tier) 
 // its file alone). With the default "skip" policy such a title still takes a
 // better release in place of its file: otherwise "Look for better versions"
 // would download the better file and then refuse to import it.
-func (s *Server) conflictPolicy(incomingTier quality.Tier, upgrades bool, currentTier func() (quality.Tier, bool)) (organizer.ConflictPolicy, func() bool) {
+func (s *Server) conflictPolicy(incomingTier quality.Tier, upgrades bool, profile quality.Profile, currentTier func() (quality.Tier, bool)) (organizer.ConflictPolicy, func() bool) {
 	v, _ := s.Settings.Get(settings.KeyImportConflictPolicy)
 	ifBetter := func() (organizer.ConflictPolicy, func() bool) {
 		isBetter := func() bool {
@@ -726,7 +726,7 @@ func (s *Server) conflictPolicy(incomingTier quality.Tier, upgrades bool, curren
 			if !ok {
 				return false
 			}
-			return quality.Rank(incomingTier) > quality.Rank(current)
+			return profile.TierRank(incomingTier) > profile.TierRank(current)
 		}
 		return organizer.ConflictOverwriteIfBetter, isBetter
 	}
@@ -1202,7 +1202,7 @@ func (s *Server) buildDestPath(root, movieTitle string, year, tmdbID int, releas
 	}
 
 	sanitizeMode, replacement := s.illegalCharSettings()
-	folder := organizer.Sanitize(organizer.Render(organizer.Presets["plex"], ctx), sanitizeMode, replacement)
+	folder := organizer.Sanitize(organizer.Render(s.movieFolderFormat(), ctx), sanitizeMode, replacement)
 	if name, ok := s.keptName(videoFile, sanitizeMode, replacement); ok {
 		return filepath.Join(moviesPath, folder, name), nil
 	}

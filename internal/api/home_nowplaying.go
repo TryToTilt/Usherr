@@ -16,6 +16,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -41,6 +42,7 @@ type usherrPlaying struct {
 	showID   int // the show's (an episode)
 	year     int
 	release  string  // for the picture and sound, when known
+	source   string  // the file or stream itself, to read what it really is
 	progress float64 // 0..1, when known
 	paused   bool
 	at       time.Time
@@ -89,14 +91,14 @@ func (s *Server) usherrPlayingFromLibrary(kind string, id int64, p *usherrPlayin
 		if err != nil {
 			return false
 		}
-		p.kind, p.title, p.tmdbID, p.year = "movie", m.Title, m.TMDBID, m.Year
+		p.kind, p.title, p.tmdbID, p.year, p.source = "movie", m.Title, m.TMDBID, m.Year, m.FilePath
 		return true
 	case "episode":
 		ep, err := s.MovieRepo.GetEpisodeByID(id)
 		if err != nil {
 			return false
 		}
-		p.kind, p.title, p.season, p.episode, p.release = "episode", ep.Title, ep.Season, ep.Episode, ep.ReleaseTitle
+		p.kind, p.title, p.season, p.episode, p.release, p.source = "episode", ep.Title, ep.Season, ep.Episode, ep.ReleaseTitle, ep.FilePath
 		if sr, err := s.MovieRepo.GetSeries(ep.SeriesID); err == nil {
 			p.series, p.showID = sr.Title, sr.TMDBID
 		}
@@ -151,7 +153,7 @@ func (s *Server) handleNowPlaying(w http.ResponseWriter, r *http.Request) {
 		if body.StreamID != "" {
 			if ss, ok := streams.get(body.StreamID, user); ok {
 				streams.mu.Lock()
-				p.release = ss.release
+				p.release, p.source = ss.release, ss.target
 				streams.mu.Unlock()
 			}
 		}
@@ -169,6 +171,9 @@ func (s *Server) handleNowPlaying(w http.ResponseWriter, r *http.Request) {
 	if p.title == "" && p.series == "" {
 		w.WriteHeader(http.StatusNoContent)
 		return
+	}
+	if _, needShape, ok := s.librarySpecs(p.source); !ok || needShape {
+		playSpecsFor(p.source) // what it really is, looked at in the background
 	}
 	usherrNowSet("p:"+strings.ToLower(body.Key), p)
 	w.WriteHeader(http.StatusNoContent)
@@ -201,6 +206,7 @@ func addonPlaying(key string, base usherrPlaying, offset, size int64) {
 	if had && offset == 0 {
 		p.progress = old.progress // a read from the start (a probe) doesn't move it back
 	}
+	playSpecsFor(p.source)
 	usherrNowSet("a:"+key, &p)
 }
 
@@ -259,11 +265,42 @@ func (s *Server) usherrNowShowing(ctx context.Context, already []marqueePlaying,
 			TMDBID: u.tmdbID, Year: u.year, Progress: u.progress, Paused: u.paused, Device: u.device, SeriesTMDB: u.showID}
 		if u.release != "" {
 			pl.Resolution, pl.HDR = releaseResolution(u.release), hdrOf(u.release)
+			pl.Audio, pl.Channels = releaseSound(u.release)
+		}
+		// What the file or stream really is: a library file's details from
+		// its headers (read by Mediarium in the background), with a look of
+		// Usherr's own for the shape only when black bars could hide it; a
+		// stream's from Usherr's own look.
+		sp, needShape, known := s.librarySpecs(u.source)
+		if !known {
+			sp, known = playSpecsFor(u.source)
+		} else if needShape {
+			if looked, ok := playSpecsFor(u.source); ok && looked.aspect != "" {
+				sp.aspect = looked.aspect
+			}
+		}
+		if known {
+			for _, f := range []struct {
+				to *string
+				v  string
+			}{{&pl.Resolution, sp.resolution}, {&pl.HDR, sp.hdr}, {&pl.Audio, sp.sound}, {&pl.Channels, sp.channels}, {&pl.Aspect, sp.aspect}} {
+				if f.v != "" {
+					*f.to = f.v
+				}
+			}
 		}
 		mp := marqueePlaying{Playing: pl}
+		if strings.Contains(strings.ToUpper(u.release), "IMAX") {
+			mp.Formats = []string{"IMAX"} // an IMAX edition (taller scenes)
+		}
 		if u.kind == "movie" && u.tmdbID > 0 && tmdbOK {
 			if f, ok := s.marqueeFeature(ctx, u.tmdbID, "playing"); ok {
 				mp.PosterURL, mp.BackdropURL, mp.Cast, mp.Director = f.PosterURL, f.BackdropURL, f.Cast, f.Director
+				for _, x := range f.Formats {
+					if !slices.Contains(mp.Formats, x) {
+						mp.Formats = append(mp.Formats, x)
+					}
+				}
 				if mp.Overview == "" {
 					mp.Overview = f.Overview
 				}

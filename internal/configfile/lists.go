@@ -45,7 +45,7 @@ var Lists = []ListSection{
 	{
 		Name: "qualityProfiles", Path: "/api/quality-profiles", Wrap: "profiles",
 		Fields: []string{"name", "allowed", "cutoff", "upgradeAllowed", "mustContain", "mustNotContain", "preferred", "fallback",
-			"maxSizeGB", "formatScores", "minFormatScore", "cutoffFormatScore", "noSeasonPacks", "skipBadReleases"},
+			"maxSizeGB", "formatScores", "minFormatScore", "cutoffFormatScore", "noSeasonPacks", "skipBadReleases", "qualityOrder"},
 	},
 }
 

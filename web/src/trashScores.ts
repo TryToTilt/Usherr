@@ -24,7 +24,7 @@ export interface ScorePreview {
 export function scorePreview(f: TrashScoreInput, scores: Map<number, number> | null): ScorePreview {
   const current = f.importedId > 0 ? (scores?.get(f.importedId) ?? 0) : null
   if (scores === null) return { willGet: null, current, flag: null }
-  const willGet = f.defaultScore !== 0 ? f.defaultScore : null
+  const willGet = f.defaultScore
   let flag: ScorePreview['flag'] = null
   if (current !== null && f.defaultScore !== 0) {
     if (current === 0) flag = 'zero'
@@ -40,4 +40,15 @@ export const signed = (n: number): string => (n > 0 ? `+${n}` : String(n))
 // none of its own: shows have a default of their own when one is set.
 export function profileForApp(app: 'radarr' | 'sonarr', defaultId: number, defaultTvId: number): number {
   return app === 'sonarr' && defaultTvId > 0 ? defaultTvId : defaultId
+}
+
+// importScoreAction is what adding one TRaSH format with a profile chosen does
+// to its score there: 'add' (the profile does not have it yet), 'skip' (it has
+// it, and keeps its score), 'replace' (it has it and the person asked for the
+// TRaSH score), or 'none' (no profile chosen). scores maps a format id to its
+// score in that profile; a score of 0 counts as being in it.
+export function importScoreAction(f: TrashScoreInput, scores: Map<number, number> | null, replace: boolean): 'add' | 'skip' | 'replace' | 'none' {
+  if (scores === null) return 'none'
+  if (f.importedId <= 0 || !scores.has(f.importedId)) return 'add'
+  return replace ? 'replace' : 'skip'
 }

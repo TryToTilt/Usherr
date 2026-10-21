@@ -552,6 +552,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/library/bulk/sources` | admin | chooses where the chosen titles are downloaded from. |
 | PUT | `/api/library/bulk/tags` | admin | adds and removes tags on the chosen titles (administrators). |
 | GET | `/api/library/counts` | any account | answers how many movies and shows the library has, for the Library's tabs, so a tab does not have to load the other tab's whole list just to show its number. |
+| GET | `/api/library/file-details` | any account | says how far the reading of the files has got, for the note in the Library. |
 | GET | `/api/library/folders` | any account | is GET /api/library/folders (any account): the folders a movie or a show can be kept in, the main one first. |
 | POST | `/api/library/import` | admin | registers the reviewed selections. |
 | GET | `/api/library/import/active` | admin | lists what is going on: scans waiting to be reviewed or still running, imports still filling in details, and finished imports whose banner has not been dismi... |
@@ -662,9 +663,11 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/music/albums/{id}` | any account | returns one album with its tracklist and which tracks have a file. |
 | GET | `/api/music/albums/{id}/cover` | any account | serves an album's cover image (any account): the cover file in the album's folder, else the front cover from the Cover Art Archive, fetched once and kept. |
 | GET | `/api/music/albums/{id}/events` | any account | lists an album's own activity log, newest first (at most 200 events): searches and why nothing was taken, grabs, download steps, imports and failures. |
+| DELETE | `/api/music/albums/{id}/files` | admin | deletes one file from an album's folder (administrators): ?path= is the file's path in the listing, relative to the album's folder. |
 | GET | `/api/music/albums/{id}/files` | any account | lists the files in an album's folder on disk (any account): tracks carry their track id, and cover art, logs and cue sheets are listed too. |
 | POST | `/api/music/albums/{id}/grab` | any account | grabs one release for an album (from the interactive search: {releaseTitle, downloadUrl, sizeBytes, protocol}) through the same download queue as movies and ... |
 | PUT | `/api/music/albums/{id}/monitored` | any account | switches monitoring on or off for one album, with a body of {"monitored": true} or {"monitored": false}. |
+| POST | `/api/music/albums/{id}/rescan` | admin | rechecks the files in an album's folder (administrators): the Rescan album folder button. |
 | POST | `/api/music/albums/{id}/search` | any account | is the interactive search for one album: every release the indexers have for "Artist Album" in the audio categories, with what its name says and the reasons ... |
 | POST | `/api/music/albums/{id}/search-now` | any account | runs the automatic search for one album right now, even when it is not monitored, and grabs the best acceptable release. |
 | GET | `/api/music/artists` | any account |  |
@@ -805,9 +808,12 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 
 | Method | Path | Access | What it does |
 |---|---|---|---|
+| GET | `/api/quality/min-size-check` | admin | says whether the built-in minimum size check is on. |
+| PUT | `/api/quality/min-size-check` | admin | switches the built-in minimum size check: {"enabled": false} turns it off. |
 | GET | `/api/quality/size-limits` | admin |  |
 | PUT | `/api/quality/size-limits` | admin |  |
 | POST | `/api/quality/size-limits/reset` | admin | puts every quality back to its default. |
+| GET | `/api/quality/size-limits/trash/{list}` | admin | is GET /api/quality/size-limits/trash/{list}. |
 
 ## quality-profiles
 
@@ -1014,6 +1020,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/system/cleanup` | admin | runs the clean-up now and reports what it removed and how much history it pruned. |
 | GET | `/api/system/diagnostics` | admin | returns what a person needs to send with a support request: version and platform, how the database is doing, the setup warnings and the recent log. |
 | GET | `/api/system/info` | admin | returns facts the backup page shows. |
+| GET | `/api/system/mcp` | admin |  |
+| PUT | `/api/system/mcp` | admin | switches the MCP address on or off. |
 | GET | `/api/system/options` | admin | reports the switches for checking for updates, installing them, pushed updates and restarting when stuck. |
 | PUT | `/api/system/options` | admin | changes the switches named in the body and leaves the rest. |
 | GET | `/api/system/problems` | admin | lists the problems that match the filters, with the counts for the cards at the top of the page. |
@@ -1134,6 +1142,16 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/usage-stats` | admin |  |
 | POST | `/api/usage-stats/reset-id` | admin |  |
 
+## usenet-client
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/usenet-client` | admin | GET /api/usenet-client: the settings, without the API key and password. |
+| PUT | `/api/usenet-client` | admin | PUT /api/usenet-client: save the downloader. |
+| GET | `/api/usenet-client/jobs` | admin | is GET /api/usenet-client/jobs?scope=mine\|all: the jobs in the Usenet downloader, only Mediarium's own or everything in it. |
+| POST | `/api/usenet-client/jobs/{id}/{action}` | admin | is POST /api/usenet-client/jobs/{id}/{action} with action pause, resume, remove (keep the files) or remove-files. |
+| POST | `/api/usenet-client/test` | admin | POST /api/usenet-client/test: reach the downloader, sign in and make sure the categories exist. |
+
 ## usenet-servers
 
 | Method | Path | Access | What it does |
@@ -1197,4 +1215,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-797 routes.
+810 routes.

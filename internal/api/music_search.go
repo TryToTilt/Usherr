@@ -228,7 +228,12 @@ func (s *Server) huntAlbum(ctx context.Context, artist music.Artist, album music
 	case music.StatusDownloading:
 		return false
 	case music.StatusDownloaded:
-		if !profile.WantsUpgrade(current) {
+		if force && s.albumIncomplete(album.ID) {
+			// A search by hand for an album with tracks missing: any
+			// release the profile accepts is better than what is there,
+			// so it is judged like a missing album, not as an upgrade.
+			current = ""
+		} else if !profile.WantsUpgrade(current) {
 			return false
 		}
 	}
@@ -477,4 +482,19 @@ func (s *Server) retryAlbum(albumID int64) {
 	if !s.huntAlbum(context.Background(), artist, album, profile, instances, s.searchSkipKeys(), false) {
 		s.albumEvent(albumID, "retry", queue.LevelWarn, noOtherRelease)
 	}
+}
+
+// albumIncomplete reports whether a downloaded album has tracks without a
+// file (its tracklist is known and not every track has one).
+func (s *Server) albumIncomplete(albumID int64) bool {
+	tracks, err := s.MusicRepo.ListTracks(albumID)
+	if err != nil || len(tracks) == 0 {
+		return false
+	}
+	for _, t := range tracks {
+		if t.FilePath == "" {
+			return true
+		}
+	}
+	return false
 }

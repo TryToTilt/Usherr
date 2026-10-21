@@ -27,6 +27,8 @@ type arrMovieFile struct {
 	ReleaseGroup string          `json:"releaseGroup,omitempty"`
 	Quality      arrQualityModel `json:"quality"`
 	Languages    []arrLanguage   `json:"languages"`
+	// MediaInfo is what Mediarium read from the file's headers; left out until it has.
+	MediaInfo *arrMediaInfo `json:"mediaInfo,omitempty"`
 }
 
 type arrMovie struct {
@@ -122,6 +124,7 @@ func (s *Server) toArrMovie(m library.Movie, c arrMovieContext) arrMovie {
 		out.MovieFile = &arrMovieFile{
 			ID: m.ID, MovieID: m.ID, RelativePath: filepath.Base(m.FilePath), Path: m.FilePath, Size: size,
 			DateAdded: out.Added, Quality: arrQualityModelOf(arrRadarr, quality.Tier(m.Quality)), Languages: []arrLanguage{arrEnglish},
+			MediaInfo: s.arrMediaInfoFor(m.FilePath),
 		}
 	}
 	files := 0

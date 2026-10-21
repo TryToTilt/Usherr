@@ -38,6 +38,7 @@ type marqueeFeature struct {
 	BackdropURL string   `json:"backdropUrl,omitempty"`
 	Trailer     string   `json:"trailer,omitempty"` // a YouTube video key
 	Reason      string   `json:"reason"`            // "new" (arrived lately), "theaters" or "coming" (opens soon)
+	Formats     []string `json:"formats,omitempty"` // Usherr: how cinemas showed it ("IMAX", "Dolby Cinema", "70mm")
 	ReleaseDate string   `json:"releaseDate,omitempty"`
 	// Usherr (phase 3): the info panel and the trivia.
 	Overview      string          `json:"overview,omitempty"`
@@ -59,6 +60,7 @@ type marqueePlaying struct {
 	BackdropURL string          `json:"backdropUrl,omitempty"`
 	Cast        []marqueePerson `json:"cast,omitempty"`     // Usherr: the info panel
 	Director    *marqueePerson  `json:"director,omitempty"` // Usherr
+	Formats     []string        `json:"formats,omitempty"`  // Usherr: "IMAX", "Dolby Cinema"...
 }
 
 type marqueePayload struct {
@@ -136,6 +138,33 @@ var marqueeDetails = struct {
 type marqueeDetailEntry struct {
 	at time.Time
 	f  marqueeFeature
+	// Usherr: where the cinema formats come from: IMDb, once it has
+	// answered, else TMDB's release notes.
+	imdbID      string
+	tmdbFormats []string
+}
+
+// knownFormats are the cinema formats of a film whose details are already
+// at hand (nothing is fetched for it).
+func (s *Server) knownFormats(tmdbID int) []string {
+	marqueeDetails.Lock()
+	e, ok := marqueeDetails.m[tmdbID]
+	marqueeDetails.Unlock()
+	if !ok {
+		return nil
+	}
+	return s.filmFormats(e.imdbID, e.tmdbFormats)
+}
+
+// filmFormats are a film's cinema formats: IMDb's when it has answered (and
+// the Marquee may ask it), else TMDB's release notes.
+func (s *Server) filmFormats(imdbID string, tmdb []string) []string {
+	if !s.marqueeSettings().NoIMDb {
+		if f, ok := imdbFormats(imdbID); ok && len(f) > 0 {
+			return f
+		}
+	}
+	return tmdb
 }
 
 func (s *Server) marqueeFeature(ctx context.Context, tmdbID int, reason string) (marqueeFeature, bool) {
@@ -144,6 +173,7 @@ func (s *Server) marqueeFeature(ctx context.Context, tmdbID int, reason string) 
 	marqueeDetails.Unlock()
 	if ok && time.Since(e.at) < marqueeDetailCache {
 		e.f.Reason = reason
+		e.f.Formats = s.filmFormats(e.imdbID, e.tmdbFormats)
 		return e.f, true
 	}
 	d, err := s.displayTMDB().GetMovieDetail(ctx, tmdbID)
@@ -161,8 +191,10 @@ func (s *Server) marqueeFeature(ctx context.Context, tmdbID int, reason string) 
 		}
 	}
 	s.marqueeFilmDetails(ctx, d, &f) // Usherr
+	tmdbFormats := d.CinemaFormats() // Usherr
+	f.Formats = s.filmFormats(d.IMDBID, tmdbFormats)
 	marqueeDetails.Lock()
-	marqueeDetails.m[tmdbID] = marqueeDetailEntry{at: time.Now(), f: f}
+	marqueeDetails.m[tmdbID] = marqueeDetailEntry{at: time.Now(), f: f, imdbID: d.IMDBID, tmdbFormats: tmdbFormats}
 	marqueeDetails.Unlock()
 	f.Reason = reason
 	return f, true
@@ -201,7 +233,7 @@ func (s *Server) handleMarquee(w http.ResponseWriter, r *http.Request) {
 				if p.Kind == "movie" && p.TMDBID > 0 && tmdbOK {
 					if f, ok := s.marqueeFeature(ctx, p.TMDBID, "playing"); ok {
 						mp.PosterURL, mp.BackdropURL = f.PosterURL, f.BackdropURL
-						mp.Cast, mp.Director = f.Cast, f.Director // Usherr
+						mp.Cast, mp.Director, mp.Formats = f.Cast, f.Director, f.Formats // Usherr
 						if mp.Overview == "" {
 							mp.Overview = f.Overview
 						}
@@ -317,8 +349,9 @@ func (s *Server) handleMarquee(w http.ResponseWriter, r *http.Request) {
 		if m.PosterPath == "" {
 			continue
 		}
-		out.Theaters = append(out.Theaters, marqueeFeature{TMDBID: m.TMDBID, Title: m.Title, Year: yearOf(m.ReleaseDate),
-			PosterURL: metadata.ImageURL("w500", m.PosterPath), Reason: "theaters", ReleaseDate: m.ReleaseDate})
+		out.Theaters = append(out.Theaters, marqueeFeature{TMDBID: m.TMDBID, Title: m.Title, Year: dateYear(m.ReleaseDate),
+			PosterURL: metadata.ImageURL("w500", m.PosterPath), Reason: "theaters", ReleaseDate: m.ReleaseDate,
+			Formats: s.knownFormats(m.TMDBID)}) // Usherr
 	}
 
 	// The next week: the library's releases and episodes, and other modules'.
@@ -348,7 +381,8 @@ func (s *Server) handleMarquee(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-func yearOf(date string) int {
+// dateYear is the year of a "YYYY-MM-DD" date (0 when it has none).
+func dateYear(date string) int {
 	if len(date) < 4 {
 		return 0
 	}

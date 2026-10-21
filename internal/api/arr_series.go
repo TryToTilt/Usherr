@@ -602,22 +602,23 @@ func (s *Server) arrDeleteSeries(w http.ResponseWriter, r *http.Request) {
 // --- episodes ---
 
 type arrEpisode struct {
-	ID                       int64      `json:"id"`
-	SeriesID                 int64      `json:"seriesId"`
-	TVDBID                   int        `json:"tvdbId"`
-	EpisodeFileID            int64      `json:"episodeFileId"`
-	SeasonNumber             int        `json:"seasonNumber"`
-	EpisodeNumber            int        `json:"episodeNumber"`
-	Title                    string     `json:"title"`
-	AirDate                  string     `json:"airDate,omitempty"`
-	AirDateUTC               string     `json:"airDateUtc,omitempty"`
-	Overview                 string     `json:"overview"`
-	HasFile                  bool       `json:"hasFile"`
-	Monitored                bool       `json:"monitored"`
-	UnverifiedSceneNumbering bool       `json:"unverifiedSceneNumbering"`
-	Grabbed                  bool       `json:"grabbed"`
-	Images                   []arrImage `json:"images"`
-	Series                   *arrSeries `json:"series,omitempty"`
+	ID                       int64           `json:"id"`
+	SeriesID                 int64           `json:"seriesId"`
+	TVDBID                   int             `json:"tvdbId"`
+	EpisodeFileID            int64           `json:"episodeFileId"`
+	SeasonNumber             int             `json:"seasonNumber"`
+	EpisodeNumber            int             `json:"episodeNumber"`
+	Title                    string          `json:"title"`
+	AirDate                  string          `json:"airDate,omitempty"`
+	AirDateUTC               string          `json:"airDateUtc,omitempty"`
+	Overview                 string          `json:"overview"`
+	HasFile                  bool            `json:"hasFile"`
+	Monitored                bool            `json:"monitored"`
+	UnverifiedSceneNumbering bool            `json:"unverifiedSceneNumbering"`
+	Grabbed                  bool            `json:"grabbed"`
+	Images                   []arrImage      `json:"images"`
+	Series                   *arrSeries      `json:"series,omitempty"`
+	EpisodeFile              *arrEpisodeFile `json:"episodeFile,omitempty"`
 }
 
 func toArrEpisode(ep library.Episode) arrEpisode {

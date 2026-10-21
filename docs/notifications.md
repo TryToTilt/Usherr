@@ -99,9 +99,11 @@ Every message has a clear subject and the same details, made from one template, 
 
 Under the subject is one sentence and a small table: title, year, quality, size, where it was saved (or the reason it failed, or the release name) and the time.
 
+When subtitles are switched on, the "ready to watch" message also has a **Subtitles** row that says where they stand at the moment of the import: `Already there (en, nl)` when the wanted languages were found next to the video or inside it (or came with the download), `Already there (en), nl still missing`, or `None yet, searching for en` when automatic downloading is on and Mediarium is about to look. With automatic downloading off it says `None yet, not downloaded`. The row is left out when subtitles are off. It shows what was there when the file arrived; a subtitle that Mediarium then downloads still sends its own **Subtitles** message, if you chose that event. For a season pack the row covers all its episodes.
+
 - **Email** is a formatted page with the Mediarium name on the brand colour, the poster, the table and an **Open in Mediarium** button, plus a plain-text version of the same message for mail programs that don't show pages. It loads nothing but the poster picture from TMDB: no tracking pictures, scripts or fonts. A message about a problem uses a warmer colour under the header.
 - **Discord** gets an embed with the poster as a thumbnail and a field per detail. **Slack** gets a header, the sentence, the details in two columns and a button. **Telegram** gets bold text and a link. **ntfy** gets a title, a priority, an emoji tag for the event, and the title's page as the tap action. **Gotify**, **Pushover** and webhooks get the same subject and details in their own format.
-- A webhook keeps `event`, `title`, `message` and `at`, and adds `details` (a list of `label` and `value`), and `link` and `poster` when there are any. `title` is now the subject and `message` the sentence with the details, one per line. A custom JSON body sees the same `{{title}}` and `{{message}}`.
+- A webhook keeps `event`, `title`, `message` and `at`, and adds `details` (a list of `label` and `value`), and `link`, `poster` and, on a "downloaded" message while subtitles are on, `subtitles` (the same words as the Subtitles row) when there are any. `title` is now the subject and `message` the sentence with the details, one per line. A custom JSON body sees the same `{{title}}` and `{{message}}`, and also `{{subtitles}}` (empty when there is nothing to say).
 
 ### The link
 

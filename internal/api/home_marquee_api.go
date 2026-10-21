@@ -88,20 +88,31 @@ func (s *Server) marqueeDo(ids []string, cmd, arg string) (int, error) {
 	return sent, nil
 }
 
-// marqueeSetLook gives a screen another look. A screen on the shared
-// settings gets its own, a copy of them with the new look.
+// marqueeSetLook gives a screen another look. Only the look becomes its own
+// (the shared look puts it back on the shared one); everything else still
+// follows the shared settings.
 func (s *Server) marqueeSetLook(ctx context.Context, id, style string) error {
 	if oneOf(style, marqueeStyles, "") == "" {
 		return errMarqueeLook
 	}
-	set, _ := s.marqueeSettingsFor(ctx, id)
-	set.Style = style
-	b, _ := json.Marshal(set.clean())
-	res, err := s.db.ExecContext(ctx, `UPDATE marquee_screens SET settings = ? WHERE id = ?`, string(b), id)
-	if err != nil {
-		return err
+	var raw string
+	if err := s.db.QueryRowContext(ctx, `SELECT settings FROM marquee_screens WHERE id = ?`, id).Scan(&raw); err != nil {
+		return errMarqueeNoScreen
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	shared := s.marqueeSettings()
+	own := s.screenOwnSettings(ctx, id, raw, shared)
+	if own == nil {
+		own = screenOwn{}
+	}
+	if style == shared.Style {
+		delete(own, "style")
+	} else {
+		v, _ := json.Marshal(style)
+		own["style"] = v
+	}
+	if ok, err := s.saveScreenOwn(ctx, id, own); err != nil {
+		return err
+	} else if !ok {
 		return errMarqueeNoScreen
 	}
 	s.marqueeLive.send(id, marqueeEvent{Type: "settings"})

@@ -133,6 +133,11 @@
 .mqh-tabs button { display: inline-flex; align-items: center; gap: 6px; }
 .mqh-card { padding: 16px; }
 .mqh-card > .mqm-media { margin-top: 0; border-top: 0; padding-top: 0; }
+/* Usherr: screens that keep their own settings, said where the shared ones are set */
+.mqh-own { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 14px; padding: 12px 14px; border: 1px solid color-mix(in srgb, #ffb020 60%, var(--border)); border-radius: 12px; background: color-mix(in srgb, #ffb020 12%, transparent); color: var(--text); }
+.mqh-own > div { display: grid; gap: 6px; min-width: 0; }
+.mqh-own-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.mqh-own-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .mqh-save { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; gap: 10px; margin: 16px -16px -16px; padding: 12px 16px; background: var(--surface); border-top: 1px solid var(--border); border-radius: 0 0 var(--radius, 14px) var(--radius, 14px); }
 
 /* Usherr: Showtimes and Fandango's Tickets side by side; all showtimes near the zip in the header. */

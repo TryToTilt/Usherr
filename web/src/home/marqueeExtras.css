@@ -127,6 +127,12 @@
 .ps-feature .ps-big { font-style: italic; font-size: calc(var(--u) * 11 * var(--mq-t)); background: linear-gradient(180deg, #fff6d0, var(--mq-hi) 45%, var(--mq-accent)); -webkit-background-clip: text; background-clip: text; color: transparent; animation: ps-zoom 1.6s cubic-bezier(0.2, 0.7, 0.2, 1) both 0.4s; }
 @keyframes ps-zoom { from { opacity: 0; transform: scale(1.6); filter: blur(calc(var(--u) * 1.5)); } }
 .ps-trailer { padding: 0 calc(var(--u) * 3); }
+/* Usherr: the trailer in a box the size of the screen's free space, so it
+   can be zoomed (Trailers fill); filling, it goes edge to edge. */
+.ps-trailer-box { flex: 1; align-self: stretch; width: 100%; }
+.ps-trailer.tf-letterbox .ps-trailer-box { flex: 0 1 auto; }
+.ps-trailer.tf-fill { padding: 0; gap: 0; }
+.ps-trailer.tf-fill .lk-meta { position: absolute; bottom: calc(var(--u) * 3); left: 0; right: 0; text-shadow: 0 0 calc(var(--u)) #000; }
 
 @media (prefers-reduced-motion: reduce) {
   .ps-kernel, .ps-wave, .ps-beam, .ps-rays, .ps-leader, .mqx-info { animation: none; }

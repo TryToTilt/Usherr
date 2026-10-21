@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, type IndexerConfig } from '../api'
 import { timeAgo } from '../format'
 import Icon from './Icon'
@@ -11,6 +11,9 @@ import { plural, t, st } from '../i18n'
 import { untilText } from '../delayText'
 import TipLabel from './TipLabel'
 import KnownFixHint from './KnownFixHint'
+
+// How long a site test runs before the card explains the wait.
+const SLOW_TEST_HINT_MS = 5000
 
 // One saved indexer: name, type and address on top, actions underneath, the
 // last test result on its own line, and an inline form to edit it.
@@ -27,6 +30,17 @@ export default function IndexerCard({ indexer: i, onChanged, onToggle, onRemove 
   const [prio, setPrio] = useState(String(i.priority ?? 25))
   const [minSeed, setMinSeed] = useState(String(i.minSeeders ?? 0))
   const site = i.kind === 'cardigann'
+  // A site behind a Cloudflare check can take up to a minute to test, so after a
+  // few seconds the card says what it is waiting for.
+  const [slowTest, setSlowTest] = useState(false)
+  useEffect(() => {
+    if (!testing || !site) {
+      setSlowTest(false)
+      return
+    }
+    const timer = window.setTimeout(() => setSlowTest(true), SLOW_TEST_HINT_MS)
+    return () => window.clearTimeout(timer)
+  }, [testing, site])
   const v = useValidation({
     name: firstError(required(name, t('Give this indexer a name.')), maxLength(name, 80, t('The name'))),
     perDay: numberRange(perDay, t('Requests per day'), { min: 0, max: 100000 }),
@@ -183,6 +197,11 @@ export default function IndexerCard({ indexer: i, onChanged, onToggle, onRemove 
         </label>
       </div>
 
+      {testing && slowTest && (
+        <div className="indexer-result" role="status">
+          <Icon name="refresh" size={14} /> {t('Solving the Cloudflare check, this can take up to a minute.')}
+        </div>
+      )}
       {result && (
         <div className={`indexer-result ${result.ok ? 'ok' : 'bad'}`}>
           <Icon name={result.ok ? 'check' : 'warning'} size={14} /> {st(result.message)}

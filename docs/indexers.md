@@ -209,4 +209,4 @@ The compose file in this repository has an optional `flaresolverr` service. Star
 docker compose --profile cloudflare up -d
 ```
 
-Then enter `http://flaresolverr:8191` under Settings > Indexers & Search. The first request to a protected site can take up to a minute while FlareSolverr passes the check. Later requests reuse its cookies and are fast.
+Then enter `http://flaresolverr:8191` under Settings > Indexers & Search. The first request to a protected site can take up to a minute while FlareSolverr passes the check. Later requests reuse its cookies and are fast. The Test button on a site waits up to 100 seconds when FlareSolverr is set up, and shows "Solving the Cloudflare check" while it waits. If it still runs out, the message says how long it waited: check that FlareSolverr is running and has internet access, then try again.

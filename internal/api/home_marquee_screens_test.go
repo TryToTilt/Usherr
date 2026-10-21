@@ -193,3 +193,32 @@ func TestMarqueeShowsUsherrsPlayer(t *testing.T) {
 		t.Fatalf("after closing: %v", list)
 	}
 }
+
+// A look picked for one screen stays its own; everything else still follows
+// the shared settings.
+func TestMarqueeScreenKeepsOnlyItsLook(t *testing.T) {
+	_, base, admin := loginNewServer(t)
+	getJSON[map[string]any](t, admin, base+"/api/home/marquee?screen=lobby-tv-1")
+	if st, body := doJSONStatus(t, admin, http.MethodPost, base+"/api/home/marquee/screens/lobby-tv-1/look", map[string]any{"style": "cinema"}); st != http.StatusOK && st != http.StatusNoContent {
+		t.Fatalf("look: %d %v", st, body)
+	}
+	set := getJSON[map[string]any](t, admin, base+"/api/home/marquee/settings")["settings"].(map[string]any)
+	set["textScale"] = 130
+	if st, body := doJSONStatus(t, admin, http.MethodPut, base+"/api/home/marquee/settings", set); st != http.StatusOK {
+		t.Fatalf("shared: %d %v", st, body)
+	}
+	got := getJSON[map[string]any](t, admin, base+"/api/home/marquee?screen=lobby-tv-1")["settings"].(map[string]any)
+	if got["style"] != "cinema" || got["textScale"] != float64(130) {
+		t.Fatalf("the screen shows style %v, text %v", got["style"], got["textScale"])
+	}
+	sc := getJSON[map[string]any](t, admin, base+"/api/home/marquee/screens")["screens"].([]any)[0].(map[string]any)
+	if sc["own"] != true || len(sc["ownKeys"].([]any)) != 1 || sc["ownKeys"].([]any)[0] != "style" {
+		t.Fatalf("own: %v %v", sc["own"], sc["ownKeys"])
+	}
+	// Picking the shared look again: nothing of its own left.
+	doJSONStatus(t, admin, http.MethodPost, base+"/api/home/marquee/screens/lobby-tv-1/look", map[string]any{"style": set["style"]})
+	sc = getJSON[map[string]any](t, admin, base+"/api/home/marquee/screens")["screens"].([]any)[0].(map[string]any)
+	if sc["own"] != false {
+		t.Fatalf("back on the shared look: %v %v", sc["own"], sc["ownKeys"])
+	}
+}

@@ -39,6 +39,7 @@ The screenshots in these pages come from demo mode: the movies, shows, artists, 
 | Run a script of your own after each import (what it is told, how to try it) | [scripts.md](./scripts.md) |
 | Keep your settings in a YAML file (for git or a deploy script) and apply it | [config-file.md](./config-file.md) |
 | Connect Overseerr, Jellyseerr, Homepage, Homarr, nzb360, LunaSea or Ruddarr (apps made for Radarr, Sonarr and Lidarr) | [other-apps.md](./other-apps.md) |
+| Ask your library questions from a chat program or a voice assistant (MCP) | [mcp.md](./mcp.md) |
 | Set up notifications (email, ntfy, Gotify, Pushover, Slack, Discord, Telegram, Matrix, Home Assistant, Apprise, webhook), turn them on and off, test them | [notifications.md](./notifications.md) |
 | Find out what went wrong (a failed download, "too many connections", a full disk) and what to try, copy a report for support | [logs-and-errors.md](./logs-and-errors.md) |
 | Understand the responsible-use notice | [LEGAL.md](./LEGAL.md) |

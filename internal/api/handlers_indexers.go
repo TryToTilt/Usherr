@@ -505,6 +505,18 @@ func (s *Server) flareSolverrSetting() string {
 	return strings.TrimSpace(v)
 }
 
+// indexerTestBudget is how long the check of one indexer may take. A site that
+// goes through FlareSolverr needs a minute or more for the Cloudflare check.
+func (s *Server) indexerTestBudget(inst indexers.Instance) time.Duration {
+	if !inst.IsCardigann() {
+		return 2 * connTestTimeout
+	}
+	if s.flareSolverrURL() != "" {
+		return 100 * time.Second
+	}
+	return 2 * connTestTimeout
+}
+
 // testIndexerInstance runs the right connection test for any kind of indexer.
 func (s *Server) testIndexerInstance(ctx context.Context, inst indexers.Instance) connTestResult {
 	if !inst.IsCardigann() {
@@ -512,14 +524,14 @@ func (s *Server) testIndexerInstance(ctx context.Context, inst indexers.Instance
 	}
 	// Passing a Cloudflare check through FlareSolverr can take up to a minute
 	// the first time; after that its cookies are reused and requests are quick.
-	timeout := 2 * connTestTimeout
-	if s.flareSolverrURL() != "" {
-		timeout = 100 * time.Second
-	}
+	timeout := s.indexerTestBudget(inst)
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	res, err := s.Cardigann.Test(ctx, inst)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) && s.flareSolverrURL() != "" {
+			return connTestResult{Message: fmt.Sprintf("The check waited %d seconds for FlareSolverr and it didn't finish. Check that FlareSolverr is running and has internet access, then try again.", int(timeout/time.Second))}
+		}
 		if indexers.LoopbackSite(inst.BaseURL) && strings.Contains(strings.ToLower(err.Error()), "connection refused") {
 			return connTestResult{Message: fmt.Sprintf("The server refused the connection. Check it's running and the address and port are right. Inside Docker, %s is the Mediarium container itself, so use the address of the machine that runs it, for example %s.", "127.0.0.1", localSiteExample)}
 		}

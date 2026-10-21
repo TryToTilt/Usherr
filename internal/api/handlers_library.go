@@ -74,6 +74,12 @@ type searchResultPayload struct {
 	// Terms are the profile's preferred terms the release matched, each with
 	// its score; they add to the score next to the custom formats.
 	Terms []preferredHit `json:"terms,omitempty"`
+	// Score is the whole score the pick compares (Profile.Score): the custom
+	// formats, the preferred terms and FixScore added up. It is what the
+	// Score column shows, and equals the parts listed in the details. Left
+	// out when the profile scores nothing.
+	Score    *int `json:"score,omitempty"`
+	FixScore int  `json:"fixScore,omitempty"` // the bonus of a PROPER or REPACK when bad releases are skipped
 	// AcceptedBy names the profile that accepts this release: the item's own
 	// profile, or one of its fallbacks (fallback true). Left out when none
 	// does. Only set for a search on a library item.
@@ -210,6 +216,11 @@ type moviePayload struct {
 	// FolderPath is the full folder the movie's files are in, or go to when it
 	// has none (as Mediarium sees it). Only filled in for a single movie.
 	FolderPath string `json:"folderPath,omitempty"`
+	// Media is what the file holds, short lists the Library filters on (the
+	// list); FileInfo is the full details of the file (a single movie). Both
+	// are left out until the file has been read (media_info.go).
+	Media    *mediaSummaryPayload `json:"media,omitempty"`
+	FileInfo *fileInfoPayload     `json:"fileInfo,omitempty"`
 }
 
 // toMoviePayload builds a library movie's JSON; who resolves the account
@@ -243,8 +254,12 @@ func (s *Server) handleListMovies(w http.ResponseWriter, r *http.Request) {
 	out := make([]moviePayload, len(list))
 	now := time.Now()
 	movieFolders := s.movieFolders()
+	media := s.mediaSummaryNow().movies
 	for i, m := range list {
 		out[i] = toMoviePayload(m, who)
+		if ms, ok := media[m.ID]; ok {
+			out[i].Media = mediaSummaryOf(ms)
+		}
 		out[i].FilePath = fileLabel(r, m.FilePath)
 		out[i].RootPath = folderShown(r, movieFolders, m.RootPath)
 		if brief {
@@ -278,6 +293,7 @@ func (s *Server) handleGetMovie(w http.ResponseWriter, r *http.Request) {
 	out.FilePath = fileLabel(r, m.FilePath)
 	out.RootPath = folderShown(r, s.movieFolders(), m.RootPath)
 	out.SizeBytes = fileSize(m.FilePath)
+	out.FileInfo = s.movieFileInfo(m.FilePath)
 	if isAdminRequest(r) { // only administrators see where the files lie
 		out.FolderPath = s.movieFolderFor(m)
 	}

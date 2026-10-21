@@ -456,7 +456,7 @@ func SplitAddresses(s string) []string {
 	return out
 }
 
-// renderTemplate fills {{event}}, {{title}}, {{message}} and {{at}} into a
+// renderTemplate fills {{event}}, {{title}}, {{message}}, {{at}} and {{subtitles}} into a
 // user-written JSON template, escaping each value for use inside a JSON
 // string, and checks the result is valid JSON.
 func renderTemplate(tmpl string, ev Event) (string, error) {
@@ -470,7 +470,7 @@ func renderTemplate(tmpl string, ev Event) (string, error) {
 		atText = at.UTC().Format("2006-01-02T15:04:05Z07:00")
 	}
 	body := strings.NewReplacer(
-		"{{event}}", esc(ev.Type), "{{title}}", esc(ev.Title), "{{message}}", esc(ev.Message), "{{at}}", esc(atText),
+		"{{event}}", esc(ev.Type), "{{title}}", esc(ev.Title), "{{message}}", esc(ev.Message), "{{at}}", esc(atText), "{{subtitles}}", esc(ev.Subtitles),
 	).Replace(tmpl)
 	if !json.Valid([]byte(body)) {
 		return "", fmt.Errorf("invalid JSON")

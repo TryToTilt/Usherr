@@ -714,6 +714,7 @@ func (s *Server) handleAddonPlay(w http.ResponseWriter, r *http.Request) {
 	var size int64
 	if sess, ok := ustreamSessions[token]; ok {
 		size = sess.file.Size
+		what.source = s.ustreamURL(token, sess.file.Name)
 	}
 	ustreamMu.Unlock()
 	addonPlaying(r.PathValue("token"), what, rangeStart(r), size)

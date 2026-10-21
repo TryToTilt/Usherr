@@ -15,6 +15,7 @@ require (
 	github.com/nwaples/rardecode/v2 v2.4.1
 	github.com/pgaskin/kepubify/v4 v4.0.4
 	golang.org/x/crypto v0.57.0
+	golang.org/x/image v0.46.0
 	golang.org/x/net v0.60.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/text v0.42.0

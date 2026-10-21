@@ -227,6 +227,10 @@ func (s *Server) runTVPipeline(queueID int64, series library.Series, season int,
 
 	mapper := s.releaseMapper(series) // anime and daily file names
 	imported, skipped := 0, 0
+	importProfile := quality.Profile{} // ranks the new file against the old one ("overwrite if better")
+	if ps, err := s.loadProfiles(); err == nil {
+		importProfile = s.profileForSeries(ps, series)
+	}
 	copiedNote := "" // set when files had to be copied over from the temporary download folder
 	// Files the library has down for other titles, and the places this run
 	// has already filled: two episodes of one pack never overwrite each other,
@@ -272,7 +276,7 @@ func (s *Server) runTVPipeline(queueID int64, series library.Series, season int,
 			skipped++
 			continue
 		}
-		policy, isBetter := s.conflictPolicy(tier, !series.NoUpgrade, func() (quality.Tier, bool) {
+		policy, isBetter := s.conflictPolicy(tier, !series.NoUpgrade, importProfile, func() (quality.Tier, bool) {
 			return existingTier(eps[0].Quality, eps[0].ReleaseTitle, eps[0].FilePath)
 		})
 		replaceEarlier := replacesOldFiles(policy, isBetter)
@@ -370,12 +374,14 @@ func (s *Server) runTVPipeline(queueID int64, series library.Series, season int,
 	for sn, eps := range bySeason {
 		_, _ = s.QueueRepo.ClearFailedForEpisodes(series.ID, sn, eps, queueID)
 	}
+	subtitleNote := s.importSubtitleNote(subtitleItems...)
 	s.autoSubtitlesFor(subtitleItems...)
 	message := fmt.Sprintf("%s: imported %s from %s", series.Title, plural(imported, "episode"), releaseTitle) + copiedNote
 	_ = s.QueueRepo.LogSeriesActivity(series.ID, "imported", message)
 	s.checkFinishedShowSoon(series.ID)
 	importedItem := seriesItemFor(series, season, importedEps)
 	importedItem.Quality, importedItem.SizeBytes, importedItem.Release = string(tier), fileSize(importedFiles...), releaseTitle
+	importedItem.Subtitles = subtitleNote
 	if len(importedFiles) == 1 {
 		importedItem.Path = importedFiles[0]
 	} else if len(importedFiles) > 1 {
@@ -517,10 +523,16 @@ func (s *Server) buildTVDestPath(series library.Series, ep library.Episode, rele
 	mode, replacement := s.illegalCharSettings()
 	clean := func(f string) string { return organizer.Sanitize(organizer.Render(f, ctx), mode, replacement) }
 
-	// tv folders hook (home fork): reuse the show's and the season's existing folders.
-	showDir := filepath.Join(root, clean(organizer.TVSeriesFolder))
+	// tv folders hook (home fork): reuse the show's and the season's existing
+	// folders. A new show's folder follows the show folder format (Mediarium
+	// 3.2.19); one that has files keeps its folder.
+	showDir := filepath.Join(root, clean(s.seriesFolderFormat()))
 	if d := s.existingShowFolder(series.ID, root); d != "" {
 		showDir = d
+	} else if s.seriesFolderFormat() != organizer.DefaultSeriesFolder {
+		if dir, ok := s.existingSeriesDir(series, root); ok {
+			showDir = dir
+		}
 	}
 	seasonDir := filepath.Join(showDir, clean(s.seasonFolderFormat()))
 	if d := existingSeasonFolder(showDir, ep.Season); d != "" {

@@ -32,6 +32,7 @@ func (p Profile) FormatScore(title string) (int, []string) {
 // FormatHit is a custom format a release matched and the score the profile
 // gives it.
 type FormatHit struct {
+	ID    int64  `json:"id,omitempty"`
 	Name  string `json:"name"`
 	Score int    `json:"score"`
 }
@@ -49,7 +50,7 @@ func (p Profile) FormatBreakdown(title string) (int, []FormatHit) {
 	for _, sf := range p.Formats {
 		if sf.Format != nil && sf.Format.Matches(in) {
 			total += sf.Score
-			hits = append(hits, FormatHit{Name: sf.Format.Name, Score: sf.Score})
+			hits = append(hits, FormatHit{ID: sf.Format.ID, Name: sf.Format.Name, Score: sf.Score})
 		}
 	}
 	return total, hits
@@ -145,7 +146,7 @@ func (p Profile) IsUpgradeOverRel(currentTier Tier, currentRelease, candidateTit
 	if !p.Accepts(candidate) || !p.WantsFormatUpgrade(currentRelease) {
 		return false
 	}
-	if Rank(Classify(candidate)) < Rank(currentTier) {
+	if p.TierRank(Classify(candidate)) < p.TierRank(currentTier) {
 		return false
 	}
 	current, _ := p.FormatScore(currentRelease)
@@ -158,7 +159,7 @@ func (p Profile) IsUpgradeOverRel(currentTier Tier, currentRelease, candidateTit
 func encodeFormatScores(m map[int64]int) string {
 	out := map[string]int{}
 	for id, s := range m {
-		if s != 0 && id > 0 {
+		if id > 0 {
 			out[strconv.FormatInt(id, 10)] = s
 		}
 	}
@@ -171,7 +172,7 @@ func decodeFormatScores(s string) map[int64]int {
 	_ = json.Unmarshal([]byte(s), &raw)
 	out := map[int64]int{}
 	for k, v := range raw {
-		if id, err := strconv.ParseInt(k, 10, 64); err == nil && id > 0 && v != 0 {
+		if id, err := strconv.ParseInt(k, 10, 64); err == nil && id > 0 {
 			out[id] = v
 		}
 	}

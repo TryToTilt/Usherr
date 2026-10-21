@@ -170,7 +170,7 @@ func TestBulkAssignAndTrashUpdate(t *testing.T) {
 
 	t.Run("a typed score, and 0 takes the format out", func(t *testing.T) {
 		postJSON[map[string]any](t, client, api+"/custom-formats/assign", map[string]any{
-			"formatIds": []float64{hdr, plain}, "profileIds": []int64{p720}, "mode": "score", "score": 75,
+			"formatIds": []float64{hdr, plain}, "profileIds": []int64{p720}, "mode": "score", "score": 75, "replaceScores": true,
 		}, http.StatusOK)
 		p := profileByID(t, client, httpSrv.URL, p720)
 		if s, _ := scoreOf(p, hdr); s != 75 {
@@ -195,7 +195,7 @@ func TestBulkAssignAndTrashUpdate(t *testing.T) {
 		}
 		// Someone changes a score in the 720p profile by hand; the 1080p profile still has TRaSH's.
 		postJSON[map[string]any](t, client, api+"/custom-formats/assign", map[string]any{
-			"formatIds": []float64{hdr}, "profileIds": []int64{p720}, "mode": "score", "score": 123,
+			"formatIds": []float64{hdr}, "profileIds": []int64{p720}, "mode": "score", "score": 123, "replaceScores": true,
 		}, http.StatusOK)
 		// The guides raise HDR to 600 and change its pattern; x265's pattern changes too; a made-up format never appears.
 		guides.edit(t, "hdr.json", `"default": 500`, `"default": 600`)

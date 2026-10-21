@@ -169,18 +169,19 @@ func (s *Server) marqueeSeen(ctx context.Context, id string, width, height int) 
 	s.marqueeMQTTState(context.WithoutCancel(ctx), id)
 }
 
-// marqueeSettingsFor is a screen's own settings, or the shared ones.
+// marqueeSettingsFor is what a screen shows: the shared settings with the
+// fields it keeps of its own on top; own says whether it keeps any.
 func (s *Server) marqueeSettingsFor(ctx context.Context, id string) (marqueeSettings, bool) {
+	shared := s.marqueeSettings()
 	if id != "" {
 		var raw string
 		if s.db.QueryRowContext(ctx, `SELECT settings FROM marquee_screens WHERE id = ?`, id).Scan(&raw) == nil && raw != "" {
-			var m marqueeSettings
-			if json.Unmarshal([]byte(raw), &m) == nil {
-				return m.clean(), true
+			if own := s.screenOwnSettings(ctx, id, raw, shared); len(own) > 0 {
+				return withOwn(shared, own), true
 			}
 		}
 	}
-	return s.marqueeSettings(), false
+	return shared, false
 }
 
 // GET /api/home/marquee/events?screen=ID (member): the screen's live stream.
@@ -264,8 +265,9 @@ type marqueeScreen struct {
 	SeenMs   int64           `json:"seenMs"`
 	Width    int             `json:"width"`
 	Height   int             `json:"height"`
-	Own      bool            `json:"own"`      // has settings of its own
-	Settings marqueeSettings `json:"settings"` // what it uses (its own or the shared)
+	Own      bool            `json:"own"`               // keeps some settings of its own
+	OwnKeys  []string        `json:"ownKeys,omitempty"` // which (the settings' JSON names)
+	Settings marqueeSettings `json:"settings"`          // what it uses (its own or the shared)
 	Showing  *marqueeShowing `json:"showing,omitempty"`
 }
 
@@ -287,9 +289,8 @@ func (s *Server) marqueeScreens(ctx context.Context) ([]marqueeScreen, error) {
 		}
 		sc.Settings = shared
 		if raw != "" {
-			var m marqueeSettings
-			if json.Unmarshal([]byte(raw), &m) == nil {
-				sc.Settings, sc.Own = m.clean(), true
+			if own := s.screenOwnSettings(ctx, sc.ID, raw, shared); len(own) > 0 {
+				sc.Settings, sc.Own, sc.OwnKeys = withOwn(shared, own), true, ownKeys(own)
 			}
 		}
 		sc.Online = s.marqueeLive.connected(sc.ID) || now.Sub(time.UnixMilli(sc.SeenMs)) < marqueeOnlineFor
@@ -396,17 +397,18 @@ func (s *Server) handlePutMarqueeScreen(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	if len(body.Settings) > 0 {
-		raw := ""
+		// Only what differs from the shared settings is kept for the screen;
+		// the rest follows them ("settings": null keeps nothing of its own).
+		var own screenOwn
 		if string(body.Settings) != "null" {
 			var m marqueeSettings
 			if err := json.Unmarshal(body.Settings, &m); err != nil {
 				writeError(w, http.StatusBadRequest, "Those settings couldn't be read.")
 				return
 			}
-			b, _ := json.Marshal(m.clean())
-			raw = string(b)
+			own = diffOwn(s.marqueeSettings(), m)
 		}
-		if _, err := s.db.ExecContext(ctx, `UPDATE marquee_screens SET settings = ? WHERE id = ?`, raw, id); err != nil {
+		if _, err := s.saveScreenOwn(ctx, id, own); err != nil {
 			writeError(w, http.StatusInternalServerError, "The screen couldn't be saved.")
 			return
 		}

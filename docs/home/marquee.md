@@ -35,7 +35,7 @@ The screen shows up under **Marquee › Screens** by itself.
 | Tab | What's there |
 |---|---|
 | Screens | Every screen, on or off, what it shows now, and its remote. Rename a screen, move it up or down the list (the arrows), give it settings of its own, or forget it. Screens are numbered in the order they first opened the Marquee; a new one goes at the end. |
-| Look and scenes | The shared settings: every screen without its own shows them. |
+| Look and scenes | The shared settings, for every screen. A screen can keep a few of its own (a look picked for it on the remote, or anything changed under its own settings); the rest still follows these, and this tab lists what each screen keeps, with a button to drop it. |
 | Slides and pre-show | Your own pictures, videos, web pages and words. |
 | Home Assistant and API | The connection to Home Assistant, and how scripts steer the screens. |
 
@@ -77,12 +77,42 @@ nothing to show is skipped.
 - **Now showing**: what's playing, wherever it plays: Jellyfin or Emby,
   StreamNZB (Nuvio, Stremio), and Usherr itself: its player in the browser
   (library files, Stream now, Live TV, labelled with the channel) and its
-  Stremio and Nuvio add-on. Each shows with its progress and badges for the
-  picture and sound (4K, HDR10, Dolby Vision, Dolby Atmos, DTS:X). It shows
-  up within half a minute of starting and leaves when the player closes.
-  *Now showing comes from* on the Look and scenes tab turns each source off.
+  Stremio and Nuvio add-on. Each shows with its progress and badges (below).
+  It shows up within half a minute of starting and leaves when the player
+  closes. *Now showing comes from* on the Look and scenes tab turns each
+  source off.
 - **New on the server**, **In theaters now**, **Coming soon**: one film at a
   time, and as poster lists; **Trailer**: the film's trailer.
+
+**Badges** (*Badges* on the Look and scenes tab) say what's playing really
+is:
+
+- the cinema format: how it was shown (**IMAX**, **IMAX 70mm**, **Dolby
+  Cinema**, **70mm**) and shot (**65mm film**, **35mm film**, **Digital**),
+  and **Black & white**. These come from IMDb's technical specifications,
+  asked once per film in the background; TMDB's release notes fill in when
+  IMDb has nothing (they name a format for some films only), and an IMAX
+  edition says so in its release name. IMDb allows its data for personal,
+  non-commercial use; *Cinema formats from IMDb* turns it off;
+- the picture: **4K**, **Dolby Vision** or **HDR10**, and its shape
+  (**2.39:1**, **1.85:1**, **16:9**...). A widescreen film stored with black
+  bars is measured inside the bars;
+- the sound: **Dolby Atmos**, **DTS:X**, **TrueHD**, **DTS-HD MA**, **Dolby
+  Digital+**..., and its channels (**7.1**, **5.1**, **Stereo**).
+
+Jellyfin and Emby say what they play. For a library file Usherr plays, the
+badges come from the details Mediarium reads from every file's headers in
+the background (the same ones a film's page shows); only when the picture
+could hold black bars does Usherr look at a few seconds of it for its real
+shape. A stream is looked at once, a few seconds after it starts; until then
+its badges come from its release name.
+A film that isn't playing shows its cinema formats only.
+
+**Trailers fill** (Look and scenes tab) zooms trailers on a portrait screen:
+*As they are* (letterboxed), *A poster's size* (a 2:3 window, like the
+posters; the sides are cut off) or *All the space there is*. It applies to
+the Cinema, Posterr and One-sheet looks and to the pre-show's trailers (your
+own pre-show videos fill too).
 - **Coming up**: the week ahead; **On Live TV**: what each channel has on.
 - **Tonight on Usherr TV**: each channel's next hours, with the times.
 - **In the spotlight**: a director or star with their films, marked when the

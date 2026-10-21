@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import { locale, t } from '../i18n'
 import { markSrc } from '../palette'
 import { dayLabel, hours, typeLabel, type Data, type Feature, type MarqueeSettings, type MarqueeStyle, type Playing, type SceneKind } from './marqueeData'
-import { Badges } from './MarqueeExtras'
+import { Badges, FormatBadges } from './MarqueeExtras'
 import { Frame, Pic, Sign } from './marqueeParts'
 
 // Item is one thing a look shows: a film, a show, what's playing.
@@ -192,10 +192,12 @@ function PlayBar({ p }: { p: Playing }) {
   )
 }
 
-function Trailer({ it, sound }: { it: Item; sound: boolean }) {
+// Trailer plays a film's trailer: letterboxed as it is, or zoomed to a
+// poster's size or to fill the screen (Settings: Trailers fill).
+function Trailer({ it, sound, fit = 'letterbox' }: { it: Item; sound: boolean; fit?: MarqueeSettings['trailerFit'] }) {
   const q = new URLSearchParams({ autoplay: '1', mute: sound ? '0' : '1', controls: '0', rel: '0', modestbranding: '1', playsinline: '1', iv_load_policy: '3', origin: window.location.origin })
   return (
-    <div className="lk-video">
+    <div className={`lk-video tf-${fit}`}>
       <iframe referrerPolicy="strict-origin-when-cross-origin" src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(it.trailer ?? '')}?${q}`} title={it.title} allow="autoplay; encrypted-media" />
     </div>
   )
@@ -218,6 +220,7 @@ function Details({ it, footer, badges }: { it: Item; footer: MarqueeSettings['fo
       )}
       {it.playing && <PlayBar p={it.playing} />}
       {it.playing && badges && <Badges p={it.playing} />}
+      {!it.playing && badges && <FormatBadges formats={it.feature?.formats} />}
     </>
   )
 }
@@ -225,7 +228,7 @@ function Details({ it, footer, badges }: { it: Item; footer: MarqueeSettings['fo
 // ItemLook shows one item in one of the single-poster looks.
 export function ItemLook({ style, it, set, n, seconds, sign, time, portrait, sound }: { style: MarqueeStyle; it: Item; set: MarqueeSettings; n: number; seconds: number; sign: string[] | null; time: string; portrait: boolean; sound: boolean }) {
   const kb = set.kenBurns ? n : undefined
-  const video = it.trailer && it.kind === 'trailer' ? <Trailer it={it} sound={sound} /> : null
+  const video = it.trailer && it.kind === 'trailer' ? <Trailer it={it} sound={sound} fit={set.trailerFit} /> : null
   const pic = video ?? <Pic src={it.posterUrl} framing={set.framing} kb={kb} seconds={seconds} blank={it.title} />
   const lines = sign ?? [style === 'posterr' ? posterrLabel(it.kind) : it.label]
 
@@ -254,7 +257,10 @@ export function ItemLook({ style, it, set, n, seconds, sign, time, portrait, sou
                   </div>
                 </>
               ) : (
-                set.footer === 'details' && (it.meta || it.note) && <p className="lk-meta">{[it.meta, it.note].filter(Boolean).join('  ·  ')}</p>
+                <>
+                  {set.footer === 'details' && (it.meta || it.note) && <p className="lk-meta">{[it.meta, it.note].filter(Boolean).join('  ·  ')}</p>}
+                  {set.badges === 'on' && <FormatBadges formats={it.feature?.formats} />}
+                </>
               )}
             </div>
           )}
