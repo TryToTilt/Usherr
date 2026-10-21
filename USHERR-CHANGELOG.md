@@ -5,6 +5,10 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-21
+
+Built on **Mediarium 3.3.0**.
+
 **New**
 - **Showtimes at home**: book a film for a time from its page or your stack, with minutes of pre-show and where it plays (the Showtime page left open on the TV starts it by itself, the TV through Play on TV, or yourself in another app); "right after" another booking makes a double feature. The Marquee shows a countdown band and starts the pre-show on time by itself. The Showtime page lists the bookings, to move or cancel.
 - **Up next**: near the end of an episode in Usherr's player, a card offers the next one and plays it after a 10-second countdown, from your file or streamed (only episodes that have aired; not on Live TV). *Play the next episode by itself* is kept on each device.
