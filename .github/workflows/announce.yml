@@ -1,0 +1,78 @@
+# Usherr: announces a release in the project's Discord channel, with what's
+# new and fixed from its section of USHERR-CHANGELOG.md
+# (tools/usherr/release_announcement.py builds the message).
+#
+# It runs by itself when the Release workflow has published a release (a
+# release made by a workflow doesn't start other workflows, so this follows
+# the Release workflow instead), and by hand: Actions > Announce on Discord >
+# Run workflow ("Post announcement"), with the release to announce again, or
+# empty for the newest.
+#
+# It needs one repository secret, DISCORD_WEBHOOK_URL: the channel's webhook
+# address (Discord: the channel's settings > Integrations > Webhooks). Without
+# it the run only says so.
+
+name: Announce on Discord
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The release to announce, for example v2.1.0 (empty: the newest)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: announce-${{ github.event.workflow_run.head_branch || inputs.tag || 'latest' }}
+  cancel-in-progress: false
+
+jobs:
+  announce:
+    name: Post announcement
+    runs-on: ubuntu-latest
+    # After the Release workflow: only when it finished well, for a version tag.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v'))
+    steps:
+      - name: Which release
+        id: rel
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_TAG: ${{ github.event.workflow_run.head_branch }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          tag="${RUN_TAG:-$INPUT_TAG}"
+          if [ -z "$tag" ]; then
+            tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)"
+          fi
+          if ! echo "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$'; then
+            echo "::error::'$tag' isn't a release tag like v2.1.0."
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      # The default branch: it has the script, and its changelog has every
+      # release's section (an older tag may have neither).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Post to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TAG: ${{ steps.rel.outputs.tag }}
+          VERSION: ${{ steps.rel.outputs.version }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "::warning::No DISCORD_WEBHOOK_URL secret: add the channel's webhook address under Settings > Secrets and variables > Actions."
+            exit 0
+          fi
+          python3 tools/usherr/release_announcement.py USHERR-CHANGELOG.md "$VERSION" "$GITHUB_REPOSITORY" "$TAG" > announcement.json
+          curl --fail-with-body -sS -H "Content-Type: application/json" --data-binary @announcement.json "$DISCORD_WEBHOOK_URL"
+          echo "Announced Usherr $VERSION on Discord."
