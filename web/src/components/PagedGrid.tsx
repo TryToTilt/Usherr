@@ -4,6 +4,7 @@ import { useUrlState } from '../useUrlState'
 import type { DiscoverMovie } from '../api'
 import { fetchPage, sourceToQuery, type Kind, type Source } from '../discoverSources'
 import { useGridColumns } from '../useGridColumns'
+import { unownedWindow } from '../unownedWindow'
 import { useHideOwned } from '../useHideOwned'
 import { useIsHad } from '../home/useHave' // home fork: on disk, streamed, wanted
 import { useFamilyOk } from '../home/useFamily' // home fork: the family filter
@@ -16,6 +17,7 @@ import { t } from '../i18n'
 
 const PER_FETCH = 20 // TMDB returns 20 titles per page
 const MAX_ITEMS = 500 * PER_FETCH // TMDB serves at most 500 pages
+const SCAN_CAP = 30 // with "Hide owned", how many pages are read to fill a window at most
 
 interface Props {
   source: Source
@@ -53,12 +55,18 @@ export default function PagedGrid({ source, kind, owned, onAdd, rows = 3, title,
   const inflight = useRef(new Set<number>())
 
   const start = (current - 1) * size
-  const end = Math.min(start + size, total ?? MAX_ITEMS)
+  // With "Hide owned" the titles you have leave holes in the pages, so the
+  // window is filled from as many pages as it takes (or until the list ends).
+  const ownedIds = kind === 'movie' ? owned.movies : owned.shows
+  const end = hideOwned ? start + size : Math.min(start + size, total ?? MAX_ITEMS)
+  const lastPage = total !== undefined ? Math.max(1, Math.ceil(total / PER_FETCH)) : undefined
+  const unowned = useMemo(() => (hideOwned ? unownedWindow(fetched, (id) => ownedIds.has(id), start, end, lastPage, SCAN_CAP) : null), [hideOwned, fetched, ownedIds, start, end, lastPage])
   const needed = useMemo(() => {
+    if (unowned) return unowned.need
     const first = Math.floor(start / PER_FETCH) + 1
     const last = Math.max(first, Math.ceil(end / PER_FETCH))
     return Array.from({ length: last - first + 1 }, (_, i) => first + i)
-  }, [start, end])
+  }, [start, end, unowned])
 
   useEffect(() => {
     const missing = needed.filter((p) => !fetched.has(p) && !inflight.current.has(p))
@@ -83,6 +91,7 @@ export default function PagedGrid({ source, kind, owned, onAdd, rows = 3, title,
 
   // What is on screen, without repeats (TMDB lists shift a little between pages).
   const { items, waiting } = useMemo(() => {
+    if (unowned) return { items: unowned.items, waiting: unowned.need.length > 0 ? size - unowned.items.length : 0 }
     const out: DiscoverMovie[] = []
     const seen = new Set<number>()
     let waiting = 0
@@ -99,11 +108,12 @@ export default function PagedGrid({ source, kind, owned, onAdd, rows = 3, title,
       }
     }
     return { items: out, waiting }
-  }, [fetched, start, end])
+  }, [fetched, start, end, unowned, size])
   const family = useFamilyOk(kind, items) // home fork
   const votes = useVotes() // home fork: thumbs down hides it
 
-  const pageCount = total !== undefined ? Math.max(1, Math.ceil(total / size)) : undefined
+  const shownTotal = unowned ? unowned.total : total
+  const pageCount = shownTotal !== undefined ? Math.max(1, Math.ceil(shownTotal / size)) : undefined
   const hasMore = pageCount === undefined || current < pageCount
 
   function goTo(page: number) {
@@ -120,7 +130,7 @@ export default function PagedGrid({ source, kind, owned, onAdd, rows = 3, title,
   for (let n = from; n <= to; n++) numbers.push(n)
   if (hasMore && to < (pageCount ?? Infinity)) numbers.push('…')
 
-  if (total === 0) {
+  if (shownTotal === 0) {
     return (
       <section className="discover-rail">
         {title && (
@@ -130,7 +140,7 @@ export default function PagedGrid({ source, kind, owned, onAdd, rows = 3, title,
         )}
         <div className="empty-state">
           <Icon name="compass" size={36} />
-          <p>{t('Nothing matches these filters.')}</p>
+          <p>{unowned && total !== 0 ? t('No new titles match. Switch off Hide owned to see the ones you already have.') : t('Nothing matches these filters.')}</p>
           {onClear && (
             <button className="btn-with-icon" onClick={onClear}>
               {t('Clear filters')}

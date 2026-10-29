@@ -1,0 +1,40 @@
+/* Usherr: the pre-show in the player (PreshowRun.tsx). The Marquee's cards
+   are drawn in --u; on a TV (landscape) --u follows the height. */
+.mq.psr { position: fixed; inset: 0; z-index: 2050; background: #000; --u: min(0.62vw, 1.1vh); color: var(--mq-fg); }
+.psr-stage { position: absolute; inset: 0; overflow: hidden; }
+.psr-stage > .lk-x { container-type: size; }
+.psr-clip { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+
+.psr-trailer { position: absolute; inset: 0; background: #000; }
+.psr-trailer iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.psr-trailer-tag { position: absolute; left: 3vw; bottom: 4vh; display: grid; gap: 2px; padding: 10px 16px; border-left: 4px solid var(--mq-accent); background: rgba(0, 0, 0, 0.55); font-size: clamp(0.85rem, 1.6vh, 1.3rem); animation: psr-tag 9s ease forwards; pointer-events: none; }
+.psr-trailer-tag span { text-transform: uppercase; letter-spacing: 0.16em; font-size: 0.75em; color: var(--mq-hi); }
+.psr-trailer-tag strong { font-family: var(--mq-display); font-size: 1.5em; font-weight: 400; color: #fff; }
+@keyframes psr-tag { 0% { opacity: 0; transform: translateY(8px); } 8%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+
+.psr-welcome { flex-direction: row; gap: calc(var(--u) * 8); }
+.psr-welcome-poster { position: relative; z-index: 2; height: 62vh; aspect-ratio: 2 / 3; object-fit: cover; border-radius: calc(var(--u) * 1.4); box-shadow: 0 calc(var(--u) * 3) calc(var(--u) * 8) rgba(0, 0, 0, 0.7); animation: ps-in 1.2s ease both 0.2s; }
+.psr-welcome-text { position: relative; z-index: 2; display: grid; gap: calc(var(--u) * 3); max-width: 55vw; text-align: left; }
+.psr-welcome-text .ps-big { margin: 0; text-align: left; }
+.psr-tonight { letter-spacing: 0.08em; text-transform: none; }
+.psr-welcome .ps-rays { opacity: 0.45; }
+
+.psr-rating { gap: calc(var(--u) * 5); }
+.psr-rated { display: grid; place-items: center; min-width: calc(var(--u) * 40); padding: calc(var(--u) * 3) calc(var(--u) * 8); border: calc(var(--u) * 0.8) solid var(--mq-hi); border-radius: calc(var(--u) * 2); font-family: var(--mq-display); font-size: calc(var(--u) * 22); line-height: 1; color: var(--mq-hi); animation: ps-zoom 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) both 0.3s; }
+.psr-rating-title { font-size: calc(var(--u) * 7); }
+
+.psr-bar { position: absolute; right: 18px; bottom: 18px; z-index: 5; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 16px; border-radius: 999px; background: rgba(0, 0, 0, 0.65); color: #fff; transition: opacity 0.4s ease; }
+.psr-where { font-size: 0.85rem; opacity: 0.8; margin-right: 6px; }
+.psr-quiet .psr-bar { opacity: 0; }
+.psr-quiet { cursor: none; }
+.psr-bar:focus-within { opacity: 1; }
+
+.psr-announce h1 { max-width: 80vw; text-align: center; animation: ps-in 1s ease both 0.2s; }
+.psr-qr .mqx-qr { position: relative; z-index: 2; width: 34vh; padding: 2vh; border-radius: 1.4vh; background: #fff; animation: ps-in 1s ease both 0.2s; }
+.psr-qr .mqx-qr > span { display: none; }
+.psr-reel { gap: 5vh; }
+.psr-reel ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 3vw; justify-content: center; }
+.psr-reel li { display: grid; justify-items: center; gap: 0.8vh; width: 19vw; max-width: 30vh; text-align: center; animation: ps-in 0.9s ease both; }
+.psr-reel img { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 1vh; box-shadow: 0 1.5vh 4vh rgba(0, 0, 0, 0.6); }
+.psr-reel strong { font-size: clamp(0.9rem, 2.2vh, 1.6rem); font-weight: 600; }
+.psr-reel span { font-size: clamp(0.8rem, 1.8vh, 1.3rem); color: var(--mq-hi); }

@@ -1,0 +1,183 @@
+/* Usherr: the Read-to-Me page (ReadToMePage.tsx). Six steps, each a box in its
+   own colour: Book blue, Narrator purple, Cast pink, Sound amber, Words green,
+   Make it the accent. In Usherr Neu the boxes are raised from the page and the
+   fields pressed into it; in Classic they are framed panels. */
+
+.rp {
+  --rp-bg: var(--surface);
+  --rp-well: var(--surface-2);
+  --rp-up: 0 0 0 1px var(--border);
+  --rp-up-sm: 0 0 0 1px var(--border);
+  --rp-in: inset 0 0 0 1px var(--border);
+  --rp-in-sm: inset 0 0 0 1px var(--border);
+  --rp-r: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-bottom: 120px;
+}
+:root[data-look='neu'] .rp {
+  --rp-bg: var(--n-bg);
+  --rp-well: var(--n-well);
+  --rp-up: var(--n-up);
+  --rp-up-sm: var(--n-up-sm);
+  --rp-in: var(--n-in);
+  --rp-in-sm: var(--n-in-sm);
+  --rp-r: 22px;
+}
+
+/* the step colours, darker on light pages so text in them reads */
+.rp .rp-c-book, .rp-c-book { --rc: #6fb1ff; }
+.rp .rp-c-voice, .rp-c-voice { --rc: #c8a2ff; }
+.rp .rp-c-cast, .rp-c-cast { --rc: #ff8cc0; }
+.rp .rp-c-sound, .rp-c-sound { --rc: #ffc857; }
+.rp .rp-c-words, .rp-c-words { --rc: #a8e05f; }
+.rp .rp-c-make, .rp-c-make { --rc: var(--accent); }
+:root[data-theme='light'] .rp-c-book { --rc: #1d4ed8; }
+:root[data-theme='light'] .rp-c-voice { --rc: #6b3fb5; }
+:root[data-theme='light'] .rp-c-cast { --rc: #b0245e; }
+:root[data-theme='light'] .rp-c-sound { --rc: #8a5a00; }
+:root[data-theme='light'] .rp-c-words { --rc: #3e6b0a; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .rp-c-book { --rc: #1d4ed8; }
+  :root:not([data-theme='dark']) .rp-c-voice { --rc: #6b3fb5; }
+  :root:not([data-theme='dark']) .rp-c-cast { --rc: #b0245e; }
+  :root:not([data-theme='dark']) .rp-c-sound { --rc: #8a5a00; }
+  :root:not([data-theme='dark']) .rp-c-words { --rc: #3e6b0a; }
+}
+
+/* ---- The head ---------------------------------------------------------- */
+.rp-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.rp-title { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rp-crumbs { font-size: 0.82rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-faint); font-weight: 700; }
+.rp-crumbs a { color: var(--text-faint); text-decoration: none; }
+.rp-crumbs a:hover { color: var(--text); }
+.rp h1 { margin: 0; font-size: clamp(2rem, 4vw, 2.8rem); line-height: 1.05; }
+.rp-title p { margin: 0; color: var(--text-dim); }
+.rp-maker { display: flex; flex-direction: column; gap: 22px; }
+.rp-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: flex-end; margin-top: -8px; }
+.rp-guide { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 16px 0 10px; border-radius: 999px; font-weight: 700; }
+.rp-track { position: relative; width: 40px; height: 24px; border-radius: 999px; background: var(--rp-well); box-shadow: var(--rp-in-sm); flex: none; }
+.rp-track span { position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-faint); transition: left 0.2s, background 0.2s; }
+.rp-guide.on .rp-track { background: var(--accent); }
+.rp-guide.on .rp-track span { left: 20px; background: #fff; }
+
+/* ---- The progress dots --------------------------------------------------- */
+.rp-dots { list-style: none; margin: 0; padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 8px; border-radius: 18px; background: var(--rp-bg); box-shadow: var(--rp-up-sm); }
+.rp-dots button { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px 0 6px; border-radius: 999px; background: transparent; box-shadow: none; border: 0; color: var(--text-dim); font-weight: 700; }
+.rp-dots button .rp-n { width: 28px; height: 28px; font-size: 0.82rem; background: var(--rp-well); color: var(--text-dim); box-shadow: var(--rp-in-sm); }
+.rp-dots button.done .rp-n,
+.rp-dots button.cur .rp-n { background: var(--rc); color: #0b0d18; box-shadow: none; }
+.rp-dots button.cur { color: var(--text); background: color-mix(in srgb, var(--rc) 14%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--rc) 60%, transparent); }
+
+/* ---- The guide's line ------------------------------------------------------- */
+.rp-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 14px 18px; border-radius: 18px; background: color-mix(in srgb, var(--rc) 10%, var(--rp-bg)); box-shadow: var(--rp-up-sm), inset 0 0 0 1.5px color-mix(in srgb, var(--rc) 50%, transparent); }
+.rp-banner-step { font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--rc); }
+.rp-banner strong { font-size: 1.05rem; }
+.rp-banner-text { flex: 1 1 260px; color: var(--text-dim); }
+
+/* ---- A step's box -------------------------------------------------------------- */
+.rp-st { border-radius: var(--rp-r); background: var(--rp-bg); box-shadow: var(--rp-up); overflow: hidden; transition: opacity 0.25s, box-shadow 0.25s; scroll-margin-top: 90px; }
+.rp-st.dim { opacity: 0.62; }
+.rp-st.cur { box-shadow: var(--rp-up), 0 0 0 2px color-mix(in srgb, var(--rc) 70%, transparent); }
+.rp-st-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: color-mix(in srgb, var(--rc) 11%, var(--rp-bg)); border-bottom: 1px solid color-mix(in srgb, var(--rc) 28%, transparent); }
+.rp-n { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; flex: none; background: var(--rc); color: #0b0d18; font-weight: 800; }
+.rp-st-head h2 { margin: 0; font-size: 1.3rem; color: color-mix(in srgb, var(--rc) 55%, var(--text)); }
+.rp-q { width: 28px; height: 28px; padding: 0; border-radius: 50%; flex: none; font-weight: 800; color: color-mix(in srgb, var(--rc) 60%, var(--text)); }
+.rp-opt { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); }
+.rp-sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
+.rp-fold { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 12px; font-weight: 700; color: color-mix(in srgb, var(--rc) 60%, var(--text)); flex: none; }
+.rp-why { margin: 0; padding: 12px 18px; color: var(--text-dim); background: color-mix(in srgb, var(--rc) 5%, var(--rp-bg)); border-bottom: 1px solid var(--border); }
+.rp-st-body { padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+.rp-st-foot { display: flex; justify-content: flex-end; padding: 0 18px 18px; }
+.rp-next { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 20px; border-radius: 14px; font-weight: 800; background: var(--rc) !important; color: #0b0d18 !important; border-color: transparent !important; }
+:root[data-theme='light'] .rp-next { color: #fff !important; }
+
+/* a field: a pressed-in area tinted in the step's colour */
+.rp-field { padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--rc) 7%, var(--rp-well)); box-shadow: var(--rp-in-sm), inset 0 0 0 1px color-mix(in srgb, var(--rc) 22%, transparent); }
+.rp-field-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.rp-field-head strong, .rp-label { color: color-mix(in srgb, var(--rc) 55%, var(--text)); font-weight: 800; }
+.rp-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.rp-inline select, .rp-inline input:not([type='checkbox']) { min-height: 40px; }
+.rp-checks { display: flex; flex-wrap: wrap; gap: 6px 20px; }
+.rp-checks label, .rp-checks > span { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; }
+.rp-st input[type='checkbox'], .rp-st input[type='radio'], .rp-st input[type='range'] { accent-color: var(--rc); }
+.rp-st input[type='checkbox'], .rp-st input[type='radio'] { width: 18px; height: 18px; }
+.rp-slider { display: flex; flex-direction: column; gap: 6px; }
+.rp-slider input[type='range'] { width: 100%; }
+.rp-val { font-variant-numeric: tabular-nums; }
+.rp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.rp-links { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.92rem; }
+
+/* folded options inside a step */
+.rp-more { border-radius: 14px; background: var(--rp-bg); box-shadow: var(--rp-up-sm); }
+.rp-more > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; cursor: pointer; font-weight: 700; color: color-mix(in srgb, var(--rc) 55%, var(--text)); list-style: none; }
+.rp-more > summary::-webkit-details-marker { display: none; }
+.rp-more > summary::before { content: '▸'; transition: transform 0.2s; }
+.rp-more[open] > summary::before { transform: rotate(90deg); }
+.rp-more-body { padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 12px; }
+
+/* ---- Step 1: the book ------------------------------------------------------ */
+.rp-book { display: flex; flex-wrap: wrap; gap: 20px; }
+.rp-book-info { flex: 999 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.rp-book-title { font-family: var(--font-display); font-size: 1.4rem; font-weight: 800; }
+.rp-cover { display: grid; place-items: center; width: 100%; aspect-ratio: 2 / 3; padding: 5px; box-sizing: border-box; border-radius: 14px; background: var(--rp-well); box-shadow: var(--rp-in); color: var(--text-faint); overflow: hidden; }
+.rp-cover img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
+.rp-cover.big { width: 130px; flex: none; }
+.rp-chapters { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 360px; overflow: auto; }
+.rp-chapters label { display: flex; align-items: center; gap: 10px; min-height: 38px; }
+.rp-chapters label > span { flex: 1; min-width: 0; }
+.rp-search { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 16px; border-radius: 999px; background: var(--rp-well); box-shadow: var(--rp-in); max-width: 520px; color: var(--text-faint); }
+.rp-search input { flex: 1; min-width: 0; border: 0 !important; background: transparent !important; box-shadow: none !important; }
+.rp-books { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 18px; }
+.rp-books button { width: 100%; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 16px; text-align: left; white-space: normal; height: 100%; }
+.rp-books b { font-size: 0.9rem; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.rp-books small { color: var(--text-faint); font-weight: 600; }
+
+/* ---- Step 2: the voices ------------------------------------------------------ */
+.rp-voices { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.rp-voices li { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 16px; background: var(--rp-bg); box-shadow: var(--rp-up-sm); }
+.rp-voices li.on { background: color-mix(in srgb, var(--rc) 14%, var(--rp-well)); box-shadow: var(--rp-in-sm), inset 0 0 0 2px color-mix(in srgb, var(--rc) 70%, transparent); }
+.rp-play { flex: none; width: 38px; height: 38px; padding: 0; border-radius: 50% !important; display: grid; place-items: center; background: var(--rc) !important; color: #0b0d18 !important; border-color: transparent !important; }
+.rp-pick { flex: 1; min-width: 0; min-height: 42px; padding: 0 4px; text-align: left; background: transparent !important; box-shadow: none !important; border: 0 !important; white-space: normal; }
+.rp-pick b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-pick small { display: block; color: var(--text-faint); font-weight: 600; font-size: 0.78rem; }
+.rp-voices li.on .rp-pick b { color: color-mix(in srgb, var(--rc) 50%, var(--text)); }
+.rp-mix { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.rp-mix .rp-slider { flex: 1 1 220px; }
+
+/* ---- Step 6: making it ---------------------------------------------------------- */
+.rp-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.rp-facts > span { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 14px; background: var(--rp-well); box-shadow: var(--rp-in-sm); font-weight: 800; }
+.rp-facts small { font-size: 0.74rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); font-weight: 800; }
+.rp-job, .rp-made { display: flex; flex-direction: column; gap: 8px; }
+.rp-audio { width: 100%; max-width: 560px; }
+
+/* ---- The bar at the bottom ---------------------------------------------------------- */
+.rp-bar { position: sticky; bottom: 12px; z-index: 5; }
+.rp-bar-in { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px 10px 16px; border-radius: 22px; background: var(--rp-bg); box-shadow: var(--rp-up), 0 18px 40px -18px rgba(0, 0, 0, 0.45); }
+.rp-chip { display: inline-flex; align-items: center; min-height: 30px; max-width: 260px; padding: 0 12px; border-radius: 999px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.86rem; font-weight: 700; background: color-mix(in srgb, var(--rc) 16%, var(--rp-well)); box-shadow: var(--rp-in-sm); }
+
+/* ---- Your Read-to-Me: the parts that fold ---------------------------------------- */
+.rp-yours { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
+.rp-yours > h2 { margin: 0; font-size: 1.25rem; }
+.rp-part { border-radius: 18px; background: var(--rp-bg); box-shadow: var(--rp-up-sm); scroll-margin-top: 90px; }
+.rp-part > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; min-height: 56px; padding: 0 18px; cursor: pointer; list-style: none; }
+.rp-part > summary::-webkit-details-marker { display: none; }
+.rp-part > summary::after { content: '▸'; margin-left: auto; color: var(--text-faint); transition: transform 0.2s; }
+.rp-part[open] > summary::after { transform: rotate(90deg); }
+.rp-part-title { font-weight: 800; }
+.rp-part-sum { color: var(--text-faint); font-size: 0.92rem; }
+.rp-part-body { padding: 0 18px 18px; }
+
+@media (max-width: 720px) {
+  .rp-st-head { flex-wrap: wrap; }
+  .rp-sum { flex-basis: 100%; order: 9; white-space: normal; }
+  .rp-cover.big { width: 96px; }
+  .rp-bar { bottom: 8px; }
+  .rp-chip { display: none; }
+}
+.rp-yours .rtm-tab { max-width: none; width: 100%; }
+.rp-pick:hover b { color: color-mix(in srgb, var(--rc) 50%, var(--text)); }

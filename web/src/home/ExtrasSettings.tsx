@@ -14,6 +14,8 @@ import './news.css'
 import './cinema.css' // Usherr: the Tickets button
 import { TICKET_SITES, type TicketService } from './cinema' // Usherr
 import { TicketsButton } from './InTheaters' // Usherr
+import { sportsApi, type SportsSettings } from './sportsApi' // Usherr
+import { readToMeApi, type RtvSettings } from './readToMeApi'
 
 interface Extras {
   server: { kind: '' | 'jellyfin' | 'emby'; name: string; plex: boolean }
@@ -50,9 +52,9 @@ const test = (what: string) => () =>
 type State = 'ready' | 'setup' | 'off'
 const STATE_TEXT: Record<State, string> = { ready: t('ready'), setup: t('needs setting up'), off: t('off') }
 
-function Card({ title, state, blurb, needs, guide, children }: { title: string; state: State; blurb: ReactNode; needs?: ReactNode; guide?: string; children?: ReactNode }) {
+function Card({ id, title, state, blurb, needs, guide, children }: { id?: string; title: string; state: State; blurb: ReactNode; needs?: ReactNode; guide?: string; children?: ReactNode }) {
   return (
-    <section className={`card service-card ${state === 'ready' ? 'is-included' : 'is-optional'}`}>
+    <section id={id} className={`card service-card ${state === 'ready' ? 'is-included' : 'is-optional'}`}>
       <h2>
         {title} <span className="req-badge optional">{t('Optional')}</span>{' '}
         <span className={`badge ${state === 'ready' ? 'downloaded' : 'missing'}`}>{STATE_TEXT[state]}</span>
@@ -134,8 +136,11 @@ export default function ExtrasSettings({ only }: { only?: string[] } = {}) {
       {show('news') && <NewsCard />}
       {show('cinema') && <CinemaCard />}
       {show('marquee') && <MarqueeCard inWizard={!!only} />}
+      {show('preshow') && <PreshowCard inWizard={!!only} />}
       {show('comics') && <ComicsCard x={x} act={act} />}
       {show('direct') && <DirectCard x={x} save={save} />}
+      {show('sports') && <SportsCard />}
+      {show('readtome') && <ReadToMeCard />}
       {show('nsfw') && <NSFWCard x={x} act={act} />}
     </div>
   )
@@ -208,7 +213,7 @@ interface AddonInfo {
 
 // Usherr: the add-on for Stremio and Nuvio. Each person has a private link; the
 // apps take it once and then show Usherr's catalogs, streams and Live TV.
-function AddonCard() {
+export function AddonCard() {
   const toast = useToast()
   const [info, setInfo] = useState<AddonInfo | null>(null)
   const [base, setBase] = useState('')
@@ -846,6 +851,224 @@ function DirectCard({ x, save }: { x: Extras; save: Save }) {
   )
 }
 
+// Read-to-Me (Usherr): the two voice engines on the media PC, and when
+// audiobooks are made.
+function ReadToMeCard() {
+  const toast = useToast()
+  const [s, setS] = useState<RtvSettings | null>(null)
+  const [kokoro, setKokoro] = useState('')
+  const [chatterbox, setChatterbox] = useState('')
+  const [runner, setRunner] = useState('')
+  const [runnerToken, setRunnerToken] = useState('')
+  useEffect(() => {
+    readToMeApi
+      .settings()
+      .then((d) => (setS(d), setKokoro(d.kokoroUrl), setChatterbox(d.chatterboxUrl), setRunner(d.runnerUrl)))
+      .catch(() => setS(null))
+  }, [])
+  if (!s) return null
+  const save = (body: Parameters<typeof readToMeApi.saveSettings>[0], done: string) =>
+    readToMeApi
+      .saveSettings(body)
+      .then((d) => {
+        setS(d)
+        setKokoro(d.kokoroUrl)
+        setChatterbox(d.chatterboxUrl)
+        setRunner(d.runnerUrl)
+        setRunnerToken('')
+        toast.success(done)
+      })
+      .catch((e: Error) => toast.error(e.message))
+  const engine = (name: string) => (s.engines ?? []).find((e) => e.name === name)
+  const k = engine('kokoro')
+  const on = !!k?.on
+  const changed = kokoro.trim() !== s.kokoroUrl || chatterbox.trim() !== s.chatterboxUrl || runner.trim() !== s.runnerUrl || runnerToken.trim() !== ''
+  return (
+    <Card
+      id="readtome"
+      title={t('Read-to-Me')}
+      guide="read-to-me"
+      state={k?.ready ? 'ready' : on ? 'setup' : 'off'}
+      blurb={t('Turns an ebook into an audiobook with a computer voice: Kokoro for everyday narration, Chatterbox (started only when wanted) for more expressive voices and copied voices. Both run on the graphics card of this computer.')}
+      needs={on ? k?.problem ?? t('Kokoro to answer') : t("Kokoro's address")}
+    >
+      <div className="grid-form">
+        <label>
+          {t("Kokoro's address")}
+          <input value={kokoro} onChange={(e) => setKokoro(e.target.value)} placeholder="http://host.docker.internal:8881" autoComplete="off" spellCheck={false} />
+        </label>
+        <label>
+          {t("Chatterbox's address (optional)")}
+          <input value={chatterbox} onChange={(e) => setChatterbox(e.target.value)} placeholder="http://host.docker.internal:4123" autoComplete="off" spellCheck={false} />
+        </label>
+        <label>
+          {t("The runner's address (optional)")}
+          <input value={runner} onChange={(e) => setRunner(e.target.value)} placeholder="http://host.docker.internal:4130" autoComplete="off" spellCheck={false} />
+        </label>
+        <label>
+          {t("The runner's token")}
+          <input type="password" value={runnerToken} onChange={(e) => setRunnerToken(e.target.value)} placeholder={s.runnerTokenSet ? t('Saved (type to replace it)') : 'RUNNER_TOKEN'} autoComplete="new-password" spellCheck={false} />
+        </label>
+        <p style={small}>
+          {t('Chatterbox takes a lot of graphics memory. With the runner (a small container next to the voice engines, in the setup), Usherr starts it when a job needs it and stops it when the queue is empty. Without it, Chatterbox is started by hand: docker compose --profile chatterbox up -d.')}
+        </p>
+        <label>
+          {t('Chatterbox model for jobs')}
+          <select value={s.chatterboxModel} onChange={(e) => void save({ chatterboxModel: e.target.value as 'standard' | 'turbo' }, t('Saved.'))}>
+            <option value="standard">{t('Standard (the best sound)')}</option>
+            <option value="turbo">{t('Turbo (about twice as fast)')}</option>
+          </select>
+        </label>
+        <label className="tv-check">
+          <input type="checkbox" checked={s.nightOnly} onChange={(e) => void save({ nightOnly: e.target.checked }, e.target.checked ? t('Audiobooks are made at night only.') : t('Audiobooks are made at any time.'))} />
+          {t('Make audiobooks at night only, so the graphics card is free for watching')}
+        </label>
+        {s.nightOnly && (
+          <div style={row}>
+            <label style={row}>
+              {t('from')}
+              <input type="time" value={s.nightFrom} onChange={(e) => e.target.value && void save({ nightFrom: e.target.value }, t('Saved.'))} />
+            </label>
+            <label style={row}>
+              {t('to')}
+              <input type="time" value={s.nightTo} onChange={(e) => e.target.value && void save({ nightTo: e.target.value }, t('Saved.'))} />
+            </label>
+          </div>
+        )}
+        <div style={row}>
+          <button className="primary" disabled={!changed} onClick={() => void save({ kokoroUrl: kokoro, chatterboxUrl: chatterbox, runnerUrl: runner, ...(runnerToken.trim() ? { runnerToken: runnerToken.trim() } : {}) }, t('Read-to-Me saved.'))}>
+            {t('Save')}
+          </button>
+          {s.kokoroUrl && (
+            <TestButton label={t('Test Kokoro')} run={() => readToMeApi.test('kokoro').then((r) => ({ ok: true, message: r.message }), (e: Error) => ({ ok: false, message: e.message }))} />
+          )}
+          {s.chatterboxUrl && (
+            <TestButton label={t('Test Chatterbox')} run={() => readToMeApi.test('chatterbox').then((r) => ({ ok: true, message: r.message }), (e: Error) => ({ ok: false, message: e.message }))} />
+          )}
+          {s.runnerUrl && s.runnerTokenSet && (
+            <TestButton label={t('Test the runner')} run={() => readToMeApi.test('runner').then((r) => ({ ok: true, message: r.message }), (e: Error) => ({ ok: false, message: e.message }))} />
+          )}
+        </div>
+        <p style={small}>{t('Then open an ebook (an EPUB) in the library: it has a Read to me button.')}</p>
+      </div>
+    </Card>
+  )
+}
+
+// Sports (Usherr): on the household's Sportarr ("stacked"), or on Usherr's
+// own engine with TheSportsDB.
+function SportsCard() {
+  const toast = useToast()
+  const [s, setS] = useState<SportsSettings | null>(null)
+  const [mode, setMode] = useState<SportsSettings['mode']>('')
+  const [url, setUrl] = useState('')
+  const [key, setKey] = useState('')
+  const [tsdb, setTsdb] = useState('')
+  useEffect(() => {
+    sportsApi
+      .settings()
+      .then((d) => (setS(d), setUrl(d.sportarrUrl), setMode(d.mode)))
+      .catch(() => setS(null))
+  }, [])
+  if (!s) return null
+  const save = (body: Parameters<typeof sportsApi.saveSettings>[0], done: string) =>
+    sportsApi
+      .saveSettings(body)
+      .then((d) => {
+        setS(d)
+        setUrl(d.sportarrUrl)
+        setMode(d.mode)
+        setKey('')
+        setTsdb('')
+        toast.success(done)
+      })
+      .catch((e: Error) => toast.error(e.message))
+  const changed = mode !== s.mode || url.trim() !== s.sportarrUrl || key.trim() !== '' || tsdb.trim() !== ''
+  const body = () => ({ mode, sportarrUrl: url, ...(key.trim() ? { sportarrKey: key } : {}), ...(tsdb.trim() ? { tsdbKey: tsdb } : {}) })
+  const on = s.mode !== ''
+  return (
+    <Card
+      id="sports"
+      title={t('Sports')}
+      guide="sports"
+      state={on && s.ready ? 'ready' : on ? 'setup' : 'off'}
+      blurb={t('A Sports page for everyone: leagues, teams you follow and the games of the coming weeks. Games stream like films and episodes; with Sportarr they can be downloaded too.')}
+      needs={on ? s.problem ?? t('Sportarr’s address and API key') : t('choosing what Sports runs on')}
+    >
+      <div className="grid-form">
+        <label>
+          {t('Sports runs on')}
+          <select value={mode} onChange={(e) => setMode(e.target.value as SportsSettings['mode'])}>
+            <option value="">{t('Off')}</option>
+            <option value="sportarr">{t('Sportarr (stacked: Sportarr downloads, Usherr shows and streams)')}</option>
+            <option value="usherr">{t('Usherr’s own engine (TheSportsDB; streams, no downloads yet)')}</option>
+          </select>
+        </label>
+        {mode === 'sportarr' && (
+          <>
+            <label>
+              {t('Sportarr’s address')}
+              <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://host.docker.internal:1867" autoComplete="off" spellCheck={false} />
+            </label>
+            <label>
+              {t('Sportarr’s API key (Sportarr: Settings > General)')}
+              <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder={s.sportarrKeySet ? t('Saved. Type a new one to change it.') : ''} autoComplete="off" spellCheck={false} />
+            </label>
+          </>
+        )}
+        {mode !== '' && (
+          <>
+            <label>
+              {t('TheSportsDB key (optional)')}
+              <input type="password" value={tsdb} onChange={(e) => setTsdb(e.target.value)} placeholder={s.tsdbKeySet ? t('Saved. Type a new one to change it.') : mode === 'usherr' ? t('Without one, the free key: search and part of each season') : t('Adds the clock and crests to live scores on the Marquee')} autoComplete="off" spellCheck={false} />
+            </label>
+            <p style={small}>
+              {mode === 'usherr' ? t('A paid key gives full schedules and live scores.') : t('Live scores come from Sportarr; a paid key adds the clock and the teams’ crests on the Marquee.')}{' '}
+              <a href="https://www.thesportsdb.com/pricing" target="_blank" rel="noreferrer">
+                {t('Get a key at thesportsdb.com')}
+              </a>
+              {s.tsdbKeySet && (
+                <>
+                  {' · '}
+                  <button type="button" className="link-btn" onClick={() => void save({ removeTsdbKey: true }, t('The key is removed.'))}>
+                    {t('Remove the key')}
+                  </button>
+                </>
+              )}
+            </p>
+          </>
+        )}
+        <div style={row}>
+          <button className="primary" disabled={!changed} onClick={() => void save(body(), mode === '' ? t('Sports is off.') : t('Sports saved.'))}>
+            {t('Save')}
+          </button>
+          {on && (
+            <TestButton
+              label={s.mode === 'usherr' ? t('Test TheSportsDB') : t('Test Sportarr')}
+              run={() =>
+                sportsApi.test().then(
+                  (r) => ({ ok: true, message: r.message }),
+                  (e: Error) => ({ ok: false, message: e.message }),
+                )
+              }
+            />
+          )}
+          {on && s.ready && (
+            <Link className="btn-with-icon" to="/sports">
+              <Icon name="trophy" /> {t('Open Sports')}
+            </Link>
+          )}
+        </div>
+        <p style={small}>
+          {mode === 'usherr'
+            ? t('Usherr keeps the leagues itself and finds each game on your indexers when someone streams it.')
+            : t('Sportarr runs as its own app next to Usherr, like Radarr or Sonarr. Usherr shows its leagues and games, streams them, and asks it for the ones people want downloaded.')}
+        </p>
+      </div>
+    </Card>
+  )
+}
+
 interface AISettings {
   provider: '' | 'ollama' | 'openai' | 'claude'
   url: string
@@ -1097,6 +1320,43 @@ function MarqueeCard({ inWizard }: { inWizard: boolean }) {
         </a>
       </div>
       <p className="hint">{t('Its looks, scenes, slides, pre-show, the phone remote and Home Assistant are all on its own page.')}</p>
+    </Card>
+  )
+}
+
+// Usherr: the pre-show before a film (PreshowSettings.tsx). Ready as it is;
+// the card says whether it also plays in the Jellyfin app.
+function PreshowCard({ inWizard }: { inWizard: boolean }) {
+  const [jf, setJf] = useState<{ plugin: string; configured: boolean } | null>(null)
+  useEffect(() => {
+    call<{ plugin: string; configured: boolean }>('GET', '/api/home/preshow/jellyfin')
+      .then(setJf)
+      .catch(() => undefined)
+  }, [])
+  const inJellyfin = jf?.plugin === 'active' && jf.configured
+  const page = '/preshow/manage'
+  return (
+    <Card
+      title={t('Pre-show')}
+      state="ready"
+      blurb={t('Before a film, a cinema’s pre-show: a welcome, trailers for what’s coming (downloaded ahead), your own clips, the rating and the countdown. “Movie night” is ready as it is; add clips, themes and schedules when you like.')}
+    >
+      <div style={row}>
+        {inWizard ? (
+          <a className="primary btn-sm btn-with-icon" href={page} target="_blank" rel="noreferrer" title={t('Opens beside the setup, so it isn’t left halfway')}>
+            <Icon name="film" size={14} /> {t('The pre-show’s page')}
+          </a>
+        ) : (
+          <Link className="primary btn-sm btn-with-icon" to={page}>
+            <Icon name="film" size={14} /> {t('The pre-show’s page')}
+          </Link>
+        )}
+      </div>
+      <p className="hint">
+        {inJellyfin
+          ? t('It also plays before films in the Jellyfin app.')
+          : t('To play it in the Jellyfin app too, press Set it up under In the Jellyfin app on its page (it installs the NeXroll Intros plugin).')}
+      </p>
     </Card>
   )
 }

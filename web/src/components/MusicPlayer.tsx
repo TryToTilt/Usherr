@@ -101,7 +101,7 @@ export function MusicPlayerProvider({ children, popout = false }: { children: Re
   const [index, setIndex] = useState(saved ? saved.index : -1)
   const [nonce, setNonce] = useState(0) // changes when a track has to be loaded again, so the same one can start again
   const [playing, setPlaying] = useState(false)
-  const [time, setTime] = useState(saved ? saved.time : 0)
+  const [time, setTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [volume, setVolumeState] = useState(readVolume)
   const [shuffle, setShuffle] = useState(saved ? saved.shuffle : false)
@@ -112,7 +112,8 @@ export function MusicPlayerProvider({ children, popout = false }: { children: Re
   const [scrobbling, setScrobbling] = useState<{ connected: boolean; enabled: boolean } | null>(null)
   const current = index >= 0 && index < queue.length ? queue[index] : null
   const skipTimer = useRef<number | undefined>(undefined)
-  const startAt = useRef(saved ? saved.time : 0) // where in the track to start (a hand-over, or the queue kept from last time)
+  // where in the track to start: a hand-over from another tab. Usherr: the queue kept from last time starts its track from the top (music never resumes part-way).
+  const startAt = useRef(0)
   const wantPlay = useRef(!saved) // whether a newly loaded track starts at once
   const channel = useRef<BroadcastChannel | null>(null)
   const [taken, setTaken] = useState(false)

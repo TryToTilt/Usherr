@@ -8,7 +8,7 @@ export const HOME_TOPICS: TopicDef[] = [
   {
     id: 'home-start',
     title: 'Getting started with the home fork',
-    summary: 'What the fork adds, what you need for it, and the quickest way to a working server.',
+    summary: 'What the fork adds, what you need for it, the quickest way to a working server, and Usherr’s look (Neu, main colours, the menu).',
     group: HOME_GROUP,
     sources: [{ file: 'home/getting-started.md' }],
   },
@@ -29,7 +29,7 @@ export const HOME_TOPICS: TopicDef[] = [
   {
     id: 'home-watching',
     title: 'Watching it',
-    summary: 'Play or Stream, on the TV, the Library, Live TV, Upcoming, comics and phones.',
+    summary: 'Play or Stream, picking up where you left off, skip intro, Showtimes, on the TV, the Library, Live TV, Upcoming, comics and phones.',
     group: HOME_GROUP,
     sources: [{ file: 'home/watching.md' }],
   },
@@ -50,9 +50,30 @@ export const HOME_TOPICS: TopicDef[] = [
   {
     id: 'home-marquee',
     title: 'The Marquee',
-    summary: 'The lobby display for a tablet or a screen by the TV: screens and the phone remote, seven looks, what it shows, your slides and pre-show, theme music, Home Assistant and the API.',
+    summary: 'The lobby display for a tablet or a screen by the TV: screens and the phone remote, seven looks, what it shows, sports scores, your slides and pre-show, theme music, Home Assistant and the API.',
     group: HOME_GROUP,
     sources: [{ file: 'home/marquee.md' }],
+  },
+  {
+    id: 'home-preshow',
+    title: 'The pre-show',
+    summary: 'A cinema’s pre-show before a film: themes and their slots, Only when…, schedules, your clips by category, coming-soon trailers downloaded ahead, and the pre-show in the Jellyfin app.',
+    group: HOME_GROUP,
+    sources: [{ file: 'home/preshow.md' }],
+  },
+  {
+    id: 'home-readtome',
+    title: 'Read-to-Me',
+    summary: 'Turn an ebook into an audiobook with a computer voice: Kokoro and Chatterbox on your graphics card, samples, a preview, night-only, and the finished M4B in your Audiobooks.',
+    group: HOME_GROUP,
+    sources: [{ file: 'home/read-to-me.md' }],
+  },
+  {
+    id: 'home-sports',
+    title: 'Sports',
+    summary: 'Leagues, teams and games on the Sports page: Sportarr or Usherr’s own engine, streaming and getting games, scores, who can do what.',
+    group: HOME_GROUP,
+    sources: [{ file: 'home/sports.md' }],
   },
   {
     id: 'home-troubleshooting',

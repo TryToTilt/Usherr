@@ -20,7 +20,7 @@ const SLOW_TEST_HINT_MS = 5000
 export default function IndexerCard({ indexer: i, onChanged, onToggle, onRemove }: { indexer: IndexerConfig; onChanged: () => void; onToggle: () => void; onRemove: () => void }) {
   const toast = useToast()
   const [testing, setTesting] = useState(false)
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null)
+  const [result, setResult] = useState<{ ok: boolean; message: string; detail?: string } | null>(null)
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(i.name)
   const [baseUrl, setBaseUrl] = useState(i.baseUrl)
@@ -59,7 +59,7 @@ export default function IndexerCard({ indexer: i, onChanged, onToggle, onRemove 
     setResult(null)
     try {
       const r = await api.testIndexer(i.id)
-      setResult({ ok: r.ok, message: r.ok ? r.message : friendlyIndexerError(r.message) })
+      setResult({ ok: r.ok, message: r.ok ? r.message : friendlyIndexerError(r.message), detail: r.ok ? undefined : r.detail })
     } catch (e) {
       setResult({ ok: false, message: e instanceof Error ? e.message : String(e) })
     } finally {
@@ -206,6 +206,7 @@ export default function IndexerCard({ indexer: i, onChanged, onToggle, onRemove 
         <div className={`indexer-result ${result.ok ? 'ok' : 'bad'}`}>
           <Icon name={result.ok ? 'check' : 'warning'} size={14} /> {st(result.message)}
           {!result.ok && <KnownFixHint error={result.message} />}
+          {!result.ok && result.detail && <small className="idx-detail">{result.detail}</small>}
         </div>
       )}
 

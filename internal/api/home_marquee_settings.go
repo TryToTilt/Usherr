@@ -17,10 +17,10 @@ const keyMarquee = "home.marquee" // JSON marqueeSettings
 
 // The scenes, in their default order. "new", "theaters-film" and "coming-film"
 // are one film at a time; "arrivals", "theaters" and "coming" are lists.
-var marqueeSceneKinds = []string{"playing", "new", "trailer", "theaters-film", "arrivals", "coming-film", "theaters", "coming", "tvnow", "tonight", "spotlight", "trivia", "slides", "preshow"}
+var marqueeSceneKinds = []string{"playing", "new", "trailer", "theaters-film", "arrivals", "coming-film", "theaters", "coming", "tvnow", "tonight", "spotlight", "trivia", "slides", "preshow", "scores", "sports-tonight"}
 
 var marqueeSceneSeconds = map[string]int{"playing": 20, "new": 16, "trailer": 75, "theaters-film": 16, "arrivals": 18, "coming-film": 16, "theaters": 18, "coming": 22, "tvnow": 18,
-	"tonight": 24, "spotlight": 18, "trivia": 14, "slides": 12, "preshow": 90}
+	"tonight": 24, "spotlight": 18, "trivia": 14, "slides": 12, "preshow": 90, "scores": 20, "sports-tonight": 22}
 
 // Scenes added in phase 3 that start switched on for a Marquee set up before
 // them (the others need something of yours first).
@@ -93,6 +93,13 @@ type marqueeSettings struct {
 	ThemeMusic      bool     `json:"themeMusic"`      // a show's or film's theme.mp3, while it is on screen
 	ThemeVolume     int      `json:"themeVolume"`     // percent, 5-100
 	Version         int      `json:"version"`         // which settings it has seen (3: phase 3)
+
+	// Usherr: Sports (the "scores" and "sports-tonight" scenes, and these).
+	SportsScores    bool     `json:"sportsScores"`    // show scores (off: nothing that gives a result away)
+	SportsTicker    bool     `json:"sportsTicker"`    // a ticker of the day's games along the bottom
+	SportsCountdown bool     `json:"sportsCountdown"` // a band counting down to the next kick-off
+	SportsTeamsOnly bool     `json:"sportsTeamsOnly"` // only games of the teams followed
+	SportsLeagues   []string `json:"sportsLeagues"`   // the leagues to show, by name; empty is all
 }
 
 // The pre-show's built-in pieces, in the order they play.
@@ -127,7 +134,7 @@ func marqueeClamp(v, lo, hi, fallback int) int {
 func defaultMarquee() marqueeSettings {
 	m := marqueeSettings{ShowIcon: true, ShowName: true, ShowClock: true, SignMode: "auto", SignLine1: "Now Showing",
 		TextScale: 100, PosterScale: 100, ScrollSpeed: "normal", FromJellyfin: true, FromStream: true,
-		QuietFrom: "23:30", QuietTo: "14:00", QuietMode: "clock", Profiles: []string{},
+		QuietFrom: "23:30", QuietTo: "14:00", QuietMode: "clock", Profiles: []string{}, SportsLeagues: []string{},
 		Style: "usherr", Theme: "usherr", Corners: "soft", Font: "classic", Frame: "bulbs", BulbSize: 100, Framing: "fill",
 		Transition: "fade", TransitionMs: 900, Footer: "details", WallLayout: "grid", WallColumns: 3, WallSwap: 6,
 		NightFrom: "23:00", NightTo: "07:00", NightLevel: 40,
@@ -248,6 +255,13 @@ func (m marqueeSettings) clean() marqueeSettings {
 	m.PreShowBuiltins = pieces
 	m.PreShowTrailers = marqueeClamp(m.PreShowTrailers, 0, 3, d.PreShowTrailers)
 	m.ThemeVolume = marqueeClamp(m.ThemeVolume, 5, 100, d.ThemeVolume)
+	leagues := []string{} // never null: the settings page lists it
+	for _, l := range m.SportsLeagues {
+		if l = trimRunes(strings.TrimSpace(l), 80); l != "" && len(leagues) < 50 {
+			leagues = append(leagues, l)
+		}
+	}
+	m.SportsLeagues = leagues
 	m.Version = 3
 	return m
 }

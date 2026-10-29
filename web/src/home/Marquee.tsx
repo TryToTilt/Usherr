@@ -13,7 +13,8 @@ import { dayLabel, hours, inQuiet, typeLabel, type Data, type Feature, type Medi
 import { applyPalette, markSrc } from '../palette'
 import { Board, ItemLook, itemsFor, Wall, wallItems, type Item } from './MarqueeLooks'
 import { FitLine, SceneFrame, Stage } from './marqueeParts'
-import { Badges, FormatBadges, InfoPanel, MediaSlide, PreShow, preShowHasSomething, QR, qrFor, SpotlightView, ThemeMusic, TonightView, trivia, TriviaView } from './MarqueeExtras'
+import { Badges, FormatBadges, InfoPanel, MediaSlide, PreShow, PreshowFollow, preShowHasSomething, QR, qrFor, SpotlightView, ThemeMusic, TonightView, trivia, TriviaView, type FollowStep } from './MarqueeExtras'
+import { GameNow, hasScores, hasTonight, ScoresView, SportsCountdown, SportsTicker, SportsTonightView } from './MarqueeSports' // Usherr: sports
 import { clockLabel, inLabel, type Showtime } from './showtimes'
 import './showtime.css'
 import './marqueeFonts'
@@ -39,9 +40,11 @@ type Scene =
   | { kind: 'trivia'; f: Feature; fact: string }
   | { kind: 'slide'; m: MediaItem }
   | { kind: 'preshow' }
+  | { kind: 'scores' } // Usherr: sports
+  | { kind: 'sportsTonight' }
 
 // The scenes every look shows the same way (with its own colours and fonts).
-const EXTRA = new Set(['tonight', 'spotlight', 'trivia', 'slide', 'preshow'])
+const EXTRA = new Set(['tonight', 'spotlight', 'trivia', 'slide', 'preshow', 'scores', 'sportsTonight'])
 
 const SINGLE = new Set(['cinema', 'screensaver', 'posterr', 'onesheet'])
 const NUDGE_MS = 3 * 60 * 1000 // burn-in protection: a few pixels every three minutes
@@ -84,6 +87,10 @@ function heading(s: Scene): string {
       return s.m.title || t('Now showing')
     case 'preshow':
       return t('Now showing')
+    case 'scores':
+      return t('Scoreboard')
+    case 'sportsTonight':
+      return t('Tonight’s games')
   }
 }
 
@@ -112,7 +119,7 @@ function screenId(fromUrl: string | null): string {
 function summary(s: Scene, d: Data): { title: string; posterUrl?: string } {
   switch (s.kind) {
     case 'playing':
-      return { title: s.p.series ?? s.p.title, posterUrl: s.p.posterUrl }
+      return { title: s.p.game?.title ?? s.p.series ?? s.p.title, posterUrl: s.p.posterUrl }
     case 'feature':
     case 'trailer':
       return { title: s.f.title, posterUrl: s.f.posterUrl }
@@ -130,6 +137,8 @@ function summary(s: Scene, d: Data): { title: string; posterUrl?: string } {
       return { title: s.it.title, posterUrl: s.it.posterUrl }
     case 'tonight':
     case 'preshow':
+    case 'scores':
+    case 'sportsTonight':
       return { title: s.kind === 'preshow' ? t('The pre-show') : heading(s) }
     case 'spotlight':
       return { title: s.sp.name, posterUrl: s.sp.photo }
@@ -170,6 +179,13 @@ export default function Marquee() {
   const [scene, setScene] = useState<Shown | null>(null)
   const [clock, setClock] = useState(() => new Date())
   const [remote, setRemote] = useState<Remote>({ paused: false, pinned: false, dim: false, blank: false, info: false })
+  // Usherr: the pre-show playing on the TV, which this screen follows.
+  const [follow, setFollow] = useState<FollowStep | null>(null)
+  useEffect(() => {
+    if (!follow) return
+    const id = window.setTimeout(() => setFollow(null), 6 * 60_000) // the TV went quiet
+    return () => window.clearTimeout(id)
+  }, [follow])
   const remoteRef = useRef(remote)
   const waiting = useRef(false) // a paused scene's time is up
   const shown = useRef<Shown[]>([]) // the scenes shown, for "previous"
@@ -193,6 +209,11 @@ export default function Marquee() {
       .then((r) => (r.ok ? (r.json() as Promise<Data>) : Promise.reject(new Error(String(r.status)))))
       .then((d) => {
         failures.current = 0
+        // Usherr: Usherr was updated (or restarted): the screen takes the new code.
+        if (d.build && dataRef.current?.build && d.build !== dataRef.current.build) {
+          window.location.reload()
+          return
+        }
         dataRef.current = d
         setData(d)
       })
@@ -208,6 +229,25 @@ export default function Marquee() {
     const id = window.setInterval(load, REFRESH_MS)
     return () => window.clearInterval(id)
   }, [load])
+
+  // Usherr: the scores change every minute, while the screen shows sports.
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (!dataRef.current?.sports) return
+      fetch(`/api/home/marquee?only=sports${screen ? `&screen=${screen}` : ''}`, { credentials: 'include' })
+        .then((r) => (r.ok ? (r.json() as Promise<Data>) : null))
+        .then((d) => {
+          if (!d) return
+          setData((old) => {
+            const next = old ? { ...old, sports: d.sports } : old
+            dataRef.current = next
+            return next
+          })
+        })
+        .catch(() => undefined)
+    }, 60_000)
+    return () => window.clearInterval(id)
+  }, [screen])
 
   // What's playing changes faster than the rest: asked every 30 seconds.
   useEffect(() => {
@@ -290,6 +330,10 @@ export default function Marquee() {
       }
       case 'preshow':
         return preShowHasSomething(d, d.settings) ? { kind: 'preshow' } : undefined
+      case 'scores': // Usherr: sports
+        return hasScores(d) ? { kind: 'scores' } : undefined
+      case 'sports-tonight':
+        return hasTonight(d) ? { kind: 'sportsTonight' } : undefined
     }
     // The other single-poster looks show one film, show or channel at a time.
     if (SINGLE.has(d.settings.style)) {
@@ -461,6 +505,16 @@ export default function Marquee() {
         case 'preshow':
           startPreShow.current(false)
           break
+        case 'follow': {
+          let f: Omit<FollowStep, 'at'> & { end?: boolean }
+          try {
+            f = JSON.parse(arg ?? '{}') as typeof f
+          } catch {
+            break
+          }
+          setFollow(f.end ? null : { ...f, at: Date.now() })
+          break
+        }
       }
     },
     [advance, pick, show],
@@ -583,12 +637,25 @@ export default function Marquee() {
         return <MediaSlide m={s.m} sound={sound} onEnd={end} header={header} />
       case 'preshow':
         return <PreShow data={data} set={set} sound={sound} trailerSeconds={set.scenes.find((x) => x.kind === 'trailer')?.seconds ?? 75} onDone={end} />
+      case 'scores':
+        return (
+          <SceneFrame n={sc.n} minMs={sc.seconds * 1000} speed={speed} onDone={done}>
+            <ScoresView data={data} header={header} />
+          </SceneFrame>
+        )
+      case 'sportsTonight':
+        return (
+          <SceneFrame n={sc.n} minMs={sc.seconds * 1000} speed={speed} onDone={done}>
+            <SportsTonightView data={data} header={header} />
+          </SceneFrame>
+        )
       default:
         return null
     }
   }
   const isExtra = !!scene && EXTRA.has(scene.s.kind)
   const preshow = scene?.s.kind === 'preshow'
+  const ticker = !preshow && !!set.sportsTicker && (data.sports?.games.length ?? 0) > 0 // Usherr: sports
 
   // Over the scene: the info panel and a QR code, for a film or what's playing.
   const film = scene ? filmOf(scene.s) : undefined
@@ -707,15 +774,17 @@ export default function Marquee() {
   }
 
   return (
-    <div className={`mq ${look}`} style={vars} onDoubleClick={() => void document.documentElement.requestFullscreen?.().catch(() => undefined)}>
+    <div className={`mq ${look}${ticker ? ' has-ticker' : ''}`} style={vars} onDoubleClick={() => void document.documentElement.requestFullscreen?.().catch(() => undefined)}>
       <div className="mq-nudger" style={nudge.x || nudge.y ? { transform: `translate(${nudge.x}px, ${nudge.y}px)` } : undefined}>
-        {body}
+        {follow ? <PreshowFollow f={follow} /> : body}
       </div>
-      {!preshow && <ShowtimeBand list={data.showtimes} now={clock.getTime()} />}
+      {!preshow && !follow && <ShowtimeBand list={data.showtimes} now={clock.getTime()} />}
+      {!preshow && set.sportsCountdown && <SportsCountdown data={data} now={clock.getTime()} />}
+      {ticker && <SportsTicker data={data} />}
       {set.vintage && <div className="mq-fx mq-vintage" aria-hidden="true" />}
       {set.grain && <div className="mq-fx mq-grain" aria-hidden="true" />}
       <div className="mq-fx mq-shade" style={{ opacity: shade }} aria-hidden="true" />
-      {theme && <ThemeMusic url={theme} volume={set.themeVolume} />}
+      {theme && !follow && <ThemeMusic url={theme} volume={set.themeVolume} />}
     </div>
   )
 }
@@ -739,6 +808,7 @@ function SceneView({ scene, data, sound, badges }: { scene: Scene; data: Data; s
   switch (scene.kind) {
     case 'playing': {
       const p = scene.p
+      if (p.game) return <GameNow p={p} g={p.game} /> // Usherr: a game, as a matchup card
       const title = p.kind === 'episode' ? p.series : p.title
       const sub = p.kind === 'episode' ? `S${String(p.season ?? 0).padStart(2, '0')}E${String(p.episode ?? 0).padStart(2, '0')}${p.title ? ` · ${p.title}` : ''}` : p.year ? String(p.year) : ''
       return (
@@ -776,7 +846,7 @@ function SceneView({ scene, data, sound, badges }: { scene: Scene; data: Data; s
     }
     case 'trailer': {
       const f = scene.f
-      const q = new URLSearchParams({ autoplay: '1', mute: sound ? '0' : '1', controls: '0', rel: '0', modestbranding: '1', playsinline: '1', iv_load_policy: '3', origin: window.location.origin })
+      const q = new URLSearchParams({ autoplay: '1', mute: sound ? '0' : '1', controls: '0', rel: '0', modestbranding: '1', playsinline: '1', iv_load_policy: '3', cc_load_policy: '0', origin: window.location.origin })
       return (
         <div className="mq-scene mq-trailer">
           <div className="mq-video">

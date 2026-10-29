@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
-import { api, isRequested, type Book, type BookFormat, type BookFound, type QueueItem } from '../api'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { api, can, isRequested, type Book, type BookFormat, type BookFound, type QueueItem } from '../api'
 import BookImport from '../components/BookImport'
 import { listenPath, openBookApp, readPath } from '../bookshelf/open'
 import Dropdown from '../components/Dropdown'
@@ -15,6 +15,9 @@ import { useModules } from '../ModulesContext'
 import Shelves from '../home/Shelves' // home fork
 import { groupShelves, letterShelves, monthShelves, RowsByPick, ShelfControls, useShelfView } from '../home/shelfKit' // home fork
 import { looseIncludes } from '../looseText'
+import { useAuth } from '../AuthContext'
+import { readToMeOn } from '../home/readToMeApi'
+import { PosterSizeSlider, usePosterSize } from '../home/posterSize' // Usherr
 
 type Sort = 'added' | 'title' | 'author'
 type BookRows = 'author' | 'genre' | 'series' | 'narrator' | 'az' | 'added' // home fork
@@ -87,7 +90,8 @@ export default function BookLibrary({
 }) {
   // The search and filters live in the address, so Back from a book returns to the same list.
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [ui, patchUi] = useUrlState({ bq: '', bf: 'all', bs: 'added' })
+  const [ui, patchUi] = useUrlState({ bq: '', bf: 'all', bs: 'added', bv: '' })
+  const navigate = useNavigate() // Usherr: Read-to-Me has its own page
   const text = ui.bq
   const setText = (v: string) => patchUi({ bq: v })
   const filter = ui.bf
@@ -115,6 +119,7 @@ export default function BookLibrary({
 
   // home fork: shelves, rows that scroll sideways, by author, series…
   const shelfView = useShelfView<BookRows>(`books-${format}`, BOOK_ROWS, 'author')
+  const posterSize = usePosterSize(`books-${format}`) // Usherr
   const rowsBy = format === 'ebook' && shelfView.by === 'narrator' ? 'author' : shelfView.by
   const [genres, setGenres] = useState<Record<number, string[]> | null>(null)
   useEffect(() => {
@@ -168,6 +173,30 @@ export default function BookLibrary({
     )
   }
 
+  // Usherr: the Ebooks tab has a Read-to-Me part, for those who may make audiobooks.
+  const me = useAuth().user
+  const [rtmOn, setRtmOn] = useState(false)
+  useEffect(() => {
+    if (format !== 'ebook' || !can(me, 'manage')) return
+    let live = true
+    void readToMeOn().then((v) => live && setRtmOn(v))
+    return () => {
+      live = false
+    }
+  }, [format, me])
+  const rtm = rtmOn && ui.bv === 'rtm'
+  const partSwitch = rtmOn && (
+    <div className="seg" role="tablist" aria-label={t('Ebooks')}>
+      <button role="tab" aria-selected={!rtm} className={!rtm ? 'active' : ''} onClick={() => patchUi({ bv: '' })}>
+        {t('Books')}
+      </button>
+      <button role="tab" aria-selected={false} onClick={() => navigate('/read-to-me')}> {/* Usherr: its own page */}
+        {t('Read-to-Me')}
+      </button>
+    </div>
+  )
+  if (rtm) return <Navigate to="/read-to-me" replace /> // Usherr: an old link to the tab
+
   // Usherr: the filters that are on, each a chip with an x.
   const activeFilters: ActiveFilter[] = [
     ...(text.trim() ? [{ key: 'q', label: `“${text.trim()}”`, clear: () => setText('') }] : []),
@@ -175,13 +204,14 @@ export default function BookLibrary({
   ]
 
   return (
-    <div>
+    <div style={posterSize.style}>
       {/* Usherr: one slim row, pinned under the top bar (CompactBar.tsx) */}
       <CompactBar
         open={filtersOpen}
         row={
           <>
             {switcher}
+            {partSwitch}
             <FiltersButton open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} count={activeFilters.length} />
             <span className="cbar-sort">
               <Dropdown
@@ -196,6 +226,14 @@ export default function BookLibrary({
                 ]}
               />
             </span>
+            {shelfView.on && <RowsByPick value={shelfView.by} onChange={shelfView.setBy} options={[
+            { value: 'author', label: t('Author') },
+            { value: 'genre', label: t('Genre') },
+            { value: 'series', label: t('Series') },
+            ...(format === 'audiobook' ? [{ value: 'narrator' as const, label: t('Narrator') }] : []),
+            { value: 'az', label: t('A–Z') },
+            { value: 'added', label: t('Recently added') },
+          ]} />} {/* Usherr: Rows by, beside the sort */}
             <span className="spacer" />
             <button className="primary btn-with-icon toolbar-add" onClick={() => setAdding((a) => !a)} aria-expanded={adding} aria-label={adding ? t('Close') : t('Add')}>
               <Icon name={adding ? 'x' : 'plus'} size={16} /> <span className="cbar-add-label">{adding ? t('Close') : t('Add')}</span>
@@ -207,6 +245,7 @@ export default function BookLibrary({
             <input type="search" className="cbar-find" placeholder={format === 'ebook' ? t('Find in your ebooks…') : t('Find in your audiobooks…')} value={text} onChange={(e) => setText(e.target.value)} aria-label={format === 'ebook' ? t('Find in your ebooks') : t('Find in your audiobooks')} />
             <Dropdown icon="grid" label={t('Status')} value={filter} onChange={setFilter} options={FILTERS.map((f) => ({ value: f.id, label: books ? `${f.label} (${mine.filter((b) => f.test(bookState(b, format, queue))).length})` : f.label }))} />
             <ShelfControls view={shelfView} />
+            <PosterSizeSlider value={posterSize} />
             <span className="spacer" />
             {admin && (
               <button className="btn-with-icon" onClick={() => setImporting((v) => !v)} aria-expanded={importing}>
@@ -258,14 +297,7 @@ export default function BookLibrary({
           )}
         </div>
       ) : shelfView.on ? (
-        <Shelves key={`${format}-${rowsBy}`} memory={format} shelves={shelves} render={card} itemKey={(b) => String(b.id)} bar={<RowsByPick value={shelfView.by} onChange={shelfView.setBy} options={[
-            { value: 'author', label: t('Author') },
-            { value: 'genre', label: t('Genre') },
-            { value: 'series', label: t('Series') },
-            ...(format === 'audiobook' ? [{ value: 'narrator' as const, label: t('Narrator') }] : []),
-            { value: 'az', label: t('A–Z') },
-            { value: 'added', label: t('Recently added') },
-          ]} />} />
+        <Shelves key={`${format}-${rowsBy}`} memory={format} shelves={shelves} render={card} itemKey={(b) => String(b.id)} />
       ) : (
         <div className="poster-grid">{shown.map(card)}</div>
       )}

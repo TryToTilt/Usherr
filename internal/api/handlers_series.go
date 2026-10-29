@@ -51,11 +51,14 @@ type seriesPayload struct {
 	Copies int   `json:"copies,omitempty"`
 	// RootPath is the library folder chosen for the show ("" = the main TV folder).
 	RootPath string `json:"rootPath,omitempty"`
+	// ShortFiles is how many of the show's files are far shorter than their
+	// episodes should be (fakes or cut-off files); left out when none.
+	ShortFiles int `json:"shortFiles,omitempty"`
 	// FolderPath is the full folder of the show (as Mediarium sees it): where
 	// its episodes are, or where they go when it has none. Only filled in for
 	// a single show.
 	FolderPath string `json:"folderPath,omitempty"`
-	// ShowStatus is where the show stands: "ended", "continuing" or "upcoming"
+	// ShowStatus is where the show stands: "ended", "canceled", "continuing" or "upcoming"
 	// (from TMDB); left out until the show has been refreshed once.
 	ShowStatus string `json:"showStatus,omitempty"`
 	// Media is what the downloaded episodes' files hold: the different values
@@ -94,17 +97,22 @@ func showStatusOf(tmdbStatus string) string {
 	if strings.TrimSpace(tmdbStatus) == "" {
 		return ""
 	}
+	if strings.EqualFold(strings.TrimSpace(tmdbStatus), "Canceled") || strings.EqualFold(strings.TrimSpace(tmdbStatus), "Cancelled") {
+		return "canceled"
+	}
 	status, _ := showEndedStatus(tmdbStatus)
 	return status
 }
 
 type episodePayload struct {
-	ID        int64  `json:"id"`
-	Season    int    `json:"season"`
-	Episode   int    `json:"episode"`
-	Title     string `json:"title,omitempty"`
-	Overview  string `json:"overview,omitempty"`
-	AirDate   string `json:"airDate,omitempty"`
+	ID       int64  `json:"id"`
+	Season   int    `json:"season"`
+	Episode  int    `json:"episode"`
+	Title    string `json:"title,omitempty"`
+	Overview string `json:"overview,omitempty"`
+	AirDate  string `json:"airDate,omitempty"`
+	// AirAt is the exact air time (RFC 3339, UTC) when TVmaze has one.
+	AirAt     string `json:"airAt,omitempty"`
 	Status    string `json:"status"`
 	Quality   string `json:"quality,omitempty"`
 	FilePath  string `json:"filePath,omitempty"`
@@ -114,12 +122,14 @@ type episodePayload struct {
 	// FileInfo is what the episode's file holds: video, audio and subtitle
 	// tracks. Left out until the file has been read.
 	FileInfo *fileInfoPayload `json:"fileInfo,omitempty"`
+	// ShortFile is set when the file is far shorter than the episode should be.
+	ShortFile *shortFileNote `json:"shortFile,omitempty"`
 }
 
 func toEpisodePayload(e library.Episode) episodePayload {
 	return episodePayload{
 		ID: e.ID, Season: e.Season, Episode: e.Episode, Title: e.Title, Overview: e.Overview,
-		AirDate: e.AirDate, Status: string(e.Status), Quality: e.Quality, FilePath: e.FilePath, Monitored: e.Monitored,
+		AirDate: e.AirDate, AirAt: e.AirAt, Status: string(e.Status), Quality: e.Quality, FilePath: e.FilePath, Monitored: e.Monitored,
 		SizeBytes: cachedFileSize(e.FilePath, time.Now()),
 	}
 }
@@ -181,9 +191,11 @@ func (s *Server) handleListSeries(w http.ResponseWriter, r *http.Request) {
 	out := make([]seriesPayload, len(list))
 	tvFolders := s.tvFolders()
 	nameTags := sameNameTags(list)
-	media := s.mediaSummaryNow().series
+	media := s.mediaSummaryNow(true).series
+	short := s.incompleteNow().series
 	for i, sr := range list {
 		out[i] = toSeriesPayload(sr, who)
+		out[i].ShortFiles = len(short[sr.ID])
 		out[i].Media = mediaSummaryOf(media[sr.ID]...)
 		out[i].RootPath = folderShown(r, tvFolders, sr.RootPath)
 		out[i].NameTag = nameTags[sr.ID]
@@ -221,7 +233,7 @@ func (s *Server) handleGetSeries(w http.ResponseWriter, r *http.Request) {
 	}
 	out := seriesDetailPayload{seriesPayload: toSeriesPayload(sr, s.accountNames()), Episodes: make([]episodePayload, len(eps))}
 	out.RootPath = folderShown(r, s.tvFolders(), sr.RootPath)
-	if all, err := s.MovieRepo.ListSeries(); err == nil {
+	if all, err := s.MovieRepo.ListSeriesNames(); err == nil {
 		key := sr.ID
 		if sr.CopyOf != 0 {
 			key = sr.CopyOf
@@ -238,6 +250,7 @@ func (s *Server) handleGetSeries(w http.ResponseWriter, r *http.Request) {
 		out.Episodes[i] = toEpisodePayload(e)
 		if row, ok := fileInfos[e.ID]; ok && e.Status == library.StatusDownloaded {
 			out.Episodes[i].FileInfo = fileInfoOf(row)
+			out.Episodes[i].ShortFile = s.shortFileOf(e.FilePath)
 		}
 		out.Episodes[i].FilePath = fileLabel(r, e.FilePath)
 		if e.Status == library.StatusDownloaded {
@@ -265,7 +278,8 @@ type addSeriesRequest struct {
 	// NoUpgrade leaves the episodes alone once they are downloaded. On when
 	// left out: better versions are something the person asks for.
 	NoUpgrade *bool `json:"noUpgrade"`
-	// RootPath is the TV folder to keep it in; left out = the main one.
+	// RootPath is the TV folder to keep it in; left out = where new shows go
+	// (Settings > Library > Folders).
 	RootPath string `json:"rootPath"`
 }
 
@@ -309,28 +323,31 @@ func (s *Server) handleAddSeries(w http.ResponseWriter, r *http.Request) {
 		writeProfileError(w, err)
 		return
 	}
-	rootPath, problem := s.checkFolderChoice(req.RootPath, s.tvFolders(), "show")
+	rootPath, problem := s.folderForNewShow(req.RootPath)
 	if problem != "" {
 		writeError(w, http.StatusBadRequest, problem)
 		return
 	}
+	if req.RootPath == "" {
+		if anime := s.animeFolderFor(r.Context(), req.TMDBID); anime != "" {
+			rootPath = anime // Usherr: anime to the anime folder
+		}
+	}
 
 	userID, byline := requester(r)
-	created, err := s.addSeriesFromTMDB(r.Context(), req.TMDBID, userID, boolOr(req.NoUpgrade, true))
+	created, err := s.addSeriesFromTMDB(r.Context(), req.TMDBID, userID, boolOr(req.NoUpgrade, true), rootPath)
 	if err != nil {
 		writeUpstreamError(w, "add that show", err)
 		return
 	}
-	if rootPath == "" && req.RootPath == "" {
-		rootPath = s.animeFolderFor(r.Context(), req.TMDBID) // Usherr: anime to the anime folder
-	}
-	if rootPath != "" {
-		if err := s.MovieRepo.SetSeriesRoot(created.ID, rootPath); err == nil {
-			created.RootPath = rootPath
-		}
-	}
 	if req.Monitor == library.MonitorFuture || req.Monitor == library.MonitorNone {
 		_, _ = s.MovieRepo.ApplyMonitorMode(created.ID, req.Monitor, todayUTC(), false)
+		if req.Monitor == library.MonitorFuture {
+			// Watching for episodes that have not aired is monitoring: the show's own switch is on.
+			if err := s.MovieRepo.SetSeriesMonitored(created.ID, true); err == nil {
+				created.Monitored = true
+			}
+		}
 	}
 	if req.ProfileID != 0 {
 		if err := s.MovieRepo.SetSeriesProfile(created.ID, req.ProfileID); err == nil {
@@ -354,7 +371,7 @@ func (s *Server) handleAddSeries(w http.ResponseWriter, r *http.Request) {
 // addSeriesFromTMDB adds a show with its episode list and genres, recording
 // userID (0 = unknown) as the account that added it. noUpgrade leaves the
 // episodes alone once they are downloaded.
-func (s *Server) addSeriesFromTMDB(ctx context.Context, tmdbID int, userID int64, noUpgrade bool) (library.Series, error) {
+func (s *Server) addSeriesFromTMDB(ctx context.Context, tmdbID int, userID int64, noUpgrade bool, rootPath string) (library.Series, error) {
 	detail, infos, err := s.TMDB().GetShowEpisodes(ctx, tmdbID)
 	if err != nil {
 		return library.Series{}, err
@@ -363,7 +380,7 @@ func (s *Server) addSeriesFromTMDB(ctx context.Context, tmdbID int, userID int64
 		TMDBID: detail.TMDBID, Title: detail.Name, Year: detail.Year(), Overview: detail.Overview,
 		PosterPath: detail.PosterPath, FirstAirDate: detail.FirstAirDate, Monitored: true,
 		NoUpgrade: noUpgrade, AddedBy: userID, Genres: s.TMDB().ShowGenres(ctx, detail.Show),
-		SeriesType: guessSeriesType(detail.Show),
+		SeriesType: guessSeriesType(detail.Show), RootPath: rootPath,
 	}, toLibraryEpisodes(infos))
 	if err != nil {
 		return sr, err
@@ -506,6 +523,9 @@ func (s *Server) refreshSeries(ctx context.Context, sr library.Series) error {
 		log.Printf("api: refresh %q: removed %d missing episodes TMDB no longer lists", sr.Title, n)
 	}
 	s.saveSeriesIDs(&sr, detail)
+	if err := s.MovieRepo.MarkSeriesChecked(sr.ID, time.Now()); err != nil {
+		log.Printf("api: refresh %q: %v", sr.Title, err)
+	}
 	s.refreshOtherTitles(ctx, "tv", sr.TMDBID, sr.Title)
 	s.noteSeriesNumbering(sr)
 	s.stopMonitoringIfFinished(sr.ID, detail.Status)
@@ -522,6 +542,7 @@ func (s *Server) refreshSeries(ctx context.Context, sr library.Series) error {
 			log.Printf("api: refresh %q copy: remove dropped episodes: %v", sr.Title, err)
 		}
 	}
+	s.syncAirTimes(ctx, sr)
 	return nil
 }
 
@@ -563,7 +584,17 @@ func (s *Server) handleGrabSeries(w http.ResponseWriter, r *http.Request) {
 	if !s.checkGrabURL(w, r, &req.DownloadURL) {
 		return
 	}
-	queueID, err := s.grabTVRelease(sr, req.Season, req.Episode, req.ReleaseTitle, req.DownloadURL, req.SizeBytes, req.protocol())
+	if req.ReplaceQueueID > 0 {
+		replaceMu.Lock()
+		defer replaceMu.Unlock()
+		if err := s.replaceBlocking(req.ReplaceQueueID, func() error {
+			return s.checkEpisodesNotDownloading(sr.ID, req.Season, req.Episode, req.ReleaseTitle)
+		}); err != nil {
+			writeGrabError(w, err, http.StatusBadRequest)
+			return
+		}
+	}
+	queueID, err := s.grabTVOpts(sr, req.Season, req.Episode, req.ReleaseTitle, req.DownloadURL, req.SizeBytes, req.protocol(), grabPicked, req.Replace)
 	if err != nil {
 		writeGrabError(w, err, http.StatusBadRequest)
 		return

@@ -31,6 +31,37 @@ func arrWantedPage(w http.ResponseWriter, r *http.Request, records []any, defaul
 	writeJSON(w, http.StatusOK, arrPage{Page: page, PageSize: size, SortKey: key, SortDirection: dir, TotalRecords: len(records), Records: records[from:to]})
 }
 
+// sortArrMovies orders a list of movies by the sortKey an app sends (the
+// title when it is missing or unknown) and sortDirection (ascending when it
+// is missing, as in the real app).
+func sortArrMovies(list []arrMovie, sortKey, direction string) {
+	key := strings.ToLower(sortKey)
+	desc := strings.HasPrefix(strings.ToLower(direction), "desc")
+	cmp := func(a, b arrMovie) int {
+		switch {
+		case strings.Contains(key, "year"):
+			if a.Year != b.Year {
+				return a.Year - b.Year
+			}
+		case strings.Contains(key, "added"):
+			if c := strings.Compare(a.Added, b.Added); c != 0 {
+				return c
+			}
+		case strings.Contains(key, "release"), strings.Contains(key, "cinema"):
+			if c := strings.Compare(a.InCinemas, b.InCinemas); c != 0 {
+				return c
+			}
+		}
+		return strings.Compare(a.SortTitle, b.SortTitle)
+	}
+	sort.SliceStable(list, func(i, j int) bool {
+		if desc {
+			return cmp(list[i], list[j]) > 0
+		}
+		return cmp(list[i], list[j]) < 0
+	})
+}
+
 // arrWantedCutoff answers GET /wanted/cutoff: the monitored titles whose file
 // is below what their profile is after, the same ones an upgrade search goes
 // looking for. Radarr lists movies, Sonarr lists episodes.

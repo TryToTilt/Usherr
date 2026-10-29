@@ -31,6 +31,8 @@ var memberRoutes = []string{
 	"GET /api/auth/api-keys",
 	"POST /api/auth/api-keys",
 	"DELETE /api/auth/api-keys/{id}",
+	"GET /api/oauth/requests/{id}",
+	"POST /api/oauth/requests/{id}",
 	"GET /api/auth/ereader",
 	"POST /api/auth/ereader/opds",
 	"DELETE /api/auth/ereader/opds",
@@ -109,6 +111,8 @@ var memberRoutes = []string{
 	"PUT /api/series/{id}/type",
 	"GET /api/series/{id}/numbering",
 	"POST /api/series/{id}/numbering/refresh",
+	"GET /api/series/{id}/numbering/custom",
+	"PUT /api/series/{id}/numbering/custom",
 	"PUT /api/series/{id}/seasons/{season}/monitored",
 	"PUT /api/episodes/{id}/monitored",
 	"GET /api/books",
@@ -151,7 +155,7 @@ var memberRoutes = []string{
 	"GET /api/music/preview/{mbid}",
 	"GET /api/collections", "GET /api/collections/{id}",
 	"GET /api/library/folders",
-	"GET /api/library/counts",
+	"GET /api/library/counts", "GET /api/library/owned", "GET /api/queue/count",
 	"GET /api/library/file-details",
 	"PUT /api/movies/{id}/folder",
 	"PUT /api/series/{id}/folder",
@@ -159,6 +163,9 @@ var memberRoutes = []string{
 	"GET /api/music/artists",
 	"POST /api/music/artists",
 	"GET /api/music/artists/{id}",
+	"GET /api/music/artists/{id}/discography",
+	"GET /api/music/filters",
+	"POST /api/music/artists/{id}/albums",
 	"GET /api/music/albums/{id}",
 	"GET /api/music/albums/{id}/files",
 	"GET /api/music/albums/{id}/cover",
@@ -190,6 +197,8 @@ var memberRoutes = []string{
 	"GET /api/stream/status",                                // home fork
 	"GET /api/stream/options",                               // home fork
 	"GET /api/play/next",                                    // Usherr
+	"GET /api/play/markers/{kind}/{id}",                     // Usherr
+	"GET /api/stream/{id}/markers",                          // Usherr
 	"POST /api/stream/start",                                // home fork
 	"GET /api/stream/{id}/video",                            // home fork
 	"GET /api/stream/{id}/browser",                          // home fork
@@ -234,14 +243,16 @@ var memberRoutes = []string{
 	"GET /api/nsfw/performers", "POST /api/nsfw/performers", "DELETE /api/nsfw/performers/{id}", "GET /api/nsfw/studios", "POST /api/nsfw/studios", "DELETE /api/nsfw/studios/{id}",
 	"GET /api/nsfw/{id}", "GET /api/nsfw/{id}/stream", "PUT /api/nsfw/{id}/wanted",
 	// home fork: comics are for every account to browse and read
-	"GET /api/comics/enabled", "GET /api/comics", "GET /api/comics/week", "GET /api/comics/arcs", "GET /api/comics/arcs/for-you", "GET /api/comics/arcs/{id}", "GET /api/comics/image", "GET /api/comics/{id}", "GET /api/comics/issues/{id}/file", "GET /api/comics/issues/{id}/pages", "GET /api/comics/issues/{id}/pages/{n}", "GET /api/comics/issues/{id}/pages/{n}/panels", "GET /api/home/discover/people", "GET /api/home/discover/watched-seeds", "GET /api/home/discover/season", "GET /api/home/ai/on", "POST /api/home/ai/search", "POST /api/home/ai/room", "POST /api/home/ai/recap", "GET /api/home/discover/why", "POST /api/home/ai/tonight", "POST /api/home/ai/explain", "POST /api/home/ai/comic-recap", "GET /api/home/discover/leanings", "GET /api/home/news", "GET /api/home/cinema", "POST /api/home/playing", "DELETE /api/home/playing/{key}", "GET /api/home/showtimes", "POST /api/home/showtimes", "PUT /api/home/showtimes/{id}", "DELETE /api/home/showtimes/{id}", "GET /api/home/stack", "POST /api/home/stack", "PUT /api/home/stack/order", "DELETE /api/home/stack/{kind}/{tmdbId}", "GET /api/home/link-logo/{name}", "GET /api/home/marquee", "GET /api/home/marquee/events", "POST /api/home/marquee/showing", "GET /api/home/marquee/theme/{kind}/{id}", "GET /api/home/marquee/qr", "GET /api/home/marquee/media/{id}/file", "GET /api/home/moods", "GET /api/home/book-genres", "GET /api/home/recipes", "GET /api/home/recipes/titles", "POST /api/home/recipes", "PUT /api/home/recipes/{id}", "DELETE /api/home/recipes/{id}", "POST /api/home/recipes/{id}/copy", "GET /api/home/providers", "PUT /api/home/my-services", "GET /api/home/watch/{kind}/{id}", "GET /api/home/search/people", "GET /api/home/search/keywords", "GET /api/home/scores", "GET /api/home/gaps", "GET /api/home/person/{id}", "POST /api/home/gaps/ignore", "GET /api/home/have", "POST /api/home/family", "GET /api/home/roulette", "GET /api/home/votes", "PUT /api/home/votes", "GET /api/home/votes/deck", "GET /api/home/taste", "GET /api/home/taste/why", "GET /api/home/taste/title", "POST /api/home/taste/scores", "GET /api/home/you", "PUT /api/home/you/share", "GET /api/home/you/votes", "GET /api/home/you/household", "GET /api/home/diary", "POST /api/home/diary", "PUT /api/home/diary/{id}", "DELETE /api/home/diary/{id}", "GET /api/home/diary/import", "POST /api/home/diary/import/letterboxd", "POST /api/home/diary/import/trakt", "GET /api/home/wrapped", "GET /api/home/autostream", "PUT /api/home/autostream", "DELETE /api/home/autostream/{id}", "GET /api/home/ready-rows", "PUT /api/home/ready-rows", "GET /api/home/follows", "GET /api/home/follows/work", "PUT /api/home/follows/{id}", "DELETE /api/home/follows/{id}", "POST /api/home/ai/playlist", "POST /api/home/ai/similar-artists", "POST /api/home/ai/book-search", "POST /api/home/ai/read-alikes", "POST /api/home/ai/book-recap", "POST /api/home/ai/vibe", "POST /api/home/ai/skip-guide", "POST /api/home/ai/comic-guide", "POST /api/home/ai/ask", "POST /api/home/calendar/ask",
+	"GET /api/comics/enabled", "GET /api/comics", "GET /api/comics/week", "GET /api/comics/arcs", "GET /api/comics/arcs/for-you", "GET /api/comics/arcs/{id}", "GET /api/comics/image", "GET /api/comics/{id}", "GET /api/comics/issues/{id}/file", "GET /api/comics/issues/{id}/pages", "GET /api/comics/issues/{id}/pages/{n}", "GET /api/comics/issues/{id}/pages/{n}/panels", "GET /api/home/discover/people", "GET /api/home/discover/watched-seeds", "GET /api/home/discover/season", "GET /api/home/ai/on", "POST /api/home/ai/search", "POST /api/home/ai/room", "POST /api/home/ai/recap", "GET /api/home/discover/why", "POST /api/home/ai/tonight", "POST /api/home/ai/explain", "POST /api/home/ai/comic-recap", "GET /api/home/discover/leanings", "GET /api/home/news", "GET /api/home/cinema", "POST /api/home/playing", "DELETE /api/home/playing/{key}", "GET /api/home/position", "PUT /api/home/position", "GET /api/home/preshow/plan", "POST /api/home/preshow/now", "GET /api/home/preshow/themes", "GET /api/home/preshow/clips/{id}/file", "GET /api/home/preshow/trailers/{id}/file", "GET /api/home/showtimes", "POST /api/home/showtimes", "PUT /api/home/showtimes/{id}", "DELETE /api/home/showtimes/{id}", "GET /api/home/stack", "POST /api/home/stack", "PUT /api/home/stack/order", "DELETE /api/home/stack/{kind}/{tmdbId}", "GET /api/home/link-logo/{name}", "GET /api/home/marquee", "GET /api/home/marquee/events", "POST /api/home/marquee/showing", "GET /api/home/marquee/theme/{kind}/{id}", "GET /api/home/marquee/qr", "GET /api/home/marquee/media/{id}/file", "GET /api/home/moods", "GET /api/home/book-genres", "GET /api/home/recipes", "GET /api/home/recipes/titles", "POST /api/home/recipes", "PUT /api/home/recipes/{id}", "DELETE /api/home/recipes/{id}", "POST /api/home/recipes/{id}/copy", "GET /api/home/providers", "PUT /api/home/my-services", "GET /api/home/watch/{kind}/{id}", "GET /api/home/search/people", "GET /api/home/search/keywords", "GET /api/home/scores", "GET /api/home/gaps", "GET /api/home/person/{id}", "POST /api/home/gaps/ignore", "GET /api/home/have", "POST /api/home/family", "GET /api/home/roulette", "GET /api/home/votes", "PUT /api/home/votes", "GET /api/home/votes/deck", "GET /api/home/taste", "GET /api/home/taste/why", "GET /api/home/taste/title", "POST /api/home/taste/scores", "GET /api/home/you", "PUT /api/home/you/share", "GET /api/home/you/votes", "GET /api/home/you/household", "GET /api/home/diary", "POST /api/home/diary", "PUT /api/home/diary/{id}", "DELETE /api/home/diary/{id}", "GET /api/home/diary/import", "POST /api/home/diary/import/letterboxd", "POST /api/home/diary/import/trakt", "GET /api/home/wrapped", "GET /api/home/autostream", "PUT /api/home/autostream", "DELETE /api/home/autostream/{id}", "GET /api/home/ready-rows", "PUT /api/home/ready-rows", "GET /api/home/follows", "GET /api/home/follows/work", "PUT /api/home/follows/{id}", "DELETE /api/home/follows/{id}", "POST /api/home/ai/playlist", "POST /api/home/ai/similar-artists", "POST /api/home/ai/book-search", "POST /api/home/ai/read-alikes", "POST /api/home/ai/book-recap", "POST /api/home/ai/vibe", "POST /api/home/ai/skip-guide", "POST /api/home/ai/comic-guide", "POST /api/home/ai/ask", "POST /api/home/calendar/ask", "GET /api/home/sports", "GET /api/home/sports/on", "GET /api/home/sports/search", "GET /api/home/sports/leagues/{id}", "GET /api/home/sports/image", "POST /api/home/sports/leagues", "POST /api/home/sports/teams", "DELETE /api/home/sports/teams/{id}", "POST /api/home/sports/events/{id}/get", "POST /api/home/sports/events/{id}/stream", "POST /api/home/sports/events/{id}/streamed", "GET /api/home/readtome/voices", "GET /api/home/readtome/sample", "POST /api/home/readtome/preview", "GET /api/home/readtome/book", "POST /api/home/readtome/jobs", "GET /api/home/readtome/jobs", "DELETE /api/home/readtome/jobs/{id}", "GET /api/home/readtome/made", "DELETE /api/home/readtome/made/{id}", "GET /api/home/readtome/say", "PUT /api/home/readtome/say", "GET /api/home/readtome/presets", "POST /api/home/readtome/presets", "PUT /api/home/readtome/presets/{id}", "DELETE /api/home/readtome/presets/{id}", "GET /api/home/readtome/engines", "POST /api/home/readtome/engines/{name}/{action}", "GET /api/home/readtome/cast", "POST /api/home/readtome/cast/ai", "GET /api/home/readtome/cast/lines", "PUT /api/home/readtome/cast/lines", "GET /api/home/readtome/chatterbox/voices", "POST /api/home/readtome/chatterbox/voices", "DELETE /api/home/readtome/chatterbox/voices/{name}", "GET /api/home/readtome/chatterbox/voices/{name}/recording", "GET /api/home/readtome/jobs/{id}/chapters/{n}", "GET /api/home/readtome/made/{id}/lines", "GET /api/home/readtome/made/{id}/line", "POST /api/home/readtome/made/{id}/redo", "DELETE /api/home/readtome/made/{id}/makings", "GET /api/home/readtome/text", "PUT /api/home/readtome/text", "DELETE /api/home/readtome/text", // Usherr: Read-to-Me (the "manage" permission is checked in the route)
 }
 
 // mustBeAdmin are routes that must never be opened to members, whatever
 // else changes: they show or change credentials, settings or accounts.
 var mustBeAdmin = []string{
 	"GET /api/home/mdblist", "PUT /api/home/mdblist", "PUT /api/home/autostream/household", "POST /api/home/mdblist/test", // home fork: the MDBList key
-	"POST /api/home/gaps/scan", // home fork: complete your library
+	"POST /api/home/gaps/scan",                                                                     // home fork: complete your library
+	"GET /api/home/sports/settings", "PUT /api/home/sports/settings", "POST /api/home/sports/test", // Usherr: the Sports connection
+	"GET /api/home/readtome/settings", "PUT /api/home/readtome/settings", "POST /api/home/readtome/test", // Usherr: the Read-to-Me voice engines
 	// home fork: every NSFW route is for administrators only
 	"GET /api/nsfw/settings", "PUT /api/nsfw/settings",
 	"POST /api/nsfw/bulk", "POST /api/nsfw/import/whisparr",
@@ -257,7 +268,7 @@ var mustBeAdmin = []string{
 	"GET /api/auth/ldap", "PUT /api/auth/ldap", "POST /api/auth/ldap/test", "GET /api/auth/proxy-signin", "PUT /api/auth/proxy-signin", "GET /api/auth/idle-signout", "PUT /api/auth/idle-signout",
 	"GET /api/settings", "PUT /api/settings", "POST /api/settings/folder-create", "GET /api/settings/file-permissions", "PUT /api/settings/file-permissions",
 	"POST /api/collections/{id}/add", "PUT /api/collections/{id}/follow",
-	"GET /api/library/browse", "POST /api/movies/{id}/locate-file", "POST /api/movies/{id}/locate-folder", "POST /api/series/{id}/change-folder",
+	"GET /api/library/browse", "POST /api/movies/{id}/locate-file", "POST /api/movies/{id}/locate-folder", "POST /api/episodes/{id}/locate-file", "POST /api/series/{id}/change-folder",
 	"POST /api/library/bulk/folder", "POST /api/library/move-files/preview", "POST /api/library/move-files", "GET /api/settings/metadata-files", "PUT /api/settings/metadata-files", "POST /api/library/metadata-files/run",
 	"GET /api/indexers", "GET /api/usenet-servers", "GET /api/vpn/configs", "GET /api/notifications", "GET /api/media-servers",
 	"GET /api/system/backup", "POST /api/system/restore",
@@ -268,7 +279,7 @@ var mustBeAdmin = []string{
 	"GET /api/requests/settings", "PUT /api/requests/settings", "POST /api/issues/{id}/resolve", "POST /api/issues/{id}/reopen", "DELETE /api/issues/{id}",
 	"GET /api/system/backups/cloud", "PUT /api/system/backups/cloud", "POST /api/system/backups/cloud/test", "POST /api/system/backups/cloud/upload", "GET /api/system/backups/cloud/list",
 	"GET /api/usage-stats", "PUT /api/usage-stats", "POST /api/usage-stats/reset-id",
-	"GET /api/system/problems", "POST /api/system/problems/read", "GET /api/system/problems/export", "PUT /api/system/problems/notify",
+	"GET /api/system/problems", "POST /api/system/problems/read", "GET /api/system/problems/export", "PUT /api/system/problems/notify", "PUT /api/system/problems/debug",
 	"DELETE /api/movies/{id}", "DELETE /api/books/{id}", "GET /api/books/import", "POST /api/books/import", "DELETE /api/series/{id}", "DELETE /api/music/artists/{id}", "PUT /api/music/artists/{id}",
 	"POST /api/music/profiles", "PUT /api/music/profiles/{id}", "DELETE /api/music/profiles/{id}",
 	"POST /api/quality-profiles", "PUT /api/quality-profiles/{id}", "DELETE /api/quality-profiles/{id}",
@@ -288,7 +299,7 @@ var mustBeAdmin = []string{
 	"GET /api/search/delay", "PUT /api/search/delay", "GET /api/quality/size-limits", "PUT /api/quality/size-limits", "POST /api/quality/size-limits/reset",
 	"POST /api/indexers/{id}/resume", "GET /api/stats/indexers",
 	"GET /api/irc-announce", "POST /api/irc-announce", "POST /api/irc-announce/test", "PUT /api/irc-announce/{id}", "DELETE /api/irc-announce/{id}", "PUT /api/irc-announce/{id}/enabled", "GET /api/irc-announce/{id}/log",
-	"PUT /api/music/player-settings",
+	"PUT /api/music/player-settings", "PUT /api/music/filters",
 	"PUT /api/apps", "GET /api/automation/quiet", "PUT /api/automation/quiet", "POST /api/notifications/digest", "POST /api/books/import/retry", "POST /api/books/import/match",
 }
 

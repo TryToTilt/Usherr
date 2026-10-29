@@ -35,7 +35,10 @@ test('the speed schedule: add a line, change it, remove it', async ({ page }) =>
   await limit.selectOption('5')
   await page.reload()
   await expect(page.getByRole('combobox', { name: 'Limit' }).first()).toHaveValue('5')
+  // The line is saved by the click; wait for that before reloading.
+  const saved = page.waitForResponse((r) => r.request().method() !== 'GET' && r.url().includes('/api/'))
   await page.getByRole('button', { name: 'Remove' }).first().click()
+  await saved
   await page.reload()
   await expect(page.getByRole('combobox', { name: 'Limit' })).toHaveCount(0)
   await expectNoErrors(errors)

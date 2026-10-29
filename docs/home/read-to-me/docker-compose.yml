@@ -1,0 +1,133 @@
+# Read-to-Me: the voices Usherr uses to turn ebooks into audiobooks.
+#
+#   Kokoro      always on. The everyday voices. About 1 GB of GPU memory while loaded (it lets
+#               go of it after 5 minutes without work and loads again in about 5 seconds).
+#   Chatterbox  only when started by hand. More expressive, can copy a voice.
+#               About 3.5 GB of GPU memory and a little slower than real time,
+#               so with Jellyfin's transcoding on the 8 GB card it is a once-in-a-while
+#               voice. No restart policy.
+#
+#   docker compose up -d                          starts Kokoro
+#   docker compose --profile chatterbox up -d     starts Chatterbox as well
+#   docker compose stop chatterbox                frees its memory again
+#
+# Usherr reaches them at http://host.docker.internal:8881 (Kokoro; 8880 is ntfy's) and
+# http://host.docker.internal:4123 (Chatterbox). Both ports are published on this
+# computer only.
+name: read-to-me
+
+services:
+  kokoro:
+    # Kokoro-FastAPI (github.com/remsky/Kokoro-FastAPI), Apache-2.0 / Kokoro model Apache-2.0.
+    # Pinned to its latest release (v0.9.0).
+    image: ghcr.io/remsky/kokoro-fastapi-gpu:v0.9.0
+    container_name: kokoro
+    restart: unless-stopped
+    environment:
+      # Free the GPU's memory after 5 minutes without work (it loads again in about 5 seconds).
+      MODEL_AUTO_UNLOAD_TIMEOUT_SECONDS: "300"
+    ports:
+      - "127.0.0.1:8881:8880"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  chatterbox:
+    # Chatterbox TTS API (github.com/travisvn/chatterbox-tts-api, AGPL-3.0) around Resemble
+    # AI's Chatterbox (MIT). It has no ready-made image: it is built here from its source,
+    # which is cloned next to this file first:
+    #   git clone --depth 1 https://github.com/travisvn/chatterbox-tts-api chatterbox-src
+    #   docker build -f chatterbox-src/docker/Dockerfile.uv.gpu -t read-to-me-chatterbox-base chatterbox-src
+    profiles: [chatterbox]
+    # (and a one-line fix on top of it, in chatterbox-fix.Dockerfile)
+    build:
+      context: .
+      dockerfile: chatterbox-fix.Dockerfile
+    container_name: chatterbox
+    # No restart policy: it is started when wanted and stopped afterwards.
+    ports:
+      - "127.0.0.1:4123:4123"
+    environment:
+      PORT: "4123"
+      HOST: 0.0.0.0
+      DEVICE: cuda
+      MODEL_CACHE_DIR: /cache
+      VOICE_LIBRARY_DIR: /voices
+      # The English model: the multilingual one fails to start here ("'NoneType' object is not callable").
+      USE_MULTILINGUAL_MODEL: "false"
+      MAX_CHUNK_LENGTH: "280"
+      # Usherr's speed-up (usherr_speed.py): T3 in bfloat16, about 550 MB less GPU memory.
+      CB_SPEED: bf16
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    volumes:
+      - chatterbox-models:/cache
+      - chatterbox-voices:/voices
+      - ./chatterbox-src/voice-sample.mp3:/app/voice-sample.mp3:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  runner:
+    # Read-to-Me's runner (runner/runner.py): Usherr asks it to start and stop the voice
+    # engines (Chatterbox when a job needs it, stopped again when the queue is empty, so the
+    # graphics card is free for Jellyfin). It has the Docker socket, but answers only for the
+    # three containers below and only with RUNNER_TOKEN (kept in .env next to this file,
+    # never in a repository; the same token goes in Usherr's Settings > Extras > Read-to-Me).
+    build: ./runner
+    image: read-to-me-runner:1
+    container_name: rtm-runner
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4130:4130"
+    environment:
+      RUNNER_TOKEN: ${RUNNER_TOKEN:?set RUNNER_TOKEN in .env}
+      RUNNER_CONTAINERS: kokoro,chatterbox,chatterbox-turbo
+      RUNNER_EXCLUSIVE: chatterbox+chatterbox-turbo
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  chatterbox-turbo:
+    # Chatterbox Turbo (Resemble AI's chatterbox-tts 0.1.7, MIT) behind the same small API
+    # (turbo_server.py, built by turbo.Dockerfile). About 2.4 times faster than the standard
+    # Chatterbox on the RTX 3070 (measured 2026-10-26: 2 s of speech per second), a little
+    # flatter, no emotion dial. It answers on the same port as chatterbox, so only one of the
+    # two runs at a time:
+    #   docker compose stop chatterbox; docker compose --profile turbo up -d chatterbox-turbo
+    profiles: [turbo]
+    build:
+      context: .
+      dockerfile: turbo.Dockerfile
+    image: read-to-me-chatterbox-turbo:0.1.7
+    container_name: chatterbox-turbo
+    # No restart policy: it is started when wanted and stopped afterwards.
+    ports:
+      - "127.0.0.1:4123:4123"
+    environment:
+      DEVICE: cuda
+      VOICE_LIBRARY_DIR: /voices
+      # bf16 saves about 500 MB but makes Turbo slower (1.6 instead of 2 s of speech per second).
+      CB_SPEED: "off"
+    volumes:
+      - turbo-models:/root/.cache/huggingface
+      - chatterbox-voices:/voices
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  chatterbox-models:
+  turbo-models:
+  chatterbox-voices:

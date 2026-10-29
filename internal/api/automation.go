@@ -19,6 +19,8 @@ const (
 	// startupDelay is how long after the app starts before the automatic
 	// loops run for the first time.
 	startupDelay = 60 * time.Second
+	// startupStep is the gap between one job's first run and the next's.
+	startupStep = 10 * time.Second
 )
 
 // StartAutomation wires the missing/upgrade hunting loop and RSS-style
@@ -28,6 +30,11 @@ const (
 func (s *Server) StartAutomation() *automation.Scheduler {
 	s.applySpeedLimit(time.Now())
 	_, _ = s.QueueRepo.ClearSettledFailures()
+	if n, err := s.MovieRepo.RepairFutureOnlyMonitoring(todayUTC()); err != nil {
+		log.Printf("library: %v", err)
+	} else if n > 0 {
+		log.Printf("library: switched monitoring back on for %d shows set to episodes that have not aired yet", n)
+	}
 	if s.cfg.PauseAutomation {
 		log.Print("Safe mode: MEDIARIUM_PAUSE_AUTOMATION is set, so automatic searching, downloading and refreshing are switched off until you remove it.")
 		// Two checks still run, as they start nothing by themselves: the
@@ -35,35 +42,49 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		// for example once the download hours begin) and the speed schedule.
 		sched := automation.NewScheduler(
 			automation.Job{Name: "download-line", Interval: downloadLineCheck, Run: func(context.Context) { s.kickDownloads() }},
+			automation.Job{Name: "music-import-wait", Interval: musicWaitJobTick, Run: s.retryMusicWaits}, // tries the imports that were waiting for MusicBrainz
 			automation.Job{Name: "speed-limit", Interval: speedCheck, Run: s.speedJob},
 		)
 		sched.Start()
 		return sched
 	}
+	// The jobs in the order they first run (see StaggerFirstRuns): what moves the
+	// downloads and finds new releases comes first, the cheap bookkeeping next,
+	// then the refreshes and the one-time catch-ups, and last the jobs that walk
+	// the library's files. Each job keeps its own interval.
 	sched := automation.NewScheduler(
-		automation.Job{Name: "hunt", Interval: s.huntInterval(), IntervalFunc: s.huntInterval, Run: s.heavy(s.hunt)},
+		automation.Job{Name: "download-line", Interval: downloadLineCheck, Run: func(context.Context) { s.kickDownloads() }},
 		automation.Job{Name: "rss-sync", Interval: s.releaseCheckInterval(), IntervalFunc: s.releaseCheckInterval, Run: s.heavy(s.rssSync)},
-		automation.Job{Name: "delayed-grabs", Interval: time.Minute, Run: s.delayedGrabsJob},                                // searches again when a held release has waited long enough
+		automation.Job{Name: "hunt", Interval: s.huntInterval(), IntervalFunc: s.huntInterval, Run: s.heavy(s.hunt)},
+		automation.Job{Name: "delayed-grabs", Interval: time.Minute, Run: s.delayedGrabsJob},          // searches again when a held release has waited long enough
 		automation.Job{Name: "tv-reminders", Interval: time.Minute, Run: s.tvRemindJob},                                     // Usherr: Live TV reminders
 		automation.Job{Name: "showtimes", Interval: 15 * time.Second, InitialDelay: 5 * time.Second, Run: s.showtimeJob},    // Usherr: the pre-show and the film on time (soon after a restart, not the usual minute)
+		automation.Job{Name: "read-to-me", Interval: time.Hour, InitialDelay: 20 * time.Second, Run: s.readToMeJob},         // Usherr: audiobooks left to make from before a restart
 		automation.Job{Name: "tv-warm", Interval: 3 * time.Hour, InitialDelay: 90 * time.Second, Run: s.heavy(s.tvWarmJob)}, // Usherr: streamed programs looked up before they are tuned
+		// Usherr: coming-soon trailers fetched ahead, and rotated out.
+		automation.Job{Name: "preshow-trailers", Interval: 4 * time.Hour, InitialDelay: 5 * time.Minute, Run: s.heavy(s.trailersJob)},
+		automation.Job{Name: "sports-sync", Interval: 6 * time.Hour, InitialDelay: 3 * time.Minute, Run: s.sportsSyncJob},   // Usherr: Sports' schedules and scores (Usherr's own engine)
 		automation.Job{Name: "real-tv-refresh", Interval: 20 * time.Minute, Run: s.realTVRefreshJob},                        // Usherr: Real TV's day before, each night
-		automation.Job{Name: "download-line", Interval: downloadLineCheck, Run: func(context.Context) { s.kickDownloads() }},
-		automation.Job{Name: "series-refresh", Interval: seriesRefreshInterval, Run: s.heavy(s.refreshAllSeries)},
-		automation.Job{Name: "music-refresh", Interval: musicRefreshInterval, Run: s.heavy(s.refreshMusicArtists)},
-		automation.Job{Name: "subtitle-sweep", Interval: subtitleSweepInterval, Run: s.heavy(s.subtitleSweepJob)},
-		automation.Job{Name: "genre-backfill", Interval: genreBackfillInterval, Run: s.heavy(s.backfillGenres)},
-		automation.Job{Name: "country-backfill", Interval: countryBackfillInterval, Run: s.heavy(s.backfillCountries)},
-		automation.Job{Name: "collections", Interval: collectionsInterval, Run: s.heavy(s.collectionsJob)}, // finds the collection of each movie; adds new films of followed collections
-		automation.Job{Name: "title-names", Interval: titleNamesInterval, Run: s.heavy(s.titleNamesJob)},   // picks the other titles of each movie and show, when a language besides English is wanted
-		automation.Job{Name: "cleanup", Interval: cleanupCheckInterval, Run: s.cleanupJob},
-		automation.Job{Name: "stats-snapshot", Interval: statsSnapshotEvery, Run: s.statsSnapshotJob},
-		automation.Job{Name: "backup", Interval: backupCheck, Run: s.backupJob},
+		automation.Job{Name: "music-import-wait", Interval: musicWaitJobTick, Run: s.retryMusicWaits}, // tries the imports that were waiting for MusicBrainz
 		automation.Job{Name: "speed-limit", Interval: speedCheck, Run: s.speedJob},
 		automation.Job{Name: "quiet-hours", Interval: speedCheck, Run: s.quietHoursJob},
-		automation.Job{Name: "calendar-art", Interval: artworkEvery, Run: s.heavy(s.artworkJob)},                 // fetches the backdrops and logos of what is on the calendar
-		automation.Job{Name: "release-dates", Interval: releaseDatesEvery, Run: s.heavy(s.releaseDatesJob)},      // reads the digital release dates of the movies on the calendar
-		automation.Job{Name: "weekly-summary", Interval: digestCheck, Run: s.digestJob},                          // does nothing until a day is chosen
+		automation.Job{Name: "cleanup", Interval: cleanupCheckInterval, Run: s.cleanupJob},
+		automation.Job{Name: "backup", Interval: backupCheck, Run: s.backupJob},
+		automation.Job{Name: "stats-snapshot", Interval: statsSnapshotEvery, Run: s.statsSnapshotJob},
+		automation.Job{Name: "weekly-summary", Interval: digestCheck, Run: s.digestJob},                           // does nothing until a day is chosen
+		automation.Job{Name: "request-available", Interval: requestAvailableInterval, Run: s.requestAvailableJob}, // does nothing until request messages are switched on
+		automation.Job{Name: "series-refresh", Interval: seriesRefreshInterval, Run: s.heavy(s.refreshAllSeries)},
+		automation.Job{Name: "music-refresh", Interval: musicRefreshInterval, Run: s.heavy(s.refreshMusicArtists)},
+		automation.Job{Name: "watched", Interval: watchedJobTick, Run: s.heavy(s.watchedJob)},              // does nothing until switched on
+		automation.Job{Name: "plex-watchlist", Interval: watchlistInterval, Run: s.heavy(s.watchlistJob)},  // does nothing until an account connects one
+		automation.Job{Name: "import-lists", Interval: listsCheckInterval, Run: s.heavy(s.importListsJob)}, // does nothing until a list is added
+		automation.Job{Name: "trash-formats", Interval: time.Hour, Run: s.heavy(s.trashFormatsJob)},        // does nothing until switched on; reads the guides once a day
+		automation.Job{Name: "genre-backfill", Interval: genreBackfillInterval, Run: s.heavy(s.backfillGenres)},
+		automation.Job{Name: "country-backfill", Interval: countryBackfillInterval, Run: s.heavy(s.backfillCountries)},
+		automation.Job{Name: "collections", Interval: collectionsInterval, Run: s.heavy(s.collectionsJob)},  // finds the collection of each movie; adds new films of followed collections
+		automation.Job{Name: "title-names", Interval: titleNamesInterval, Run: s.heavy(s.titleNamesJob)},    // picks the other titles of each movie and show, when a language besides English is wanted
+		automation.Job{Name: "calendar-art", Interval: artworkEvery, Run: s.heavy(s.artworkJob)},            // fetches the backdrops and logos of what is on the calendar
+		automation.Job{Name: "release-dates", Interval: releaseDatesEvery, Run: s.heavy(s.releaseDatesJob)}, // reads the digital release dates of the movies on the calendar
 		automation.Job{Name: "home-schedules", Interval: scheduleWaitPoll, Run: s.scheduleJob},                   // home fork: schedules
 		automation.Job{Name: "nsfw-find-warm", Interval: 5 * time.Hour, Run: s.heavy(s.warmDiscoverJob)},         // home fork: Find tab
 		automation.Job{Name: "weekly-digest", Interval: 30 * time.Minute, Run: s.whatsNewJob},                    // home fork: Sunday "what's new", by title
@@ -78,20 +99,17 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "home-taste", Interval: tasteJobEvery, Run: s.heavy(s.tasteJob)},                    // home fork: titles' traits for the taste engine
 		automation.Job{Name: "home-diary", Interval: diarySyncEvery, Run: s.heavy(s.diaryJob)},                   // home fork: the Diary, from the media server
 		automation.Job{Name: "home-autostream", Interval: autostreamEvery, Run: s.heavy(s.autostreamJob)},        // home fork: Streams for you
-		automation.Job{Name: "import-details", Interval: importDetailsInterval, Run: s.heavy(s.importDetailsJob)},
-		automation.Job{Name: "trash-formats", Interval: time.Hour, Run: s.heavy(s.trashFormatsJob)}, // does nothing until switched on; reads the guides once a day
-		// media-info reads the video, audio and subtitle tracks of the library's files, a few minutes at a time.
-		automation.Job{Name: "media-info", Interval: mediaInfoInterval, Run: s.heavy(s.mediaInfoJob)},
 		automation.Job{Name: "episode-quality", Interval: 24 * time.Hour, Run: s.heavy(func(context.Context) { s.backfillEpisodeQuality() })},
 		automation.Job{Name: "import-added-dates", Interval: 24 * time.Hour, Run: s.heavy(func(context.Context) { s.backfillImportedAddedDates() })},
-		automation.Job{Name: "watched", Interval: watchedJobTick, Run: s.heavy(s.watchedJob)},                     // does nothing until switched on
-		automation.Job{Name: "plex-watchlist", Interval: watchlistInterval, Run: s.heavy(s.watchlistJob)},         // does nothing until an account connects one
-		automation.Job{Name: "import-lists", Interval: listsCheckInterval, Run: s.heavy(s.importListsJob)},        // does nothing until a list is added
-		automation.Job{Name: "request-available", Interval: requestAvailableInterval, Run: s.requestAvailableJob}, // does nothing until request messages are switched on
+		automation.Job{Name: "import-details", Interval: importDetailsInterval, Run: s.heavy(s.importDetailsJob)},
+		// media-info reads the video, audio and subtitle tracks of the library's files, a few minutes at a time.
+		automation.Job{Name: "media-info", Interval: mediaInfoInterval, Run: s.heavy(s.mediaInfoJob)},
+		automation.Job{Name: "subtitle-sweep", Interval: subtitleSweepInterval, Run: s.heavy(s.subtitleSweepJob)},
 	)
 	// The first minute belongs to the pages: the loops start once the app has
-	// had time to answer its first requests.
-	sched.DelayFirstRuns(startupDelay)
+	// had time to answer its first requests, and then one after the other, so
+	// the disk and the network are not hit by 25 jobs in the same second.
+	sched.StaggerFirstRuns(startupDelay, startupStep)
 	sched.Start()
 	return sched
 }
@@ -481,6 +499,56 @@ func pickUpgradeResult(results []indexers.Result, profile quality.Profile, curre
 	return best
 }
 
+// notPossessive are short words ending in "s" that are not the name of a
+// maker, so "This Alien" is not "Alien".
+var notPossessive = map[string]bool{"this": true, "was": true, "his": true, "its": true, "has": true, "does": true, "plus": true, "yes": true, "less": true, "thus": true, "versus": true,
+	// Plural words that end the first part of many titles ("Star Wars Bad Boys" is not "Bad Boys").
+	"wars": true, "boys": true, "girls": true, "kings": true, "queens": true, "days": true, "nights": true, "lords": true, "dogs": true, "cats": true,
+	"things": true, "years": true, "games": true, "tales": true, "stories": true, "friends": true, "brothers": true, "sisters": true, "gods": true,
+	"heroes": true, "rings": true, "monsters": true, "kids": true, "guys": true, "ladies": true, "rules": true, "lies": true, "dreams": true,
+	"hearts": true, "secrets": true, "spies": true, "pirates": true, "knights": true, "wolves": true, "angels": true, "devils": true}
+
+// possessiveLead reports whether a release is the movie with a maker's name in
+// front, the way "Tim.Burtons.The.Nightmare.Before.Christmas.1993" is (the
+// parser drops the apostrophe). The movie's year must be known and the same as
+// the release's, the movie's title must be the end of the release title with
+// one to three words before it, and the last of those (the one next to the
+// title) must be a possessive: it ends in "s", has at least four letters and is
+// not a plain word like "this". "Bad Boys for Life" is not "Bad Boys" and
+// neither is "Star Wars Bad Boys".
+func possessiveLead(release parser.Release, movie library.Movie) bool {
+	if release.Year == 0 || release.Year != movie.Year {
+		return false
+	}
+	want := strings.Fields(metadata.TitleKey(movie.Title))
+	got := strings.Fields(metadata.TitleKey(release.Title))
+	if len(want) == 0 || len(got) <= len(want) {
+		return false
+	}
+	if strings.Join(got[len(got)-len(want):], " ") != strings.Join(want, " ") {
+		return false
+	}
+	// The movie's key leaves off a leading "The", "A" or "An"; the release may
+	// carry it between the maker and the title.
+	for _, article := range []string{"", "the", "a", "an"} {
+		lead := len(got) - len(want)
+		if article != "" {
+			lead--
+			if lead < 1 || got[lead] != article {
+				continue
+			}
+		}
+		if lead < 1 || lead > 3 {
+			continue
+		}
+		last := got[lead-1]
+		if len([]rune(last)) >= 4 && strings.HasSuffix(last, "s") && !strings.HasSuffix(last, "ss") && !notPossessive[last] {
+			return true
+		}
+	}
+	return false
+}
+
 // matchesMovie does a normalized (lowercased, punctuation-stripped) title
 // comparison plus a year check when both sides have one. This is a
 // simplification, not fuzzy/edit-distance matching — a known
@@ -499,7 +567,7 @@ func matchesMovieRel(release parser.Release, movie library.Movie) bool {
 	if release.Year != 0 && movie.Year != 0 && release.Year != movie.Year {
 		return false
 	}
-	if sameTitle(release.Title, movie.Title) {
+	if sameTitle(release.Title, movie.Title) || possessiveLead(release, movie) {
 		return true
 	}
 	// A release named by another title has to say its year when the movie has

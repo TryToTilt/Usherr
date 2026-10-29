@@ -36,9 +36,13 @@ It is built on **[Mediarium](https://github.com/rdborg/Mediarium) by rdborg**, a
 - **Streaming**: play from Usenet without downloading first, with Usherr's own engine or StreamNZB, and a streamed library that sits next to your files in Jellyfin. **Streams for you** can add films that fit someone's taste, a few a week, with nothing downloaded.
 - **Live TV**: channels built from your library and streams, programmed like a network, with Real TV (a real network's day, as it aired), guide looks of their own, and the channels in Jellyfin, Plex and IPTV apps.
 - **The Marquee**: a lobby display for a tablet or a screen by the TV in seven looks, with what's playing, trailers, tonight on Live TV, your own slides and a cinema pre-show, steered from your phone, Home Assistant or the API.
+- **The pre-show**: before a film, a cinema's welcome, trailers for what's coming (downloaded ahead, up to 4K), your own clips by category, holiday clips in their season, the rating and the countdown. Themes and schedules pick what plays; it runs on the Showtime screen, in Usherr's player and in every Jellyfin app.
+- **Pick up where you left off**: films, episodes, streams, games and comics open where you stopped, on any device. **Skip intro** jumps past an intro, and *Up next* comes up at the credits.
+- **Read-to-Me**: turn an ebook into an audiobook with a computer voice (Kokoro or Chatterbox, on your graphics card), a full cast for the dialogue if you like.
+- **Sports**: leagues, teams and games, streamed, with live scores and a scoreboard on the Marquee.
 - **Comics**: follow series and story arcs from ComicVine, find issues on your indexers and read them in a page-turning reader.
 
-**And more**: what's in theaters near you with showtimes and your ticket service, a news feed, critic scores, "complete your library", schedules and quiet hours for heavy work, a guided setup with an in-app manual, and a cinema look of its own.
+**And more**: what's in theaters near you with showtimes and your ticket service, a news feed, critic scores, "complete your library", schedules and quiet hours for heavy work, a guided setup with an in-app manual, a cinema look of its own and a soft one (Usherr Neu) with a choice of main colours.
 
 ## Install
 

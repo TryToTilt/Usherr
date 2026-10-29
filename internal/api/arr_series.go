@@ -86,10 +86,11 @@ type arrSeriesContext struct {
 	numbers        map[string]int64
 	added          map[int64]string
 	stats          map[int64]map[int]library.SeasonStat
+	backdrops      map[int]string // saved wide pictures by TMDB id
 }
 
 func (s *Server) newArrSeriesContext() arrSeriesContext {
-	c := arrSeriesContext{defaultProfile: s.defaultTVProfileOrDefault(), numbers: s.tagNumbers()}
+	c := arrSeriesContext{defaultProfile: s.defaultTVProfileOrDefault(), numbers: s.tagNumbers(), backdrops: s.arrArtOf("tv")}
 	c.tags, _ = s.MovieRepo.AllTitleTags(library.TagSeries)
 	c.added, _ = s.MovieRepo.AddedTimes(true)
 	c.stats, _ = s.MovieRepo.SeasonStats(today())
@@ -119,10 +120,10 @@ func (s *Server) toArrSeries(sr library.Series, c arrSeriesContext) arrSeries {
 	out := arrSeries{
 		ID: sr.ID, Title: sr.Title, SortTitle: arrSortTitle(sr.Title), CleanTitle: arrCleanTitle(sr.Title),
 		TitleSlug: arrSlug(sr.Title, sr.TMDBID), Status: status, Ended: ended, Overview: sr.Overview,
-		Images: posterImages(metadata.PosterURL(sr.PosterPath)), Seasons: []arrSeason{}, Year: sr.Year,
+		Images: arrCoverImages(arrSonarr, sr.ID, sr.PosterPath, c.backdrops[sr.TMDBID]), Seasons: []arrSeason{}, Year: sr.Year,
 		RootFolderPath: s.seriesRootFor(sr), QualityProfileID: s.arrProfileID(sr.ProfileID, c.defaultProfile),
 		LanguageProfileID: 1, SeasonFolder: true, Monitored: sr.Monitored, MonitorNewItems: "all",
-		TVDBID: sr.TVDBID, TMDBID: sr.TMDBID, IMDBID: sr.IMDBID, FirstAired: arrTime(sr.FirstAirDate),
+		TVDBID: sr.TVDBID, TMDBID: sr.TMDBID, IMDBID: sr.IMDBID, TVMazeID: max(sr.TVmazeID, 0), FirstAired: arrTime(sr.FirstAirDate),
 		SeriesType: sr.SeriesType, Genres: sr.Genres, Tags: tagIDs(c.tags[sr.ID], c.numbers),
 		Added: arrTime(c.added[sr.ID]), Ratings: map[string]any{"votes": 0, "value": 0},
 	}
@@ -389,6 +390,7 @@ type arrSeriesRequest struct {
 	Seasons          []arrSeason `json:"seasons"`
 	Tags             []int64     `json:"tags"`
 	SeriesType       string      `json:"seriesType"`
+	RootFolderPath   string      `json:"rootFolderPath"`
 	AddOptions       *struct {
 		Monitor                  string `json:"monitor"`
 		SearchForMissingEpisodes bool   `json:"searchForMissingEpisodes"`
@@ -425,7 +427,12 @@ func (s *Server) arrAddSeries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID, byline := requester(r)
-	created, err := s.addSeriesFromTMDB(ctx, tmdbID, userID, true)
+	// The app's root folder when it is one of ours; else where new shows go.
+	rootPath, problem := s.folderForNewShow(req.RootFolderPath)
+	if problem != "" {
+		rootPath = s.newShowFolder()
+	}
+	created, err := s.addSeriesFromTMDB(ctx, tmdbID, userID, true, rootPath)
 	if err != nil {
 		writeUpstreamError(w, "add that show", err)
 		return
@@ -463,6 +470,9 @@ func (s *Server) arrAddSeries(w http.ResponseWriter, r *http.Request) {
 	case req.AddOptions != nil:
 		if mode := strings.ToLower(req.AddOptions.Monitor); mode == library.MonitorFuture || mode == library.MonitorNone {
 			_, _ = s.MovieRepo.ApplyMonitorMode(created.ID, mode, today(), false)
+			if mode == library.MonitorFuture {
+				_ = s.MovieRepo.SetSeriesMonitored(created.ID, true) // watching for new episodes is monitoring
+			}
 		}
 	}
 	if req.Monitored != nil && !*req.Monitored {
@@ -621,9 +631,18 @@ type arrEpisode struct {
 	EpisodeFile              *arrEpisodeFile `json:"episodeFile,omitempty"`
 }
 
+// arrAirDateUTC is the moment an episode airs for the *arr apps: the exact
+// time when TVmaze gave one, else midnight of the air date, as before.
+func arrAirDateUTC(ep library.Episode) string {
+	if at, err := time.Parse(time.RFC3339, ep.AirAt); err == nil {
+		return at.UTC().Format("2006-01-02T15:04:05Z")
+	}
+	return arrTime(ep.AirDate)
+}
+
 func toArrEpisode(ep library.Episode) arrEpisode {
 	out := arrEpisode{ID: ep.ID, SeriesID: ep.SeriesID, SeasonNumber: ep.Season, EpisodeNumber: ep.Episode, Title: ep.Title,
-		AirDate: ep.AirDate, AirDateUTC: arrTime(ep.AirDate), Overview: ep.Overview, HasFile: ep.Status == library.StatusDownloaded,
+		AirDate: ep.AirDate, AirDateUTC: arrAirDateUTC(ep), Overview: ep.Overview, HasFile: ep.Status == library.StatusDownloaded,
 		Monitored: ep.Monitored, Grabbed: ep.Status == library.StatusDownloading, Images: []arrImage{}}
 	if out.HasFile {
 		out.EpisodeFileID = ep.ID
@@ -649,11 +668,11 @@ func (s *Server) arrListEpisodes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var series *arrSeries
-	if queryBool(r, "includeSeries") {
-		if sr, err := s.MovieRepo.GetSeries(id); err == nil {
-			a := s.toArrSeries(sr, s.newArrSeriesContext())
-			series = &a
-		}
+	// Always the show, whether includeSeries is there or not: an app that
+	// forgets it still needs the show for the picture.
+	if sr, err := s.MovieRepo.GetSeries(id); err == nil {
+		a := s.toArrSeries(sr, s.newArrSeriesContext())
+		series = &a
 	}
 	// Sonarr's own filters: one season (0 is the specials), a list of episode
 	// ids, one episode file. Tools such as Maintainerr ask for a single season
@@ -690,6 +709,9 @@ func (s *Server) arrListEpisodes(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		e.Series = series
+		if queryBool(r, "includeEpisodeFile") {
+			e.EpisodeFile = s.toArrEpisodeFile(ep)
+		}
 		out = append(out, e)
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -705,7 +727,15 @@ func (s *Server) arrGetEpisode(w http.ResponseWriter, r *http.Request) {
 		arrNotFound(w)
 		return
 	}
-	writeJSON(w, http.StatusOK, toArrEpisode(ep))
+	e := toArrEpisode(ep)
+	if sr, err := s.MovieRepo.GetSeries(ep.SeriesID); err == nil {
+		a := s.toArrSeries(sr, s.newArrSeriesContext())
+		e.Series = &a
+	}
+	if queryBool(r, "includeEpisodeFile") {
+		e.EpisodeFile = s.toArrEpisodeFile(ep)
+	}
+	writeJSON(w, http.StatusOK, e)
 }
 
 func (s *Server) arrUpdateEpisode(w http.ResponseWriter, r *http.Request) {

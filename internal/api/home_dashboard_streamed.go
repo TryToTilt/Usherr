@@ -24,6 +24,8 @@ type streamedCounts struct {
 	animeLibShows, animeLibEpisodes, animeLibOnDisk      int // the library's part, taken off the TV counts
 	animeStreamShows                                     int // streamed anime shows not in the library
 	comicSeries, comicIssues, comicDownloaded, comicMiss int
+	sportsOn                                             bool // Usherr: sports
+	sportLeagues, sportGames, sportWanted, sportStreams  int
 }
 
 var streamedCountsCache struct {
@@ -77,6 +79,8 @@ func (s *Server) addStreamedToDashboard(ctx context.Context, out *dashboardPaylo
 	out.Library.Comics.Issues = c.comicIssues
 	out.Library.Comics.Downloaded = c.comicDownloaded
 	out.Library.Comics.Missing = c.comicMiss
+	out.Library.Sports.On, out.Library.Sports.Leagues, out.Library.Sports.Games = c.sportsOn, c.sportLeagues, c.sportGames
+	out.Library.Sports.Wanted, out.Library.Sports.Streams = c.sportWanted, c.sportStreams
 	if len(c.tiers) == 0 {
 		return
 	}
@@ -165,6 +169,7 @@ func (s *Server) countStreamed(ctx context.Context) (streamedCounts, error) {
 	c.animeShows, c.animeEpisodes, c.animeOnDisk = c.animeLibShows, c.animeLibEpisodes, c.animeLibOnDisk
 	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM comic_series`).Scan(&c.comicSeries)
 	_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(status = 'downloaded'), 0), COALESCE(SUM(wanted = 1 AND status != 'downloaded'), 0) FROM comic_issues`).Scan(&c.comicIssues, &c.comicDownloaded, &c.comicMiss)
+	s.countSports(ctx, &c)
 
 	rows, err := s.db.QueryContext(ctx, `SELECT t.kind, t.tmdb_id, t.anime, f.season, f.episode, f.release
 		FROM streamed_files f JOIN streamed_titles t ON t.id = f.title_id`)

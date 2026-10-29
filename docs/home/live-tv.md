@@ -178,7 +178,7 @@ keep them to yourself):
   the **Guide (XMLTV)** address.
 - **IPTV apps** (TiviMate and others): the **Channel list (M3U)** as the
   playlist, and the **Guide (XMLTV)** as the EPG source.
-- **Stremio and Nuvio**: the add-on (Settings › Extras › Stremio and Nuvio)
+- **Stremio and Nuvio**: the add-on (the You page, or Settings › Extras › Stremio and Nuvio)
   includes the channels.
 
 ## When something is off

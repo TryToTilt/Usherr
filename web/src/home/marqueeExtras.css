@@ -137,3 +137,8 @@
 @media (prefers-reduced-motion: reduce) {
   .ps-kernel, .ps-wave, .ps-beam, .ps-rays, .ps-leader, .mqx-info { animation: none; }
 }
+/* Usherr: following the TV's pre-show */
+.mqf { justify-content: center; gap: calc(var(--u) * 4); }
+.mqf-poster { position: relative; z-index: 2; width: min(78%, calc(var(--u) * 78)); aspect-ratio: 2 / 3; object-fit: cover; border-radius: calc(var(--u) * 1.6); box-shadow: 0 calc(var(--u) * 3) calc(var(--u) * 10) rgba(0, 0, 0, 0.75); animation: ps-in 1s ease both; }
+.mqf-title { font-size: calc(var(--u) * 7 * var(--mq-t)); }
+.mqf-label { color: var(--mq-hi); }

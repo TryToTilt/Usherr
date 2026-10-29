@@ -195,7 +195,7 @@ a TV or a computer.
   - **Subtitles** from your library's files: the text subtitles in the file or
     next to it.
   - **Live TV:** a channel plays through the same address the tuner feed uses.
-- **Put it in:** **Settings → Extras → Stremio and Nuvio**. Check the address your
+- **Put it in:** **Settings → Extras → Stremio and Nuvio** (an administrator), or the **You** page (everyone: each person's own link is there). Check the address your
   devices use for Usherr (your home network address, such as
   `http://192.168.1.20:8264`, or your https address from outside), then copy the
   link or scan the QR code. In Stremio: *Add-ons → Add add-on*, paste the link.
@@ -283,6 +283,22 @@ calendar, and links to showtimes on a film's page.
 page (**Marquee** in the menu). See [The Marquee](marquee.md) for setting up a
 screen, the looks, the pre-show, Home Assistant and the API.
 
+## Pre-show
+
+**Optional, nothing needed.** A cinema's pre-show before a film: a welcome,
+trailers for what's coming, your own clips, the rating and the countdown. It's
+ready as it is ("Movie night"); set it up on **Settings → Movie night →
+Pre-show**.
+
+- **Your clips:** put videos in the pre-show folder (`preshow` in Usherr's
+  config folder), one folder per category, or upload them there.
+- **Coming-soon trailers:** on by default; Usherr downloads them with yt-dlp
+  (in its image). Map a folder with room to `/data/trailers`.
+- **In the Jellyfin app:** **Set it up** installs the NeXroll Intros plugin
+  in Jellyfin, then **Restart Jellyfin** loads it.
+- **Check:** **Watch a sample**, then play a film in the Jellyfin app.
+  See [The pre-show](preshow.md).
+
 ## Comics
 
 **Optional.** Follow comic series, get new issues and read them in a
@@ -298,6 +314,46 @@ page-flip reader, with story arcs and a weekly pull list.
 - **Check:** search for a series on the Comics page and add it.
 
 ![The Comics card in Settings → Extras](images/extras-comics.png)
+
+## Sports
+
+**Optional.** A **Sports** page for everyone: leagues, the teams you follow and
+the games of the coming two weeks. Games **stream** like films and episodes,
+and can be **downloaded** when Sports runs on Sportarr. Choose what it runs on
+in the *Sports* card in **Settings → Extras**:
+
+- **Sportarr (stacked):** run Sportarr (github.com/Sportarr/Sportarr) next to
+  Usherr, like Radarr or Sonarr, with your indexers (add it to Prowlarr as a
+  *Sonarr* app), your download client, a root folder for sports and a quality
+  profile. Enter its address (from Usherr's container, usually
+  `http://host.docker.internal:1867`) and its API key (Sportarr's
+  *Settings → General*). Streams use the releases Sportarr matches to a game;
+  **Get** downloads through Sportarr.
+- **Usherr's own engine:** no other app. Leagues and games come from
+  TheSportsDB. Without a key Usherr uses TheSportsDB's free test key (search
+  and part of each season, slowly); a paid key (thesportsdb.com/pricing, in
+  your profile there once you subscribe) gives full schedules and scores. Games
+  stream from your own indexers; downloading games needs Sportarr for now.
+- **Streaming** needs Usherr's streaming engine (see *Streaming engine* above).
+- **Check:** **Test Sportarr** or **Test TheSportsDB**, then open **Sports** in
+  the menu and find a league. See [Sports](sports.md).
+
+## Read-to-Me
+
+**Optional.** Turns an ebook (an EPUB) into an audiobook with a computer voice on
+your own graphics card: **Kokoro** for everyday narration, **Chatterbox** (started
+only when wanted) for more expressive voices and copied voices. Each ebook's page
+gets a **Read to me** button; the finished audiobook is filed with your audiobooks.
+
+- **Get them:** run Kokoro (and, if you want it, Chatterbox) as containers on a
+  computer with an NVIDIA card. The compose file and the steps are in
+  [Read-to-Me](read-to-me.md#setting-it-up).
+- **Put them in:** **Settings → Extras → Read-to-Me**: Kokoro's address (from
+  Usherr's container, `http://host.docker.internal:8881`) and, optionally,
+  Chatterbox's (`http://host.docker.internal:4123`). **Night only** keeps the work
+  to the hours you choose.
+- **Check:** **Test Kokoro**, then open an ebook and press **Read to me**; the
+  first words of the book play in the voice you pick. See [Read-to-Me](read-to-me.md).
 
 ## NSFW 18+
 

@@ -269,7 +269,8 @@ export const PRESHOW_LABEL: Record<PreShowPiece, string> = {
 }
 const PIECE_MS: Record<PreShowPiece, number> = { popcorn: 8000, silence: 7000, coming: 6500, countdown: 6000, feature: 7500 }
 
-function Piece({ piece, onEnd }: { piece: PreShowPiece; onEnd: () => void }) {
+// Usherr: also drawn by the pre-show in the player (PreshowRun.tsx).
+export function Piece({ piece, onEnd }: { piece: PreShowPiece; onEnd: () => void }) {
   const done = useRef(onEnd)
   useEffect(() => {
     done.current = onEnd
@@ -358,7 +359,7 @@ function TrailerStep({ f, sound, seconds, onEnd, fit = 'letterbox' }: { f: Featu
     const id = window.setTimeout(() => done.current(), seconds * 1000)
     return () => window.clearTimeout(id)
   }, [seconds])
-  const q = new URLSearchParams({ autoplay: '1', mute: sound ? '0' : '1', controls: '0', rel: '0', modestbranding: '1', playsinline: '1', iv_load_policy: '3', origin: window.location.origin })
+  const q = new URLSearchParams({ autoplay: '1', mute: sound ? '0' : '1', controls: '0', rel: '0', modestbranding: '1', playsinline: '1', iv_load_policy: '3', cc_load_policy: '0', origin: window.location.origin })
   return (
     <div className={`lk lk-x ps ps-trailer tf-${fit}`}>
       <div className="ps-trailer-box lk-fit">
@@ -442,4 +443,33 @@ export function ThemeMusic({ url, volume }: { url: string; volume: number }) {
 // Whether the pre-show has anything to show.
 export function preShowHasSomething(data: Data, set: MarqueeSettings): boolean {
   return preShowSteps(data, set).length > 0
+}
+
+// ---- Usherr: following the pre-show that plays on the TV (PreshowRun.tsx). ----
+export type FollowStep = { kind: string; card?: string; title?: string; posterUrl?: string; backdropUrl?: string; releaseDate?: string; filmTitle?: string; filmPoster?: string; at: number }
+
+export function PreshowFollow({ f }: { f: FollowStep }) {
+  if (f.kind === 'card' && (f.card === 'popcorn' || f.card === 'silence' || f.card === 'coming' || f.card === 'countdown')) return <Piece key={f.at} piece={f.card} onEnd={() => undefined} />
+  const trailer = f.kind === 'trailer' || f.card === 'soon'
+  const poster = trailer ? f.posterUrl : f.filmPoster
+  const date = trailer && f.releaseDate ? new Date(f.releaseDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric' }) : ''
+  const label = trailer ? t('Coming soon') : f.card === 'feature' ? t('Feature presentation') : f.card === 'welcome' ? t('Welcome') : t('Tonight')
+  const title = trailer ? f.title : f.filmTitle
+  // Nothing to picture (a sample, or a film the server doesn't know): the words, big.
+  if (!poster && !title)
+    return (
+      <div key={f.at} className="lk lk-x ps mqf">
+        <span className="ps-rays" aria-hidden="true" />
+        <h1 className="ps-big">{f.card === 'welcome' || f.card === 'feature' ? label : t('The pre-show')}</h1>
+        <p className="ps-small">{t('On the big screen')}</p>
+      </div>
+    )
+  return (
+    <div key={f.at} className="lk lk-x ps mqf">
+      <span className="ps-small mqf-label">{label}</span>
+      {poster && <img className="mqf-poster" src={poster} alt="" />}
+      {title && <h1 className="ps-big mqf-title">{title}</h1>}
+      {date && <p className="ps-small">{date}</p>}
+    </div>
+  )
 }

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/books"
@@ -35,7 +36,16 @@ import (
 // never what they point at.
 
 // downloadClientPoll is how often the client is asked how a torrent is doing.
-var downloadClientPoll = 15 * time.Second
+// It is atomic because tests shorten it while earlier downloads' goroutines
+// may still be reading it.
+var downloadClientPoll = func() *atomic.Int64 {
+	v := new(atomic.Int64)
+	v.Store(int64(15 * time.Second))
+	return v
+}()
+
+// downloadClientPollEvery is the current time between two status checks.
+func downloadClientPollEvery() time.Duration { return time.Duration(downloadClientPoll.Load()) }
 
 const (
 	// downloadClientStall is how long a torrent may sit in the client without
@@ -189,6 +199,12 @@ func (s *Server) downloadViaClient(ctx context.Context, queueID int64, downloadU
 	var gone time.Time
 	var t qbit.Torrent
 	var fails pollFailures
+	// firstLook: a torrent found paused when this download starts was paused
+	// by an earlier pause of the download here, so it is started again. A
+	// torrent that is paused later was paused in the client by hand: it is left
+	// alone and not mistaken for a stall. settle skips a few polls after a
+	// start, while the client's state catches up.
+	firstLook, settle, notedPause := true, 0, false
 	for {
 		var found bool
 		var err error
@@ -204,6 +220,7 @@ func (s *Server) downloadViaClient(ctx context.Context, queueID int64, downloadU
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			s.noteClientCheck(watchTorrentClient, label, err)
 			if !fails.tolerate(err, qbit.ErrAuth) {
 				return s.downloadClientError(label, err)
 			}
@@ -211,11 +228,12 @@ func (s *Server) downloadViaClient(ctx context.Context, queueID int64, downloadU
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(downloadClientPoll):
+			case <-time.After(downloadClientPollEvery()):
 			}
 			continue
 		}
 		fails.reset()
+		s.noteClientCheck(watchTorrentClient, label, nil)
 		if found {
 			gone = time.Time{}
 			if hash == "" && t.Hash != "" {
@@ -242,6 +260,28 @@ func (s *Server) downloadViaClient(ctx context.Context, queueID int64, downloadU
 			report(100)
 			return s.clientDone(queueID, t, cfg, label, incompleteDir)
 		default:
+			if t.Paused() && settle == 0 {
+				if firstLook {
+					if err := c.Resume(ctx, t.Hash); err != nil {
+						slog.Warn("download client: couldn't start a paused torrent again", "queueId", queueID, "err", err)
+					} else {
+						s.queueEvent(queueID, "download", queue.LevelInfo, fmt.Sprintf("This torrent was paused in %s, so it was started again.", label))
+					}
+					settle = 3
+				} else {
+					lastMove = time.Now() // waiting on a person, not stalled
+					if !notedPause {
+						notedPause = true
+						s.queueEvent(queueID, "download", queue.LevelInfo, fmt.Sprintf("Paused in %s. It carries on when you start it there.", label))
+					}
+				}
+			} else if !t.Paused() {
+				notedPause = false
+			}
+			firstLook = false
+			if settle > 0 {
+				settle--
+			}
 			if t.Progress != lastProgress {
 				lastProgress, lastMove = t.Progress, time.Now()
 				report(t.Progress * 100)
@@ -253,7 +293,7 @@ func (s *Server) downloadViaClient(ctx context.Context, queueID int64, downloadU
 		select {
 		case <-ctx.Done():
 			return ctx.Err() // paused or stopped: the torrent stays in the client for later
-		case <-time.After(downloadClientPoll):
+		case <-time.After(downloadClientPollEvery()):
 		}
 	}
 }
@@ -320,7 +360,7 @@ func (s *Server) addToClient(ctx context.Context, c qbit.API, cfg downloadClient
 // enforce it: the global limits or the indexer's own rule.
 func (s *Server) clientShareLimits(queueID int64) qbit.ShareLimits {
 	g := s.torrentSeedGoal(queueID)
-	return qbit.ShareLimits{Ratio: g.Ratio, Time: g.Time}
+	return qbit.ShareLimits{Ratio: g.Ratio, Time: g.Time, NoSeed: g.NoSeed}
 }
 
 // clientDone lays out the finished torrent's files in the download's folder.

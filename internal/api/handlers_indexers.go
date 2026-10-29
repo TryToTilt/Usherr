@@ -529,6 +529,12 @@ func (s *Server) testIndexerInstance(ctx context.Context, inst indexers.Instance
 	defer cancel()
 	res, err := s.Cardigann.Test(ctx, inst)
 	if err != nil {
+		if addr, ok := indexers.FlareSolverrDown(err); ok {
+			return connTestResult{Message: indexers.FlareSolverrDownMessage(addr), Detail: err.Error()}
+		}
+		if status, ok := indexers.GoneStatus(err); ok {
+			return connTestResult{Message: indexers.GoneMessage(status), Detail: err.Error()}
+		}
 		if errors.Is(err, context.DeadlineExceeded) && s.flareSolverrURL() != "" {
 			return connTestResult{Message: fmt.Sprintf("The check waited %d seconds for FlareSolverr and it didn't finish. Check that FlareSolverr is running and has internet access, then try again.", int(timeout/time.Second))}
 		}

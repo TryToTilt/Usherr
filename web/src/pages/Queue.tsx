@@ -13,6 +13,9 @@ import InfoTip from '../components/InfoTip'
 import HelpLink from '../components/HelpLink'
 import { PosterFallback } from '../components/PosterCard'
 import { useToast } from '../components/Toast'
+import TorrentsOffNote from '../components/TorrentsOffNote'
+import { useTorrentsSwitch } from '../useTorrentsSwitch'
+import { isTorrentsOffText } from '../torrentsOff'
 import { formatBytes, timeAgo } from '../format'
 import { useConfirm } from '../components/ConfirmProvider'
 import AddDownloadDialog from '../components/AddDownloadDialog'
@@ -23,12 +26,16 @@ import RecycleBin from '../components/RecycleBin'
 import RequestsList from '../components/RequestsList'
 import IssuesList from '../components/IssuesList'
 import { failureHelp } from '../failureHelp'
+import RootMarkerFix from '../components/RootMarkerFix'
+import { lostMarkerFolder } from '../rootMarker'
 import { useModules } from '../ModulesContext'
 import { bulkState, groupQueue, RUNNING, stateNote, statusLabel, stillWaiting, unpackLine } from '../queueView'
 import { useLive } from '../useLive'
+import { anyMoving, pollEvery } from '../pollPlan'
 import { etaText, nextSample, type RateSample } from '../transferRate'
 import { locale, plural, t, tx, st } from '../i18n'
 import { useUrlState } from '../useUrlState'
+import { keptDataText, keptFileLine } from '../keptFile'
 import '../activity.css'
 
 type Tab = 'queue' | 'clients' | 'history' | 'requests' | 'reports' | 'blocklist' | 'bin'
@@ -44,6 +51,7 @@ const EVENT: Record<string, { icon: IconName; tone: string; group: string }> = {
   conflict: { icon: 'warning', tone: 'warning', group: 'Problems' },
   subtitle: { icon: 'chat', tone: 'info', group: 'Subtitles' },
   added: { icon: 'plus', tone: 'success', group: 'Library' },
+  library: { icon: 'check', tone: 'info', group: 'Library' },
   removed: { icon: 'trash', tone: 'muted', group: 'Library' },
 }
 
@@ -136,6 +144,9 @@ function groupWanted(wanted: WantedRow[]): Waiting[] {
 // How many waiting titles Activity reads: enough for the 20 it lists, with
 // room for the ones that are downloading already and so are left out.
 const WAITING_READ = 60
+
+// The most downloads one bulk action may name (bulkQueueMax on the server).
+const BULK_QUEUE_MAX = 200
 
 const itemLink = (q: QueueItem) => (q.bookId ? `/book/${q.bookId}` : q.albumId ? `/music/album/${q.albumId}` : q.seriesId ? `/series/${q.seriesId}` : q.tmdbId ? `/title/${q.tmdbId}` : undefined)
 
@@ -270,13 +281,26 @@ function QueueDetails({ q, admin }: { q: QueueItem; admin: boolean }) {
             <dd className="mono">{q.destPath}</dd>
           </>
         )}
+        {q.keptFile && (
+          <>
+            <dt>{t('Kept file')}</dt>
+            <dd className="mono">{q.keptFile}</dd>
+          </>
+        )}
+        {q.keptData && (
+          <>
+            <dt>{t('Downloaded files')}</dt>
+            <dd>{keptDataText(q.keptData)}</dd>
+          </>
+        )}
       </dl>
       {admin && q.protocol === 'torrent' && ['queued', 'downloading', 'importing', 'paused', 'completed'].includes(q.status) && <TorrentControls q={q} open={open} />}
       {events !== null && events.length > 0 && (
         <ol className="qsteps">
           {[...events].reverse().map((e, i) => (
             <li key={i} className={e.level !== 'info' ? e.level : undefined}>
-              <time>{new Date(e.at).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })}</time> {e.message}
+              <time>{new Date(e.at).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })}</time>
+              <span>{e.message}</span>
             </li>
           ))}
         </ol>
@@ -291,14 +315,14 @@ function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProp
   const link = itemLink(q)
   const running = RUNNING.has(q.status)
   const working = busy !== null || !!q.pending
-  const animated = q.status === 'downloading' || q.status === 'importing'
+  const animated = (q.status === 'downloading' || q.status === 'importing') && !q.waiting
   const showBar = (running && q.status !== 'queued') || q.status === 'conflict' || q.status === 'paused'
   const barTone = q.status === 'failed' ? 'bad' : q.status === 'conflict' ? 'warn' : q.status === 'paused' ? 'paused' : ''
   const note = stateNote(q)
   return (
     <div className={`qrow st-${q.status}${q.status === 'failed' ? ' failed' : ''} kind-${q.bookId ? 'book' : q.albumId ? 'music' : q.seriesId ? 'tv' : 'movie'}`}>
       <div className="qthumb">
-        {q.albumId ? <Cover src={q.posterUrl} /> : q.posterUrl ? <img src={q.posterUrl} alt="" loading="lazy" /> : <PosterFallback />}
+        {q.albumId ? <Cover src={q.posterUrl} thumb /> : q.posterUrl ? <img src={q.posterUrl} alt="" loading="lazy" /> : <PosterFallback />}
         {admin && onPick && (
           <label className="qpick" title={t('Pick this download')}>
             <input type="checkbox" checked={!!picked} onChange={(e) => onPick(q.id, e.target.checked)} aria-label={t('Pick {title}', { title: q.title })} />
@@ -368,6 +392,10 @@ function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProp
         {note && <div className="qnote">{note}</div>}
         {q.note && <div className="qnote">{st(q.note)}</div>}
         {q.error && (q.status === 'completed' ? <div className="qnote">{st(q.error)}</div> : <div className="error-text qerror">{st(q.error)}</div>)}
+        {q.status === 'completed' && q.keptFile && <div className="qnote mono">{keptFileLine(q.keptFile)}</div>}
+        {q.status === 'completed' && q.keptData && <div className="qnote">{keptDataText(q.keptData)}</div>}
+        {q.status === 'failed' && isTorrentsOffText(q.error) && <TorrentsOffNote failed />}
+        {q.status === 'failed' && admin && lostMarkerFolder(q.error) && <RootMarkerFix path={lostMarkerFolder(q.error)!} />}
         {q.status === 'failed' && <FailureTips q={q} link={link} />}
         {(q.status === 'failed' || q.status === 'stopped') && q.error && <ExplainFailure id={q.id} />} {/* home fork */}
         {q.status === 'conflict' && q.destPath && <div className="qrelease">{t('A file already exists at {path}', { path: q.destPath })}</div>}
@@ -438,6 +466,11 @@ function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProp
             </button>
           </>
         )}
+        {q.status === 'importing' && q.waiting && can(me, 'retry') && (
+          <button className="btn-sm btn-with-icon" disabled={working} title={t('Try the import again now, from the files already downloaded')} onClick={() => void act(q, () => api.retryQueueItem(q.id), t('Trying the import again.'))}>
+            <Icon name="refresh" size={15} /> {t('Retry now')}
+          </button>
+        )}
         {(q.status === 'failed' || q.status === 'stopped') && can(me, 'retry') && (
           <button className="btn-sm btn-with-icon" disabled={working} onClick={() => void act(q, () => api.retryQueueItem(q.id), t('Trying that release again.'))}>
             <Icon name="refresh" size={15} /> {t('Retry')}
@@ -470,6 +503,7 @@ export default function Queue() {
   const navigate = useNavigate() // Usherr: the by-hand menu
   const confirm = useConfirm()
   const toast = useToast()
+  const { grabError } = useTorrentsSwitch()
   // Members can watch the queue and retry, but pausing, stopping, removing,
   // blocklisting and resolving conflicts are for administrators.
   const admin = isAdmin(useAuth().user)
@@ -577,7 +611,8 @@ export default function Queue() {
   useEffect(() => {
     void load()
   }, [load])
-  useLive(load, 3000)
+  // Every 3 seconds while a download moves, every 10 when nothing does.
+  useLive(load, pollEvery(anyMoving(queue), 3000, 10000))
 
   // The number next to the Blocklist tab.
   const loadBlocklistCount = useCallback(() => {
@@ -595,12 +630,12 @@ export default function Queue() {
         toast.success(done)
         await load()
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : String(e))
+        grabError(e)
       } finally {
         setBusy(null)
       }
     },
-    [load, toast],
+    [load, toast, grabError],
   )
 
   // Stop asks first, and offers to delete the partly downloaded files (on by
@@ -723,9 +758,13 @@ export default function Queue() {
       return next
     })
   }, [])
-  async function pickedDo(action: 'pause' | 'resume' | 'stop' | 'front' | 'remove') {
+  async function pickedDo(action: 'pause' | 'resume' | 'stop' | 'retry' | 'front' | 'remove') {
     // In the order they are shown, so "to the front" keeps the line's own order.
-    const ids = pickable.filter((q) => livePicked.has(q.id)).map((q) => q.id)
+    // Retry only goes to the failed and stopped ones, so "Pick all" then Retry
+    // leaves what is running alone instead of reporting it as refused.
+    const ids = pickable
+      .filter((q) => livePicked.has(q.id) && (action !== 'retry' || q.status === 'failed' || q.status === 'stopped'))
+      .map((q) => q.id)
     if (ids.length === 0 || pickBusy) return
     let deleteFiles = false
     if (action === 'stop' || action === 'remove') {
@@ -743,10 +782,22 @@ export default function Queue() {
     }
     setPickBusy(true)
     try {
-      const r = await api.bulkQueue(ids, action, deleteFiles)
-      const failed = r.failed ?? []
-      if (failed.length > 0) toast.error(`${t('{done} done.', { done: r.done ?? 0 })} ${t('{n} could not be changed: {why}', { n: failed.length, why: failed[0].error })}`)
-      else toast.success(plural(r.done ?? ids.length, '{n} download changed.', '{n} downloads changed.'))
+      // The server takes at most BULK_QUEUE_MAX at a time (bulkQueueMax in
+      // internal/api/queue_control.go), so a bigger pick goes in batches. For
+      // "to the front" the last batch goes first: each batch lands in front of
+      // the one before, which keeps the order of the whole pick.
+      const batches: number[][] = []
+      for (let i = 0; i < ids.length; i += BULK_QUEUE_MAX) batches.push(ids.slice(i, i + BULK_QUEUE_MAX))
+      if (action === 'front') batches.reverse()
+      let done = 0
+      const failed: { id: number; error: string }[] = []
+      for (const batch of batches) {
+        const r = await api.bulkQueue(batch, action, deleteFiles)
+        done += r.done ?? 0
+        failed.push(...(r.failed ?? []))
+      }
+      if (failed.length > 0) toast.error(`${t('{done} done.', { done })} ${t('{n} could not be changed: {why}', { n: failed.length, why: failed[0].error })}`)
+      else toast.success(plural(done, '{n} download changed.', '{n} downloads changed.'))
       setPicked(new Set())
       await load()
     } catch (e) {
@@ -905,6 +956,9 @@ export default function Queue() {
               <button className="btn-sm btn-with-icon" disabled={pickBusy} onClick={() => void pickedDo('stop')}>
                 <Icon name="stop" size={14} /> {t('Stop')}
               </button>
+              <button className="btn-sm btn-with-icon" disabled={pickBusy} onClick={() => void pickedDo('retry')}>
+                <Icon name="refresh" size={14} /> {t('Retry')}
+              </button>
               <button className="btn-sm btn-with-icon danger-ghost" disabled={pickBusy} onClick={() => void pickedDo('remove')}>
                 <Icon name="trash" size={14} /> {t('Remove')}
               </button>
@@ -982,7 +1036,7 @@ export default function Queue() {
                   return (
                     <li key={w.key} className={`kind-${w.kind}`}>
                       <Link to={w.to} className="wait-thumb" aria-hidden="true" tabIndex={-1}>
-                        {w.kind === 'music' ? <Cover src={w.posterUrl} /> : w.posterUrl ? <img src={w.posterUrl} alt="" loading="lazy" /> : <PosterFallback />}
+                        {w.kind === 'music' ? <Cover src={w.posterUrl} thumb /> : w.posterUrl ? <img src={w.posterUrl} alt="" loading="lazy" /> : <PosterFallback />}
                       </Link>
                       <div className="wait-body">
                         <Link to={w.to} className="wait-title">
@@ -1166,3 +1220,4 @@ export default function Queue() {
     </div>
   )
 }
+

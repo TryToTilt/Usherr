@@ -29,7 +29,18 @@ type Item struct {
 	Subtitles string // for an import: where the subtitles stand, like "Already there (en, nl)"; empty when subtitles are off
 	PosterURL string // a hosted poster image, or empty
 	LinkPath  string // where the title lives in Mediarium, like /title/597
+
+	// What is known about the release (a grab or an import). Left empty, it is
+	// not shown.
+	ScoreKnown bool     // the profile has custom formats, so Score means something
+	Score      int      // the custom format score of the release
+	Formats    []string // the custom formats it matched, best first (at most five are shown)
+	Group      string   // the release group
+	Indexer    string   // the indexer it came from
 }
+
+// maxFormatsShown is how many matched custom formats a message names.
+const maxFormatsShown = 5
 
 // Name is how the item reads in a subject: "Titanic (1997)" or
 // "Severance S02E03".
@@ -77,6 +88,10 @@ func Compose(eventType string, it Item, links Links, at time.Time) Event {
 	}
 
 	ev := Event{Type: eventType, Timestamp: at, PosterURL: it.PosterURL, LinkURL: links.to(it.LinkPath)}
+	if kind == EventAdded || kind == EventImported {
+		ev.ScoreKnown, ev.Score, ev.ReleaseGroup, ev.Indexer, ev.SizeBytes = it.ScoreKnown, it.Score, strings.TrimSpace(it.Group), strings.TrimSpace(it.Indexer), it.SizeBytes
+		ev.Formats = topFormats(it.Formats)
+	}
 	rows := []Detail{{"Title", it.Title}}
 	if it.Year > 0 {
 		rows = append(rows, Detail{"Year", fmt.Sprint(it.Year)})
@@ -85,6 +100,13 @@ func Compose(eventType string, it Item, links Links, at time.Time) Event {
 		rows = append(rows, Detail{"Episode", it.Episode})
 	}
 	rows = append(rows, Detail{"Quality", it.Quality}, Detail{"Size", formatSize(it.SizeBytes)})
+	if kind == EventAdded || kind == EventImported {
+		rows = append(rows, Detail{"Release group", ev.ReleaseGroup}, Detail{"Indexer", ev.Indexer})
+		if ev.ScoreKnown {
+			rows = append(rows, Detail{"Custom format score", formatScore(ev.Score)})
+		}
+		rows = append(rows, Detail{"Custom formats", strings.Join(ev.Formats, ", ")})
+	}
 
 	switch kind {
 	case EventImported:
@@ -179,6 +201,32 @@ func lowerLead(s string) string {
 		}
 	}
 	return s
+}
+
+// topFormats keeps the first maxFormatsShown non-empty names, without repeats.
+func topFormats(in []string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, f := range in {
+		f = strings.TrimSpace(f)
+		if f == "" || seen[f] {
+			continue
+		}
+		seen[f] = true
+		out = append(out, f)
+		if len(out) == maxFormatsShown {
+			break
+		}
+	}
+	return out
+}
+
+// formatScore writes a score with its sign, like +1500 or -200.
+func formatScore(n int) string {
+	if n > 0 {
+		return fmt.Sprintf("+%d", n)
+	}
+	return fmt.Sprint(n)
 }
 
 // keepFilled drops rows with nothing to show.

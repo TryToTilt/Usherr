@@ -5,6 +5,7 @@ import { t } from '../i18n'
 import type { MarqueeSettings, SceneKind } from './marqueeData'
 import MarqueeLookForm from './MarqueeLookForm'
 import MarqueeShowsForm from './MarqueeShowsForm'
+import MarqueeSportsForm from './MarqueeSportsForm' // Usherr: sports
 import './cinema.css'
 
 const row = { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' } as const
@@ -24,6 +25,8 @@ export const MQ_SCENE_LABEL: Record<SceneKind, string> = {
   trivia: t('Did you know? (facts about the films)'),
   slides: t('Your slides (pictures, videos, pages, words)'),
   preshow: t('The pre-show (ads, countdown, feature presentation)'),
+  scores: t('Scoreboard (sports: games under way, and results when scores are on)'),
+  'sports-tonight': t('Tonight’s games (sports: kick-off times and channels)'),
 }
 
 export default function MarqueeForm({ m, profiles, change, name }: { m: MarqueeSettings; profiles: string[]; change: (patch: Partial<MarqueeSettings>) => void; name: string }) {
@@ -62,6 +65,8 @@ export default function MarqueeForm({ m, profiles, change, name }: { m: MarqueeS
       <p className="hint">{t('Scenes with nothing to show are skipped. A scene taller than the screen scrolls slowly down and back, and takes the time it needs.')}</p>
 
       <MarqueeShowsForm m={m} change={change} />
+
+      <MarqueeSportsForm m={m} change={change} />
 
       <h3>{t('The sign')}</h3>
       <div style={row}>

@@ -10,7 +10,8 @@ import { useAuth } from '../AuthContext'
 import { isAdmin } from '../api'
 import { useDocumentTitle } from '../documentTitle'
 import { t } from '../i18n'
-import { playStream, playTitle } from './Player'
+import { playStream, playTitle, playWithPreshow } from './Player'
+import { preshowApi } from './preshowApi' // Usherr
 import { cancelShowtime, clockLabel, inLabel, listShowtimes, moveShowtime, PLAY_ON_LABEL, showtimeEnds, whenLabel, type Showtime } from './showtimes'
 import { rememberedQuality, streamApi } from './streamApi'
 import './showtime.css'
@@ -19,7 +20,7 @@ import './showtime.css'
 // stream at this device's quality.
 async function startFilm(s: Showtime) {
   if (s.libraryId) {
-    playTitle('movie', s.libraryId, s.title)
+    playTitle('movie', s.libraryId, s.title, { noPreshow: true }) // its pre-show has played
     return
   }
   const status = await streamApi.status()
@@ -63,6 +64,27 @@ export default function ShowtimePage() {
   // The next film to start here.
   const next = (list ?? []).find((s) => s.playOn === 'here' && s.state !== 'done' && showtimeEnds(s) > serverNow && s.id !== started)
   const due = next && serverNow >= next.atMs
+  // Usherr: the pre-show plays here first, timed to end at showtime. How
+  // long it runs is asked once (without counting it as played).
+  const [preSecs, setPreSecs] = useState<{ id: number; at: number; secs: number } | null>(null)
+  const preTried = useRef('')
+  useEffect(() => {
+    if (!next || !ready || next.preshowMin <= 0 || due) return
+    const key = `${next.id}-${next.atMs}`
+    if (preSecs && `${preSecs.id}-${preSecs.at}` === key) return
+    preshowApi
+      .plan({ showtime: next.id, dry: true })
+      .then((p) => setPreSecs({ id: next.id, at: next.atMs, secs: Math.min(p.seconds, next.preshowMin * 60) }))
+      .catch(() => setPreSecs({ id: next.id, at: next.atMs, secs: 0 }))
+  }, [next, ready, due, preSecs])
+  const preStart = next && preSecs && preSecs.id === next.id && preSecs.at === next.atMs && preSecs.secs > 0 ? next.atMs - preSecs.secs * 1000 : null
+  useEffect(() => {
+    if (!next || !ready || preStart === null || due || serverNow < preStart) return
+    const key = `${next.id}-${next.atMs}`
+    if (preTried.current === key) return
+    preTried.current = key
+    void playWithPreshow({ showtime: next.id, budget: Math.max(30, Math.round((next.atMs - serverNow) / 1000)) }, () => undefined)
+  }, [next, ready, preStart, due, serverNow])
   const tried = useRef(0)
   useEffect(() => {
     if (!next || !due || !ready || tried.current === next.id) return
@@ -100,7 +122,13 @@ export default function ShowtimePage() {
               <span className="sht-label">{due ? t('Feature presentation') : t('Showtime {time}', { time: clockLabel(next.atMs) })}</span>
               <h1>{next.title}</h1>
               {!due && <p className="sht-in">{t('Starts {when}', { when: inLabel(next.atMs, serverNow) })}</p>}
-              {next.preshowMin > 0 && !due && <p className="hint">{t('The pre-show starts on the Marquee {n} minutes before.', { n: next.preshowMin })}</p>}
+              {next.preshowMin > 0 && !due && (
+                <p className="hint">
+                  {ready && preStart
+                    ? t('The pre-show starts here at {time}, and the Marquee follows it.', { time: clockLabel(preStart) })
+                    : t('The pre-show starts on the Marquee {n} minutes before.', { n: next.preshowMin })}
+                </p>
+              )}
               {!ready ? (
                 <button className="primary btn-with-icon sht-ready" onClick={() => setReady(true)}>
                   <Icon name="play" size={18} /> {due ? t('Start the film') : t('Ready: start it on time')}

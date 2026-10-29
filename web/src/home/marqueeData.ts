@@ -5,6 +5,7 @@ import type { CalendarEntry } from '../api'
 import type { Showtime } from './showtimes'
 
 export interface Playing {
+  game?: MarqueeGame // Usherr: the game being watched
   title: string
   series?: string
   season?: number
@@ -124,7 +125,7 @@ export interface Arrival {
   tmdbId?: number
   seriesId?: number
 }
-export type SceneKind = 'playing' | 'new' | 'trailer' | 'theaters-film' | 'arrivals' | 'coming-film' | 'theaters' | 'coming' | 'tvnow' | 'tonight' | 'spotlight' | 'trivia' | 'slides' | 'preshow'
+export type SceneKind = 'playing' | 'new' | 'trailer' | 'theaters-film' | 'arrivals' | 'coming-film' | 'theaters' | 'coming' | 'tvnow' | 'tonight' | 'spotlight' | 'trivia' | 'slides' | 'preshow' | 'scores' | 'sports-tonight'
 export interface MarqueeSettings {
   scenes: { kind: SceneKind; on: boolean; seconds: number }[]
   showIcon: boolean
@@ -183,6 +184,12 @@ export interface MarqueeSettings {
   preShowTrailers: number
   themeMusic: boolean
   themeVolume: number
+  // Usherr: Sports.
+  sportsScores?: boolean
+  sportsTicker?: boolean
+  sportsCountdown?: boolean
+  sportsTeamsOnly?: boolean
+  sportsLeagues?: string[]
 }
 export type PreShowPiece = 'popcorn' | 'silence' | 'coming' | 'countdown' | 'feature'
 export type MarqueeStyle = 'usherr' | 'cinema' | 'wall' | 'screensaver' | 'board' | 'posterr' | 'onesheet'
@@ -204,6 +211,30 @@ export interface Data {
   media?: MediaItem[]
   themes?: Record<string, string>
   showtimes?: Showtime[] // Usherr: films booked to start soon, for the countdown
+  sports?: { games: MarqueeGame[]; scores: boolean; live: boolean } // Usherr: the day's games
+  build?: string // Usherr: this run of Usherr (a screen reloads when it changes)
+}
+
+// Usherr: a game on the Marquee (no scores unless the screen shows them).
+export interface MarqueeGame {
+  id: string
+  title: string
+  league?: string
+  leagueBadge?: string
+  home?: string
+  away?: string
+  homeBadge?: string
+  awayBadge?: string
+  when: string
+  channel?: string
+  state: 'upcoming' | 'live' | 'final'
+  clock?: string
+  homeScore?: number
+  awayScore?: number
+  followed?: boolean
+  venue?: string
+  round?: string
+  image?: string
 }
 
 export const hours = (min?: number) => (min ? `${Math.floor(min / 60)}h ${min % 60}m` : '')

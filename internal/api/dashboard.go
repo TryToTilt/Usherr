@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"sort"
@@ -21,6 +22,13 @@ type libraryStats struct {
 	movieBytes int64
 	tvBytes    int64
 	qualities  map[string]int
+	// What is in each movie and TV folder (the main one and the extra ones),
+	// by the folder's path: the space its files take and how many movies or
+	// episodes are in it. A file outside every folder counts under "".
+	movieBytesByRoot map[string]int64
+	moviesByRoot     map[string]int
+	tvBytesByRoot    map[string]int64
+	episodesByRoot   map[string]int
 }
 
 const libraryStatsTTL = 60 * time.Second
@@ -100,7 +108,11 @@ func (c *statsCache) firstWalk(walk func() (libraryStats, error)) (libraryStats,
 
 // walkLibraryStats adds up the size and quality of every downloaded file.
 func (s *Server) walkLibraryStats() (libraryStats, error) {
-	st := libraryStats{at: time.Now(), qualities: map[string]int{}}
+	st := libraryStats{
+		at: time.Now(), qualities: map[string]int{},
+		movieBytesByRoot: map[string]int64{}, moviesByRoot: map[string]int{}, tvBytesByRoot: map[string]int64{}, episodesByRoot: map[string]int{},
+	}
+	movieRoots, tvRoots := s.movieFolders(), s.tvFolders()
 	sizeOf := func(path string) int64 {
 		if path == "" {
 			return 0
@@ -122,7 +134,10 @@ func (s *Server) walkLibraryStats() (libraryStats, error) {
 		return st, err
 	}
 	for _, m := range movies {
-		st.movieBytes += sizeOf(m.Path)
+		size, root := sizeOf(m.Path), rootContaining(movieRoots, m.Path)
+		st.movieBytes += size
+		st.movieBytesByRoot[root] += size
+		st.moviesByRoot[root]++
 		count(m.Quality)
 	}
 	episodes, err := s.MovieRepo.DownloadedEpisodeFiles()
@@ -131,10 +146,14 @@ func (s *Server) walkLibraryStats() (libraryStats, error) {
 	}
 	seenFiles := map[string]bool{} // a multi-episode file is one file
 	for _, ep := range episodes {
+		root := rootContaining(tvRoots, ep.Path)
 		if ep.Path != "" && !seenFiles[ep.Path] {
 			seenFiles[ep.Path] = true
-			st.tvBytes += sizeOf(ep.Path)
+			size := sizeOf(ep.Path)
+			st.tvBytes += size
+			st.tvBytesByRoot[root] += size
 		}
+		st.episodesByRoot[root]++
 		count(ep.Quality)
 	}
 	return st, nil
@@ -157,6 +176,9 @@ type dashFolder struct {
 	Warnings     []string `json:"warnings"`
 	// Off: that media type is switched off (Settings > Media types).
 	Off bool `json:"off,omitempty"`
+	// NewTitles: titles of this kind added without a folder choice go here
+	// right now (only sent when the kind has more than one folder).
+	NewTitles bool `json:"newTitles,omitempty"`
 }
 
 type dashActive struct {
@@ -240,6 +262,13 @@ type dashboardPayload struct {
 			Downloaded int `json:"downloaded"`
 			Missing    int `json:"missing"` // wanted, not downloaded yet
 		} `json:"comics"`
+		Sports struct { // Usherr: sports, from the sports backend
+			On      bool `json:"on"`
+			Leagues int  `json:"leagues"`
+			Games   int  `json:"games"`   // downloaded
+			Wanted  int  `json:"wanted"`  // watched for, not downloaded yet
+			Streams int  `json:"streams"` // streamed, nothing on disk
+		} `json:"sports"`
 		// Wanted is what the Wanted page lists under Missing: monitored, no
 		// file and (for episodes) already aired. Movies.Missing and
 		// Series.EpisodesMissing count everything without a file.
@@ -343,7 +372,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Folders.
-	movieRoot, tvRoot, dlRoot := s.moviesRoot(), s.tvRoot(), s.downloadsRoot()
+	dlRoot := s.downloadsRoot()
 	mkFolder := func(key, label, path string, bytes int64, items int, itemsLabel string) dashFolder {
 		f := inspectCached(path)
 		d := dashFolder{
@@ -372,14 +401,37 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		}
 		return mkFolder(key, label, path, bytes, items, itemsLabel)
 	}
-	out.Folders = []dashFolder{
-		folderFor(s.moviesEnabled(), "movies", "Movies", movieRoot, stats.movieBytes, moviesDownloaded, "movies"),
-		folderFor(s.tvEnabled(), "tv", "TV shows", tvRoot, stats.tvBytes, out.Library.Series.EpisodesDownloaded, "episodes"),
+	// A kind with more folders (Settings > Library > Folders) gets a card for
+	// each: the main one keeps the totals less what the extra ones hold, and
+	// the one new titles go to right now is marked.
+	kindFolders := func(on bool, kind, label, moreLabel string, roots []string, totalBytes int64, totalItems int, itemsLabel string, bytesByRoot map[string]int64, itemsByRoot map[string]int, newFolder string) []dashFolder {
+		main := ""
+		if len(roots) > 0 {
+			main = roots[0]
+		}
+		if !on {
+			return []dashFolder{offFolder(kind, label, main)}
+		}
+		var extra []dashFolder
+		for i, root := range roots[min(1, len(roots)):] {
+			d := mkFolder(fmt.Sprintf("%s-extra-%d", kind, i+1), moreLabel, root, bytesByRoot[root], itemsByRoot[root], itemsLabel)
+			d.NewTitles = newFolder == root
+			totalBytes -= bytesByRoot[root]
+			totalItems -= itemsByRoot[root]
+			extra = append(extra, d)
+		}
+		first := mkFolder(kind, label, main, max(0, totalBytes), max(0, totalItems), itemsLabel)
+		first.NewTitles = len(roots) > 1 && newFolder == ""
+		return append([]dashFolder{first}, extra...)
+	}
+	out.Folders = kindFolders(s.moviesEnabled(), "movies", "Movies", "More movies", s.movieFolders(), stats.movieBytes, moviesDownloaded, "movies", stats.movieBytesByRoot, stats.moviesByRoot, s.newMovieFolder())
+	out.Folders = append(out.Folders, kindFolders(s.tvEnabled(), "tv", "TV shows", "More TV shows", s.tvFolders(), stats.tvBytes, out.Library.Series.EpisodesDownloaded, "episodes", stats.tvBytesByRoot, stats.episodesByRoot, s.newShowFolder())...)
+	out.Folders = append(out.Folders,
 		folderFor(s.musicEnabled(), "music", "Music", s.musicRoot(), 0, out.Library.Music.Downloaded, "albums"),
 		folderFor(s.ebooksEnabled(), "ebooks", "Ebooks", s.ebooksRoot(), 0, out.Library.Ebooks.Downloaded, "books"),
 		folderFor(s.audiobooksEnabled(), "audiobooks", "Audiobooks", s.audiobooksRoot(), 0, out.Library.Audiobooks.Downloaded, "books"),
 		mkFolder("downloads", "Downloads", dlRoot, 0, 0, "active"),
-	}
+	)
 
 	// Downloads in flight.
 	out.Active = []dashActive{}
@@ -461,13 +513,11 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 
 	// Coming up.
 	out.Upcoming = []calendarEntryPayload{}
-	today := time.Now().UTC().Format("2006-01-02")
-	if entries, err := s.calendarEntriesSince(today); err == nil {
-		for _, e := range entries {
-			if len(out.Upcoming) < 6 {
-				out.Upcoming = append(out.Upcoming, e)
-			}
-		}
+	// One day back as well: an episode dated yesterday can air today, on
+	// the viewer's clock, once its exact time is known.
+	now := time.Now().UTC()
+	if entries, err := s.calendarEntriesSince(now.AddDate(0, 0, -1).Format("2006-01-02")); err == nil {
+		out.Upcoming = upcomingEntries(entries, now, 6)
 	}
 
 	// Members see the library, downloads and what is coming up, but not setup

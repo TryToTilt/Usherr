@@ -94,9 +94,10 @@ export interface FileFilters {
   ac: string // audio codec
   sl: string // has subtitles in this language
   nal: string // has no audio in this language
+  nsl: string // has no subtitles in this language (inside the video or as a file beside it)
 }
 
-export const NO_FILE_FILTERS: FileFilters = { vc: '', hdr: '', res: '', al: '', ac: '', sl: '', nal: '' }
+export const NO_FILE_FILTERS: FileFilters = { vc: '', hdr: '', res: '', al: '', ac: '', sl: '', nal: '', nsl: '' }
 
 export function fileFiltersActive(f: FileFilters): boolean {
   return Object.values(f).some((v) => v !== '')
@@ -118,6 +119,7 @@ export function matchesFileFilters(media: MediaSummary | undefined, f: FileFilte
   if (f.sl && !(media.subLangs ?? []).includes(f.sl)) return false
   // "No audio in X" is only asked of titles whose files were read.
   if (f.nal && (media.audioLangs ?? []).includes(f.nal)) return false
+  if (f.nsl && (media.subLangs ?? []).includes(f.nsl)) return false
   return true
 }
 

@@ -16,6 +16,14 @@
 .stats-page .stat-card.k-movie { --tc: var(--c-movie); }
 .stats-page .stat-card.k-tv { --tc: var(--c-tv); }
 .stats-page .stat-card.k-music { --tc: var(--c-music); }
+/* Usherr: the other kinds; these cards are links into their library */
+.stats-page .stat-card.k-anime { --tc: var(--c-anime, var(--c-tv)); }
+.stats-page .stat-card.k-book { --tc: var(--c-book); }
+.stats-page .stat-card.k-audiobook { --tc: var(--c-audiobook); }
+.stats-page .stat-card.k-comics { --tc: var(--c-comics); }
+.stats-page .stat-card.k-sports { --tc: var(--c-sports); }
+.stats-page a.stat-card { color: inherit; text-decoration: none; }
+.stats-page .stat-card strong .stat-unit { margin-left: 8px; font-family: inherit; font-style: normal; font-size: 0.9rem; letter-spacing: 0; color: var(--text-dim); }
 .stats-page .stat-card > :not(.stat-shape) { grid-column: 2; }
 .stats-page .stat-card.k-size > * { grid-column: 1 / -1; }
 .stats-page .stat-card small { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }

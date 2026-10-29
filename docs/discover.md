@@ -2,11 +2,23 @@
 
 **Discover** is for when you don't know what to add. It has rails for what's trending, popular and coming soon, and a row of titles like the ones you already have. Every poster has an **Add** button. Titles you already have say so and open their page. **Browse all** and **Browse more** open a list on its own page, in pages of whole rows with **Previous**, page numbers and **Next**.
 
-At the top, **All**, **Movies**, **TV shows**, (with the Music module on) **Music** and (with ebooks or audiobooks on) **Books** choose what you see. **All** has a section for each kind that is switched on, in that order: Movies, TV shows, Music, Books. The Books tab is described in [books.md](./books.md#finding-books-on-discover). Each section has its own title and line, and only holds its own kind. Every tab has the same row of filters: **Genre**, **From year**, **To year** and **Order** (Most popular, Highest rated, Newest first, Oldest first; music has no Highest rated), and on Music also **Type** (Albums, EPs, Singles). Picking one turns the rails into one filtered list. Genre needs a single kind, so it waits on **All**. **Clear filters** puts them back. The **Hide what I have** switch leaves out titles already in your library, and the choice is remembered in this browser. The list button at the end of the row (**Import a Trakt list**, an icon on its own) takes the address of any public Trakt list and shows what's on it, with **Add** buttons. It uses the Trakt Client ID from **Settings > Info, lists and subtitles > Movie and show info**.
+At the top, **All**, **Movies**, **TV shows**, (with the Music module on) **Music** and (with ebooks or audiobooks on) **Books** choose what you see. **All** has a section for each kind that is switched on, in that order: Movies, TV shows, Music, Books. The Books tab is described in [books.md](./books.md#finding-books-on-discover). Each section has its own title and line, and only holds its own kind. Every tab has the same row of filters: **Genre**, **From year**, **To year** and **Order** (Most popular, Highest rated, Newest first, Oldest first; music has no Highest rated), and on Music also **Type** (Albums, EPs, Singles). Picking one turns the rails into one filtered list. Genre needs a single kind, so it waits on **All**. **Clear filters** puts them back. The **Hide what I have** switch leaves out titles already in your library, and the choice is remembered in this browser. In a filtered list it reads on until the page is full of titles you don't have, so hiding a lot doesn't leave gaps; if everything that matches is already yours, it says so. The list button at the end of the row (**Import a Trakt list**, an icon on its own) takes the address of any public Trakt list and shows what's on it, with **Add** buttons. It uses the Trakt Client ID from **Settings > Info, lists and subtitles > Movie and show info**.
 
 ![Discover with the More movies like your library row, an Include older titles switch and Browse more](images/discover.png)
 
 *Discover. The rows for movies and shows like your library come first.*
+
+## More filters for movies and TV shows
+
+The **Movies** and **TV shows** tabs have a **More filters** row under the filter bar. It is closed until you open it, and its header says how many of these filters are on. A link with one of them in it opens it by itself. They work together with genre, years and order, and **Clear filters** clears them too.
+
+- **Original language** is the language the title was first made in: English, Korean, Japanese and the other common ones come first, then every other language by name. The names are shown in the language Mediarium is set to. It is not the same as the language Mediarium shows titles and summaries in (**Settings > Info, lists and subtitles > Movie and show info**): that one changes how a title is written on screen, this one decides which titles are listed. Chinese is Mandarin and Cantonese has its own entry.
+- **Lowest rating** is **Rated 6+**, **7+** or **8+**. Titles with very few votes are left out (fewer than 100 for movies, 50 for shows), otherwise a title with one ten-star vote would come first.
+- **Runtime** is **Under 90 min**, **90 to 120 min** or **Over 120 min**. For shows it is the length of an episode.
+
+The list's heading says what is picked, for example *Shows in Korean from 2020 to 2026, rated 7+*. The choices live in the address (`language`, `minRating`, `runtime`), so a reload or a shared link shows the same list. They are only for the Movies and TV shows tabs, not for **All**, Music or Books.
+
+For scripts: `GET /api/discover/browse?kind=movie|tv&language=ko&minRating=7&runtime=over120` takes the same choices. `language` is a two or three letter code in lower case, `minRating` is 6, 7, 8 or 9 and `runtime` is `under90`, `90to120` or `over120`. Anything else is answered with a 400 and an explanation.
 
 ## More like your library
 

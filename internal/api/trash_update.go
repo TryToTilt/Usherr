@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rdborg/mediarium/internal/notify"
 	"github.com/rdborg/mediarium/internal/quality"
 	"github.com/rdborg/mediarium/internal/settings"
 )
@@ -85,12 +86,21 @@ func (s *Server) recordTrashCheck(res trashUpdateResult, err error, daily bool) 
 	case err != nil:
 		slog.Warn("custom formats: couldn't check the TRaSH Guides", "daily", daily, "err", err)
 		_ = s.QueueRepo.LogActivity(0, "update", fmt.Sprintf("Couldn't check the TRaSH Guides: %s", c.Error))
+		// A check that failed is always worth a message.
+		s.sendNotification(notify.ComposeTrashSyncFailed(c.Error, daily, s.publicLinks(), time.Now()))
 	case c.Updated == 0:
 		slog.Info("custom formats: checked the TRaSH Guides, nothing to update", "daily", daily, "checked", res.Checked)
 		_ = s.QueueRepo.LogActivity(0, "update", fmt.Sprintf("Checked the TRaSH Guides: nothing to update, %d formats are up to date.", c.UpToDate))
+		if s.settingOn(settings.KeyTrashSyncAlways, false) {
+			s.sendNotification(notify.ComposeTrashSyncNothing(c.UpToDate, daily, s.publicLinks(), time.Now()))
+		}
 	default:
 		slog.Info("custom formats: checked the TRaSH Guides", "daily", daily, "updated", c.Updated, "upToDate", c.UpToDate, "scoresChanged", c.Scores, "profiles", c.Profiles, "formats", strings.Join(c.Names, ", "))
 		_ = s.QueueRepo.LogActivity(0, "update", fmt.Sprintf("Checked the TRaSH Guides: %d formats updated, %d already up to date, %d profile scores changed.", c.Updated, c.UpToDate, c.Scores))
+		// Only to the notifications that ticked the event.
+		if ev, ok := notify.ComposeTrashSync(c.Names, c.Updated, c.Scores, c.Profiles, daily, s.publicLinks(), time.Now()); ok {
+			s.sendNotification(ev)
+		}
 	}
 	return c
 }

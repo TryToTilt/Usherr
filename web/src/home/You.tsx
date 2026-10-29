@@ -16,6 +16,7 @@ import RateButton from './RateButton'
 import type { TasteTag } from './useTaste'
 import { setVote, type VoteKind } from './useVotes'
 import './news.css'
+const AddonCard = lazy(() => import('./ExtrasSettings').then((m) => ({ default: m.AddonCard }))) // Usherr: the Stremio and Nuvio link
 
 const Diary = lazy(() => import('./Diary'))
 const Wrapped = lazy(() => import('./Wrapped'))
@@ -209,6 +210,10 @@ export default function You({ tab = 'taste' }: { tab?: YouTab }) {
               <ForYouRail kind="movie" owned={owned} onAdd={setAdding} invite={false} />
               <ForYouRail kind="tv" owned={owned} onAdd={setAdding} invite={false} />
               <AutoStream />
+              {/* Usherr: each person's own add-on link for Stremio and Nuvio (members can't open Extras) */}
+              <Suspense fallback={null}>
+                <AddonCard />
+              </Suspense>
 
               <section className="card you-card">
                 <h2>{t('Your votes')}</h2>

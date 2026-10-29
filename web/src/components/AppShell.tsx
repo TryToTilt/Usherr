@@ -15,7 +15,8 @@ import { useLive } from '../useLive'
 import { useUnreadErrors } from '../useProblems'
 import { useModules } from '../ModulesContext'
 import { libraryEntries, type LibraryTab } from '../libraryTabs'
-import { useComicsOn, useNsfwOn } from '../home/libraryKinds' // home fork
+import { useComicsOn, useNsfwOn, useSportsOn } from '../home/libraryKinds' // home fork
+import { afterClick, afterKey, type NavGroup, type OpenGroup } from '../navGroups'
 import BrandMark from './BrandMark'
 import PageLoading from './PageLoading'
 import FeedbackNudge from './FeedbackNudge'
@@ -28,7 +29,9 @@ import SideTools from './SideTools'
 import { PlayerHost } from '../home/Player' // play hook (home fork)
 import '../home/look.css' // home fork: its pages in the v3 look
 import OmniBar, { type OmniPage } from '../home/OmniBar' // Usherr: the header's search is the search and AI bar
+import './navDrawer.css' // Usherr: the menu as a drawer at every width
 import RouletteButton from '../home/RouletteButton' // Usherr
+import { TonightButton } from '../home/Tonight' // Usherr
 import { CalendarHeaderSearch } from '../home/CalendarSearch' // Usherr
 import ThemeToggle from './ThemeToggle'
 import UsageStatsPrompt from './UsageStats'
@@ -43,6 +46,7 @@ const NAV: { to: string; label: string; icon: IconName; sec: SectionKey; end?: b
   { to: '/discover', label: t('Discover'), icon: 'compass', sec: 'discover' },
   { to: '/library', label: t('Library'), icon: 'film', sec: 'library' },
   { to: '/calendar', label: t('Upcoming'), icon: 'calendar', sec: 'calendar' },
+  { to: '/sports', label: t('Sports'), icon: 'trophy', sec: 'live' }, // Usherr: Sports
   { to: '/tv', label: t('Live TV'), icon: 'tv', sec: 'live' }, // Mediarium TV (home fork): the one kind of media outside the Library
   { to: '/marquee/manage', label: t('Marquee'), icon: 'monitor', sec: 'live' }, // Usherr: the lobby display (administrators)
   { to: '/queue', label: t('Activity'), icon: 'activity', sec: 'activity' },
@@ -80,7 +84,7 @@ function backFallback(path: string): string | undefined {
 // the left.
 
 // home fork: where each page was left, for the session, by its address.
-const MAIN_PAGES = new Set(['/', '/discover', '/library', '/comics', '/nsfw', '/calendar', '/queue', '/music/playlists', '/upcoming'])
+const MAIN_PAGES = new Set(['/', '/discover', '/library', '/comics', '/nsfw', '/calendar', '/queue', '/music/playlists', '/upcoming', '/sports'])
 const spotKey = (path: string, search: string) => `page:${path}${search}`
 function spotOf(key: string): number {
   try {
@@ -97,6 +101,9 @@ function keepSpot(key: string, y: number) {
     // remembering is optional
   }
 }
+
+// Usherr: how long the open menu waits, with no mouse movement over it, before it slides away (wider screens).
+const MENU_IDLE_MS = 8000
 
 export default function AppShell() {
   return (
@@ -188,7 +195,8 @@ function Shell() {
   const admin = isAdmin(user)
   // Members only have their own profile and About under Settings.
   const settingsGroups = settingsGroupsFor(admin, user?.role === 'viewer')
-  const nav = NAV.filter((n) => admin || n.to !== '/marquee/manage').map((n) => (n.sec === 'settings' ? { ...n, to: settingsGroups[0].pages[0].to } : n)) // Usherr: the Marquee is for administrators
+  const sportsOn = useSportsOn(admin) // Usherr
+  const nav = NAV.filter((n) => (admin || n.to !== '/marquee/manage') && (sportsOn || n.to !== '/sports')).map((n) => (n.sec === 'settings' ? { ...n, to: settingsGroups[0].pages[0].to } : n)) // Usherr: the Marquee is for administrators
   const { on: moduleOn } = useModules()
   const ebooksOn = moduleOn('ebooks')
   const audiobooksOn = moduleOn('audiobooks')
@@ -205,9 +213,38 @@ function Shell() {
   const errorDot = <span className="nav-dot" role="img" aria-label={t('New errors')} title={t('New errors. See Settings, System, Logs and errors.')} />
 
   // Close the mobile drawer whenever the page changes (a Library line only changes the address's query).
+  // Usherr: on a wider screen it stays open while you go from page to page.
   useEffect(() => {
-    setMenuOpen(false)
+    if (window.matchMedia('(max-width: 900px)').matches) setMenuOpen(false)
   }, [location.pathname, location.search])
+  // Usherr: on a wider screen the open menu sits over the page without
+  // dimming it, and slides away on its own once the mouse has not moved over
+  // it for a while (or with the hamburger, or Escape).
+  useEffect(() => {
+    if (!menuOpen || window.matchMedia('(max-width: 900px)').matches) return
+    const nav = navRef.current
+    if (!nav) return
+    let timer = 0
+    const arm = () => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => setMenuOpen(false), MENU_IDLE_MS)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    arm()
+    nav.addEventListener('pointermove', arm)
+    nav.addEventListener('wheel', arm, { passive: true })
+    nav.addEventListener('keydown', arm)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      window.clearTimeout(timer)
+      nav.removeEventListener('pointermove', arm)
+      nav.removeEventListener('wheel', arm)
+      nav.removeEventListener('keydown', arm)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menuOpen])
 
   // On a phone the search is an icon that opens a bar over the header.
   const [searchOpen, setSearchOpen] = useState(false)
@@ -226,9 +263,8 @@ function Shell() {
   // its pages (an accordion). The group that holds the open settings page is
   // the open one; pressing another group opens it and closes the one before.
   // On any other page the open group folds up again; the list of groups stays.
-  const currentGroup = location.pathname.startsWith('/settings')
-    ? (settingsGroups.find((g) => g.pages.length > 1 && g.pages.some((p) => inPage(location.pathname, p.to)))?.key ?? null)
-    : null
+  // Usherr: a settings page can live outside /settings (the Marquee, the pre-show): its group counts all the same.
+  const currentGroup = settingsGroups.find((g) => g.pages.length > 1 && g.pages.some((p) => inPage(location.pathname, p.to)))?.key ?? null
   const [openKey, setOpenKey] = useState<string | null>(() => currentGroup)
   // Moving to a page of another group closes the one that was open: also to a page
   // that has no pages under it (Indexers & Search), and to any page outside Settings.
@@ -236,13 +272,7 @@ function Shell() {
     setOpenKey(currentGroup)
   }, [currentGroup, location.pathname])
 
-  const inSettings = location.pathname.startsWith('/settings')
-  // Usherr: Settings folds up like the Library's kinds (open on a settings page,
-  // folded elsewhere, a press opens or folds it), leaving room for the Stack.
-  const [settingsOpen, setSettingsOpen] = useState(inSettings)
-  useEffect(() => {
-    setSettingsOpen(inSettings)
-  }, [inSettings, location.pathname])
+  const inSettings = location.pathname.startsWith('/settings') || currentGroup !== null // Usherr: and its pages elsewhere
   // Usherr: what the top bar's AI expects, from the page: the kind on Discover and the Library, Comics on its pages.
   const omniPage: OmniPage = (() => {
     if (location.pathname.startsWith('/comics')) return 'comics'
@@ -252,13 +282,43 @@ function Shell() {
     }
     return 'dashboard'
   })()
-  // Usherr: the Library's kinds fold up under it like a settings group: open on
-  // a Library page, folded everywhere else, and pressing Library opens or folds them.
-  const inLibrary = /^\/(library|comics|nsfw|streamed)(\/|$)/.test(location.pathname)
-  const [libraryOpen, setLibraryOpen] = useState(inLibrary)
+  const inLibrary = /^\/(library|comics|nsfw|streamed)(\/|$)/.test(location.pathname) // Usherr: its own Library pages too
+
+  // The sub menus under Library and under Settings. Only a click on the group
+  // opens one (and only one is open at a time); being on one of its pages or
+  // changing page never does, and a reload starts with both closed. While a
+  // group is closed, its row names the page you are on.
+  const [openGroup, setOpenGroup] = useState<OpenGroup>(inLibrary ? 'library' : inSettings ? 'settings' : null)
+  // Usherr: a group stays open on its own pages and folds up elsewhere, as before.
   useEffect(() => {
-    setLibraryOpen(inLibrary)
-  }, [inLibrary, location.pathname])
+    setOpenGroup(inLibrary ? 'library' : inSettings ? 'settings' : null)
+  }, [inLibrary, inSettings, location.pathname])
+  const hereLine = libraryLines.find((l) => l.active)
+  const here: Record<NavGroup, string> = {
+    library: hereLine ? LIBRARY_LINE[hereLine.tab].label : '',
+    settings: inSettings ? (settingsGroups.flatMap((g) => g.pages).find((p) => inPage(location.pathname, p.to))?.label ?? '') : '',
+  }
+  // Arrow keys inside an open sub menu: up and down move, Escape folds it up and goes back to its row.
+  const subMenuKeys = (group: NavGroup) => (e: React.KeyboardEvent<HTMLElement>) => {
+    const items = [...e.currentTarget.querySelectorAll<HTMLElement>('a[href], [role="button"]')].filter((el) => el.getClientRects().length > 0)
+    const at = items.indexOf(document.activeElement as HTMLElement)
+    const toHead = () => document.getElementById(`sn-head-${group}`)?.focus()
+    if (e.key === 'ArrowDown' && at >= 0 && at < items.length - 1) {
+      e.preventDefault()
+      items[at + 1].focus()
+    } else if (e.key === 'ArrowUp' && at > 0) {
+      e.preventDefault()
+      items[at - 1].focus()
+    } else if (e.key === 'ArrowUp' && at === 0) {
+      e.preventDefault()
+      toHead()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      setOpenGroup(null)
+      toHead()
+    }
+  }
 
   // The page name in the top bar, in the browser tab and (when the page has no
   // heading of its own) as the page's one <h1>.
@@ -319,6 +379,20 @@ function Shell() {
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [menuOpen])
+  // Usherr: a click or touch anywhere outside the open menu puts it away
+  // (on a wide screen there's no backdrop to catch it). The hamburger
+  // toggles it itself.
+  useEffect(() => {
+    if (!menuOpen) return
+    const away = (e: PointerEvent) => {
+      const at = e.target as Node | null
+      if (!at || navRef.current?.contains(at) || menuButton.current?.contains(at)) return
+      setMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', away)
+    return () => document.removeEventListener('pointerdown', away)
+  }, [menuOpen])
+
   const [pageHasHeading, setPageHasHeading] = useState(false)
   // Title, show, book and artist pages get a Back button: it returns to
   // wherever the page was opened from, or to its section when it was opened
@@ -365,15 +439,15 @@ function Shell() {
   // A small count of downloads in flight next to "Activity".
   const loadActive = useCallback(() => {
     api
-      .listActiveQueue()
-      .then((q) => setActive(q.length))
+      .queueCount()
+      .then((c) => setActive(c.active))
       .catch(() => undefined)
   }, [])
   useEffect(loadActive, [loadActive])
-  useLive(loadActive, 3000)
+  useLive(loadActive, 5000)
 
   return (
-    <div className="app-shell" data-section={sectionFor(location.pathname)}>
+    <div className="app-shell nav-drawer" data-section={sectionFor(location.pathname)}>
       <a
         className="skip-link"
         href="#main"
@@ -388,44 +462,73 @@ function Shell() {
       <div className={`sidebar-backdrop${menuOpen ? ' open' : ''}`} onClick={() => setMenuOpen(false)} />
       <nav id="main-menu" ref={navRef} className={`sidebar${menuOpen ? ' open' : ''}`} aria-label={tc('menu', 'Main')}>
         <div className="brand">
+          {/* Usherr: the open menu covers the top bar's hamburger, so it has its own, in the same place */}
+          <button type="button" className="menu-button menu-close" onClick={() => setMenuOpen(false)} aria-controls="main-menu" aria-expanded={menuOpen} aria-label={t('Close menu')}>
+            <Icon name="menu" size={20} />
+          </button>
           <BrandMark />
           <span className="brand-text">
             <span className="brand-name">{BRAND}</span>
           </span>
         </div>
         <div className={`side-scroll${moreBelow ? ' more-below' : ''}`} ref={scrollRef}>
-        {nav.map((n) => (
-          <Fragment key={n.to}>
-          <NavLink to={n.to} end={n.end} style={{ ['--nc' as string]: `var(--c-${n.sec})` }} onClick={
-            n.sec === 'library'
-              ? (e) => {
-                  // Usherr: an open Library folds up; a folded one opens, and shows the
-                  // Library too, except in the phone's menu, which would close on it.
-                  if (libraryOpen || menuOpen) e.preventDefault()
-                  setLibraryOpen(!libraryOpen)
-                }
-              : n.sec === 'settings'
-                ? (e) => {
-                    // Usherr: the same for Settings.
-                    if (settingsOpen || menuOpen) e.preventDefault()
-                    setSettingsOpen(!settingsOpen)
-                  }
-                : undefined
+        {nav.map((n) => {
+          const group: NavGroup | null = n.sec === 'library' || n.sec === 'settings' ? n.sec : null
+          const isOpen = group !== null && openGroup === group
+          const inside = group === 'library' ? inLibrary : inSettings
+          // From another page a click goes there and opens the sub menu; on one of its pages it only folds it up or down.
+          const press = () => {
+            if (!group) return
+            setOpenGroup(afterClick(openGroup, group, inside))
+            if (!inside) navigate(n.to)
           }
-          aria-expanded={n.sec === 'library' ? libraryOpen : n.sec === 'settings' ? settingsOpen : undefined}
-          className={({ isActive }) => (n.sec === 'settings' ? (inSettings ? 'active parent-open' : '') : n.sec === 'library' ? (isActive || inLibraryPages || libraryLines.some((l) => l.active) ? 'active parent-open' : '') : isActive || (n.sec === 'calendar' && inUpcoming) ? 'active' : '')}>
+          return (
+          <Fragment key={n.to}>
+          <NavLink
+            to={n.to}
+            end={n.end}
+            id={group ? `sn-head-${group}` : undefined}
+            aria-expanded={group ? isOpen : undefined}
+            aria-controls={group ? `sn-${group}` : undefined}
+            style={{ ['--nc' as string]: `var(--c-${n.sec})` }}
+            className={({ isActive }) => (group === 'settings' ? (inSettings ? (isOpen ? 'active parent-open' : 'active') : '') : group === 'library' ? (isActive || inLibraryPages || libraryLines.some((l) => l.active) ? (isOpen ? 'active parent-open' : 'active') : '') : isActive || (n.sec === 'calendar' && inUpcoming) ? 'active' : '')}
+            onClick={group ? (e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return // open in a new tab as usual
+              if (inside) e.preventDefault()
+              setOpenGroup(afterClick(openGroup, group, inside))
+            } : undefined}
+            onKeyDown={group ? (e) => {
+              // A link answers Enter on its own; Space and the arrow keys are added here.
+              if (e.key === ' ') {
+                e.preventDefault()
+                press()
+                return
+              }
+              const next = afterKey(openGroup, group, e.key)
+              if (next !== undefined) {
+                e.preventDefault()
+                setOpenGroup(next)
+              } else if (e.key === 'ArrowDown' && isOpen) {
+                e.preventDefault()
+                document.querySelector<HTMLElement>(`#sn-${group} a[href]`)?.focus()
+              }
+            } : undefined}
+          >
             <span className="nav-ico">
               <Icon name={n.icon} size={17} />
             </span>
             <span className="nav-label">{n.label}</span>
             {n.to === '/queue' && active > 0 && <span className="nav-count">{active}</span>}
-            {(n.sec === 'library' || n.sec === 'settings') && (
-              <span className="nav-chev" style={{ transform: (n.sec === 'library' ? libraryOpen : settingsOpen) ? 'rotate(90deg)' : 'none' }}>
-                <Icon name="open" size={14} />
+            {group && !isOpen && here[group] && <span className="nav-here">{here[group]}</span>}
+            {group && (
+              <span className="nav-chev" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }}>
+                <Icon name="open" size={12} />
               </span>
             )}
           </NavLink>
-          {n.sec === 'library' && libraryOpen && (
+          {n.sec === 'library' && (
+            <div className={`sn-collapse${isOpen ? ' open' : ''}`} id="sn-library" onKeyDown={subMenuKeys('library')}>
+            <div className="sn-collapse-inner">
             <div className="subnav subnav-library" aria-label={t('Library')} role="group">
               {libraryLines.map((l) => {
                 const line = LIBRARY_LINE[l.tab]
@@ -439,10 +542,15 @@ function Shell() {
                 )
               })}
             </div>
+            </div>
+            </div>
           )}
           </Fragment>
-        ))}
-        {settingsOpen && (
+          )
+        })}
+        {(
+        <div className={`sn-collapse${openGroup === 'settings' ? ' open' : ''}`} id="sn-settings" onKeyDown={subMenuKeys('settings')}>
+        <div className="sn-collapse-inner">
         <div className="subnav" style={{ ['--nc' as string]: 'var(--c-settings)' }}>
           {settingsGroups.map((g) => {
             const current = g.pages.some((p) => inPage(location.pathname, p.to))
@@ -457,14 +565,17 @@ function Shell() {
               )
             }
             const open = openKey === g.key
-            // Opening a group goes to its first page; pressing an open one folds it up.
+            // Opening a group goes to its first page (on a wide screen); pressing an open one folds it up, unless you're on one of its pages.
             const toggleGroup = () => {
+              // Usherr: the group of the page you're on stays open, so its pages can be picked.
+              if (open && current) return
               if (open) {
                 setOpenKey(null)
                 return
               }
               setOpenKey(g.key)
-              if (!g.pages.some((p) => inPage(location.pathname, p.to))) navigate(g.pages[0].to)
+              // Usherr: on a phone the menu closes on a new page, so opening a group only shows its pages there.
+              if (!g.pages.some((p) => inPage(location.pathname, p.to)) && !window.matchMedia('(max-width: 900px)').matches) navigate(g.pages[0].to)
             }
             return (
               <div key={g.key} className={`sn-group${open ? ' open' : ''}`} style={{ ['--sc' as string]: g.color }}>
@@ -512,6 +623,8 @@ function Shell() {
             )
           })}
         </div>
+        </div>
+        </div>
         )}
         <SideStack />
         <SideTools ebooksOn={ebooksOn} audiobooksOn={audiobooksOn} musicOn={musicOn} homes={homes} apps={apps} showSupport={admin && showSupport} variant="side">
@@ -555,6 +668,7 @@ function Shell() {
             </button>
           </div>
           <RouletteButton iconOnly className="icon-btn top-dice" /> {/* Usherr: Roulette */}
+          <TonightButton /> {/* Usherr: what to watch tonight */}
           <button type="button" className="icon-btn search-toggle" onClick={() => setSearchOpen(true)} aria-label={t('Search')}>
             <Icon name="search" size={19} />
           </button>

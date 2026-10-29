@@ -10,6 +10,7 @@ import { useAutosaveSetting } from '../../useAutosave'
 import QualityProfilesSection from '../../components/QualityProfiles'
 import SizeLimitsCard from '../../components/SizeLimitsCard'
 import MusicProfilesSection from '../../components/MusicProfiles'
+import MusicFiltersCard from '../../components/MusicFiltersCard'
 import QuietForAWhile from '../../components/QuietForAWhile'
 import { t } from '../../i18n'
 import TipLabel from '../../components/TipLabel'
@@ -187,6 +188,7 @@ export default function QualitySettings() {
       <LanguageSection />
       <SizeLimitsCard />
       <MusicProfilesSection />
+      <MusicFiltersCard />
       <AdvancedSection value={advanced.value} loaded={advanced.loaded} saving={advanced.saving} change={(v) => void advanced.change(v)} />
     </div>
   )

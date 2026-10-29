@@ -8,6 +8,7 @@ import { useMusicPlayer } from '../components/MusicPlayer'
 import Dropdown from '../components/Dropdown'
 import Icon from '../components/Icon'
 import PosterCard, { type CardAction } from '../components/PosterCard'
+import { WindowedGrid } from '../components/Windowed'
 import { describeState, type ItemState } from '../components/state'
 import { useToast } from '../components/Toast'
 import { chosenOf, failureLines, nameList, selectAllKeys, selectionText, selectRange, toggleKey } from '../librarySelection'
@@ -18,6 +19,7 @@ import { plural, t, tx } from '../i18n'
 import { useUrlState } from '../useUrlState'
 import Shelves from '../home/Shelves' // home fork
 import { groupShelves, letterShelves, monthShelves, RowsByPick, ShelfControls, useShelfView } from '../home/shelfKit' // home fork
+import { PosterSizeSlider, usePosterSize } from '../home/posterSize' // Usherr
 
 type Sort = 'added' | 'name' | 'missing'
 type MusicRows = 'genre' | 'az' | 'added' | 'missing' // home fork
@@ -234,6 +236,7 @@ export default function MusicLibrary({
 
   // home fork: shelves, rows that scroll sideways, by genre, A–Z…
   const shelfView = useShelfView<MusicRows>('music', MUSIC_ROWS, 'genre')
+  const posterSize = usePosterSize('music', 160) // Usherr
   const shelves = useMemo(() => {
     if (!shown || !shelfView.on) return []
     const byName = (a: MusicArtist, b: MusicArtist) => a.sortName.localeCompare(b.sortName)
@@ -284,7 +287,7 @@ export default function MusicLibrary({
   }
 
   return (
-    <div>
+    <div style={posterSize.style}>
       {/* Usherr: one slim row, pinned under the top bar (CompactBar.tsx) */}
       <CompactBar
         open={filtersOpen}
@@ -305,6 +308,12 @@ export default function MusicLibrary({
                 ]}
               />
             </span>
+            {shelfView.on && <RowsByPick value={shelfView.by} onChange={shelfView.setBy} options={[
+            { value: 'genre', label: t('Genre') },
+            { value: 'az', label: t('A–Z') },
+            { value: 'added', label: t('Recently added') },
+            { value: 'missing', label: t('Albums missing') },
+          ]} />} {/* Usherr: Rows by, beside the sort */}
             <span className="spacer" />
             <button className="btn-with-icon toolbar-playlists" onClick={() => navigate('/music/playlists')} aria-label={t('Playlists')} title={t('Playlists')}>
               <Icon name="list" size={16} /> <span className="cbar-add-label">{t('Playlists')}</span>
@@ -330,6 +339,7 @@ export default function MusicLibrary({
               ]}
             />
             <ShelfControls view={shelfView} />
+            <PosterSizeSlider value={posterSize} />
             <span className="spacer" />
             {admin && (
               <button className={`btn-with-icon${selecting ? ' primary' : ''}`} aria-pressed={selecting} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
@@ -412,14 +422,9 @@ export default function MusicLibrary({
           )}
         </div>
       ) : shelfView.on ? (
-        <Shelves key={shelfView.by} memory="music" shelves={shelves} render={card} itemKey={(a) => String(a.id)} rowClass="music-shelf" bar={<RowsByPick value={shelfView.by} onChange={shelfView.setBy} options={[
-            { value: 'genre', label: t('Genre') },
-            { value: 'az', label: t('A–Z') },
-            { value: 'added', label: t('Recently added') },
-            { value: 'missing', label: t('Albums missing') },
-          ]} />} />
+        <Shelves key={shelfView.by} memory="music" shelves={shelves} render={card} itemKey={(a) => String(a.id)} rowClass="music-shelf" />
       ) : (
-        <div className="poster-grid music-grid">{shown.map(card)}</div>
+        <WindowedGrid className="poster-grid music-grid" items={shown} render={card} />
       )}
     </div>
   )

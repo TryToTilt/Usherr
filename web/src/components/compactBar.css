@@ -4,11 +4,11 @@
   top: 0; /* the page area scrolls under the top bar, so its top is just below it */
   z-index: 20;
   margin: 0 0 16px;
-  padding: 8px 0;
+  padding: 0 0 4px;
   background: var(--bg);
 }
 /* Covers the page's top padding above the pinned bar, so nothing shows between it and the top bar. */
-.cbar::before { content: ''; position: absolute; left: -2px; right: -2px; bottom: 100%; height: 18px; background: var(--bg); pointer-events: none; }
+.cbar::before { content: ''; position: absolute; left: -2px; right: -2px; bottom: 100%; height: 26px; background: var(--bg); pointer-events: none; }
 .cbar-reverse-p { display: none; }
 .cbar-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cbar-row > .spacer { flex: 1; }
@@ -38,7 +38,7 @@
 .cbar-chip-clear { border: 0; background: none; color: var(--text-dim); font-size: 0.85rem; cursor: pointer; text-decoration: underline; }
 
 @media (max-width: 760px) {
-  .cbar-row { flex-wrap: nowrap; }
+  .cbar-row { flex-wrap: wrap; } /* Usherr: in the drawer there is room for a second line */
   .cbar-row > * { min-width: 0; }
   .kind-pick { max-width: 46vw; }
   .kind-pick-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -55,3 +55,18 @@
 }
 .cbar-title { margin: 0; font-size: 1.05rem; min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+
+/* Usherr: the drawer. Closed, only the handle shows, hanging under the top
+   bar; it pulls the row (and the filters panel, and the chips) down. */
+.cbar-pull { display: flex; align-items: center; gap: 8px; max-width: min(100%, 560px); height: 32px; margin: 0 auto; padding: 0 16px; border: 1px solid var(--border); border-top: 0; border-radius: 0 0 14px 14px; background: var(--surface); color: var(--text-dim); font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+.cbar-pull:hover { color: var(--text); }
+.cbar-pull-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cbar-pull-chev { flex: none; transition: transform 0.3s var(--ease, ease); }
+.cbar.down .cbar-pull-chev { transform: rotate(180deg); }
+.cbar-drawer { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.38s cubic-bezier(0.22, 0.61, 0.36, 1); }
+.cbar.down .cbar-drawer { grid-template-rows: 1fr; }
+.cbar-drawer-in { min-height: 0; overflow: hidden; padding: 0 6px; margin: 0 -6px; }
+.cbar.down .cbar-drawer-in { padding-top: 10px; padding-bottom: 6px; }
+.cbar.down.settled .cbar-drawer-in { overflow: visible; }
+.cbar-row .shelves-bar { margin: 0; }
+@media (prefers-reduced-motion: reduce) { .cbar-drawer, .cbar-pull-chev { transition: none; } }

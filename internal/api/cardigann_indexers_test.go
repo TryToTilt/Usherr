@@ -293,8 +293,10 @@ func TestDefinitionIndexerEndToEnd(t *testing.T) {
 func waitForQueueStatus(t *testing.T, client *http.Client, base, status string) map[string]any {
 	t.Helper()
 	// Generous: it only waits this long when something is wrong, but a loaded
-	// two-CPU machine running the race detector can be many times slower.
-	deadline := time.Now().Add(60 * time.Second)
+	// two-CPU machine running the race detector can be many times slower (a
+	// torrent has to find its peer and may wait out a failed first dial).
+	start := time.Now()
+	deadline := start.Add(150 * time.Second)
 	var last []map[string]any
 	for time.Now().Before(deadline) {
 		last = getJSON[[]map[string]any](t, client, base+"/api/queue")
@@ -305,7 +307,7 @@ func waitForQueueStatus(t *testing.T, client *http.Client, base, status string) 
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	t.Fatalf("no queue item reached %q: %+v", status, last)
+	t.Fatalf("no queue item reached %q in %s; the queue was left at: %+v", status, time.Since(start).Round(time.Second), last)
 	return nil
 }
 

@@ -1,11 +1,11 @@
-// Usherr: the slim toolbar at the top of Discover and the Library. One row:
+// Usherr: the slim toolbar at the top of Discover and the Library (a pull-down drawer). One row:
 // the kind as a drop-down, a Filters button (with how many are on) that opens
 // the rest, and the sort. Filters that are on show as small chips under it,
 // each with an x. The row stays pinned under the top bar while you scroll.
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import Icon from './Icon'
 import KindGlyph, { type GlyphKind } from './KindGlyph'
-import { t } from '../i18n'
+import { plural, t } from '../i18n'
 import './compactBar.css'
 
 export interface KindOption {
@@ -74,12 +74,70 @@ export function ActiveChips({ filters, onClearAll }: { filters: ActiveFilter[]; 
 }
 
 // CompactBar: the pinned row, the chips under it and the panel that opens.
+// Usherr: it sits in a PullDrawer, a drawer that pulls down from under the top bar, so the
+// posters have the page. Closed, a slim handle says what is showing (the
+// kind, the sort, how many filters are on); the choice is kept in this browser.
+const DRAWER_KEY = 'usherr-filter-drawer'
+
+export function PullDrawer({ children, className = '' }: { children: ReactNode; className?: string }) {
+  const [down, setDown] = useState(() => {
+    try {
+      return localStorage.getItem(DRAWER_KEY) === 'open'
+    } catch {
+      return false
+    }
+  })
+  // Menus inside may hang below the drawer, so it clips only while it moves.
+  const [settled, setSettled] = useState(down)
+  const [summary, setSummary] = useState('')
+  const inner = useRef<HTMLDivElement>(null)
+  // The handle's words are read from the controls themselves, so every page gets them
+  // (after every render, as any of them may have changed; it only sets what differs).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const el = inner.current
+    if (!el) return
+    const text = (q: string) => el.querySelector(q)?.textContent?.trim() ?? ''
+    const kind = [text('.kind-pick-name'), text('.kind-pick-count')].filter(Boolean).join(' ')
+    const sort = text('.cbar-sort .dropdown-btn')
+    const tab = text('.seg [aria-selected="true"], .seg button.active')
+    const n = Number(text('.cbar-count')) || 0
+    const next = [kind, tab, sort, n > 0 ? plural(n, '{n} filter on', '{n} filters on') : ''].filter(Boolean).join(' · ')
+    if (next !== summary) setSummary(next)
+  })
+  const toggle = () => {
+    const v = !down
+    setDown(v)
+    if (!v) setSettled(false)
+    else if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) setSettled(true) // no slide, so no end of one
+    try {
+      localStorage.setItem(DRAWER_KEY, v ? 'open' : 'closed')
+    } catch {
+      // only this visit then
+    }
+  }
+  return (
+    <div className={`cbar${down ? ' down' : ''}${settled ? ' settled' : ''}${className ? ` ${className}` : ''}`}>
+      <button type="button" className="cbar-pull" aria-expanded={down} onClick={toggle} title={down ? t('Hide the filters') : t('Show the filters')}>
+        <Icon name="sliders" size={15} />
+        <span className="cbar-pull-text">{summary || t('Filters and sort')}</span>
+        <Icon name="chevron-down" size={15} className="cbar-pull-chev" />
+      </button>
+      <div className="cbar-drawer" onTransitionEnd={(e) => e.target === e.currentTarget && setSettled(down)} inert={!down}>
+        <div className="cbar-drawer-in" ref={inner}>
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function CompactBar({ row, chips, panel, open }: { row: ReactNode; chips?: ReactNode; panel?: ReactNode; open: boolean }) {
   return (
-    <div className="cbar">
+    <PullDrawer>
       <div className="cbar-row">{row}</div>
       {open && panel && <div className="cbar-panel">{panel}</div>}
       {chips}
-    </div>
+    </PullDrawer>
   )
 }

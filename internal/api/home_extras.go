@@ -64,14 +64,14 @@ func (s *Server) feedAddress(r *http.Request) string {
 	if a := s.mediariumAddress(keyTVFeedBase); a != "" {
 		return a
 	}
-	if r == nil || isLoopbackHost(r.Host) {
+	if r == nil || isLocalHostport(r.Host) {
 		return ""
 	}
 	return tvFeedBase(r)
 }
 
-// isLoopbackHost reports whether host[:port] only means "this computer".
-func isLoopbackHost(hostport string) bool {
+// isLocalHostport reports whether host[:port] only means "this computer".
+func isLocalHostport(hostport string) bool {
 	h := hostport
 	if hh, _, err := net.SplitHostPort(hostport); err == nil {
 		h = hh
@@ -173,7 +173,7 @@ func (s *Server) handleGetExtras(w http.ResponseWriter, r *http.Request) {
 	}
 
 	out.Address.Value = s.mediariumAddress("")
-	if !isLoopbackHost(r.Host) {
+	if !isLocalHostport(r.Host) {
 		out.Address.Suggested = tvFeedBase(r)
 	}
 
@@ -265,7 +265,7 @@ func (s *Server) handlePutExtras(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "Mediarium's address "+err.Error())
 			return
 		}
-		if a != "" && isLoopbackHost(hostOf(a)) {
+		if a != "" && isLocalHostport(hostOf(a)) {
 			writeError(w, http.StatusBadRequest, "Use the address other devices reach Mediarium at, such as http://192.168.1.20:8264. localhost only means this computer.")
 			return
 		}

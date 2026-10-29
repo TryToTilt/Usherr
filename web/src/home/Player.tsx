@@ -9,7 +9,7 @@
 import { InfoBanner, StaticBurst, SurfButtons, useChannels, useSurfKeys } from './TVSurf' // Usherr
 import { useTVPrefs } from './tvPrefs' // Usherr
 import { playCard, type CardInfo } from './tvCard' // Usherr
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from '../components/Icon'
 import WatchLinks from '../components/WatchLinks'
@@ -17,6 +17,9 @@ import { browserTrouble, streamApi, type StreamStart } from './streamApi'
 import './player.css'
 import { locale, t } from '../i18n'
 import { TracksMenu, prefAudioLang, prefSubLang, pickSub, sameLang, type PlayTrack, type Tracks } from './playerTracks' // Usherr
+import { preshowApi, preshowBefore, type PlanAsk, type PreshowPlan } from './preshowApi' // Usherr
+
+const PreshowRun = lazy(() => import('./PreshowRun')) // Usherr: the pre-show before the film
 
 export type PlayKind = 'movie' | 'episode' | 'video'
 // stream: a "Stream now" session (home_streaming.go); onKeep downloads it for later.
@@ -43,15 +46,54 @@ type Request = {
   watchIn?: { tmdbId: number; kind: 'movie' | 'tv' }
   channel?: string // Usherr: the Live TV channel it's on, for the Marquee
   about?: { kind: 'movie' | 'tv'; tmdbId: number; season?: number; episode?: number } // Usherr: which title a stream is, for the Marquee
+  sport?: string // Usherr: which game a stream is (its id in Sports), for the Marquee
+  resumedFrom?: number // Usherr: picked up where it was left (home_positions.go)
+  noPreshow?: boolean // Usherr: its pre-show has played already (a Showtime)
 }
 
-export type StreamExtras = Pick<Request, 'onNext' | 'tvTitle' | 'watchIn' | 'startAt' | 'about'>
+// Usherr: the name a title's place is kept under (home_positions.go), or ''
+// for Live TV, a channel's shows and breaks: those are live, so never resumed.
+function positionItem(r: Request): string {
+  if (r.kind === 'channel' || r.live || r.card || r.direct || r.channel) return ''
+  const safe = (v: string | number) => String(v).toLowerCase().replace(/[^0-9a-z._-]/g, '-')
+  if (r.stream) {
+    if (r.sport) return `sport:${safe(r.sport)}`
+    const tv = r.tvTitle
+    const a = r.about ?? (tv ? { kind: tv.kind === 'series' ? ('tv' as const) : ('movie' as const), tmdbId: tv.tmdbId, season: tv.season, episode: tv.episode } : undefined)
+    if (!a?.tmdbId) return ''
+    return a.kind === 'movie' ? `title:movie:${a.tmdbId}` : `title:tv:${a.tmdbId}:${a.season ?? 0}:${a.episode ?? 0}`
+  }
+  return r.id ? `${r.kind}:${r.id}` : ''
+}
+
+// 1:02:05, or 42:10 under an hour
+function clockOf(secs: number): string {
+  const s = Math.floor(secs)
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const ss = String(s % 60).padStart(2, '0')
+  return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
+}
+
+export type StreamExtras = Pick<Request, 'onNext' | 'tvTitle' | 'watchIn' | 'startAt' | 'about' | 'sport'>
 
 let show: ((r: Request | null) => void) | null = null
 
 // playTitle opens the player on a movie, an episode or a video.
-export function playTitle(kind: PlayKind, id: number, title: string) {
-  show?.({ kind, id, title })
+export function playTitle(kind: PlayKind, id: number, title: string, opts?: { noPreshow?: boolean }) {
+  show?.({ kind, id, title, noPreshow: opts?.noPreshow })
+}
+
+// Usherr: the pre-show (home_preshow.go), full screen, then whatever comes
+// next (the film). Nothing to show goes straight on.
+let preshow: ((p: { plan: PreshowPlan; then: () => void } | null) => void) | null = null
+export async function playWithPreshow(ask: PlanAsk, then: () => void) {
+  const plan = await preshowApi.plan(ask).catch(() => null)
+  if (!plan || plan.steps.length === 0 || !preshow) {
+    then()
+    return
+  }
+  preshow({ plan, then })
 }
 
 // playStream opens the player on a started stream. onKeep, when given, is
@@ -68,12 +110,52 @@ export function playChannel(id: number, name: string) {
 
 export function PlayerHost() {
   const [req, setReq] = useState<Request | null>(null)
+  const [pre, setPre] = useState<{ plan: PreshowPlan; then: () => void } | null>(null)
   useEffect(() => {
-    show = setReq
+    preshow = setPre
+    return () => {
+      preshow = null
+    }
+  }, [])
+  useEffect(() => {
+    // Usherr: a title opens where it was left, when it was (home_positions.go).
+    let asked = 0
+    show = (r) => {
+      const n = ++asked
+      const item = r && r.startAt === undefined ? positionItem(r) : ''
+      if (!r || !item) {
+        setReq(r)
+        return
+      }
+      fetch(`/api/home/position?item=${encodeURIComponent(item)}`, { credentials: 'include' })
+        .then((x) => (x.ok ? x.json() : null))
+        .catch(() => null)
+        .then((d: { position?: number } | null) => {
+          if (n !== asked) return
+          const at = d?.position ?? 0
+          const go = at > 0 ? { ...r, startAt: at, resumedFrom: at } : r
+          // Usherr: a film from the start gets its pre-show first, when this browser asks for one.
+          if (r.kind === 'movie' && !r.noPreshow && at <= 0 && preshowBefore()) void playWithPreshow({ kind: 'movie', id: r.id }, () => n === asked && setReq(go))
+          else setReq(go)
+        })
+    }
     return () => {
       show = null
     }
   }, [])
+  if (pre)
+    return (
+      <Suspense fallback={null}>
+        <PreshowRun
+          plan={pre.plan}
+          onDone={() => {
+            const then = pre.then
+            setPre(null)
+            then()
+          }}
+        />
+      </Suspense>
+    )
   if (!req) return null
   if (req.kind === 'channel') return createPortal(<ChannelView channelId={req.id} name={req.title} onClose={() => setReq(null)} />, document.body)
   return createPortal(<PlayerView key={`${req.kind}-${req.id}-${req.stream?.id ?? ''}`} req={req} onClose={() => setReq(null)} />, document.body)
@@ -532,6 +614,7 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
       season: about && 'season' in about ? about.season : undefined,
       episode: about && 'episode' in about ? about.episode : undefined,
       streamId: req.stream?.id,
+      sportId: req.sport,
       position: v.currentTime + shift,
       duration: Number.isFinite(v.duration) ? v.duration + shift : 0,
       paused: v.paused,
@@ -550,6 +633,46 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
       void fetch(`/api/home/playing/${nowKey}`, { method: 'DELETE', credentials: 'include', keepalive: true }).catch(() => undefined)
     }
   }, [req, muted, plan, nowKey])
+  // Usherr: where it got to, kept every few seconds, on pause, at the end and
+  // on closing, so it picks up there next time (home_positions.go). Only once
+  // it has really played, so opening and closing at once keeps the old place.
+  const posItem = muted || inline ? '' : positionItem(req)
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !posItem || !plan) return
+    const shift = plan.converted ? (plan.shift ?? 0) : 0
+    const send = (keepalive = false) => {
+      if (v.played.length === 0) return
+      const duration = Number.isFinite(v.duration) ? v.duration + shift : 0
+      const position = v.ended && duration ? duration : v.currentTime + shift
+      void fetch('/api/home/position', { method: 'PUT', credentials: 'include', keepalive, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: posItem, position, duration }) }).catch(() => undefined)
+    }
+    const tm = window.setInterval(send, 10000)
+    const now = () => send()
+    v.addEventListener('pause', now)
+    v.addEventListener('ended', now)
+    return () => {
+      window.clearInterval(tm)
+      v.removeEventListener('pause', now)
+      v.removeEventListener('ended', now)
+      send(true)
+    }
+  }, [posItem, plan])
+  const [resumed, setResumed] = useState(!!req.resumedFrom)
+  useEffect(() => {
+    if (!resumed) return
+    const tm = window.setTimeout(() => setResumed(false), 12000)
+    return () => window.clearTimeout(tm)
+  }, [resumed])
+  const startOver = () => {
+    const v = videoRef.current
+    setResumed(false)
+    if (!v) return
+    // A copy converted here can't seek: it's made again from the start.
+    if (plan?.converted) setRedo({ ...redo, at: 0 })
+    else v.currentTime = 0
+    void v.play().catch(() => undefined)
+  }
   // Usherr: a stream's sound on its own, beside the picture, converted by
   // Usherr and kept in step with it: when the browser plays the stream
   // silently (Dolby, Atmos, TrueHD or DTS in an MKV), and when another
@@ -921,6 +1044,47 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
   const about = req.about
   const nextable =
     !inline && !req.onEnded && !req.card && !req.direct && !req.live && (req.kind === 'episode' || (req.kind === 'stream' && about?.kind === 'tv' && !!about.season && !!about.episode))
+  // Usherr: where the intro and the credits are (the file's chapters, or
+  // Jellyfin's segments), for "Skip intro" and an early "Up next".
+  const [markers, setMarkers] = useState<{ introStart?: number; introEnd?: number; creditsStart?: number } | null>(null)
+  const [inIntro, setInIntro] = useState(false)
+  useEffect(() => {
+    setMarkers(null)
+    setInIntro(false)
+    if (inline || req.onEnded || req.card || req.direct || req.live || !plan) return
+    const url =
+      req.kind === 'stream' && req.stream ? `/api/stream/${req.stream.id}/markers` : req.kind === 'movie' || req.kind === 'episode' ? `/api/play/markers/${req.kind}/${req.id}` : ''
+    if (!url) return
+    let gone = false
+    fetch(url, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m) => !gone && m && (m.introEnd || m.creditsStart) && setMarkers(m))
+      .catch(() => undefined)
+    return () => {
+      gone = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [req, plan?.url])
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !markers?.introEnd) return
+    const shift = plan?.converted ? (plan.shift ?? 0) : 0
+    const tick = () => {
+      const at = v.currentTime + shift
+      setInIntro(at >= (markers.introStart ?? 0) - 1 && at < (markers.introEnd ?? 0) - 2)
+    }
+    v.addEventListener('timeupdate', tick)
+    return () => v.removeEventListener('timeupdate', tick)
+  }, [markers, plan])
+  const skipIntro = () => {
+    const v = videoRef.current
+    const end = markers?.introEnd
+    if (!v || !end) return
+    setInIntro(false)
+    // A copy converted here can't seek: it's made again from the intro's end.
+    if (plan?.converted) setRedo({ ...redo, at: end })
+    else v.currentTime = end
+  }
   const [nextEp, setNextEp] = useState<NextEp | null>(null)
   const [upNext, setUpNext] = useState(false)
   const [left, setLeft] = useState(UP_NEXT_SECONDS)
@@ -947,6 +1111,13 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
         .catch(() => undefined)
     }
     const tick = () => {
+      // The credits, when known, bring "Up next" at once.
+      const credits = markers?.creditsStart
+      if (credits && v.currentTime + (plan.converted ? (plan.shift ?? 0) : 0) >= credits) {
+        ask()
+        if (!nextDismissed.current) setUpNext(true)
+        return
+      }
       // A copy converted here grows as it's made: its length isn't the
       // episode's, so it waits for the real end ("ended") instead.
       if (plan.converted) return
@@ -975,7 +1146,7 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
       v.removeEventListener('ended', ended)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, req, nextable])
+  }, [plan, req, nextable, markers])
   const playNext = () => {
     const n = nextEp
     if (!n) return
@@ -1065,6 +1236,11 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
               }}
             />
           )}
+          {posItem && plan && !error && (
+            <button type="button" className="btn-sm btn-with-icon hp-startover" onClick={startOver} title={t('Start over')}>
+              <Icon name="skip-prev" size={14} /> <span>{t('Start over')}</span>
+            </button>
+          )}
           <button className="btn-sm" onClick={onClose} aria-label={t('Close the player')}>
             <Icon name="x" size={16} />
           </button>
@@ -1086,6 +1262,19 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
             <video ref={videoRef} controls autoPlay playsInline onEnded={() => req.onEnded?.()} onError={() => plan?.mode === 'direct' && !convertInstead() && !failOver() && setFailed(true)}>
               {subSrc && <track key={subSrc} kind="subtitles" src={subSrc} srcLang={sub?.lang} label={sub?.lang ?? t('Subtitles')} default />}
             </video>
+            {resumed && !!req.resumedFrom && (
+              <div className="hp-resumed" role="status">
+                <span>{t('Picked up at {time}', { time: clockOf(req.resumedFrom) })}</span>
+                <button type="button" className="btn-sm btn-with-icon" onClick={startOver}>
+                  <Icon name="skip-prev" size={14} /> {t('Start over')}
+                </button>
+              </div>
+            )}
+            {inIntro && (
+              <button className="hp-skip primary btn-with-icon" onClick={skipIntro}>
+                <Icon name="chevron-right" size={16} /> {t('Skip intro')}
+              </button>
+            )}
             {upNext && nextEp && (
               <div className="hp-upnext" role="dialog" aria-label={t('Up next')}>
                 <span className="hp-upnext-label">{t('Up next')}</span>

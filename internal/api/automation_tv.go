@@ -137,7 +137,7 @@ func (s *Server) tvWants(profiles profileSet, scope tvScope) (wants []tvWant, up
 					// unless they are monitored; asking for specials does not.
 					monitored = ep.Monitored || (scope.force && scope.specials)
 				}
-				aired := ep.AirDate != "" && ep.AirDate <= today
+				aired := ep.AirDate != "" && ep.AirDate <= today && !ep.AirsLater(time.Now())
 				if ep.Status != library.StatusMissing || !aired || !monitored {
 					whole = false
 				}
@@ -474,9 +474,40 @@ func (s *Server) rssSyncTV(ctx context.Context, instances []indexers.Instance, p
 	s.autoGrabTV(func(library.Series, int, int) []indexers.Result { return latest }, "rss-sync", profiles, tvScope{})
 }
 
-// refreshAllSeries re-reads every monitored series' episode list from TMDB
-// so newly announced episodes appear (and become huntable) without anyone
-// clicking Refresh.
+// A show that has ended (or was cancelled) hardly ever changes, so it is read
+// again once a week; the others are read once a day, and a monitored one on
+// every run so new episodes are found quickly.
+const (
+	endedShowRefresh      = 7 * 24 * time.Hour
+	continuingShowRefresh = 24 * time.Hour
+)
+
+// seriesRefreshPause is the wait between two shows, so TMDB isn't hit with
+// the whole library at once. A variable so tests needn't wait.
+var seriesRefreshPause = 300 * time.Millisecond
+
+// seriesRefreshDue says whether a show's details should be read from TMDB
+// again now. Shows never read (or read before the status was kept) always are.
+func seriesRefreshDue(sr library.Series, now time.Time) bool {
+	checked, err := time.Parse(time.RFC3339, sr.StatusCheckedAt)
+	if err != nil || sr.TMDBStatus == "" {
+		return true
+	}
+	age := now.Sub(checked)
+	switch {
+	case showEnded(sr.TMDBStatus):
+		return age >= endedShowRefresh
+	case sr.Monitored:
+		return true
+	default:
+		return age >= continuingShowRefresh-time.Hour
+	}
+}
+
+// refreshAllSeries re-reads every series' details and episode list from TMDB
+// so newly announced episodes appear (and become huntable) and the show's
+// status (running, ended, cancelled) stays right, without anyone clicking
+// Refresh.
 func (s *Server) refreshAllSeries(ctx context.Context) {
 	if !s.TMDB().HasAPIKey() {
 		return
@@ -487,13 +518,23 @@ func (s *Server) refreshAllSeries(ctx context.Context) {
 		return
 	}
 	failures := 0
+	now := time.Now()
+	asked := false
 	for _, sr := range seriesList {
-		if !sr.Monitored {
+		if sr.CopyOf != 0 || !seriesRefreshDue(sr, now) {
 			continue
 		}
 		if ctx.Err() != nil {
 			return
 		}
+		if asked {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(seriesRefreshPause):
+			}
+		}
+		asked = true
 		err := s.refreshSeries(ctx, sr)
 		if err == nil {
 			failures = 0

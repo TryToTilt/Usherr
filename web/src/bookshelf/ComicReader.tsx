@@ -60,7 +60,7 @@ export default function ComicReader({ book }: { book: Book }) {
         ])
         if (cancelled) return
         if (meta.pages < 1) throw new Error(t("This comic couldn't be opened."))
-        const start = openingPage(saved?.position, meta.pages)
+        const start = saved?.finished ? 1 : openingPage(saved?.position, meta.pages) // Usherr: read to the end, it starts again
         // What a save sends: the place read from the server until a page is turned,
         // so opening and leaving again keeps it instead of going back to page 1.
         last.current = start
@@ -226,6 +226,9 @@ export default function ComicReader({ book }: { book: Book }) {
           <strong>{book.title}</strong>
           <small>{t('Page {n} of {total}', { n: shown.length > 1 ? `${shown[0]}–${shown[1]}` : shown[0], total: pages })}</small>
         </span>
+        <button className="icon-btn" onClick={() => goTo(1)} disabled={page <= 1} title={t('Start over')} aria-label={t('Start over')}>
+          <Icon name="skip-prev" size={18} />
+        </button>
         <button className={`icon-btn${panel ? ' active' : ''}`} onClick={() => setPanel((v) => !v)} title={t('View')} aria-label={t('View')}>
           <Icon name="sliders" size={18} />
         </button>

@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -84,10 +85,24 @@ func (s *Server) cleanupWorkDir(dir string, protocol indexers.Protocol) {
 // person chose to keep the file already in the library): its folder goes, but
 // the torrent stays in the external client, which may still be wanted there.
 func (s *Server) discardWorkDir(dir string, protocol indexers.Protocol) {
+	s.discardWorkDirReport(dir, protocol)
+}
+
+// discardWorkDirReport is discardWorkDir that says what became of the data: a
+// torrent still seeding keeps its folder until seeding is done (KeptSeeding),
+// the links to an external client's files are removed while the client keeps
+// the files (KeptClient), and anything else is deleted (KeptDeleted).
+func (s *Server) discardWorkDirReport(dir string, protocol indexers.Protocol) string {
 	if protocol == indexers.ProtocolTorrent && s.torrents.activeDir(dir) {
-		return
+		return queue.KeptSeeding
 	}
+	_, err := os.Lstat(filepath.Join(dir, clientContentFile))
+	viaClient := err == nil
 	s.removeWorkDir(dir)
+	if viaClient {
+		return queue.KeptClient
+	}
+	return queue.KeptDeleted
 }
 
 // removeWorkDir deletes one queue-N working folder directly inside the

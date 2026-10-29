@@ -9,6 +9,7 @@ import { t, tx } from '../../i18n'
 import TipLabel from '../../components/TipLabel'
 import Switch from '../../components/Switch'
 import Loading from '../../components/Loading'
+import McpAppsCard from '../../components/McpAppsCard'
 
 // Apps made for Radarr, Sonarr and Lidarr (request apps, dashboards, phone
 // apps) connect to Mediarium as if it were those apps: each has its own
@@ -116,6 +117,7 @@ export default function OtherAppsSettings() {
                 </dd>
               </dl>
             )}
+            {mcp && <McpAppsCard />}
             <p>
               <a href={`${DOCS_URL}/mcp.md`} target="_blank" rel="noreferrer">
                 {t('How to connect your assistant')}

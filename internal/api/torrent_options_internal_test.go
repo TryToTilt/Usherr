@@ -321,9 +321,17 @@ func TestSeedGoalUsesTheIndexersRule(t *testing.T) {
 	if got := s.torrentSeedGoal(withIndexer); got != (torrentclient.SeedGoal{Ratio: 1, Time: 48 * time.Hour}) {
 		t.Fatalf("goal = %+v", got)
 	}
-	// Zero hours: no time limit at all.
+	// Zero hours: do not seed at all, whatever the global limits are.
 	zero := 0.0
 	if err := s.TorrentOpts.SetSeedRule(inst.ID, torrentopts.SeedRule{Hours: &zero}); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.torrentSeedGoal(withIndexer); got != (torrentclient.SeedGoal{NoSeed: true}) {
+		t.Fatalf("goal = %+v", got)
+	}
+	// -1 hours: no time limit, even though the global one has a limit.
+	none := torrentopts.Unlimited
+	if err := s.TorrentOpts.SetSeedRule(inst.ID, torrentopts.SeedRule{Hours: &none}); err != nil {
 		t.Fatal(err)
 	}
 	if got := s.torrentSeedGoal(withIndexer); got != (torrentclient.SeedGoal{Ratio: 2}) {
@@ -331,9 +339,47 @@ func TestSeedGoalUsesTheIndexersRule(t *testing.T) {
 	}
 }
 
+// The global limits: empty is unlimited, 0 is do not seed.
+func TestSeedGoalFromTheGlobalLimits(t *testing.T) {
+	tests := []struct {
+		name         string
+		ratio, hours string
+		want         torrentclient.SeedGoal
+	}{
+		{"nothing saved is unlimited", "", "", torrentclient.SeedGoal{}},
+		{"both empty is unlimited", " ", " ", torrentclient.SeedGoal{}},
+		{"a ratio only", "2", "", torrentclient.SeedGoal{Ratio: 2}},
+		{"hours only", "", "12", torrentclient.SeedGoal{Time: 12 * time.Hour}},
+		{"both", "1.5", "24", torrentclient.SeedGoal{Ratio: 1.5, Time: 24 * time.Hour}},
+		{"ratio 0 is do not seed", "0", "", torrentclient.SeedGoal{NoSeed: true}},
+		{"hours 0 is do not seed", "", "0", torrentclient.SeedGoal{NoSeed: true}},
+		{"0 wins over the other limit", "0", "48", torrentclient.SeedGoal{NoSeed: true}},
+		{"text that is no number is unlimited", "abc", "", torrentclient.SeedGoal{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s, _ := optionsServer(t)
+			if err := s.Settings.Set(settings.KeyTorrentSeedRatioLimit, tc.ratio, false); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.Settings.Set(settings.KeyTorrentSeedTimeLimitH, tc.hours, false); err != nil {
+				t.Fatal(err)
+			}
+			m, _ := s.MovieRepo.Add(library.Movie{TMDBID: 1, Title: "Film", Year: 2026})
+			id, _ := s.QueueRepo.Enqueue(queue.Item{MovieID: m.ID, ReleaseTitle: "A", Protocol: queue.ProtocolTorrent})
+			if got := s.torrentSeedGoal(id); got != tc.want {
+				t.Fatalf("goal = %+v, want %+v", got, tc.want)
+			}
+			if tc.want.NoSeed != s.clientShareLimits(id).NoSeed {
+				t.Fatalf("an external client is told %+v", s.clientShareLimits(id))
+			}
+		})
+	}
+}
+
 func TestUploadLimitFollowsTheSpeedHours(t *testing.T) {
 	s, _ := optionsServer(t)
-	t.Cleanup(func() { speed.Set(0); speed.SetUpload(0) })
+	t.Cleanup(func() { speed.Set(0); speed.SetUpload(0); speed.SetUploadOff(false) })
 	set := func(key, value string) {
 		t.Helper()
 		if err := s.Settings.Set(key, value, false); err != nil {
@@ -344,8 +390,18 @@ func TestUploadLimitFollowsTheSpeedHours(t *testing.T) {
 	night := time.Date(2026, 10, 9, 3, 0, 0, 0, time.Local)
 
 	s.applySpeedLimit(noon)
-	if speed.Current() != 0 || speed.CurrentUpload() != 0 {
-		t.Fatalf("with nothing set there is no limit: down %d up %d", speed.Current(), speed.CurrentUpload())
+	if speed.Current() != 0 || speed.CurrentUpload() != 0 || speed.UploadOff() {
+		t.Fatalf("with nothing set there is no limit: down %d up %d off %v", speed.Current(), speed.CurrentUpload(), speed.UploadOff())
+	}
+	set(settings.KeyTorrentUploadLimitKB, "0")
+	s.applySpeedLimit(noon)
+	if !speed.UploadOff() || speed.CurrentUpload() != 0 {
+		t.Fatalf("0 switches uploading off: up %d off %v", speed.CurrentUpload(), speed.UploadOff())
+	}
+	set(settings.KeyTorrentUploadLimitKB, "")
+	s.applySpeedLimit(noon)
+	if speed.UploadOff() || speed.CurrentUpload() != 0 {
+		t.Fatalf("empty is no limit again: up %d off %v", speed.CurrentUpload(), speed.UploadOff())
 	}
 	set(settings.KeyTorrentUploadLimitKB, "300")
 	s.applySpeedLimit(noon)
@@ -362,11 +418,21 @@ func TestUploadLimitFollowsTheSpeedHours(t *testing.T) {
 	if speed.Current() != 0 || speed.CurrentUpload() != 0 {
 		t.Fatalf("outside the hours neither applies: down %d up %d", speed.Current(), speed.CurrentUpload())
 	}
+	// "No uploading" follows the hours as well.
+	set(settings.KeyTorrentUploadLimitKB, "0")
+	s.applySpeedLimit(noon)
+	if !speed.UploadOff() {
+		t.Fatal("inside the hours uploading is off")
+	}
+	s.applySpeedLimit(night)
+	if speed.UploadOff() {
+		t.Fatal("outside the hours uploading is back")
+	}
 }
 
 func TestSettingsReadersDefaultToTodaysBehaviour(t *testing.T) {
 	s, _ := optionsServer(t)
-	if s.torrentSequentialDefault() || s.torrentPackOnlyWanted() || s.torrentUploadLimitKB() != 0 {
+	if s.torrentSequentialDefault() || s.torrentPackOnlyWanted() || s.torrentUploadLimitKB() != noUploadLimit {
 		t.Fatal("sequential, pack filtering and an upload limit are all off until chosen")
 	}
 	if !s.torrentPortMapping() {
@@ -401,15 +467,24 @@ func TestClientShareLimitsFollowTheIndexersRule(t *testing.T) {
 	if got := s.clientShareLimits(id); got.Ratio != 2 || got.Time != 24*time.Hour {
 		t.Fatalf("rule hours over the global ratio = %+v", got)
 	}
-	if err := s.Settings.Set(settings.KeyTorrentSeedRatioLimit, "0", false); err != nil {
+	// Empty is no limit: nothing is sent.
+	if err := s.Settings.Set(settings.KeyTorrentSeedRatioLimit, "", false); err != nil {
 		t.Fatal(err)
 	}
-	zero := 0.0
-	if err := s.TorrentOpts.SetSeedRule(inst.ID, torrentopts.SeedRule{Hours: &zero}); err != nil {
+	none := torrentopts.Unlimited
+	if err := s.TorrentOpts.SetSeedRule(inst.ID, torrentopts.SeedRule{Hours: &none}); err != nil {
 		t.Fatal(err)
 	}
 	if got := s.clientShareLimits(id); got.Set() {
 		t.Fatalf("no limits at all must send nothing: %+v", got)
+	}
+	// 0 is do not seed: the client is told to stop the torrent when it finishes.
+	zero := 0.0
+	if err := s.TorrentOpts.SetSeedRule(inst.ID, torrentopts.SeedRule{Hours: &zero}); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.clientShareLimits(id); !got.NoSeed || !got.Set() {
+		t.Fatalf("0 must be sent as do not seed: %+v", got)
 	}
 }
 

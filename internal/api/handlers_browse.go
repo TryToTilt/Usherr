@@ -60,8 +60,8 @@ type browsePayload struct {
 // titles already in the library.
 func (s *Server) moviePagePayload(ctx context.Context, page *metadata.MoviePage) browsePayload {
 	inLib := map[int]browseItem{}
-	if list, err := s.MovieRepo.List(); err == nil {
-		for _, m := range list {
+	if o, err := s.ownedLibrary(ctx); err == nil {
+		for _, m := range o.movies {
 			inLib[m.TMDBID] = browseItem{InLibrary: true, LibraryID: m.ID, Status: string(m.Status)}
 		}
 	}
@@ -79,8 +79,8 @@ func (s *Server) moviePagePayload(ctx context.Context, page *metadata.MoviePage)
 // "downloaded/total" episode count.
 func (s *Server) showPagePayload(ctx context.Context, page *metadata.ShowPage) browsePayload {
 	inLib := map[int]browseItem{}
-	if list, err := s.MovieRepo.ListSeries(); err == nil {
-		for _, sr := range list {
+	if o, err := s.ownedLibrary(ctx); err == nil {
+		for _, sr := range o.shows {
 			inLib[sr.TMDBID] = browseItem{InLibrary: true, LibraryID: sr.ID,
 				Status: strconv.Itoa(sr.DownloadedCount) + "/" + strconv.Itoa(sr.EpisodeCount)}
 		}
@@ -156,8 +156,8 @@ func queryInt(r *http.Request, name string) (int, bool) {
 }
 
 // handleDiscoverBrowse pages through TMDB's catalogue of movies or shows by
-// genre, year (exact, or a from/to range) and sort order: popular, rating,
-// newest or oldest.
+// genre, year (exact, or a from/to range), original language, lowest rating,
+// runtime and sort order: popular, rating, newest or oldest.
 func (s *Server) handleDiscoverBrowse(w http.ResponseWriter, r *http.Request) {
 	kind, ok := discoverKind(r)
 	if !ok {
@@ -168,7 +168,7 @@ func (s *Server) handleDiscoverBrowse(w http.ResponseWriter, r *http.Request) {
 	for _, p := range []struct {
 		name string
 		dst  *int
-	}{{"genre", &q.Genre}, {"year", &q.Year}, {"yearFrom", &q.YearFrom}, {"yearTo", &q.YearTo}, {"page", &q.Page}} {
+	}{{"genre", &q.Genre}, {"year", &q.Year}, {"yearFrom", &q.YearFrom}, {"yearTo", &q.YearTo}, {"minRating", &q.MinRating}, {"page", &q.Page}} {
 		n, ok := queryInt(r, p.name)
 		if !ok {
 			writeError(w, http.StatusBadRequest, p.name+" must be a whole number")
@@ -179,6 +179,20 @@ func (s *Server) handleDiscoverBrowse(w http.ResponseWriter, r *http.Request) {
 	q.Sort = r.URL.Query().Get("sort")
 	if !metadata.ValidSort(q.Sort) {
 		writeError(w, http.StatusBadRequest, `sort must be "popular", "rating", "newest" or "oldest"`)
+		return
+	}
+	q.Language = r.URL.Query().Get("language")
+	if !metadata.ValidLanguage(q.Language) {
+		writeError(w, http.StatusBadRequest, "language must be a two or three letter code in lower case, like ko")
+		return
+	}
+	if !metadata.ValidMinRating(q.MinRating) {
+		writeError(w, http.StatusBadRequest, "minRating must be 6, 7, 8 or 9")
+		return
+	}
+	q.Runtime = r.URL.Query().Get("runtime")
+	if !metadata.ValidRuntime(q.Runtime) {
+		writeError(w, http.StatusBadRequest, `runtime must be "under90", "90to120" or "over120"`)
 		return
 	}
 	if q.YearFrom > 0 && q.YearTo > 0 && q.YearFrom > q.YearTo {

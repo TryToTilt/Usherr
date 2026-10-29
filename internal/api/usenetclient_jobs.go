@@ -127,6 +127,9 @@ func (s *Server) handleUsenetJobs(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
 	list, err := newUsenetClient(cfg).List(ctx)
+	if r.Context().Err() == nil {
+		s.noteClientCheck(watchUsenetClient, out.Label, err)
+	}
 	if err != nil {
 		out.Error = clientErrorText(out.Label, usenetClientError(cfg.Kind, err))
 		writeJSON(w, http.StatusOK, out)

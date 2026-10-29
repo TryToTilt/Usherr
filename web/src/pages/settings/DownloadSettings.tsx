@@ -193,11 +193,11 @@ export function TorrentSettings() {
   const torrentOff = !torrentEnabled
   return (
     <div className="settings-stack">
-      <fieldset className={`group torrent span-all${torrentOff ? ' disabled section-off' : ''}`}>
+      <fieldset className={`group torrent span-all${torrentOff ? ' section-off' : ''}`}>
         <legend>
           <Icon name="magnet" size={14} /> {t('Torrents')}
         </legend>
-        <div className="section-body">
+        {/* The on/off switch stays outside the blurred body, so it can always be pressed. */}
         <Switch
           checked={torrentEnabled}
           onChange={(v) => void setSource('torrent', v)}
@@ -205,6 +205,7 @@ export function TorrentSettings() {
           description={t('Turn it off if you only use Usenet.')}
           showState
         />
+        <div className="section-body" style={{ marginTop: 14 }}>
         <fieldset disabled={torrentOff} className="plain-fieldset">
           <div className="half-cols" style={{ marginTop: 14 }}>
             <div className="col-stack">

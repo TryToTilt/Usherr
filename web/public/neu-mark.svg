@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Usherr Neu's mark: a soft tile in the accent, lit from the top left, with a rounded play shape pressed into it. -->
+  <defs>
+    <linearGradient id="t" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5cf0d6"/>
+      <stop offset="1" stop-color="#16a993"/>
+    </linearGradient>
+    <linearGradient id="p" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d9fff8"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="18" fill="url(#t)"/>
+  <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="17.3" fill="none" stroke="#ffffff" stroke-opacity=".35" stroke-width="1.5"/>
+  <path d="M26 20.5c0-2.3 2.5-3.7 4.4-2.5l14.4 9.1c1.8 1.2 1.8 3.8 0 5L30.4 41.2c-1.9 1.2-4.4-.2-4.4-2.5z" fill="url(#p)"/>
+</svg>

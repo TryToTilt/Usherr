@@ -144,6 +144,7 @@ type CrewMember struct {
 	ID          int    `json:"id"`
 	Name        string `json:"name"`
 	Job         string `json:"job"`
+	Department  string `json:"department"`
 	ProfilePath string `json:"profile_path"`
 }
 

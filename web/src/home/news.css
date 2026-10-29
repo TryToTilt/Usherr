@@ -115,7 +115,7 @@ a.news-title:hover { text-decoration: underline; }
 .omni-bar.ai button.primary:disabled { background: color-mix(in srgb, var(--gold) 45%, transparent); border-color: transparent; color: #1d1606; opacity: 1; }
 
 /* AI answers in one row that scrolls sideways (all of them, on any screen) */
-.poster-scroll { display: grid; grid-auto-flow: column; grid-auto-columns: clamp(140px, 42vw, 200px); gap: 12px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding-bottom: 6px; scrollbar-width: thin; }
+.poster-scroll { display: grid; grid-auto-flow: column; grid-auto-columns: clamp(110px, 42vw, var(--shelf-w, 200px)); gap: 12px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding-bottom: 6px; scrollbar-width: thin; }
 .poster-scroll > * { scroll-snap-align: start; min-width: 0; }
 @media (max-width: 700px) {
   .tonight-list { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 86%; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; padding-bottom: 6px; scrollbar-width: none; }
@@ -158,7 +158,7 @@ a.news-title:hover { text-decoration: underline; }
 .shelf-row { grid-auto-columns: min(var(--shelf-w, 168px), 44vw); }
 .shelf-row > * { min-width: 0; }
 .shelf-row.music-shelf { grid-auto-columns: min(var(--shelf-w, 160px), 42vw); }
-.shelf-row.comic-shelf { grid-auto-columns: min(140px, 40vw); }
+.shelf-row.comic-shelf { grid-auto-columns: min(var(--shelf-w, 140px), 40vw); }
 .shelf-row.video-shelf { grid-auto-columns: min(300px, 80vw); }
 .shelves-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
 
@@ -479,9 +479,15 @@ a.score-chip:hover { border-color: var(--accent, #2dd4bf); }
 .tonight-head.tonight-solo .tonight-ask { flex: 1 1 100%; justify-content: center; }
 /* Roulette's dice, next to search in the top bar. */
 .topbar .top-dice { display: inline-grid; place-items: center; width: 40px; height: 40px; flex: none; }
+/* Usherr: Tonight's picks, the sparkles and their name beside the dice (just the sparkles on a phone) */
+.topbar .top-tonight { display: inline-flex; align-items: center; gap: 7px; width: auto; height: 40px; padding: 0 14px 0 11px; border-radius: 999px; flex: none; font: inherit; font-size: 0.88rem; font-weight: 700; white-space: nowrap; }
+@media (max-width: 760px) { .topbar .top-tonight { width: 40px; padding: 0; justify-content: center; } .top-tonight-label { display: none; } }
+/* Usherr: Tonight in its window, without a second card round it */
+.tonight-modal .tonight-card { margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
 @media (max-width: 760px) {
   .topbar .top-dice { margin-left: auto; }
   .topbar .top-dice + .search-toggle { margin-left: 0; }
+  .topbar .top-tonight + .search-toggle { margin-left: 0; }
 }
 .tonight-card.tonight-idle { background: none; border: 0; box-shadow: none; padding: 0; backdrop-filter: none; }
 

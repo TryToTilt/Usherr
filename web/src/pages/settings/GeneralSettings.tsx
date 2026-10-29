@@ -7,6 +7,8 @@ import Icon from '../../components/Icon'
 import { UsageStatsCard } from '../../components/UsageStats'
 import PublicAddress from '../../components/PublicAddress'
 import PaletteChoice from '../../components/PaletteChoice' // Usherr
+import BaseChoice from '../../components/BaseChoice' // Usherr
+import LookChoice from '../../neu/LookChoice' // Usherr Neu
 import ThemeToggle from '../../components/ThemeToggle'
 import { PushCard } from '../../components/UpdateCards'
 import { LANGUAGES, chooseLanguage, currentLanguage, locale, t, type Lang } from '../../i18n'
@@ -59,6 +61,8 @@ function LookCard() {
         <span style={{ color: 'var(--text-dim)' }}>{t('Switches Mediarium between its dark and light look. It is kept in this browser.')}</span>
       </div>
       <PaletteChoice />
+      <BaseChoice />
+      <LookChoice />
     </fieldset>
   )
 }

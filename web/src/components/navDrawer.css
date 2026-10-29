@@ -1,0 +1,44 @@
+/* Usherr: the menu is a drawer at every width, so the posters have the whole
+   page. The hamburger in the top bar opens and closes it. On a wider screen
+   it stays open over the undimmed page and slides away after a while with no
+   mouse movement over it (AppShell); on a phone a tap outside or choosing a
+   page closes it, as before (see index.css). */
+:root .app-shell.nav-drawer { grid-template-columns: minmax(0, 1fr); }
+:root .app-shell.nav-drawer .menu-button { display: inline-flex; align-items: center; justify-content: center; }
+:root .app-shell.nav-drawer .sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  height: 100vh;
+  height: 100dvh;
+  width: min(280px, 82vw);
+  z-index: 900;
+  transform: translateX(-105%);
+  visibility: hidden;
+  transition: transform 0.28s cubic-bezier(0.22, 0.61, 0.36, 1), visibility 0s linear 0.28s;
+  overflow-y: auto;
+  box-shadow: none;
+}
+:root .app-shell.nav-drawer .sidebar.open {
+  transform: none;
+  visibility: visible;
+  transition-delay: 0s;
+  box-shadow: 8px 0 30px rgba(0, 0, 0, 0.35);
+}
+:root .app-shell.nav-drawer .sidebar-backdrop.open {
+  display: block;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 800;
+  animation: fade-in 0.2s ease;
+}
+:root[data-look='neu'] .app-shell.nav-drawer .sidebar.open { box-shadow: 14px 0 40px -6px var(--n-drop) !important; }
+:root[data-look='neu'] .app-shell.nav-drawer .sidebar-backdrop.open { background: rgba(20, 24, 34, 0.28); backdrop-filter: blur(2px); }
+@media (prefers-reduced-motion: reduce) {
+  :root .app-shell.nav-drawer .sidebar { transition: none; }
+}
+@media (min-width: 901px) {
+  :root .app-shell.nav-drawer .sidebar-backdrop.open { display: none; }
+}
+/* the menu's own hamburger sits exactly over the top bar's */
+:root .app-shell.nav-drawer .sidebar .menu-close { flex: none; margin: -4px 0 0 -12px; }

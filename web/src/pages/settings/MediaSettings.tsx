@@ -74,6 +74,7 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
   const [illegalCharMode, setIllegalCharMode] = useState('strip')
   const [illegalCharReplacement, setIllegalCharReplacement] = useState('-')
   const [importConflictPolicy, setImportConflictPolicy] = useState('skip')
+  const [checkDuration, setCheckDuration] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [saving, setSaving] = useState(false)
   const toast = useToast()
@@ -137,6 +138,7 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
         setIllegalCharMode(s.illegalCharMode || 'strip')
         setIllegalCharReplacement(s.illegalCharReplacement || '-')
         setImportConflictPolicy(s.importConflictPolicy || 'skip')
+        setCheckDuration(s.checkDuration !== false)
       })
       .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)))
   }, [setSettings])
@@ -168,6 +170,7 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
               illegalCharMode,
               illegalCharReplacement,
               importConflictPolicy,
+              checkDuration,
             },
       )
       setSettings(updated)
@@ -356,7 +359,7 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
               <span>{t('Keep the original file names')}</span>
             </label>
             <small style={{ color: 'var(--text-dim)' }}>
-              {t('Files keep the name they came with. Folders are still named after the movie or show, so media servers find them. A file with a random name, like a8f7d6e5c4b3.mkv, is named by the preset instead.')}
+              {t('Files keep the name they came with. Folders are still named after the movie or show, so media servers find them. A file with a random name, like a8f7d6e5c4b3.mkv, takes the name of the release instead. If that name is random too, the naming preset is used.')}
             </small>
           </div>
           <div className="grid-form">
@@ -387,6 +390,13 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
               </select>
             </label>
             <small style={{ color: 'var(--text-dim)' }}>{t('What to do when a download would replace a file already in your library. With Skip, a title that looks for better versions still takes a better file in place of the old one.')}</small>
+          </div>
+          <div className="grid-form">
+            <label className="check-row">
+              <input type="checkbox" checked={checkDuration} onChange={(e) => setCheckDuration(e.target.checked)} />
+              <span>{t('Check that the video is as long as the episode or movie')}</span>
+            </label>
+            <small style={{ color: 'var(--text-dim)' }}>{t('Before a download is imported, Mediarium reads how long the video is. If it is under half of the episode or movie length, it is a fake or cut off, so it is not imported, the release is blocklisted and another one is tried.')}</small>
           </div>
         </div>
         {namingPreset === 'custom' && <NamingBuilder

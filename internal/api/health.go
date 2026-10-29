@@ -30,6 +30,9 @@ type healthItem struct {
 	Title  string        `json:"title"`
 	Impact string        `json:"impact"`
 	Action *healthAction `json:"action,omitempty"`
+	// Dismiss is the label of a button that hides the item for good (the
+	// dashboard sends the matching setting), for a notice that doesn't apply.
+	Dismiss string `json:"dismiss,omitempty"`
 }
 
 var healthRank = map[string]int{"error": 0, "warn": 1, "info": 2}
@@ -110,10 +113,8 @@ func (s *Server) collectHealth() []healthItem {
 		addHealth("indexers-unreadable", "error", "The list of indexers can't be read",
 			"Mediarium couldn't read the indexers from the database, so searches and automatic downloads find nothing. The log says why.",
 			"", "")
-	} else if usenetIndexers+torrentIndexers == 0 && unreadable == 0 && !keyMismatch {
-		addHealth("no-indexers", "error", "No indexer is set up",
-			"Without one, searches and automatic downloads find nothing.",
-			"Add an indexer", "/settings/indexers")
+	} else if unreadable == 0 && !keyMismatch {
+		indexerSetupHealth(instances, torrentsOn, time.Now(), addHealth)
 	}
 
 	for _, inst := range instances {
@@ -174,10 +175,13 @@ func (s *Server) collectHealth() []healthItem {
 		addHealth("vpn-required", "error", "Torrents are blocked until a VPN is connected",
 			"The VPN kill switch is on, so torrents wait for a VPN. Usenet isn't affected.",
 			"Open VPN settings", "/settings/vpn")
-	case torrentIndexers > 0 && !vpnConnected:
+	case torrentIndexers > 0 && !vpnConnected && s.torrentsEnabled() && !s.vpnNoticeAcknowledged():
+		// Without the built-in client, torrents run in another program (or a
+		// debrid service) and this notice is not Mediarium's to give.
 		addHealth("no-vpn", "warn", "Torrenting without a VPN",
 			"Other peers can see your home IP address and your internet provider can see you're torrenting. A VPN hides both. Nothing is blocked.",
 			"Set up a VPN", "/settings/vpn")
+		items[len(items)-1].Dismiss = "My download client is already behind a VPN"
 	}
 
 	if !organizer.NewExtractor().Available() {

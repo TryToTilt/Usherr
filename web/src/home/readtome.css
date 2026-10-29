@@ -1,0 +1,54 @@
+/* Usherr: Read-to-Me */
+.modal.rtm { width: min(620px, 96vw); display: grid; gap: 12px; padding: 0 20px 18px; max-height: 92vh; overflow: auto; }
+.modal.rtm .modal-head { padding: 18px 0 0; justify-content: space-between; align-items: center; }
+.modal.rtm .modal-head h2 { margin: 0; }
+.modal.rtm .modal-foot { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.modal.rtm h3 { margin: 4px 0 6px; font-size: 0.95rem; }
+.rtm-voices { list-style: none; margin: 0 0 6px; padding: 0; border: 1px solid var(--border); border-radius: 10px; max-height: 30vh; overflow: auto; }
+.rtm-voices li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 8px; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.rtm-voices li:first-child { border-top: 0; }
+.rtm-voices li.on { background: color-mix(in srgb, var(--accent, #e11d48) 14%, transparent); }
+.rtm-voices label { display: flex; align-items: center; gap: 8px; flex: 1; padding: 6px 0; cursor: pointer; }
+.rtm-name small { margin-left: 4px; }
+.rtm-speed { display: grid; gap: 4px; }
+.rtm-speed input { width: 100%; }
+.rtm-audio { width: 100%; height: 36px; }
+.rtm-job { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; margin: 0; }
+.rtm-bar { height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--border) 60%, transparent); overflow: hidden; }
+.rtm-bar span { display: block; height: 100%; background: var(--accent, #e11d48); transition: width 0.4s; }
+.rtm-made { grid-template-columns: 1fr; }
+.rtm-made-actions { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.rtm-made-actions button[aria-pressed='true'] { background: color-mix(in srgb, var(--accent, #e11d48) 18%, transparent); }
+.rtm-tab { display: grid; gap: 22px; padding: 6px 0 24px; max-width: 900px; }
+.rtm-tab h2 { font-size: 1.05rem; margin: 0 0 10px; }
+.rtm-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rtm-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rtm-row a { color: inherit; }
+.rtm-more { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; }
+.rtm-more summary { cursor: pointer; font-weight: 600; }
+.rtm-more[open] summary { margin-bottom: 8px; }
+.rtm-check { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.rtm-chapters { list-style: none; margin: 6px 0 0; padding: 0; max-height: 28vh; overflow: auto; border-top: 1px solid var(--border); }
+.rtm-chapters label { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
+.rtm-chapters label span { flex: 1; }
+.rtm-say { display: grid; gap: 6px; margin-bottom: 8px; }
+.rtm-say-row { display: grid; grid-template-columns: 1fr auto 1fr auto; gap: 6px; align-items: center; }
+.rtm-say-row input { min-width: 0; }
+.rtm-say-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rtm-preset { display: flex; align-items: center; gap: 8px; }
+.rtm-preset select { flex: 1; }
+.rtm-mix { display: grid; gap: 8px; margin-top: 6px; }
+.rtm-pauses { display: grid; gap: 6px; margin: 8px 0; padding-top: 8px; border-top: 1px solid var(--border); }
+.rtm-pauses > button { justify-self: start; }
+.rtm-presets li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rtm-cast-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(0, 1.4fr); gap: 8px; align-items: center; padding: 3px 0; }
+.rtm-cast-row select { min-width: 0; width: 100%; }
+.rtm-lines { display: grid; gap: 8px; margin-top: 8px; max-height: 40vh; overflow: auto; }
+.rtm-line { display: grid; gap: 4px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; }
+.rtm-line.unknown { border-style: dashed; }
+.rtm-line q { font-style: italic; }
+.rtm-line input { max-width: 220px; }
+@media (max-width: 520px) { .rtm-cast-row { grid-template-columns: 1fr; } }
+.rtm-off { opacity: 0.5; }
+.rtm-edit { display: grid; gap: 6px; margin: 4px 0 10px; }
+.rtm-edit textarea { width: 100%; min-height: 220px; font: inherit; line-height: 1.45; }

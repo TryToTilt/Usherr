@@ -295,6 +295,7 @@ func (s *Server) downloadViaUsenetClient(ctx context.Context, queueID int64, nzb
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			s.noteClientCheck(watchUsenetClient, label, err)
 			if !fails.tolerate(err, usenetclient.ErrAuth) {
 				return usenetClientError(cfg.Kind, err)
 			}
@@ -302,11 +303,12 @@ func (s *Server) downloadViaUsenetClient(ctx context.Context, queueID int64, nzb
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(downloadClientPoll):
+			case <-time.After(downloadClientPollEvery()):
 			}
 			continue
 		}
 		fails.reset()
+		s.noteClientCheck(watchUsenetClient, label, nil)
 		switch {
 		case !found:
 			if gone.IsZero() {
@@ -351,7 +353,7 @@ func (s *Server) downloadViaUsenetClient(ctx context.Context, queueID int64, nzb
 		select {
 		case <-ctx.Done():
 			return ctx.Err() // paused or stopped: the job stays in the downloader for later
-		case <-time.After(downloadClientPoll):
+		case <-time.After(downloadClientPollEvery()):
 		}
 	}
 }

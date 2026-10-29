@@ -1,0 +1,56 @@
+/* Usherr: Sports on the Marquee — the scoreboard, tonight's games, the ticker
+   and the countdown band. Sizes follow the screen (--u) and the text size. */
+.mqs { display: flex; flex-direction: column; gap: calc(var(--u, 1vmin) * 3); padding: calc(var(--u, 1vmin) * 3) calc(var(--u, 1vmin) * 5) calc(var(--u, 1vmin) * 12); box-sizing: border-box; }
+.mqs-head { margin: 0; text-align: center; font-size: calc(var(--u, 1vmin) * 8 * var(--mq-t, 1)); letter-spacing: 0.06em; text-transform: uppercase; color: var(--mq-hi, var(--accent)); }
+.mqs-board { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(var(--u, 1vmin) * 2); }
+.mqs-game { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: calc(var(--u, 1vmin) * 3); padding: calc(var(--u, 1vmin) * 2) calc(var(--u, 1vmin) * 3); border-radius: calc(var(--u, 1vmin) * 2); background: rgba(255, 255, 255, 0.06); font-size: calc(var(--u, 1vmin) * 5.4 * var(--mq-t, 1)); }
+.mqs-game.mine { background: color-mix(in srgb, var(--mq-accent, var(--accent)) 24%, rgba(255, 255, 255, 0.04)); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--mq-accent, var(--accent)) 60%, transparent); }
+.mqs-game.final { opacity: 0.78; }
+.mqs-league img { width: calc(var(--u, 1vmin) * 9); height: calc(var(--u, 1vmin) * 9); object-fit: contain; }
+.mqs-teams { display: grid; gap: calc(var(--u, 1vmin) * 0.6); min-width: 0; }
+.mqs-board .mqs-teams:has(.mqs-vs) { grid-template-columns: 1fr auto 1fr; align-items: center; }
+.mqs-team { display: flex; align-items: center; gap: calc(var(--u, 1vmin) * 1.4); min-width: 0; }
+.mqs-team b, .mqs-teams > b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mqs-crest { flex: none; width: calc(var(--u, 1vmin) * 7.5); height: calc(var(--u, 1vmin) * 7.5); object-fit: contain; }
+.mqs-crest-none { display: inline-grid; place-items: center; border-radius: 50%; background: rgba(255, 255, 255, 0.12); font-weight: 700; font-size: 0.7em; }
+.mqs-vs { opacity: 0.6; font-size: 0.75em; text-transform: uppercase; }
+.mqs-score { display: grid; justify-items: end; gap: calc(var(--u, 1vmin) * 0.4); font-variant-numeric: tabular-nums; }
+.mqs-score strong { font-size: 1.5em; }
+.mqs-score small, .mqs-where small { opacity: 0.75; font-size: 0.68em; letter-spacing: 0.05em; text-transform: uppercase; }
+.mqs-game.live .mqs-score small, .mqs-live { color: #ff5d5d; }
+.mqs-live::before { content: ""; display: inline-block; width: 0.5em; height: 0.5em; margin-right: 0.35em; border-radius: 50%; background: currentColor; animation: mqs-blink 1.4s ease-in-out infinite; }
+@keyframes mqs-blink { 50% { opacity: 0.25; } }
+.mqs-time { font-variant-numeric: tabular-nums; min-width: 4.6em; font-weight: 600; }
+.mqs-where { display: grid; justify-items: end; gap: calc(var(--u, 1vmin) * 0.3); }
+
+/* The ticker, along the very bottom; the countdown band sits above it. */
+.mqs-ticker { position: absolute; left: 0; right: 0; bottom: 0; z-index: 19; overflow: hidden; white-space: nowrap; background: rgba(8, 6, 10, 0.86); color: #fff; font-size: calc(var(--u, 1vmin) * 4.4); padding: calc(var(--u, 1vmin) * 1.4) 0; border-top: 2px solid var(--mq-accent, var(--accent)); }
+.mqs-ticker-run { display: inline-flex; gap: calc(var(--u, 1vmin) * 5); padding-left: 100%; animation: mqs-scroll linear infinite; }
+@keyframes mqs-scroll { to { transform: translateX(-50%); } }
+.mqs-tick { display: inline-flex; align-items: baseline; gap: calc(var(--u, 1vmin) * 1.2); }
+.mqs-tick em { font-style: normal; opacity: 0.7; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.06em; }
+.mqs-tick small { color: var(--mq-hi, #f5c96a); }
+.mqs-tick.live small { color: #ff5d5d; }
+.mqs-tick.mine b { color: var(--mq-hi, #f5c96a); }
+.mq.has-ticker .mq-showtime-band { bottom: calc(var(--u, 1vmin) * 10); }
+.mq.has-ticker .mqs-countdown { bottom: calc(var(--u, 1vmin) * 10); }
+.mq .mq-showtime-band + .mqs-countdown { bottom: calc(var(--u, 1vmin) * 12); }
+.mq.has-ticker .mq-showtime-band + .mqs-countdown { bottom: calc(var(--u, 1vmin) * 19); }
+@media (prefers-reduced-motion: reduce) { .mqs-ticker-run { animation-duration: 0s !important; padding-left: 0; } .mqs-live::before { animation: none; } }
+
+/* Now showing: the game being watched. */
+.mqs-now { position: relative; display: grid; place-items: center; height: 100%; overflow: hidden; }
+.mqs-now-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.28; filter: blur(calc(var(--u, 1vmin) * 0.6)); }
+.mqs-now-card { position: relative; display: grid; justify-items: center; gap: calc(var(--u, 1vmin) * 2.2); width: min(92%, calc(var(--u, 1vmin) * 160)); text-align: center; }
+.mqs-now-league { width: calc(var(--u, 1vmin) * 13); height: calc(var(--u, 1vmin) * 13); object-fit: contain; }
+.mqs-now-leaguename { font-size: calc(var(--u, 1vmin) * 5 * var(--mq-t, 1)); letter-spacing: 0.1em; text-transform: uppercase; color: var(--mq-hi, var(--accent)); }
+.mqs-now-match { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: calc(var(--u, 1vmin) * 4); width: 100%; }
+.mqs-now-team { display: grid; justify-items: center; gap: calc(var(--u, 1vmin) * 2); font-size: calc(var(--u, 1vmin) * 6 * var(--mq-t, 1)); line-height: 1.1; }
+.mqs-now-team .mqs-crest { width: calc(var(--u, 1vmin) * 20); height: calc(var(--u, 1vmin) * 20); font-size: calc(var(--u, 1vmin) * 8); }
+.mqs-now-mid { display: grid; justify-items: center; gap: calc(var(--u, 1vmin) * 1.5); }
+.mqs-now-mid strong { font-size: calc(var(--u, 1vmin) * 14 * var(--mq-t, 1)); font-variant-numeric: tabular-nums; }
+.mqs-now-mid .mqs-vs { font-size: calc(var(--u, 1vmin) * 7 * var(--mq-t, 1)); }
+.mqs-now-mid small { font-size: calc(var(--u, 1vmin) * 4 * var(--mq-t, 1)); }
+.mqs-now-title { margin: 0; font-size: calc(var(--u, 1vmin) * 8 * var(--mq-t, 1)); }
+.mqs-now-facts { margin: 0; opacity: 0.8; font-size: calc(var(--u, 1vmin) * 3.6 * var(--mq-t, 1)); }
+.mqs-now-card .mq-progress { width: 70%; }

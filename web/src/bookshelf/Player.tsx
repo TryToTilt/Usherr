@@ -50,7 +50,7 @@ export default function Player() {
         if (stale) return
         setBook(b)
         setTracks(t.tracks)
-        const at = parseAudioPosition(p?.position)
+        const at = p?.finished ? { track: 0, seconds: 0 } : parseAudioPosition(p?.position) // Usherr: a finished book starts again
         if (at.track < t.tracks.length) {
           setTrack(at.track)
           resumeAt.current = at.seconds
@@ -254,6 +254,9 @@ export default function Player() {
           <strong>{book.title}</strong>
           <small>{[book.author, book.narrators && t('read by {names}', { names: book.narrators.split(',').slice(0, 2).join(',').trim() })].filter(Boolean).join(' · ')}</small>
         </span>
+        <button className="icon-btn" onClick={() => goChapter(0)} title={t('Start over')} aria-label={t('Start over')}>
+          <Icon name="skip-prev" size={18} />
+        </button>
         <button className={`icon-btn${showChapters ? ' active' : ''}`} onClick={() => setShowChapters((v) => !v)} title={t('Chapters')} aria-label={t('Chapters')}>
           <Icon name="list" size={18} />
         </button>

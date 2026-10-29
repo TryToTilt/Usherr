@@ -36,7 +36,9 @@ export function useFoldCards(root: RefObject<HTMLElement | null>, key: string) {
         card.setAttribute('data-foldable', '')
         head.setAttribute('role', 'button')
         head.tabIndex = 0
-        setOpen(card, !!card.querySelector('.error-text, .field-error, .notice-error'))
+        const linked = card.id !== '' && window.location.hash === '#' + card.id // Usherr: a link straight to this card
+        setOpen(card, linked || !!card.querySelector('.error-text, .field-error, .notice-error'))
+        if (linked) card.scrollIntoView({ block: 'start' })
         const toggle = () => setOpen(card, card.hasAttribute('data-folded'))
         head.addEventListener('click', (e) => {
           if ((e.target as Element).closest('a, button, input, select, label, [role="switch"]') && e.target !== head) return

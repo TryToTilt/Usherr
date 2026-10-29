@@ -59,12 +59,16 @@ func (s *Server) torrentAllowLocal() bool {
 	return s.settingIsOne(settings.KeyTorrentAllowLocal)
 }
 
-// torrentUploadLimitKB is the upload limit in KB/s, 0 for none.
+// noUploadLimit is torrentUploadLimitKB's answer when there is no limit.
+const noUploadLimit = -1
+
+// torrentUploadLimitKB is the upload limit in KB/s: noUploadLimit (-1) when it
+// is empty, 0 when uploading is switched off.
 func (s *Server) torrentUploadLimitKB() int {
 	v, _ := s.Settings.Get(settings.KeyTorrentUploadLimitKB)
 	n, err := strconv.Atoi(strings.TrimSpace(v))
 	if err != nil || n < 0 {
-		return 0
+		return noUploadLimit
 	}
 	return n
 }
@@ -229,7 +233,7 @@ func (s *Server) indexerOfRelease(url string) (int64, bool) {
 // torrentSeedGoal is when a finished torrent stops seeding: the global limits,
 // except where the indexer it came from has rules of its own.
 func (s *Server) torrentSeedGoal(queueID int64) torrentclient.SeedGoal {
-	ratio, hours := s.torrentSeedRatioLimit(), s.torrentSeedTimeLimit().Hours()
+	ratio, hours := s.torrentSeedRatioLimit(), s.torrentSeedHoursLimit()
 	if s.TorrentOpts != nil {
 		if item, err := s.QueueRepo.Get(queueID); err == nil {
 			// Items queued before the indexer was remembered have none: work it
@@ -245,7 +249,7 @@ func (s *Server) torrentSeedGoal(queueID int64) torrentclient.SeedGoal {
 			}
 		}
 	}
-	return torrentclient.SeedGoal{Ratio: ratio, Time: time.Duration(hours * float64(time.Hour))}
+	return torrentclient.GoalOf(ratio, hours)
 }
 
 // setUpDownloadControl gives a torrent that has just been added the choices
@@ -301,7 +305,7 @@ type torrentOptionsPayload struct {
 	SequentialDefault bool                   `json:"sequentialDefault"`
 	SkipJunk          bool                   `json:"skipJunk"`
 	PackOnlyWanted    bool                   `json:"packOnlyWanted"`
-	UploadLimitKB     int                    `json:"uploadLimitKB"`
+	UploadLimitKB     *int                   `json:"uploadLimitKB"` // null = no limit, 0 = no uploading
 	PortMapping       portMapPayload         `json:"portMapping"`
 	AllowLocal        bool                   `json:"allowLocalAddresses"`
 	Categories        []torrentopts.Category `json:"categories"`
@@ -331,7 +335,7 @@ func (s *Server) currentTorrentOptions() torrentOptionsPayload {
 		SequentialDefault: s.torrentSequentialDefault(),
 		SkipJunk:          s.torrentSkipJunk(),
 		PackOnlyWanted:    s.torrentPackOnlyWanted(),
-		UploadLimitKB:     s.torrentUploadLimitKB(),
+		UploadLimitKB:     uploadLimitPayload(s.torrentUploadLimitKB()),
 		PortMapping:       s.portMapStatus(),
 		AllowLocal:        s.torrentAllowLocal(),
 		Categories:        cfg.Categories,
@@ -341,6 +345,14 @@ func (s *Server) currentTorrentOptions() torrentOptionsPayload {
 		out.Categories = []torrentopts.Category{}
 	}
 	return out
+}
+
+// uploadLimitPayload is the upload limit as the page gets it: null for none.
+func uploadLimitPayload(kb int) *int {
+	if kb < 0 {
+		return nil
+	}
+	return &kb
 }
 
 func (s *Server) handleGetTorrentOptions(w http.ResponseWriter, r *http.Request) {
@@ -369,8 +381,8 @@ func (s *Server) handlePutTorrentOptions(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "Couldn't read that request. Reload the page and try again.")
 		return
 	}
-	if req.UploadLimitKB != nil && (*req.UploadLimitKB < 0 || *req.UploadLimitKB > maxTorrentLimitKB) {
-		writeError(w, http.StatusBadRequest, "The upload limit is 0 (no limit) to 10000000 KB/s.")
+	if req.UploadLimitKB != nil && (*req.UploadLimitKB < noUploadLimit || *req.UploadLimitKB > maxTorrentLimitKB) {
+		writeError(w, http.StatusBadRequest, "The upload limit is 0 (no uploading) to 10000000 KB/s, or empty for no limit.")
 		return
 	}
 	var cats torrentopts.CategoryConfig
@@ -406,7 +418,11 @@ func (s *Server) handlePutTorrentOptions(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if req.UploadLimitKB != nil {
-		if !set(settings.KeyTorrentUploadLimitKB, strconv.Itoa(*req.UploadLimitKB)) {
+		value := ""
+		if *req.UploadLimitKB >= 0 {
+			value = strconv.Itoa(*req.UploadLimitKB)
+		}
+		if !set(settings.KeyTorrentUploadLimitKB, value) {
 			return
 		}
 		s.applySpeedLimit(time.Now())

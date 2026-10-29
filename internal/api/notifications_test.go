@@ -41,7 +41,7 @@ func TestNotificationTypesCatalog(t *testing.T) {
 	for _, e := range events {
 		ids = append(ids, e["id"].(string))
 	}
-	if strings.Join(ids, ",") != "added,imported,failed,conflict,subtitle,health,update,request,digest,reminder" {
+	if strings.Join(ids, ",") != "added,imported,failed,conflict,subtitle,health,update,request,digest,clientdown,clientup,trashsync,reminder,audiobook" {
 		t.Fatalf("unexpected events %v", ids)
 	}
 }

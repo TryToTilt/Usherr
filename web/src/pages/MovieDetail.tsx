@@ -14,6 +14,8 @@ import InfoTip from '../components/InfoTip'
 import PosterCard from '../components/PosterCard'
 import ProfilePicker from '../components/ProfilePicker'
 import ReleaseTable from '../components/ReleaseTable'
+import GrabBlocked from '../components/GrabBlocked'
+import { blockingOf, type BlockingDownload } from '../grabBlocked'
 import TitleTags from '../components/Tags'
 import WatchedLine from '../components/WatchedLine'
 import CollectionCard from '../components/CollectionCard'
@@ -21,6 +23,8 @@ import CopiesCard from '../components/CopiesCard'
 import TitleRequestActions from '../components/TitleRequestActions'
 import FilesPanel from '../components/FilesPanel'
 import FileChips from '../components/FileChips'
+import ShortFile from '../components/ShortFile'
+import { redoAnswerText } from '../shortFile'
 import SubtitlesOffNote from '../components/SubtitlesOffNote'
 import SubtitlesPanel from '../components/SubtitlesPanel'
 import Switch from '../components/Switch'
@@ -34,12 +38,14 @@ import TitleEvents from '../components/TitleEvents'
 import SearchStatus from '../components/SearchStatus'
 import { describeState } from '../components/state'
 import { useToast } from '../components/Toast'
+import { useTorrentsSwitch } from '../useTorrentsSwitch'
 import { useAuth } from '../AuthContext'
 import { playTitle } from '../home/Player' // play hook (home fork)
 import StreamButton, { streamRelease } from '../home/StreamButton' // stream hook (home fork)
 import { useModules } from '../ModulesContext'
 import { formatBytes, qualityText } from '../format'
 import { rescanMessage } from '../rescanMessage'
+import { movieFileToReplace, replaceQuestion } from '../replaceFile'
 import { api, can, isAdmin, type DiscoverMovie, type MovieDetail as MovieDetailData, type SearchResult } from '../api'
 import { useLive } from '../useLive'
 import { useConfirm } from '../components/ConfirmProvider'
@@ -47,6 +53,7 @@ import { removeOption } from '../diskUsage'
 import ReleaseNotice from '../components/ReleaseNotice'
 import { releaseFacts } from '../releaseDates'
 import type { Unanswered } from '../releaseHint'
+import type { Searched } from '../searched'
 import { useDocumentTitle } from '../documentTitle'
 import { plural, t } from '../i18n'
 
@@ -69,6 +76,7 @@ function MoviePage() {
   const navigate = useNavigate()
   const id = Number(tmdbId)
   const toast = useToast()
+  const { grabError } = useTorrentsSwitch()
 
   const [movie, setMovie] = useState<MovieDetailData | null>(null)
   useDocumentTitle(movie?.title)
@@ -77,6 +85,8 @@ function MoviePage() {
   const [adding, setAdding] = useState(false)
   const [locating, setLocating] = useState(false)
   const [monitored, setMonitored] = useState<boolean | null>(null)
+  // What the movie's file takes on disk (0 when there is none).
+  const [diskBytes, setDiskBytes] = useState(0)
   const [results, setResults] = useState<SearchResult[] | null>(null)
   // The releases list is drawn above the files and settings: bring it into view when a search answers.
   const releasesRef = useRef<HTMLElement>(null)
@@ -84,7 +94,7 @@ function MoviePage() {
   useEffect(() => {
     if (hasResults) releasesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [hasResults])
-  const [answered, setAnswered] = useState<{ sources: number; unanswered: Unanswered[]; warnings?: string[] }>({ sources: 0, unanswered: [] })
+  const [answered, setAnswered] = useState<{ sources: number; unanswered: Unanswered[]; warnings?: string[]; searched?: Searched[]; ignoredSamples?: string[] }>({ sources: 0, unanswered: [] })
   const [searching, setSearching] = useState(false)
   const [searchingNow, setSearchingNow] = useState(false)
   const [grabbing, setGrabbing] = useState<string | null>(null)
@@ -123,6 +133,24 @@ function MoviePage() {
     }
   }
 
+  // A file far shorter than the movie should be: delete it and look for another release.
+  async function redoShortFile() {
+    if (!movie?.libraryId) return
+    const answer = await confirm({
+      title: t('Delete the file of {title} and search again?', { title: movie.title }),
+      body: <p>{t('This file is much shorter than the movie should be, so it is most likely a fake or a cut-off download. It goes to the recycle bin (or is deleted, if that is switched off), the release it came from is blocklisted when Mediarium knows it, and Mediarium searches for another one.')}</p>,
+      confirmLabel: t('Delete and search again'),
+      danger: true,
+    })
+    if (!answer) return
+    try {
+      toast.info(redoAnswerText(await api.redoIncomplete({ movieIds: [movie.libraryId] })))
+      reload()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   function reload() {
     api
       .tmdbMovieDetail(id)
@@ -143,9 +171,12 @@ function MoviePage() {
     if (!libraryId) return
     api
       .getMovie(libraryId)
-      .then((m) => setMonitored(m.monitored ?? true))
+      .then((m) => {
+        setMonitored(m.monitored ?? true)
+        setDiskBytes(m.sizeBytes ?? 0)
+      })
       .catch(() => undefined)
-  }, [libraryId])
+  }, [libraryId, movie?.filePath])
 
   async function toggleMonitored(v: boolean) {
     if (!libraryId) return
@@ -206,7 +237,7 @@ function MoviePage() {
     setResults(null)
     try {
       const a = await api.movieSearch(libraryId)
-      setAnswered({ sources: a.sources, unanswered: a.unanswered, warnings: a.warnings })
+      setAnswered({ sources: a.sources, unanswered: a.unanswered, warnings: a.warnings, searched: a.searched, ignoredSamples: a.ignoredSamples })
       setResults(a.results)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
@@ -225,15 +256,43 @@ function MoviePage() {
       .finally(() => setStreaming(null))
   }
 
-  async function grab(r: SearchResult) {
+  // A grab that was refused because another download is in the way, with the
+  // release that was picked, so it can be repeated once that one is cancelled.
+  const [blocked, setBlocked] = useState<{ release: SearchResult; blocking: BlockingDownload; message: string; replace: boolean } | null>(null)
+
+  // replaceFile is what the person already decided about the file the movie
+  // has (when the grab is repeated); left out, a movie that has a file asks first.
+  async function grab(r: SearchResult, replaceQueueId?: number, replaceFile?: boolean) {
     if (!libraryId) return
+    let replace = replaceFile ?? false
+    if (replaceFile === undefined) {
+      const old = movie ? movieFileToReplace({ status: movie.status ?? '', filePath: movie.filePath, quality: movie.quality, sizeBytes: diskBytes }) : null
+      if (old) {
+        const q = replaceQuestion([old], r)
+        const answer = await confirm({
+          title: q.title,
+          body: q.lines.map((line) => (
+            <p key={line} className="confirm-break">
+              {line}
+            </p>
+          )),
+          confirmLabel: t('Replace'),
+          cancelLabel: t('Cancel'),
+        })
+        if (!answer) return
+        replace = true
+      }
+    }
     setGrabbing(r.downloadUrl)
+    setBlocked(null)
     try {
-      await api.grab(libraryId, { releaseTitle: r.title, downloadUrl: r.downloadUrl, sizeBytes: r.sizeBytes, protocol: r.protocol })
+      await api.grab(libraryId, { releaseTitle: r.title, downloadUrl: r.downloadUrl, sizeBytes: r.sizeBytes, protocol: r.protocol, replaceQueueId, replace: replace || undefined })
       toast.success(t('Started downloading "{title}". Follow it in Activity.', { title: r.title }))
       setTimeout(reload, 500)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      const blocking = blockingOf(e)
+      if (blocking) setBlocked({ release: r, blocking, message: e instanceof Error ? e.message : String(e), replace })
+      else grabError(e, () => void grab(r, replaceQueueId, replace))
     } finally {
       setGrabbing(null)
     }
@@ -287,6 +346,7 @@ function MoviePage() {
             ...(writers.length ? [{ label: writers.length > 1 ? t('Writers') : t('Writer'), value: <PeopleLinks people={writers} /> }] : []),
             ...releaseFacts(movie.releaseDates, movie.releaseDate),
             ...(movie.releaseStatus ? [{ label: t('Status'), value: movie.releaseStatus }] : []),
+            ...(inLibrary && movie.filePath && diskBytes > 0 ? [{ label: t('Size on disk'), value: formatBytes(diskBytes) }] : []),
           ],
           links: titleLinks('movie', movie.tmdbId, movie.imdbId, movie.homepage),
         }}
@@ -381,13 +441,14 @@ function MoviePage() {
         {inLibrary && (
           <div className="title-controls">
             <Switch checked={monitored ?? true} onChange={toggleMonitored} disabled={!can(me, 'manage')} label={<span className="has-tip">{t('Monitored')}<InfoTip text={t('Mediarium keeps searching and downloads a release when one turns up. Switch it off to leave this movie alone; files you already have stay where they are.')} /></span>} description={monitored ?? true ? t('Keeps looking until it finds this movie.') : t('Not looking for this movie. Files you already have stay where they are.')} />
-            <ProfilePicker kind="movie" itemId={movie.libraryId!}>
+            <ProfilePicker kind="movie" itemId={movie.libraryId!} onMoved={reload}>
               {movie.libraryId && <TitleTags kind="movie" id={movie.libraryId} />}
             </ProfilePicker>
             {movie.filePath && <code className="filepath">{movie.filePath}</code>}
           </div>
         )}
         {inLibrary && movie.status === 'downloaded' && <FileChips info={movie.fileInfo} />}
+        {inLibrary && movie.status === 'downloaded' && <ShortFile note={movie.shortFile} onRedo={admin ? () => void redoShortFile() : undefined} />}
         {inLibrary && admin && movie.folderPath && (
           <FolderLine path={movie.folderPath} kind="movie">
             {movie.libraryId && (
@@ -420,15 +481,22 @@ function MoviePage() {
       {results !== null && (
         <section ref={releasesRef} className="card" style={{ marginBottom: 24, scrollMarginTop: 80 }}>
           <h2>{t('Releases')}</h2>
-          <ReleaseNotice sources={answered.sources} unanswered={answered.unanswered} warnings={answered.warnings} results={results.length} />
+          <ReleaseNotice sources={answered.sources} unanswered={answered.unanswered} warnings={answered.warnings} searched={answered.searched} ignoredSamples={answered.ignoredSamples} results={results.length} />
           {results.length === 0 && (
             <button className="btn-sm" onClick={() => setResults(null)}>
               {t('Close')}
             </button>
           )}
-          {results.length > 0 && (
-            <ReleaseTable results={results} grabbing={grabbing} onGrab={grab} onClose={() => setResults(null)} onStream={can(me, 'play') ? streamFromList : undefined} streaming={streaming} />
+          {blocked && (
+            <GrabBlocked
+              message={blocked.message}
+              blocking={blocked.blocking}
+              busy={grabbing !== null}
+              onReplace={() => void grab(blocked.release, blocked.blocking.id, blocked.replace)}
+              onDismiss={() => setBlocked(null)}
+            />
           )}
+          {results.length > 0 && <ReleaseTable results={results} searched={answered.searched} grabbing={grabbing} onGrab={(r) => void grab(r)} onStream={can(me, 'play') ? streamFromList : undefined} streaming={streaming} onClose={() => setResults(null)} />}
         </section>
       )}
 

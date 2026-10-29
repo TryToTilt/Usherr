@@ -230,11 +230,13 @@ function EpubReader({ book, src }: { book: Book; src: string }) {
           tocRef.current = nav.toc
           setToc(nav.toc)
         })
-        const start = saved?.position && saved.position.startsWith('epubcfi') ? saved.position : undefined
+        // Usherr: a book read to the end opens at the start again.
+        const kept = saved?.finished ? null : saved
+        const start = kept?.position && kept.position.startsWith('epubcfi') ? kept.position : undefined
         // A place that came from an e-reader (a Kobo) is only a percentage, not an
         // EPUB location: the book opens at the start and jumps there once the page
         // numbers are worked out, unless the reader has already turned a page.
-        const jumpTo = !start && saved && saved.percent > 0 && saved.percent < 100 ? saved.percent : 0
+        const jumpTo = !start && kept && kept.percent > 0 && kept.percent < 100 ? kept.percent : 0
         await r.display(start)
         const firstCfi = (r.currentLocation() as unknown as { start?: { cfi: string } } | undefined)?.start?.cfi
         if (cancelled) return
@@ -340,6 +342,9 @@ function EpubReader({ book, src }: { book: Book; src: string }) {
           <strong>{book.title}</strong>
           {chapter && <small>{chapter}</small>}
         </span>
+        <button className="icon-btn" onClick={() => void rendition.current?.display()} disabled={!ready} title={t('Start over')} aria-label={t('Start over')}>
+          <Icon name="skip-prev" size={18} />
+        </button>
         <button className={`icon-btn${panel === 'toc' ? ' active' : ''}`} onClick={() => setPanel(panel === 'toc' ? '' : 'toc')} title={t('Contents')} aria-label={t('Contents')}>
           <Icon name="list" size={18} />
         </button>

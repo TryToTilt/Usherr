@@ -1,11 +1,9 @@
 import KindGlyph, { type GlyphKind } from '../components/KindGlyph'
-import { useComicsOn } from '../home/libraryKinds' // Usherr
-import Tonight from '../home/Tonight' // home fork
 import News from '../home/News' // home fork
 import InTheaters from '../home/InTheaters' // Usherr
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { api, displayName, isAdmin, type DashboardData, type DashRecent, type HealthItem, type QueueItem } from '../api'
+import { api, displayName, isAdmin, type CalendarEntry, type DashboardData, type DashRecent, type HealthItem, type QueueItem } from '../api'
 import { useAuth } from '../AuthContext'
 import { KindBadge } from '../components/CalendarGrid'
 import Icon, { type IconName } from '../components/Icon'
@@ -17,82 +15,17 @@ import { timeAgo } from '../format'
 import { locale, plural, st, t, tx } from '../i18n'
 import { useModules } from '../ModulesContext'
 import SetupGaps from '../components/SetupGaps'
+import { entryDay, entryTime, readZonePref, resolveZone } from '../airTime'
 import { dismiss, factsFromDashboard, isDismissed, setupGaps } from '../setupStatus'
 import { useGridColumns } from '../useGridColumns'
 import { useLive } from '../useLive'
+import { anyMoving, pollEvery } from '../pollPlan'
 import { useUnreadErrors } from '../useProblems'
 import TwoStepTip from '../components/TwoStepTip'
 
-// Counts up to its target once, so the numbers feel alive when the page opens.
-function useCountUp(target: number, ms = 700): number {
-  const [value, setValue] = useState(0)
-  const from = useRef(0)
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-      from.current = target
-      setValue(target)
-      return
-    }
-    const start = performance.now()
-    const begin = from.current
-    let raf = 0
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / ms)
-      const eased = 1 - Math.pow(1 - t, 3)
-      setValue(Math.round(begin + (target - begin) * eased))
-      if (t < 1) raf = requestAnimationFrame(tick)
-      else from.current = target
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [target, ms])
-  return value
-}
-
-// One card per kind of media. A kind that is switched off keeps its card,
-// dimmed with an "Off" badge and the count it had, so it is easy to switch back
-// on; one that is not built yet says "Coming soon".
-function ModuleCard({ icon, glyph, cut, label, value, unit, sub, to, color, off, soon }: { icon: IconName; glyph?: GlyphKind; cut?: string; label: string; value?: number; unit?: string; sub?: string; to: string; color: string; off?: boolean; soon?: boolean }) {
-  const counted = useCountUp(value ?? 0)
-  const dim = off || soon
-  const body = (
-    <>
-      <span className="mod-top">
-        <span className={`stat-icon${glyph ? ' has-glyph' : ''}`}>{glyph ? <KindGlyph kind={glyph} size={34} variant="solid" /> : <Icon name={icon} size={18} />}</span>
-        <span className="mod-name">{label}</span>
-        {soon ? <span className="badge mod-badge">{t('Coming soon')}</span> : off ? <span className="badge mod-badge">{t('Off')}</span> : null}
-      </span>
-      {soon ? (
-        <span className="mod-value mod-empty">—</span>
-      ) : (
-        <span className="mod-value">
-          {counted.toLocaleString(locale())}
-          {unit && <small>{unit}</small>}
-        </span>
-      )}
-      <span className="stat-sub">{soon ? t('Not built yet') : sub}</span>
-    </>
-  )
-  // The wrapper draws the outline (it follows the notch in the corner); the card inside is the cut shape.
-  const kind = cut ?? glyph ?? 'movie' // cut: Usherr, a notch of its own (anime)
-  return (
-    <div className={`mod-wrap mod-k-${kind}${dim ? ' dim' : ''}`} style={{ ['--tc' as string]: color }}>
-      {dim ? (
-        <div className="stat-card mod-card is-dim" aria-label={soon ? t('{label}: coming soon', { label }) : t('{label}: switched off', { label })}>
-          {body}
-        </div>
-      ) : (
-        <Link to={to} className="stat-card mod-card">
-          {body}
-        </Link>
-      )}
-    </div>
-  )
-}
-
 const LEVEL_ICON: Record<HealthItem['level'], IconName> = { error: 'warning', warn: 'warning', info: 'info' }
 
-function Health({ items, showOptional, errors = 0 }: { items: HealthItem[]; showOptional: boolean; errors?: number }) {
+function Health({ items, showOptional, errors = 0, onChanged }: { items: HealthItem[]; showOptional: boolean; errors?: number; onChanged?: () => void }) {
   const problems = items.filter((i) => i.level !== 'info')
   const optional = items.filter((i) => i.level === 'info')
   if (problems.length === 0 && errors === 0 && (!showOptional || optional.length === 0)) return null
@@ -109,6 +42,15 @@ function Health({ items, showOptional, errors = 0 }: { items: HealthItem[]; show
         <Link to={it.action.path} className="health-action">
           {st(it.action.label)} <Icon name="open" size={14} />
         </Link>
+      )}
+      {it.dismiss && it.id === 'no-vpn' && (
+        <button
+          type="button"
+          className="health-action"
+          onClick={() => api.putSettings({ vpnNoticeAcknowledged: true }).then(() => onChanged?.()).catch(() => undefined)}
+        >
+          {t('My download client is already behind a VPN')}
+        </button>
       )}
     </li>
   )
@@ -154,6 +96,11 @@ function Health({ items, showOptional, errors = 0 }: { items: HealthItem[]; show
 
 // Where a recently added or downloaded entry opens: a movie, a show, or the
 // artist page of an album.
+// The day an item in "Coming up" sits on: an episode with a known air time goes by the viewer's own day.
+function chipDay(e: CalendarEntry): Date {
+  return new Date(`${entryDay(e, resolveZone(readZonePref()))}T00:00:00`)
+}
+
 function recentLink(r: DashRecent): string {
   if (r.kind === 'movie') return `/title/${r.tmdbId}`
   if (r.kind === 'album') return `/music/album/${r.albumId ?? r.id}`
@@ -264,7 +211,8 @@ export default function Dashboard() {
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
   }, [])
   useEffect(loadDashboard, [loadDashboard])
-  useLive(loadDashboard, 5000)
+  // The dashboard moves quickly only while a download does.
+  useLive(loadDashboard, pollEvery(anyMoving(active), 5000, 15000))
 
   // Downloads move quickly, so they refresh on their own faster clock.
   const loadActive = useCallback(() => {
@@ -274,13 +222,12 @@ export default function Dashboard() {
       .catch(() => undefined)
   }, [])
   useEffect(loadActive, [loadActive])
-  useLive(loadActive, 3000)
+  useLive(loadActive, pollEvery(anyMoving(active), 3000, 10000))
 
   const name = displayName(user)
   // Members get a trimmed dashboard: no setup warnings, no server paths and
   // no links into settings they cannot open.
   const admin = isAdmin(user)
-  const comicsOn = useComicsOn(admin) // Usherr: the Comics card
   const unreadErrors = useUnreadErrors(admin)
 
   // One failed refresh must not replace a dashboard that is already showing.
@@ -290,11 +237,6 @@ export default function Dashboard() {
       <div className="dashboard">
         <Loading height={130}>
           <div className="skeleton" style={{ height: 130, borderRadius: 22, marginBottom: 22 }} />
-          <div className="dash-cards">
-            {Array.from({ length: 6 }, (_, i) => (
-              <div key={i} className="skeleton" style={{ height: 118 }} />
-            ))}
-          </div>
         </Loading>
       </div>
     )
@@ -302,7 +244,6 @@ export default function Dashboard() {
 
   const { library: lib } = data
   const empty = lib.movies.total === 0 && lib.series.total === 0
-  const music = lib.music ?? { artists: 0, albums: 0, downloaded: 0, missing: 0 }
   const noBooks = { books: 0, downloaded: 0, missing: 0 }
   const ebooks = lib.ebooks ?? noBooks
   const audiobooks = lib.audiobooks ?? noBooks
@@ -379,7 +320,6 @@ export default function Dashboard() {
       </section>
 
       <TwoStepTip />
-      <Tonight /> {/* home fork: what to watch tonight */}
       <InTheaters /> {/* Usherr: films in cinemas */}
 
       {admin && !startedClosed && startedGaps.length > 0 && (
@@ -409,72 +349,9 @@ export default function Dashboard() {
 
       {admin && (
         <div id="attention">
-          <Health items={data.health} showOptional={showOptional} errors={unreadErrors} />
+          <Health items={data.health} showOptional={showOptional} errors={unreadErrors} onChanged={loadDashboard} />
         </div>
       )}
-
-      <div className="dash-cards">
-        <ModuleCard icon="film" glyph="movie" label={t('Movies')} value={lib.movies.total} sub={[t('{n} on disk', { n: lib.movies.downloaded }), lib.movies.streams ? t('{n} stream', { n: lib.movies.streams }) : '', t('{n} missing', { n: lib.movies.missing })].filter(Boolean).join(' · ')} to="/library?kind=movie" color="var(--c-movie)" off={!on('movies')} />
-        <ModuleCard icon="tv" glyph="tv" label={t('TV shows')} value={lib.series.total} sub={[plural(lib.series.episodes, '{n} episode', '{n} episodes'), t('{n} on disk', { n: lib.series.episodesDownloaded }), lib.series.episodesStreams ? t('{n} stream', { n: lib.series.episodesStreams }) : ''].filter(Boolean).join(' · ')} to="/library?kind=tv" color="var(--c-tv)" off={!on('tv')} />
-        {/* Usherr: anime apart from TV */}
-        <ModuleCard
-          icon="tv"
-          glyph="tv"
-          cut="anime"
-          label={t('Anime')}
-          value={lib.anime?.total ?? 0}
-          sub={[plural(lib.anime?.episodes ?? 0, '{n} episode', '{n} episodes'), t('{n} on disk', { n: lib.anime?.episodesDownloaded ?? 0 }), lib.anime?.episodesStreams ? t('{n} stream', { n: lib.anime.episodesStreams }) : ''].filter(Boolean).join(' · ')}
-          to="/library?kind=anime"
-          color="var(--c-anime, var(--c-tv))"
-          off={!on('tv')}
-        />
-        <ModuleCard
-          icon="music"
-          glyph="music"
-          label={t('Music')}
-          value={music.artists}
-          unit={plural(music.artists, 'artist', 'artists')}
-          sub={plural(music.albums, '{n} album · {missing} missing', '{n} albums · {missing} missing', { missing: music.missing })}
-          to="/library?kind=music"
-          color="var(--c-music)"
-          off={!on('music')}
-        />
-        <ModuleCard
-          icon="book"
-          glyph="book"
-          label={t('Ebooks')}
-          value={ebooks.books}
-          unit={plural(ebooks.books, 'book', 'books')}
-          sub={t('{downloaded} downloaded · {missing} missing', { downloaded: ebooks.downloaded, missing: ebooks.missing })}
-          to="/library?kind=ebook"
-          color="var(--c-book)"
-          off={!on('ebooks')}
-        />
-        <ModuleCard
-          icon="headphones"
-          glyph="audiobook"
-          label={t('Audiobooks')}
-          value={audiobooks.books}
-          unit={plural(audiobooks.books, 'book', 'books')}
-          sub={t('{downloaded} downloaded · {missing} missing', { downloaded: audiobooks.downloaded, missing: audiobooks.missing })}
-          to="/library?kind=audiobook"
-          color="var(--c-audiobook)"
-          off={!on('audiobooks')}
-        />
-        {comicsOn && (
-          // Usherr: comics
-          <ModuleCard
-            icon="book"
-            glyph="comic"
-            label={t('Comics')}
-            value={lib.comics?.series ?? 0}
-            unit={plural(lib.comics?.series ?? 0, 'series', 'series')}
-            sub={t('{downloaded} issues downloaded · {missing} missing', { downloaded: lib.comics?.downloaded ?? 0, missing: lib.comics?.missing ?? 0 })}
-            to="/comics"
-            color="var(--c-comics)"
-          />
-        )}
-      </div>
 
       {!empty && data.recentlyAdded.length > 0 && (
         <div className="recent-split">
@@ -511,8 +388,8 @@ export default function Dashboard() {
                 <li key={`${e.kind}-${e.id}`}>
                   <Link className="mini-link" to={e.kind === 'movie' ? `/title/${e.tmdbId}` : e.kind === 'episode' ? `/series/${e.seriesId}` : `/music/artist/${e.artistId}`}>
                   <span className="date-chip">
-                    <b>{new Date(`${e.releaseDate}T00:00:00`).getDate()}</b>
-                    {new Date(`${e.releaseDate}T00:00:00`).toLocaleString(locale(), { month: 'short' })}
+                    <b>{chipDay(e).getDate()}</b>
+                    {chipDay(e).toLocaleString(locale(), { month: 'short' })}
                   </span>
                   {e.posterUrl ? ( // home fork: the poster v3 sends with each entry
                     <div className="mini-thumb">
@@ -527,6 +404,7 @@ export default function Dashboard() {
                       <small className="qwhen">
                         {e.kind === 'episode' && anime.has(e.seriesId ?? 0) ? `${t('Anime')} · ` : ''}
                         {e.subtitle.split(' · ')[0]}
+                        {entryTime(e, resolveZone(readZonePref())) ? ` · ${entryTime(e, resolveZone(readZonePref()))}` : ''}
                       </small>
                     )}
                   </div>

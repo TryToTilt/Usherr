@@ -887,7 +887,7 @@ func (s *Server) tasteJob(ctx context.Context) {
 		}
 	}
 	for _, kind := range []string{"movie", "tv"} {
-		ids, _ := s.libraryIDs(kind)
+		ids, _ := s.libraryIDs(ctx, kind)
 		ids = append(ids, shelf[kind]...)
 		if rows, err := s.db.QueryContext(ctx, `SELECT ref FROM home_votes WHERE kind = ?`, kind); err == nil {
 			for rows.Next() {

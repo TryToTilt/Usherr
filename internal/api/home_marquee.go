@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -61,6 +63,9 @@ type marqueePlaying struct {
 	Cast        []marqueePerson `json:"cast,omitempty"`     // Usherr: the info panel
 	Director    *marqueePerson  `json:"director,omitempty"` // Usherr
 	Formats     []string        `json:"formats,omitempty"`  // Usherr: "IMAX", "Dolby Cinema"...
+	GameID      string          `json:"-"`                  // Usherr: a game streamed from Sports
+	Release     string          `json:"-"`                  // Usherr: the release Usherr streams, to tell a game by
+	Game        *marqueeGame    `json:"game,omitempty"`     // Usherr: the game being watched
 }
 
 type marqueePayload struct {
@@ -77,8 +82,15 @@ type marqueePayload struct {
 	Tonight    []marqueeTonight   `json:"tonight"`
 	Spotlights []marqueeSpotlight `json:"spotlights"`
 	Media      []marqueeMediaItem `json:"media"`
-	Themes     map[string]string  `json:"themes"` // "movie:{tmdbId}" or "tv:{seriesId}" → theme music
+	Themes     map[string]string  `json:"themes"`           // "movie:{tmdbId}" or "tv:{seriesId}" → theme music
+	Sports     *marqueeSports     `json:"sports,omitempty"` // Usherr: the day's games, when the screen shows sports
+	Build      string             `json:"build"`            // Usherr: this run of Usherr; a screen reloads when it changes (an update)
 }
+
+// marqueeBuild tells this run of Usherr from the one before: a Marquee
+// screen is a page left open for days, and it loads the new code after an
+// update by itself.
+var marqueeBuild = strconv.FormatInt(time.Now().UnixNano(), 36)
 
 // marqueeTV is a Live TV channel and what it has on now and next.
 type marqueeTV struct {
@@ -204,7 +216,7 @@ func (s *Server) marqueeFeature(ctx context.Context, tmdbID int, reason string) 
 // GET /api/home/marquee
 func (s *Server) handleMarquee(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	out := marqueePayload{NowPlaying: []marqueePlaying{}, Features: []marqueeFeature{}, Arrivals: []dashRecent{}, Theaters: []marqueeFeature{}, Coming: []calendarEntryPayload{}, TVNow: []marqueeTV{}, Showtimes: []showtime{},
+	out := marqueePayload{Build: marqueeBuild, NowPlaying: []marqueePlaying{}, Features: []marqueeFeature{}, Arrivals: []dashRecent{}, Theaters: []marqueeFeature{}, Coming: []calendarEntryPayload{}, TVNow: []marqueeTV{}, Showtimes: []showtime{},
 		Tonight: []marqueeTonight{}, Spotlights: []marqueeSpotlight{}, Media: []marqueeMediaItem{}, Themes: map[string]string{}}
 	out.Theatre, _ = s.Settings.Get(keyCinemaTheatre)
 	tmdbOK := s.TMDB().HasAPIKey()
@@ -216,6 +228,11 @@ func (s *Server) handleMarquee(w http.ResponseWriter, r *http.Request) {
 	s.marqueeSeen(ctx, screen, width, height)
 	set, _ := s.marqueeSettingsFor(ctx, screen)
 	out.Settings = set
+	if r.URL.Query().Get("only") == "sports" { // Usherr: the scores, every minute
+		out.Sports = s.marqueeSportsFor(ctx, set)
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
 
 	// Now showing: what the media servers are playing.
 	if list, err := s.MediaServers.List(); set.FromJellyfin && err == nil {
@@ -230,6 +247,9 @@ func (s *Server) handleMarquee(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			for _, p := range playing {
+				if strings.HasPrefix(p.Title, preshowIntroPrefix) { // Usherr: the pre-show, which the Marquee follows instead
+					continue
+				}
 				mp := marqueePlaying{Playing: p}
 				if p.Kind == "movie" && p.TMDBID > 0 && tmdbOK {
 					if f, ok := s.marqueeFeature(ctx, p.TMDBID, "playing"); ok {
@@ -265,11 +285,13 @@ func (s *Server) handleMarquee(w http.ResponseWriter, r *http.Request) {
 	if !set.HideUsherr {
 		out.NowPlaying = append(out.NowPlaying, s.usherrNowShowing(ctx, out.NowPlaying, tmdbOK)...)
 	}
-	out.Showtimes = s.marqueeShowtimes(ctx) // Usherr: the countdown, with what's playing
+	s.marqueeGamesPlaying(ctx, set, out.NowPlaying) // Usherr: a game being watched
+	out.Showtimes = s.marqueeShowtimes(ctx)         // Usherr: the countdown, with what's playing
 	if r.URL.Query().Get("only") == "playing" {
 		writeJSON(w, http.StatusOK, out)
 		return
 	}
+	out.Sports = s.marqueeSportsFor(ctx, set) // Usherr: sports
 
 	// Just arrived: the newest titles that are on the server now.
 	var newFilms []int

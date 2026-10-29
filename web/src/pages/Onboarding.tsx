@@ -840,10 +840,10 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
         <div className="card grid-form wizard-extras">
           <h2>{t('Extras')}</h2>
           <p className="wizard-lead">
-            {t('All optional, and each can wait. Set up the ones you want now, or later under Settings > Extras. Live TV, playing on a TV, comics and news are there too, and Settings > General > Setup checklist shows what is ready.')}{' '}
+            {t('All optional, and each can wait. Set up the ones you want now, or later under Settings > Extras. Live TV, playing on a TV, comics, news, Sports and Read-to-Me are there too, and Settings > General > Setup checklist shows what is ready.')}{' '}
             <HelpLink topic="home-setup" />
           </p>
-          <ExtrasSettings only={['address', 'streaming', 'ai', 'scores', 'cinema', 'marquee']} />
+          <ExtrasSettings only={['address', 'streaming', 'ai', 'scores', 'cinema', 'marquee', 'preshow']} />
           <div className="wizard-nav">
             {backButton}
             <button className="primary" onClick={() => setStep(S.done)}>

@@ -215,16 +215,21 @@ func (s *Server) validateSettings(req *settingsPayload) string {
 			return "The torrent port must be a number between 1 and 65535, or 0 to use the default (58264)."
 		}
 	}
-	req.TorrentSeedRatioLimit = strings.TrimSpace(req.TorrentSeedRatioLimit)
-	req.TorrentSeedTimeLimitH = strings.TrimSpace(req.TorrentSeedTimeLimitH)
-	if s.changed(settings.KeyTorrentSeedRatioLimit, req.TorrentSeedRatioLimit) {
-		if m := checkDecimal(req.TorrentSeedRatioLimit, "The seed ratio limit", 0, maxSeedRatio); m != "" {
-			return m
+	// Empty is unlimited and 0 is do not seed; both are saved as they are.
+	if v := req.TorrentSeedRatioLimit; v != nil {
+		*v = strings.TrimSpace(*v)
+		if s.changed(settings.KeyTorrentSeedRatioLimit, *v) {
+			if m := checkDecimal(*v, "The seed ratio limit", 0, maxSeedRatio); m != "" {
+				return m
+			}
 		}
 	}
-	if s.changed(settings.KeyTorrentSeedTimeLimitH, req.TorrentSeedTimeLimitH) {
-		if m := checkDecimal(req.TorrentSeedTimeLimitH, "The seed time limit", 0, maxSeedHours); m != "" {
-			return m
+	if v := req.TorrentSeedTimeLimitH; v != nil {
+		*v = strings.TrimSpace(*v)
+		if s.changed(settings.KeyTorrentSeedTimeLimitH, *v) {
+			if m := checkDecimal(*v, "The seed time limit", 0, maxSeedHours); m != "" {
+				return m
+			}
 		}
 	}
 

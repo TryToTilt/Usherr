@@ -407,6 +407,9 @@ func (s *Server) ustreamEpisode(ctx context.Context, show string, season, episod
 // ustreamOpen fetches a release's NZB, checks its articles are there and
 // opens the video in it.
 func (s *Server) ustreamOpen(ctx context.Context, servers []download.ClientConfig, r indexers.Result) (string, error) {
+	if s.nzbBad(r.DownloadURL) { // its articles were gone today: not fetched again
+		return "", fmt.Errorf("articles missing (found earlier today)")
+	}
 	data, err := s.fetchRelease(ctx, r.DownloadURL)
 	if err != nil {
 		return "", err
@@ -419,6 +422,7 @@ func (s *Server) ustreamOpen(ctx context.Context, servers []download.ClientConfi
 		return "", err
 	}
 	if res := download.Precheck(ctx, servers, nzb, download.PrecheckOptions{Timeout: 20 * time.Second}); res.Hopeless() {
+		s.markNZBBad(r.DownloadURL)
 		return "", fmt.Errorf("articles missing: %s", res.Summary())
 	}
 	octx, cancel := context.WithTimeout(ctx, 60*time.Second)

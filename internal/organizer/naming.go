@@ -198,6 +198,29 @@ func OriginalName(file string, mode SanitizeMode, replacement string) (name stri
 	return clean + illegalChars.ReplaceAllString(ext, ""), true
 }
 
+// ReleaseFileName is the name a video takes from the release it came in, for
+// when the file's own name is random (an obfuscated Usenet post): the release
+// title, with the video's real extension and the same character handling as
+// every other name. ok is false when the release title is no use either (it
+// looks random, or nothing is left of it), and the caller then names the file
+// by the naming setting.
+func ReleaseFileName(release, videoFile string, mode SanitizeMode, replacement string) (name string, ok bool) {
+	stem := strings.TrimSpace(release)
+	// A title that still ends in a video extension ("Show.S01E02-GRP.mkv")
+	// would get it twice.
+	if IsVideoFile(stem) {
+		stem = strings.TrimSuffix(stem, filepath.Ext(stem))
+	}
+	if stem == "" || LooksObfuscated(stem) {
+		return "", false
+	}
+	clean := Sanitize(stem, mode, replacement)
+	if clean == "" || clean == "_" || LooksObfuscated(clean) {
+		return "", false
+	}
+	return clean + illegalChars.ReplaceAllString(filepath.Ext(videoFile), ""), true
+}
+
 // LooksObfuscated reports whether a file name (without its extension) is a
 // random string rather than a real name, the way obfuscated Usenet posts
 // come: "a8f7d6e5c4b3", "wFvDJHhDrbESDBLq", a hash, or too short to say

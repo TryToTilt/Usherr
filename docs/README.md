@@ -14,7 +14,7 @@ The screenshots in these pages come from demo mode: the movies, shows, artists, 
 | Move over from Radarr, Sonarr, Prowlarr, SABnzbd and other apps without redoing your setup or moving files | [migrate.md](./migrate.md) |
 | Add movies and shows you already have on disk (Import existing in the Library) | [import-library.md](./import-library.md) |
 | Find something to add (Discover): more like your library, browse more, older titles, and the Add dialog | [discover.md](./discover.md) |
-| Open the torrent port (58264), seeding, Real-Debrid and TorBox, qBittorrent, RDT-Client and Decypharr, how many downloads run at once, cleaning up the downloads folder, what removing a title deletes | [downloads.md](./downloads.md) |
+| Open the torrent port (58264), seeding, Real-Debrid, TorBox and Premiumize, qBittorrent, RDT-Client and Decypharr, how many downloads run at once, cleaning up the downloads folder, what removing a title deletes | [downloads.md](./downloads.md) |
 | Send torrent traffic through the built-in WireGuard VPN, and what the kill switch does | [vpn.md](./vpn.md) |
 | Add indexers: Usenet and torrent APIs, sites from the definition list, private sites, Cloudflare and FlareSolverr | [indexers.md](./indexers.md) |
 | Grab a release the moment a tracker announces it in IRC (connections, announcement templates, the test box, limits) | [irc-announce.md](./irc-announce.md) |

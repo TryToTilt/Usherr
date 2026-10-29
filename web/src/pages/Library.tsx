@@ -8,7 +8,6 @@ import { RowsByPick } from '../home/shelfKit' // home fork
 import { CompleteTeaser } from '../home/Complete' // home fork
 import { buildShelves, rowsByOptions, type RowsBy } from '../home/shelfGroups' // home fork
 import { ActiveChips, CompactBar, FiltersButton, KindPicker, type ActiveFilter } from '../components/CompactBar' // Usherr
-import type { ShowStatus } from '../home/showStatus' // home fork
 import { Link, useNavigate } from 'react-router-dom'
 import { api, can, isAdmin, type Book, type BookFormat, type BulkResult, type BulkTitle, type CollectionListItem, type MediaSummary, type Movie, type MusicArtist, type QualityProfile, type QueueItem, type Series, type SourcePref } from '../api'
 import { useAuth } from '../AuthContext'
@@ -27,6 +26,7 @@ import { BulkTagMenu, TagChips } from '../components/Tags'
 import Dropdown from '../components/Dropdown'
 import Icon from '../components/Icon'
 import type { GlyphKind } from '../components/KindGlyph'
+import { isFinishedShow, isRunningShow, showRibbon, showStatusLabel } from '../showStatus'
 import MoveToFolderDialog from '../components/MoveToFolderDialog'
 import PosterCard, { PosterFallback, type CardAction } from '../components/PosterCard'
 import { stackAction, useStack } from '../home/stack' // Usherr: your stack
@@ -38,6 +38,7 @@ import { useToast } from '../components/Toast'
 import { formatBytes, withNameTag } from '../format'
 import { useConfirm } from '../components/ConfirmProvider'
 import { useLive } from '../useLive'
+import { anyMoving, fileDetailsPending, libraryTick, pollEvery } from '../pollPlan'
 import { chosenOf, count, failureLines, nameList, selectAllKeys, selectionText, selectRange, toggleKey } from '../librarySelection'
 import { removeOption } from '../diskUsage'
 import InfoTip from '../components/InfoTip'
@@ -46,12 +47,15 @@ import { useUrlState } from '../useUrlState'
 import { plural, t, tx, st } from '../i18n'
 import { compareTitles } from '../titleSort'
 import { looseIncludes } from '../looseText'
+import { largestFirst, libraryTotalText, sumBytes } from '../diskTotals'
+import { compareByProfile, matchesProfile, profileFilterOptions, profileName } from '../libraryProfile'
+import { redoAnswerText, redoRequest } from '../shortFile'
 import { fileFilterOptions, fileFiltersActive, langName, matchesFileFilters, NO_FILE_FILTERS, type FileFilters } from '../fileInfo'
 
 type Kind = 'movie' | 'tv'
 type View = 'grid' | 'list' | 'shelves' // shelves: home fork
-type Sort = 'added' | 'title' | 'released' | 'size' | 'status' | 'foryou' // foryou: home fork, the taste engine
-const SORTS: Sort[] = ['added', 'title', 'released', 'size', 'status', 'foryou']
+type Sort = 'added' | 'title' | 'released' | 'size' | 'status' | 'profile' | 'foryou' // foryou: home fork, the taste engine
+const SORTS: Sort[] = ['added', 'title', 'released', 'size', 'status', 'profile', 'foryou']
 
 // One shape for a movie or a show, so filtering, sorting, selecting and the
 // action buttons work the same for both.
@@ -84,9 +88,10 @@ interface Item {
   // title that can also be streamed.
   streamedId?: number
   streams?: boolean
-  showStatus?: ShowStatus // home fork: shows that have ended wear a ribbon
+  showStatus: string // where a show stands (ended, canceled, continuing, upcoming), '' for movies and shows not read yet
   ended: boolean // a show that has finished (TMDB says Ended or Canceled)
   media?: MediaSummary // what the files hold (codecs, HDR, audio and subtitle languages), once they have been read
+  shortFiles: number // files far shorter than the movie or episode should be (fakes, cut-off downloads)
 }
 
 // home fork: a title in the streamed collection, as /api/streamed lists it.
@@ -111,7 +116,7 @@ function fromStreamed(t: StreamedTitle): Item {
     key: `s-${t.id}`, kind: t.kind === 'movie' ? 'movie' : 'tv', id: -t.id, tmdbId: t.tmdbId, title: t.title, year: t.year, posterUrl: t.poster,
     monitored: true, profileId: 0, status: 'missing', quality: q, have: 0, total: t.kind === 'series' ? t.files : 1,
     state: STREAMS_STATE, genres: t.genres ?? [], tags: [], gettingDetails: false, streamedId: t.id,
-    copies: 0, released: t.year ? String(t.year) : '', sizeBytes: 0, ended: false,
+    copies: 0, released: t.year ? String(t.year) : '', sizeBytes: 0, ended: false, showStatus: '', shortFiles: 0,
   }
 }
 
@@ -153,11 +158,13 @@ function fromMovie(m: Movie, queue: QueueItem[]): Item {
     monitored: m.monitored !== false, profileId: m.profileId ?? 0, status: m.status, quality: m.quality, have: m.status === 'downloaded' ? 1 : 0, total: 1, filePath: m.filePath,
     state: detailsState(m) ?? movieState(m, queue), live: progressFor(queue, (q) => q.movieId === m.id && !q.seriesId), genres: m.genres ?? [], tags: m.tags ?? [],
     gettingDetails: !!m.detailsState,
+    ended: false,
     copies: m.copies ?? 0,
     released: m.releaseDate || (m.year ? String(m.year) : ''),
     sizeBytes: m.sizeBytes ?? 0,
-    ended: false,
+    showStatus: '',
     media: m.media,
+    shortFiles: m.shortFile ? 1 : 0,
   }
 }
 
@@ -171,9 +178,10 @@ function fromSeries(s: Series, queue: QueueItem[]): Item {
     copies: s.copies ?? 0,
     released: s.firstAirDate || (s.year ? String(s.year) : ''),
     sizeBytes: s.sizeBytes ?? 0,
-    showStatus: s.showStatus,
-    ended: s.showStatus === 'ended',
+    showStatus: s.showStatus ?? '',
+    ended: isFinishedShow(s.showStatus),
     media: s.media,
+    shortFiles: s.shortFiles ?? 0,
   }
 }
 
@@ -187,8 +195,14 @@ const STATE_FILTERS: { id: string; label: string; test: (i: Item) => boolean }[]
   { id: 'added', label: t('Not monitored'), test: (i) => i.state.key === 'added' },
   { id: 'failed', label: t('Failed'), test: (i) => i.state.key === 'failed' },
   { id: 'streams', label: t('Streams'), test: (i) => i.state.key === 'streams' }, // home fork
+  { id: 'incomplete', label: t('Looks incomplete'), test: (i) => i.shortFiles > 0 },
 ]
-const FILTERS: Record<Kind, { id: string; label: string; test: (i: Item) => boolean }[]> = { movie: STATE_FILTERS, tv: STATE_FILTERS }
+// Shows can also be told apart by whether more episodes are coming.
+const SHOW_FILTERS = [
+  { id: 'ended', label: t('Ended'), test: (i: Item) => isFinishedShow(i.showStatus) },
+  { id: 'continuing', label: t('Continuing'), test: (i: Item) => isRunningShow(i.showStatus) },
+]
+const FILTERS: Record<Kind, { id: string; label: string; test: (i: Item) => boolean }[]> = { movie: STATE_FILTERS, tv: [...STATE_FILTERS, ...SHOW_FILTERS] }
 
 // Your library: movies and shows as posters or a list, with the things you do
 // most a click away on every item (search for a release, monitor, open,
@@ -218,7 +232,7 @@ export default function Library() {
   const comicsOn = useComicsOn(admin) // library hook (home fork)
   const nsfwOn = useNsfwOn(admin) // library hook (home fork)
   // The tab and the filters live in the address, so Back from a title brings the list back as it was.
-  const [ui, patchUi] = useUrlState({ kind: 'movie', st: 'all', q: '', genre: '', tag: '', decade: '', collection: '', ...NO_FILE_FILTERS })
+  const [ui, patchUi] = useUrlState({ kind: 'movie', st: 'all', q: '', genre: '', tag: '', decade: '', collection: '', profile: '', ...NO_FILE_FILTERS })
   const { on } = useModules()
   const musicOn = on('music')
   const booksOn = on('ebooks') || on('audiobooks')
@@ -295,9 +309,11 @@ export default function Library() {
   const setTag = (v: string) => patchUi({ tag: v })
   const decade = ui.decade
   const setDecade = (v: string) => patchUi({ decade: v })
+  const profileFilter = ui.profile
+  const setProfileFilter = (v: string) => patchUi({ profile: v })
   const collection = ui.collection
   // What the files hold: video codec, HDR, resolution, audio and subtitle languages (read from the files' headers).
-  const fileFilters: FileFilters = useMemo(() => ({ vc: ui.vc, hdr: ui.hdr, res: ui.res, al: ui.al, ac: ui.ac, sl: ui.sl, nal: ui.nal }), [ui.vc, ui.hdr, ui.res, ui.al, ui.ac, ui.sl, ui.nal])
+  const fileFilters: FileFilters = useMemo(() => ({ vc: ui.vc, hdr: ui.hdr, res: ui.res, al: ui.al, ac: ui.ac, sl: ui.sl, nal: ui.nal, nsl: ui.nsl }), [ui.vc, ui.hdr, ui.res, ui.al, ui.ac, ui.sl, ui.nal, ui.nsl])
   const setCollection = (v: string) => patchUi({ collection: v })
   // The series of films (trilogies, franchises) with a film in the library, for the Collection filter.
   const [collections, setCollections] = useState<CollectionListItem[]>([])
@@ -338,14 +354,25 @@ export default function Library() {
         setShows(same(s.map((x) => fromSeries(x, q))))
       }).catch(failed)
     api.libraryCounts().then((c) => setTitleCounts((prev) => (prev && prev.movies === c.movies && prev.shows === c.shows ? prev : c))).catch(() => undefined)
-    if (musicOn) api.listArtists().then((a) => { setArtists(same(a)); setError('') }).catch(failed)
-    if (booksOn) api.listBooks().then((b) => { setBookList(same(b)); setError('') }).catch(failed)
+    // Only the shown tab's list is read each time. The artists and books are also read once (below) for the numbers
+    // on their tabs, so a Movies tab does not ask for them every few seconds.
+    const tick = libraryTick(active)
+    if (musicOn && tick.artists) api.listArtists().then((a) => { setArtists(same(a)); setError('') }).catch(failed)
+    if (booksOn && tick.books) api.listBooks().then((b) => { setBookList(same(b)); setError('') }).catch(failed)
     queue.then((q) => setQueueNow(same(q)))
-  }, [musicOn, booksOn, onMovies, onTV])
+  }, [musicOn, booksOn, onMovies, onTV, active])
   useEffect(() => {
     load()
   }, [load])
-  useLive(load, 4000)
+  // The numbers on the Music and Book tabs: read once when the page opens (and when a module is switched on).
+  useEffect(() => {
+    const same = <T,>(next: T) => (prev: T | null): T => (prev !== null && JSON.stringify(prev) === JSON.stringify(next) ? prev : next)
+    if (musicOn) api.listArtists().then((a) => setArtists(same(a))).catch(() => undefined)
+    if (booksOn) api.listBooks().then((b) => setBookList(same(b))).catch(() => undefined)
+  }, [musicOn, booksOn])
+  // Every 4 seconds while a download moves, every 10 when nothing does.
+  const downloading = anyMoving(queueNow)
+  useLive(load, pollEvery(downloading, 4000, 10000))
   useEffect(() => {
     api.listProfiles().then((r) => {
       setProfiles(r.profiles)
@@ -404,14 +431,16 @@ export default function Library() {
         (!genre || i.genres.includes(genre)) &&
         (!tag || i.tags.some((t) => t.toLowerCase() === tag.toLowerCase())) &&
         (!decade || (i.year >= Number(decade) && i.year < Number(decade) + 10)) &&
+        matchesProfile(i, profileFilter, defaultProfile, defaultTvProfile) &&
         (!inCollection || inCollection.has(i.id)) &&
         matchesFileFilters(i.media, fileFilters),
     )
     // home fork: titles compare without a leading "The", "A" or "An"
     if (sort === 'title') list.sort((a, b) => compareTitles(a.title, b.title))
     else if (sort === 'released') list.sort((a, b) => b.released.localeCompare(a.released) || compareTitles(a.title, b.title))
-    else if (sort === 'size') list.sort((a, b) => b.sizeBytes - a.sizeBytes || compareTitles(a.title, b.title))
+    else if (sort === 'size') list.sort((a, b) => largestFirst(a, b, (x, y) => compareTitles(x.title, y.title)))
     else if (sort === 'status') list.sort((a, b) => a.state.key.localeCompare(b.state.key) || compareTitles(a.title, b.title))
+    else if (sort === 'profile') list.sort((a, b) => compareByProfile(a, b, profiles, defaultProfile, defaultTvProfile, (x, y) => compareTitles(x.title, y.title)))
     else if (sort === 'foryou') {
       const rank = (i: Item) => {
         const v = voteOf(kind, i.tmdbId)
@@ -423,11 +452,13 @@ export default function Library() {
     }
     if (reverse) list.reverse()
     return list
-  }, [items, kind, filter, text, sort, reverse, genre, tag, decade, collection, collections, voteOf, taste, fileFilters])
+  }, [items, kind, filter, text, sort, reverse, genre, tag, decade, profileFilter, profiles, defaultProfile, defaultTvProfile, collection, collections, voteOf, taste, fileFilters])
   // Everything that narrows the list (sorting does not), and the way back.
-  const filtersActive = text.trim() !== '' || filter !== 'all' || genre !== '' || tag !== '' || decade !== '' || (kind === 'movie' && collection !== '') || fileFiltersActive(fileFilters)
+  const filtersActive =text.trim() !== '' || filter !== 'all' || genre !== '' || tag !== '' || decade !== '' || profileFilter !== '' || (kind === 'movie' && collection !== '') || fileFiltersActive(fileFilters)
+  // What the files of this tab take on disk, for the line at the end of the chips.
+  const totalText = useMemo(() => libraryTotalText(sumBytes(items ?? []), sumBytes(shown ?? []), filtersActive, kind), [items, shown, filtersActive, kind])
   function clearFilters() {
-    patchUi({ q: '', st: 'all', genre: '', tag: '', decade: '', collection: '', ...NO_FILE_FILTERS })
+    patchUi({ q: '', st: 'all', genre: '', tag: '', decade: '', collection: '', profile: '', ...NO_FILE_FILTERS })
   }
   // Usherr: the filters that are on, each a chip with an x.
   const activeFilters: ActiveFilter[] = [
@@ -436,6 +467,7 @@ export default function Library() {
     ...(tag ? [{ key: 'tag', label: tag, clear: () => setTag('') }] : []),
     ...(genre ? [{ key: 'genre', label: genre, clear: () => setGenre('') }] : []),
     ...(decade ? [{ key: 'decade', label: t('{decade}s', { decade }), clear: () => setDecade('') }] : []),
+    ...(profileFilter ? [{ key: 'profile', label: profiles.find((p) => String(p.id) === profileFilter)?.name ?? t('Quality profile'), clear: () => setProfileFilter('') }] : []),
     ...(kind === 'movie' && collection ? [{ key: 'collection', label: collections.find((c) => String(c.id) === collection)?.name ?? t('Collection'), clear: () => setCollection('') }] : []),
     // The file filters (Mediarium 3.3.0), each a chip too.
     ...(ui.vc ? [{ key: 'vc', label: ui.vc, clear: () => patchUi({ vc: '' }) }] : []),
@@ -453,16 +485,21 @@ export default function Library() {
   useEffect(() => {
     if (!onMovies && !onTV) return
     let stop = false
-    const look = () => api.fileDetailsStatus().then((p) => !stop && setFileProgress((prev) => (prev && prev.done === p.done && prev.total === p.total ? prev : p))).catch(() => undefined)
-    void look()
-    const timer = setInterval(() => void look(), 20000)
+    api.fileDetailsStatus().then((p) => !stop && setFileProgress((prev) => (prev && prev.done === p.done && prev.total === p.total ? prev : p))).catch(() => undefined)
     return () => {
       stop = true
-      clearInterval(timer)
     }
-  }, [onMovies, onTV])
+    // Looked at again when the tab changes, titles come or go, or downloads start or end: that is when new files can have appeared.
+  }, [onMovies, onTV, movieCount, shows?.length, downloading])
+  // While files are still being read it is asked for every 20 seconds (only while the tab is shown); once they are all read it stops.
+  useLive(
+    () => api.fileDetailsStatus().then((p) => setFileProgress((prev) => (prev && prev.done === p.done && prev.total === p.total ? prev : p))).catch(() => undefined),
+    20000,
+    (onMovies || onTV) && fileDetailsPending(fileProgress),
+  )
   const genreOptions = useMemo(() => [...new Set((items ?? []).flatMap((i) => i.genres))].sort(), [items])
   const tagOptions = useMemo(() => [...new Set((items ?? []).flatMap((i) => i.tags))].sort((a, b) => a.localeCompare(b)), [items])
+  const profileOptions = useMemo(() => profileFilterOptions(items ?? [], sortProfiles(profiles), defaultProfile, defaultTvProfile), [items, profiles, defaultProfile, defaultTvProfile])
   const decadeOptions = useMemo(() => [...new Set((items ?? []).filter((i) => i.year).map((i) => Math.floor(i.year / 10) * 10))].sort((a, b) => b - a), [items])
 
   function chooseKind(k: Tab) {
@@ -670,6 +707,42 @@ export default function Library() {
     }
   }
 
+  // Deletes the files that look incomplete among the chosen titles (only what
+  // the view shows can be chosen) and searches for them again.
+  async function redoIncompleteChosen() {
+    const req = redoRequest(chosen)
+    if (req.files === 0) {
+      toast.info(t('None of the selected titles has a file that looks incomplete. Pick the Looks incomplete filter to find them.'))
+      return
+    }
+    const titles = chosen.filter((i) => i.shortFiles > 0)
+    const answer = await confirm({
+      title: plural(req.files, 'Delete {n} incomplete file and search again?', 'Delete {n} incomplete files and search again?'),
+      body: (
+        <>
+          <p>
+            <strong>{nameList(titles.map((i) => i.title))}</strong>
+          </p>
+          <p>{t('These files are much shorter than the movie or episode should be, so they are most likely fakes or cut-off downloads. Each one is deleted (it goes to the recycle bin if that is on), the release it came from is blocklisted when Mediarium knows it, and Mediarium searches for another.')}</p>
+          <p>{t('A real file that is short for another reason would be deleted too. Open a title first if you are not sure.')}</p>
+        </>
+      ),
+      confirmLabel: t('Delete and search again'),
+      danger: true,
+    })
+    if (!answer) return
+    setBusy(true)
+    setNote(null)
+    try {
+      toast.info(redoAnswerText(await api.redoIncomplete({ movieIds: req.movieIds, seriesIds: req.seriesIds })))
+      load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function removeChosen() {
     const n = chosen.length
     if (n === 0) return
@@ -812,7 +885,7 @@ export default function Library() {
       ].filter(Boolean).join(' · ')}
       state={i.state}
       kind={i.kind}
-      ribbon={i.showStatus === 'ended' ? { label: t('Ended'), tone: 'ended' } : undefined} // home fork
+      ribbon={showRibbon(i.showStatus)}
       progress={i.live ? { pct: i.live.progressPct, label: liveLabel(i.live) } : undefined}
       dim={!i.monitored && !i.streamedId}
       actions={actionsFor(i)}
@@ -856,6 +929,7 @@ export default function Library() {
                   { value: 'released', label: t('Newest release') },
                   { value: 'size', label: t('Largest on disk') },
                   { value: 'status', label: t('Status') },
+                  { value: 'profile', label: t('Quality profile') },
                   { value: 'foryou', label: t('For you') }, // home fork: the taste engine
                 ]}
               />
@@ -863,6 +937,7 @@ export default function Library() {
             <button className="icon-btn cbar-reverse" onClick={() => setReverse(!reverse)} aria-pressed={reverse} title={reverse ? t('Reversed order. Click for the normal order.') : t('Reverse the order')} aria-label={t('Reverse the order')}>
               <Icon name="sort" size={16} />
             </button>
+            {view === 'shelves' && <RowsByPick value={rowsBy} onChange={setRowsBy} options={rowsByOptions(kind)} />} {/* Usherr: Rows by, beside the sort */}
             <span className="spacer" />
             <button className="primary btn-with-icon toolbar-add" onClick={() => navigate('/search')} aria-label={t('Add')}>
               <Icon name="plus" size={16} /> <span className="cbar-add-label">{t('Add')}</span>
@@ -894,6 +969,9 @@ export default function Library() {
               <Dropdown icon="film" label={t('Collection')} value={collection} onChange={setCollection} options={[{ value: '', label: t('All collections') }, ...collections.map((c) => ({ value: String(c.id), label: c.name }))]} />
             )}
             <Dropdown icon="calendar" label={t('Year')} value={decade} onChange={setDecade} options={[{ value: '', label: t('Any year') }, ...decadeOptions.map((d) => ({ value: String(d), label: t('{decade}s', { decade: String(d) }) }))]} />
+            {profileOptions.length > 0 && (
+              <Dropdown icon="sliders" label={t('Quality profile')} value={profileFilter} onChange={setProfileFilter} options={[{ value: '', label: t('All profiles') }, ...profileOptions.map((p) => ({ value: String(p.id), label: `${p.name} (${p.count})` }))]} />
+            )}
             {/* What the files hold (Mediarium 3.3.0): codec, HDR, size, sound and subtitle languages */}
             {fileOptions.videoCodecs.length > 0 && (
               <>
@@ -942,6 +1020,11 @@ export default function Library() {
         }
         chips={<ActiveChips filters={activeFilters} onClearAll={clearFilters} />}
       />
+      {totalText && (
+        <p className="lib-total-line mono">
+          <Icon name="folder" size={14} /> {totalText}
+        </p>
+      )}
       {fileProgress && fileProgress.total > 0 && fileProgress.done < fileProgress.total && fileFiltersActive(fileFilters) && (
         <p className="file-note">{t('Reading the video and audio details of your files in the background: {done} of {total} done. The file filters cover the files read so far.', { done: fileProgress.done.toLocaleString(), total: fileProgress.total.toLocaleString() })}</p>
       )}
@@ -1004,6 +1087,14 @@ export default function Library() {
                 <Icon name="download" size={15} /> {t('Replace with smaller')}
               </button>
               <InfoTip text={t('For movies you moved to a lower quality profile. Looks for a smaller release the profile accepts, downloads it, and only then removes the big file. At most 25 at a time.')} />
+            </>
+          )}
+          {shown?.some((i) => i.shortFiles > 0) && (
+            <>
+              <button className="btn-sm btn-danger btn-with-icon" disabled={!chosen.some((i) => i.shortFiles > 0) || busy} onClick={() => void redoIncompleteChosen()}>
+                <Icon name="warning" size={15} /> {t('Delete incomplete files and search again')} <small className="mono">{redoRequest(chosen).files}</small>
+              </button>
+              <InfoTip text={t('For the selected titles that have a file much shorter than the movie or episode should be. Deletes those files, blocklists their releases when known, and searches again. Only the titles you selected are touched.')} />
             </>
           )}
           <button className="btn-sm btn-danger btn-with-icon" disabled={chosen.length === 0 || busy} onClick={() => void removeChosen()}>
@@ -1079,7 +1170,7 @@ export default function Library() {
         </>
       ) : view === 'shelves' ? (
         <div style={{ ['--shelf-w' as string]: `${posterSize}px` } as CSSProperties}>
-          <Shelves key={`shelves-${active}-${rowsBy}`} memory={active} bar={<><RowsByPick value={rowsBy} onChange={setRowsBy} options={rowsByOptions(kind)} /></>} shelves={allShelves} render={cardFor} itemKey={(i) => i.key} empty={rowsBy === 'mood' ? <p className="hint">{t('Moods are still being worked out for your library. They appear here as they’re ready.')}</p> : undefined} />
+          <Shelves key={`shelves-${active}-${rowsBy}`} memory={active} shelves={allShelves} render={cardFor} itemKey={(i) => i.key} empty={rowsBy === 'mood' ? <p className="hint">{t('Moods are still being worked out for your library. They appear here as they’re ready.')}</p> : undefined} />
           {view === 'shelves' && active === 'movie' && <CompleteTeaser />} {/* Usherr: after the shelves, not before the posters */}
         </div>
       ) : view === 'grid' ? (
@@ -1106,7 +1197,14 @@ export default function Library() {
               <th>{t('Title')}</th>
               <th>{t('Status')}</th>
               <th>{kind === 'movie' ? t('Quality') : t('Episodes')}</th>
-              <th>{t('Profile')}</th>
+              <th aria-sort={sort === 'profile' ? (reverse ? 'descending' : 'ascending') : 'none'}>
+                <button type="button" className="th-sort" onClick={() => (sort === 'profile' ? setReverse(!reverse) : setSort('profile'))} title={t('Sort by quality profile')}>
+                  {t('Profile')}
+                  <span className="th-arrow" aria-hidden="true">
+                    {sort === 'profile' ? (reverse ? '▼' : '▲') : ''}
+                  </span>
+                </button>
+              </th>
               <th />
             </tr>
           </thead>
@@ -1128,6 +1226,7 @@ export default function Library() {
                       <small>
                         {i.year || '—'}
                         {i.monitored ? '' : ` · ${t('unmonitored')}`}
+                        {isFinishedShow(i.showStatus) ? ` · ${showStatusLabel(i.showStatus)}` : ''}
                       </small>
                     </span>
                   </Link>
@@ -1154,7 +1253,7 @@ export default function Library() {
                     </div>
                   )}
                 </td>
-                <td style={{ color: 'var(--text-dim)' }}>{profiles.find((p) => p.id === (i.profileId || (i.kind === 'movie' ? defaultProfile : defaultTvProfile)))?.name ?? '—'}</td>
+                <td style={{ color: 'var(--text-dim)' }}>{profileName(i, profiles, defaultProfile, defaultTvProfile) || '—'}</td>
                 <td>
                   <div className="row-actions">
                     {actionsFor(i).map((a) => (

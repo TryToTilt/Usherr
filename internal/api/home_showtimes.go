@@ -41,13 +41,14 @@ type showtime struct {
 	State      string `json:"state"`  // booked, preshow, playing, done
 	Mine       bool   `json:"mine"`
 	LibraryID  int64  `json:"libraryId,omitempty"` // the film's file in the library, played from it
+	Theme      int64  `json:"preshowTheme"`        // Usherr: the pre-show theme (0: the schedule's)
 }
 
-const showtimeCols = `id, user_id, tmdb_id, title, year, poster_url, runtime, at_ms, preshow_min, play_on, state`
+const showtimeCols = `id, user_id, tmdb_id, title, year, poster_url, runtime, at_ms, preshow_min, play_on, state, preshow_theme`
 
 func scanShowtime(sc interface{ Scan(...any) error }) (showtime, error) {
 	var st showtime
-	err := sc.Scan(&st.ID, &st.UserID, &st.TMDBID, &st.Title, &st.Year, &st.PosterURL, &st.Runtime, &st.AtMs, &st.PreshowMin, &st.PlayOn, &st.State)
+	err := sc.Scan(&st.ID, &st.UserID, &st.TMDBID, &st.Title, &st.Year, &st.PosterURL, &st.Runtime, &st.AtMs, &st.PreshowMin, &st.PlayOn, &st.State, &st.Theme)
 	return st, err
 }
 
@@ -100,6 +101,7 @@ type showtimeBody struct {
 	AtMs       int64  `json:"atMs"`
 	PreshowMin *int   `json:"preshowMin"`
 	PlayOn     string `json:"playOn"`
+	Theme      *int64 `json:"preshowTheme"` // Usherr: the pre-show theme
 }
 
 func (b *showtimeBody) check() string {
@@ -160,9 +162,13 @@ func (s *Server) handleAddShowtime(w http.ResponseWriter, r *http.Request) {
 		}
 		cancel()
 	}
-	res, err := s.db.ExecContext(r.Context(), `INSERT INTO showtimes (user_id, tmdb_id, title, year, poster_url, runtime, at_ms, preshow_min, play_on, created_ms)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, requestUserID(r), b.TMDBID, trimRunes(strings.TrimSpace(b.Title), 200), b.Year,
-		trimRunes(b.PosterURL, 500), b.Runtime, b.AtMs, pre, b.PlayOn, time.Now().UnixMilli())
+	var theme int64
+	if b.Theme != nil {
+		theme = max(*b.Theme, 0)
+	}
+	res, err := s.db.ExecContext(r.Context(), `INSERT INTO showtimes (user_id, tmdb_id, title, year, poster_url, runtime, at_ms, preshow_min, play_on, created_ms, preshow_theme)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, requestUserID(r), b.TMDBID, trimRunes(strings.TrimSpace(b.Title), 200), b.Year,
+		trimRunes(b.PosterURL, 500), b.Runtime, b.AtMs, pre, b.PlayOn, time.Now().UnixMilli(), theme)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "The showtime couldn't be saved.")
 		return
@@ -212,8 +218,12 @@ func (s *Server) handlePutShowtime(w http.ResponseWriter, r *http.Request) {
 	if b.PreshowMin != nil {
 		pre = *b.PreshowMin
 	}
+	theme := st.Theme
+	if b.Theme != nil {
+		theme = max(*b.Theme, 0)
+	}
 	// A new time starts it over.
-	if _, err := s.db.ExecContext(r.Context(), `UPDATE showtimes SET at_ms = ?, preshow_min = ?, play_on = ?, state = 'booked' WHERE id = ?`, b.AtMs, pre, b.PlayOn, st.ID); err != nil {
+	if _, err := s.db.ExecContext(r.Context(), `UPDATE showtimes SET at_ms = ?, preshow_min = ?, play_on = ?, preshow_theme = ?, state = 'booked' WHERE id = ?`, b.AtMs, pre, b.PlayOn, theme, st.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "The showtime couldn't be saved.")
 		return
 	}

@@ -7,6 +7,8 @@ import { outsideService, slowServiceMessage } from './outsideService'
 import { signalFor } from './requestSignal'
 import { st, t } from './i18n.ts'
 import type { AlbumRescanReport } from './albumRescan'
+import type { MusicFilter } from './musicFilter'
+import type { Searched } from './searched'
 import type { Diagnostics } from './supportReport'
 import type { ProfileScoreChange } from './formatChanges'
 import type { ProblemCounts, ProblemList } from './problemsView'
@@ -14,6 +16,7 @@ import { BASE_PATH, rebasePictures, withBase } from './base'
 import { noteEndReason, noteSessionEnded, sessionEnded } from './sessionEnd'
 import { wantedPagePath } from './wantedPage'
 import { namingPreviewPath } from './namingPreview'
+import type { BlockingDownload } from './grabBlocked.ts'
 
 const BASE = withBase('/api')
 
@@ -22,10 +25,17 @@ export class ApiError extends Error {
   // True when Mediarium said it is busy, or did not answer in time. The page
   // can then tell the person it is slow instead of showing an error.
   busy: boolean
-  constructor(status: number, message: string, busy = false) {
+  // A grab refused because another download is in the way: which one.
+  blocking?: BlockingDownload
+  // A stable word for the few errors the page does more with than show, such
+  // as "torrents_off" (a torrent grab refused because torrents are switched off).
+  code?: string
+  constructor(status: number, message: string, busy = false, blocking?: BlockingDownload, code?: string) {
     super(message)
     this.status = status
     this.busy = busy
+    this.blocking = blocking
+    this.code = code
   }
 }
 
@@ -98,7 +108,7 @@ async function send<T>(path: string, init?: ReadOptions): Promise<T> {
   }
   noteEndReason(res.status, text)
   if (sessionEnded(path, res.status, text)) noteSessionEnded()
-  let data: { error?: string; busy?: boolean } | null = null
+  let data: { error?: string; busy?: boolean; blocking?: BlockingDownload; code?: string } | null = null
   try {
     data = text ? JSON.parse(text) : null
   } catch {
@@ -111,7 +121,7 @@ async function send<T>(path: string, init?: ReadOptions): Promise<T> {
     throw new ApiError(503, st(data.error) || SLOW_MESSAGE, true)
   }
   if (!res.ok) {
-    throw new ApiError(res.status, st(data?.error) || t('Something went wrong on the server (error {status}).', { status: String(res.status) }))
+    throw new ApiError(res.status, st(data?.error) || t('Something went wrong on the server (error {status}).', { status: String(res.status) }), false, data?.blocking, typeof data?.code === 'string' ? data.code : undefined)
   }
   noteFine()
   // Covers Mediarium serves itself come as "/api/...": under a URL base they
@@ -160,7 +170,7 @@ export interface ManualDownloadResult {
   sizeBytes: number
 }
 
-// A video file in the downloads folder that can be imported by hand.
+// A video file in a folder that can be imported by hand.
 export interface ManualFile {
   path: string
   size: number
@@ -170,6 +180,28 @@ export interface ManualFile {
   season?: number
   episode?: number
   quality?: string
+  incomplete?: boolean
+}
+
+// What a look in a folder for files to import by hand found.
+export interface ManualList {
+  folder: string
+  downloadsFolder: string
+  files: ManualFile[]
+  more?: boolean
+  hiddenIncomplete?: number
+}
+
+// How a file comes in by hand: a hardlink (a copy on another drive, like every
+// import), a copy of its own, or a move (the original is removed).
+export type ManualMode = 'link' | 'copy' | 'move'
+
+// The folders inside a folder, for choosing where to look.
+export interface ManualFolders {
+  path: string
+  parent?: string
+  folders: { name: string; path: string }[]
+  shortcuts?: { name: string; path: string }[]
 }
 
 export interface LibraryStats {
@@ -185,6 +217,8 @@ export interface LibraryStats {
   quality: { label: string; count: number; bytes?: number }[]
   months: { month: string; completed: number; failed: number; bytes: number }[]
   usenetShare: number
+  // Every download counted since the statistics began or were last reset; clearing the history does not change them.
+  totals: { grabs: number; completed: number; failed: number; bytes: number }
   historyKeptDays: number
   watched?: WatchStats // only while reading what's been watched is on
 }
@@ -249,6 +283,18 @@ export interface SeriesNumberingEntry {
   season: number // the season of the show it sits in (0: specials, -1: not placed)
   offset?: number // added to its episode numbers to get the episode in that season
   name?: string
+}
+
+export interface CustomNumberingRule {
+  librarySeason: number
+  releaseSeason: number
+  offset?: number
+  from?: number
+  to?: number
+}
+export interface CustomNumberingBody {
+  rules: CustomNumberingRule[]
+  names: string[]
 }
 
 export interface SeriesNumbering {
@@ -629,6 +675,7 @@ export interface Settings {
   seriesFolderFormat?: string
   // Imported videos keep the file name they came with (folders are named as usual).
   keepOriginalNames?: boolean
+  checkDuration?: boolean // turn away a download whose video is far shorter than its episode or movie
   hasTmdbApiKey: boolean
   traktClientId?: string
   hasTraktClientId: boolean
@@ -671,6 +718,7 @@ export interface Settings {
   unmonitorDownloaded?: boolean // stop monitoring a movie once it is downloaded (off by default)
   unmonitorFinished?: boolean // stop monitoring a show once it has ended and every episode is in (off by default)
   seasonPacks?: boolean // look for a season pack once a season has ended (off by default)
+  tvmazeAirTimes?: boolean // look up the time episodes air on TVmaze (on by default; off = TVmaze is never contacted)
   hasOpenSubtitlesAccount?: boolean
   openSubtitlesAccountName?: string
   tmdbKeyBuiltIn?: boolean
@@ -687,6 +735,7 @@ export interface Settings {
   // Look up scene and anime numbering for anime on its own (on by default)
   numberingLookup?: boolean
   subtitleAutoDownload?: boolean
+  notifyTrashSyncAlways?: boolean // also send the TRaSH Guides message when a check changed nothing
   subtitleUpgrade?: boolean // later swap a subtitle for one made for the exact file (with automatic downloading)
   // The master switch for subtitles; off until switched on.
   subtitlesEnabled?: boolean
@@ -695,6 +744,8 @@ export interface Settings {
   requireVpnForTorrents?: boolean
   // Send indexer traffic through the VPN; off until switched on.
   routeIndexersThroughVpn?: boolean
+  // The person said their torrent client is already behind a VPN: no "Torrenting without a VPN" notice.
+  vpnNoticeAcknowledged?: boolean
   importConflictPolicy?: string
   torrentEnabled?: boolean
   flareSolverrUrl?: string
@@ -714,6 +765,10 @@ export interface Settings {
   minFreeGB?: number
   moviesExtraPaths?: string[] // more movie folders next to the main one
   tvExtraPaths?: string[] // more TV folders next to the main one
+  // Where a title added without a folder choice goes: "" the main folder, an
+  // extra folder's path, or "most-room" for whichever has the most free space.
+  moviesNewFolder?: string
+  tvNewFolder?: string
   torrentStallHours?: number // hours a torrent may get no data before it is given up on; 0 = never; -1 or absent = each client's own default
   notifyQuietHours?: string
   digestDay?: number // the day of the weekly summary, 0 is Sunday; -1 = none
@@ -850,10 +905,10 @@ export interface IndexerDefinitionSetting {
 }
 
 // The debrid service as saved. canCheck: the service can say which releases it
-// already has (TorBox). preferCached asks it and ranks a cached release ahead of
+// already has (TorBox, Premiumize). preferCached asks it and ranks a cached release ahead of
 // an equal one; cachedLowerScore lets the cached one win even with a lower score.
 export interface DebridSettings {
-  service: '' | 'realdebrid' | 'torbox'
+  service: '' | 'realdebrid' | 'torbox' | 'premiumize'
   hasKey: boolean
   canCheck: boolean
   preferCached: boolean
@@ -865,6 +920,8 @@ export interface DebridAccount {
   name: string
   premium: boolean
   expires?: string
+  // How much of the monthly fair-use limit is used, 0 to 1 (Premiumize).
+  fairUse?: number
 }
 
 // An external download client torrent releases go to (Settings > Downloading).
@@ -1050,14 +1107,14 @@ export interface TorrentOptions {
   sequentialDefault: boolean
   skipJunk: boolean
   packOnlyWanted: boolean
-  uploadLimitKB: number
+  uploadLimitKB: number | null // KB/s; null = no limit, 0 = no uploading at all
   portMapping: { enabled: boolean; state: PortMapState; method?: string; port?: number; externalIp?: string }
   allowLocalAddresses: boolean // trackers, web seeds and magnet metadata may be on the home network (read when the client starts)
   categories: TorrentCategory[]
   categoryByKind: Partial<Record<'movie' | 'tv' | 'music' | 'book', string>>
 }
 
-// A torrent indexer's own seeding rule. null follows the global limit; 0 means no limit.
+// A torrent indexer's own seeding rule. null follows the global limit; 0 means don't seed; -1 means no limit, even when the global one has a limit.
 export interface SeedRule {
   ratio: number | null
   hours: number | null
@@ -1077,7 +1134,7 @@ export interface SearchResult {
   seeders?: number
   peers?: number
   // The debrid service already has this torrent, so it starts at once. Only
-  // set when it is known (TorBox).
+  // set when it is known (TorBox, Premiumize).
   cached?: boolean
   // A torrent with fewer seeders than its indexer's minimum: automatic downloads
   // skip it, grabbing it by hand is allowed. minSeeders is that minimum.
@@ -1413,10 +1470,11 @@ export interface Series {
   seriesType?: SeriesType // how releases number the episodes
   firstAirDate?: string // "2022-02-18", for sorting
   sizeBytes?: number // the downloaded episodes on disk
-  showStatus?: 'ended' | 'continuing' | 'upcoming' // where the show stands; left out until it has been refreshed once
+  showStatus?: 'ended' | 'canceled' | 'continuing' | 'upcoming' // where the show stands; left out until it has been refreshed once
   originCountry?: string[] // where it comes from ("US", "GB"); empty until the show is refreshed
   nameTag?: string // tells it from another show of the same name in the library ("US", "UK" or the year)
   media?: MediaSummary // what the downloaded episodes' files hold, once they have been read
+  shortFiles?: number // how many of its files are far shorter than their episodes should be
 }
 
 // What a video file holds, read from its headers (see fileInfo.ts).
@@ -1445,6 +1503,11 @@ export interface FileSubtitle {
   default?: boolean
   forced?: boolean
 }
+// A file far shorter than its movie or episode should be: its length and the one it should have.
+export interface ShortFileNote {
+  minutes: number
+  expected?: number
+}
 export interface FileInfo {
   container: string
   duration?: number // seconds
@@ -1472,12 +1535,14 @@ export interface Episode {
   title?: string
   overview?: string
   airDate?: string
+  airAt?: string // the exact air time (RFC 3339, UTC) once TVmaze has one
   status: MediaStatus
   quality?: string
   filePath?: string
   monitored: boolean
   sizeBytes?: number // the file on disk (downloaded episodes)
   fileInfo?: FileInfo // what the file holds, once it has been read
+  shortFile?: ShortFileNote // the file is far shorter than the episode should be
 }
 
 // A second copy of a movie or show, kept in another quality in the copies folder.
@@ -1569,6 +1634,16 @@ export interface Movie {
   releaseDate?: string // "2024-03-01", for sorting
   sizeBytes?: number // the file on disk
   media?: MediaSummary // what the file holds, once it has been read
+  shortFile?: ShortFileNote // the file is far shorter than the movie should be
+}
+
+// What GET /api/library/owned answers (see useOwned).
+export interface OwnedAnswer {
+  movieCount: number
+  showCount: number
+  movies: { id: number; tmdbId: number; status: string; monitored: boolean }[]
+  shows: { id: number; tmdbId: number; monitored: boolean; episodeCount: number; downloadedCount: number }[]
+  queue: { movieId: number; seriesId: number; status: QueueItem['status']; progressPct: number }[]
 }
 
 export interface QueueItem {
@@ -1591,8 +1666,11 @@ export interface QueueItem {
   progressPct: number
   error?: string
   destPath?: string
+  keptFile?: string // a finished download that was not imported because this file was kept
+  keptData?: 'deleted' | 'seeding' | 'client' // what became of its downloaded files
   interrupted?: boolean // paused, but not by a person: Mediarium was restarted while it downloaded
   pending?: 'pausing' | 'stopping' // still winding down
+  waiting?: boolean // an album whose files are downloaded and whose import waits for MusicBrainz
   keptFiles?: boolean // the partly downloaded files are still in the downloads folder
   queuePosition?: number // waiting in line: 1 is next
   stage?: string // home fork: the step a running download is on
@@ -2086,6 +2164,7 @@ export interface MovieDetail extends TitleDetails {
   filePath?: string
   folderPath?: string // the full folder of its files, as Mediarium sees it
   fileInfo?: FileInfo // what the file holds, once it has been read
+  shortFile?: ShortFileNote // the file is far shorter than the movie should be
   // The series of films this one is part of, when it is.
   collection?: CollectionRef
   releaseDates?: MovieReleaseDates
@@ -2354,6 +2433,17 @@ export interface FolderCheck {
   warnings: string[]
   // A missing folder that Mediarium can create safely (inside a mapped, writable one).
   canCreate?: boolean
+  // Set for a library folder that has no .mediarium-root file (see RootMarkerFix).
+  marker?: RootMarkerInfo
+}
+
+export interface RootMarkerInfo {
+  name: string
+  seen: boolean // Mediarium saw the folder with its file before, and it was lost
+  titles: number // movies and shows with files recorded under the folder
+  strong: boolean // titles are recorded but none of their folders is there: the drive is probably not connected
+  canCreate: boolean
+  why?: string
 }
 
 export interface HealthItem {
@@ -2362,6 +2452,8 @@ export interface HealthItem {
   title: string
   impact: string
   action?: { label: string; path: string }
+  // A button that hides the item for good (the VPN notice), with its label.
+  dismiss?: string
 }
 
 export interface DiskUsage {
@@ -2371,13 +2463,31 @@ export interface DiskUsage {
 }
 
 export interface DashFolder extends FolderCheck {
-  key: 'movies' | 'tv' | 'music' | 'ebooks' | 'audiobooks' | 'downloads'
+  // movies, tv, music, ebooks, audiobooks or downloads; an extra movie or TV
+  // folder is movies-extra-1, tv-extra-1 and so on.
+  key: string
   label: string
   libraryBytes: number
   items: number
   itemsLabel: string
   hardlinks?: boolean
   off?: boolean // that media type is switched off
+  newTitles?: boolean // titles added without a folder choice go here right now
+}
+
+// Where a title added without a folder choice goes right now: a path for
+// administrators, a label for everyone else. mostRoom: the rule is "the
+// folder with the most room", so the folder can change from day to day.
+export interface NewTitleFolder {
+  folder: string
+  mostRoom: boolean
+}
+
+// The folders a movie or a show can be kept in, the main one first.
+export interface LibraryFolders {
+  movies: string[]
+  tv: string[]
+  newTitles: { movies: NewTitleFolder; tv: NewTitleFolder }
 }
 
 export interface DashActive {
@@ -2420,6 +2530,7 @@ export interface DashboardData {
     series: { total: number; episodes: number; episodesDownloaded: number; episodesMissing: number; streams?: number; episodesStreams?: number }
     anime?: { total: number; episodes: number; episodesDownloaded: number; episodesStreams: number } // Usherr
     comics?: { series: number; issues: number; downloaded: number; missing: number } // Usherr
+    sports?: { on: boolean; leagues: number; games: number; wanted: number; streams: number } // Usherr
     // What the Wanted page lists under Missing (monitored, no file, already aired).
     wanted: { movies: number; episodes: number }
     // Always present, zeros when there is no music (or the module is off).
@@ -2455,6 +2566,7 @@ export interface CalendarEntry {
   title: string
   subtitle?: string
   releaseDate: string
+  airAt?: string // an episode's exact air time (RFC 3339, UTC) once TVmaze has one; the page shows it in the viewer's time zone
   release?: 'cinema' | 'digital' // a movie with both dates on different days shows twice: which date this is
   status: 'missing' | 'downloading' | 'downloaded' | 'theaters' | 'streams' // theaters, streams: Usherr (a cinema opening, a streamed show's episode)
   posterUrl?: string // the poster or cover, when there is one
@@ -2600,7 +2712,7 @@ export interface ModuleState {
 }
 export type Modules = Record<ModuleKey, ModuleState>
 // What GET /modules answers: the media types plus whether subtitles are switched on.
-export type ModulesAnswer = Modules & { subtitlesEnabled?: boolean; trailerBackground?: boolean; trailerSound?: boolean }
+export type ModulesAnswer = Modules & { subtitlesEnabled?: boolean; trailerBackground?: boolean; trailerSound?: boolean; torrentsOn?: boolean }
 
 export interface MusicArtistResult {
   mbid: string
@@ -2723,6 +2835,45 @@ export interface MusicArtist {
   monitoredCount: number
   downloadedCount: number
   albums?: MusicAlbum[]
+  // What this artist's page lists and following adds (only on GET /music/artists/{id}).
+  filter?: MusicFilter & { useLibrary: boolean }
+}
+
+// The library-wide choice of what the music pages list, with the defaults, the
+// "Official studio releases only" preset and the secondary types that can be hidden.
+export interface MusicFilterChoices {
+  filter: MusicFilter
+  defaults: MusicFilter
+  studio: MusicFilter
+  secondaryTypes: { key: string; name: string }[]
+}
+
+// A release the filter leaves out of an artist's page.
+export interface MusicHiddenGroup {
+  mbid: string
+  title: string
+  type: string
+  releaseDate: string
+  secondaryTypes: string[]
+  hiddenBy: string
+}
+
+// An album already in the library that the filter leaves out of the list
+// (only ever one without files).
+export interface MusicHiddenAlbum {
+  albumId: number
+  mbid: string
+  hiddenBy: string
+}
+
+export interface MusicDiscography {
+  filter: MusicFilter & { useLibrary: boolean }
+  hidden: MusicHiddenGroup[]
+  // Albums in the library the list leaves out because of the filter.
+  library: MusicHiddenAlbum[]
+  counts: Record<string, number>
+  // Releases still being looked at for the bootleg test (shown until known).
+  checking: number
 }
 
 // A release list with what the indexers said: how many were asked and
@@ -2733,6 +2884,14 @@ export interface SearchAnswer<T> {
   unanswered: { name: string; message: string }[]
   // For example an indexer that was asked after its daily limit was used up.
   warnings?: string[]
+  // Indexers that were not asked because they don't list this kind of release.
+  skipped?: string[]
+  // Every indexer the search had to do with, and what became of each.
+  searched?: Searched[]
+  // Releases that came back but were left out because they are not this title
+  // (a movie search): how many, and the names of a few.
+  ignored?: number
+  ignoredSamples?: string[]
 }
 
 export interface MusicRelease extends SearchResult {
@@ -3030,6 +3189,7 @@ export interface OidcSettings {
   autoCreate: boolean
   defaultRole: 'member' | 'viewer'
   adminGroup: string
+  viewerGroup: string
   allowedGroup: string
   allowedDomains: string
   linkByEmail: boolean
@@ -3067,6 +3227,7 @@ export interface LdapSettings {
   emailAttr: string
   idAttr: string
   adminGroupFilter: string
+  viewerGroupFilter: string
   groupBaseDn: string
   autoCreate: boolean
   defaultRole: 'member' | 'viewer'
@@ -3082,6 +3243,7 @@ export interface LdapReport {
   id?: string
   idIsDn?: boolean // no unchanging id was found, so the DN stands in for it
   admin: boolean
+  viewer?: boolean
   passwordChecked: boolean
   passwordOk: boolean
 }
@@ -3196,6 +3358,37 @@ export interface SystemOptions {
 export interface McpSettings {
   enabled: boolean
   path: string
+}
+
+// An app connected to MCP with OAuth (Settings > Other apps).
+export interface McpApp {
+  id: number
+  clientName: string
+  account: string
+  scope: string
+  createdAt: string
+  lastUsedAt: string
+}
+
+// A client an administrator registered by hand, for apps that ask for a client ID and secret.
+export interface McpClient {
+  clientId: string
+  name: string
+  redirectUris: string[]
+  createdAt: string
+}
+
+export interface McpClientMade extends McpClient {
+  clientSecret: string
+}
+
+// What the consent page shows about an app that wants to connect.
+export interface OAuthRequest {
+  clientName: string
+  redirectHost: string
+  scopes: string[]
+  account: string
+  canApprove: boolean
 }
 
 export interface SystemControl {
@@ -3323,8 +3516,8 @@ export const api = {
     post<IndexerConfig>('/indexers', data),
   deleteIndexer: (id: number) => del<null>(`/indexers/${id}`),
   testIndexerConfig: (data: { name: string; baseUrl: string; apiKey: string }) =>
-    post<{ ok: boolean; message: string }>('/indexers/test', data),
-  testIndexer: (id: number) => post<{ ok: boolean; message: string }>(`/indexers/${id}/test`),
+    post<{ ok: boolean; message: string; detail?: string }>('/indexers/test', data),
+  testIndexer: (id: number) => post<{ ok: boolean; message: string; detail?: string }>(`/indexers/${id}/test`),
   updateIndexer: (id: number, data: { name?: string; baseUrl?: string; apiKey?: string; enabled?: boolean; requestsPerDay?: number; minSeeders?: number }) => put<IndexerConfig>(`/indexers/${id}`, data),
   setIndexerEnabled: (id: number, enabled: boolean) => put<null>(`/indexers/${id}/enabled`, { enabled }),
 
@@ -3338,7 +3531,7 @@ export const api = {
   probeUsenetServer: (id: number) => post<{ accepted: number; requested: number; refused: boolean; message: string }>(`/usenet-servers/${id}/probe`),
   downloadsStatus: () => get<DownloadsStatus>('/downloads/status'),
   torrentOptions: () => get<TorrentOptions>('/downloads/torrent-options'),
-  setTorrentOptions: (patch: Partial<Omit<TorrentOptions, 'portMapping'>> & { portMapping?: boolean }) => put<TorrentOptions>('/downloads/torrent-options', patch),
+  setTorrentOptions: (patch: Partial<Omit<TorrentOptions, 'portMapping' | 'uploadLimitKB'>> & { portMapping?: boolean; uploadLimitKB?: number }) => put<TorrentOptions>('/downloads/torrent-options', patch),
   torrentDetail: (id: number) => get<TorrentDetail>(`/queue/${id}/torrent`),
   setTorrentDetail: (id: number, patch: { sequential?: TorrentDetail['sequential']; downLimitKB?: number; upLimitKB?: number }) => put<TorrentDetail>(`/queue/${id}/torrent`, patch),
   setTorrentFiles: (id: number, skip: string[]) => put<TorrentDetail>(`/queue/${id}/torrent/files`, { skip }),
@@ -3360,7 +3553,7 @@ export const api = {
   seriesDiskUsage: (id: number) => get<DiskUsage>(`/series/${id}/disk-usage`),
   artistDiskUsage: (id: number) => get<DiskUsage>(`/music/artists/${id}/disk-usage`),
   deleteMovie: (id: number, deleteFiles: boolean) => del<null>(`/movies/${id}?deleteFiles=${deleteFiles}`),
-  grab: (movieId: number, data: { releaseTitle: string; downloadUrl: string; sizeBytes: number; protocol?: 'usenet' | 'torrent' }) =>
+  grab: (movieId: number, data: { releaseTitle: string; downloadUrl: string; sizeBytes: number; protocol?: 'usenet' | 'torrent'; replaceQueueId?: number; replace?: boolean }) =>
     post<{ queueId: number }>(`/movies/${movieId}/grab`, data),
   searchGrab: (data: { releaseTitle: string; downloadUrl: string; sizeBytes: number; protocol?: 'usenet' | 'torrent' }) =>
     post<{ movieId: number; queueId: number }>('/search/grab', data),
@@ -3416,6 +3609,11 @@ export const api = {
   listQueue: () => request<QueueItem[]>('/queue', { revalidate: true }),
   // Only what is waiting, downloading or importing: the count in the menu and the dashboard need no more.
   listActiveQueue: () => request<QueueItem[]>('/queue?active=1', { revalidate: true }),
+  // How many downloads are waiting, downloading or importing: the number beside Activity, without the whole queue.
+  queueCount: () => get<{ active: number; queued: number; downloading: number; importing: number }>('/queue/count'),
+  // Which TMDB titles are in the library and how each is doing (Discover's marks), far smaller than the movie
+  // list, the show list and the queue together. Answers 304 (the very same object) when nothing changed.
+  libraryOwned: () => request<OwnedAnswer>('/library/owned', { revalidate: true }),
   retryQueueItem: (id: number) => post<{ queueId: number }>(`/queue/${id}/retry`),
   clientTorrents: (scope: 'mine' | 'all') => get<ClientTorrentsAnswer>(`/download-client/torrents?scope=${scope}`),
   usenetClientJobs: (scope: 'mine' | 'all') => get<UsenetClientJobsAnswer>(`/usenet-client/jobs?scope=${scope}`),
@@ -3429,7 +3627,7 @@ export const api = {
   resumeQueueItem: (id: number) => post<{ status: string }>(`/queue/${id}/resume`),
   stopQueueItem: (id: number, deleteFiles: boolean) => post<{ status: string; pending?: string }>(`/queue/${id}/stop`, { deleteFiles }),
   frontQueueItem: (id: number) => post<{ status: string }>(`/queue/${id}/front`),
-  bulkQueue: (ids: number[], action: 'pause' | 'resume' | 'stop' | 'front' | 'remove', deleteFiles = false) =>
+  bulkQueue: (ids: number[], action: 'pause' | 'resume' | 'stop' | 'retry' | 'front' | 'remove', deleteFiles = false) =>
     post<{ done: number; failed: { id: number; error: string }[] }>('/queue/bulk', { ids, action, deleteFiles }),
   pauseAllQueue: (protocol?: 'usenet' | 'torrent') => post<{ paused: number }>(`/queue/pause-all${protocol ? `?protocol=${protocol}` : ''}`),
   resumeAllQueue: (protocol?: 'usenet' | 'torrent') => post<{ resumed: number; skipped: number; problem?: string }>(`/queue/resume-all${protocol ? `?protocol=${protocol}` : ''}`),
@@ -3447,7 +3645,7 @@ export const api = {
   searchNowSeries: (id: number, scope: { season?: number; episode?: number } = {}) =>
     post<{ grabbed: number; message: string }>(`/series/${id}/search-now`, scope),
   movieSearch: (id: number) => get<SearchAnswer<SearchResult>>(`/movies/${id}/search?detail=1`),
-  libraryFolders: () => get<{ movies: string[]; tv: string[] }>('/library/folders'),
+  libraryFolders: () => get<LibraryFolders>('/library/folders'),
   setMovieFolder: (id: number, rootPath: string) => put<{ rootPath: string }>(`/movies/${id}/folder`, { rootPath }),
   setSeriesFolder: (id: number, rootPath: string) => put<{ rootPath: string }>(`/series/${id}/folder`, { rootPath }),
   setMovieMonitored: (id: number, monitored: boolean) => put<null>(`/movies/${id}/monitored`, { monitored }),
@@ -3457,6 +3655,8 @@ export const api = {
   setSeriesType: (id: number, type: SeriesType) => put<{ type: SeriesType }>(`/series/${id}/type`, { type }),
   seriesNumbering: (id: number) => get<SeriesNumbering>(`/series/${id}/numbering`),
   refreshSeriesNumbering: (id: number) => post<SeriesNumbering>(`/series/${id}/numbering/refresh`),
+  customNumbering: (id: number) => get<CustomNumberingBody>(`/series/${id}/numbering/custom`),
+  saveCustomNumbering: (id: number, body: CustomNumberingBody) => put<CustomNumberingBody>(`/series/${id}/numbering/custom`, body),
   setSeasonMonitored: (id: number, season: number, monitored: boolean) =>
     put<null>(`/series/${id}/seasons/${season}/monitored`, { monitored }),
   setEpisodeMonitored: (id: number, monitored: boolean) => put<null>(`/episodes/${id}/monitored`, { monitored }),
@@ -3491,12 +3691,16 @@ export const api = {
   // The form carries movieId, or seriesId with season and episode (episode 0 = the whole season), and one of
   // file or url; name is optional. The empty headers let the browser set the multipart boundary.
   manualDownload: (form: FormData) => request<ManualDownloadResult>('/downloads/manual', { method: 'POST', body: form, headers: {} }),
-  manualImportList: () => get<{ folder: string; files: ManualFile[]; more?: boolean }>('/manual-import'),
-  manualImport: (body: { path: string; movieId?: number; seriesId?: number; season?: number; episode?: number }) => post<{ path: string }>('/manual-import', body),
+  manualImportList: (folder = '', incomplete = false) =>
+    get<ManualList>(`/manual-import?folder=${encodeURIComponent(folder)}${incomplete ? '&incomplete=1' : ''}`),
+  manualImportFolders: (path = '') => get<ManualFolders>(`/manual-import/folders?path=${encodeURIComponent(path)}`),
+  manualImport: (body: { folder?: string; path: string; mode?: ManualMode; incomplete?: boolean; movieId?: number; seriesId?: number; season?: number; episode?: number }) =>
+    post<{ path: string; sourceKept?: boolean }>('/manual-import', body),
   listExclusions: () => get<{ kind: 'movie' | 'tv'; tmdbId: number; title: string; year?: number }[]>('/exclusions'),
   addExclusion: (e: { kind: 'movie' | 'tv'; tmdbId: number; title: string; year?: number }) => post<null>('/exclusions', e),
   removeExclusion: (kind: string, tmdbId: number) => del<null>(`/exclusions/${kind}/${tmdbId}`),
   libraryStats: () => get<LibraryStats>('/stats/library'),
+  resetStats: () => post<{ reset: boolean }>('/stats/reset'),
   renamePreview: () => get<RenameItem[]>('/rename'),
   rename: (items: { kind: string; id: number }[]) => post<{ renamed: number; failed: string[] }>('/rename', { items }),
   listTrash: () => get<TrashList>('/trash'),
@@ -3545,9 +3749,10 @@ export const api = {
     put<{ added: number; message?: string }>(`/book-series/${source}/${encodeURIComponent(key)}/follow`, body),
   unfollowSeries: (source: string, key: string) => del<null>(`/book-series/${source}/${encodeURIComponent(key)}/follow`),
   simklStatus: () => get<SimklStatus>('/settings/simkl'),
-  simklStartPin: () => post<{ code: string; url: string; expiresIn: number; interval: number }>('/settings/simkl/pin', {}),
-  simklPinStatus: (code: string) => get<{ done: boolean; status?: SimklStatus }>(`/settings/simkl/pin/${encodeURIComponent(code)}`),
+  simklStartPin: () => post<{ code: string; url: string; fullUrl?: string; flow: 'device' | 'pin'; expiresIn: number; interval: number }>('/settings/simkl/pin', {}),
+  simklPinStatus: (code: string) => get<{ done: boolean; status?: SimklStatus; name?: string; interval?: number }>(`/settings/simkl/pin/${encodeURIComponent(code)}`),
   simklDisconnect: () => del<null>('/settings/simkl'),
+  simklTest: () => post<{ ok: boolean; message: string }>('/settings/simkl/test', {}),
   getHardcover: () => get<{ set: boolean; username?: string }>('/settings/hardcover'),
   putHardcover: (token: string) => put<{ set: boolean; username?: string }>('/settings/hardcover', { token }),
   // tracks=false answers with the album alone (fast); the tracklist is a second request.
@@ -3573,14 +3778,18 @@ export const api = {
   bookCoverEditions: (id: number) => get<{ editions: { coverId: number; url: string }[]; current: number }>(`/books/${id}/cover/editions`),
   pickBookCover: (id: number, coverId: number) => put<Book>(`/books/${id}/cover/edition`, { coverId }),
   removeBookCover: (id: number) => del<Book>(`/books/${id}/cover`),
-  bookReleases: (id: number, format: BookFormat) => get<SearchResult[]>(`/books/${id}/releases?format=${format}`),
+  bookReleases: (id: number, format: BookFormat) => get<SearchAnswer<SearchResult>>(`/books/${id}/releases?format=${format}&detail=1`),
   grabBook: (id: number, data: { format: BookFormat; releaseTitle: string; downloadUrl: string; sizeBytes: number; protocol?: 'usenet' | 'torrent' }) =>
     post<{ queueId: number }>(`/books/${id}/grab`, data),
   searchNowBook: (id: number, format: BookFormat) => post<{ grabbed: number; message: string }>(`/books/${id}/search?format=${format}`),
   listArtists: () => request<MusicArtist[]>('/music/artists', { revalidate: true }),
   getArtist: (id: number) => get<MusicArtist>(`/music/artists/${id}`),
   addArtist: (data: { mbid: string; monitor?: MusicMonitor; profileId?: number; searchNow?: boolean; albumMbid?: string; albumTitle?: string }) => post<MusicArtist | Requested>('/music/artists', data),
-  updateArtist: (id: number, changes: { monitored?: boolean; profileId?: number }) => put<MusicArtist>(`/music/artists/${id}`, changes),
+  updateArtist: (id: number, changes: { monitored?: boolean; profileId?: number; filter?: MusicFilter; useLibraryFilter?: boolean }) => put<MusicArtist>(`/music/artists/${id}`, changes),
+  musicFilters: () => get<MusicFilterChoices>('/music/filters'),
+  setMusicFilters: (filter: MusicFilter) => put<MusicFilterChoices>('/music/filters', filter),
+  artistDiscography: (id: number) => get<MusicDiscography>(`/music/artists/${id}/discography`),
+  addArtistAlbum: (id: number, mbid: string) => post<MusicAlbum>(`/music/artists/${id}/albums`, { mbid }),
   deleteArtist: (id: number, deleteFiles: boolean) => del<null>(`/music/artists/${id}?deleteFiles=${deleteFiles}`),
   getAlbum: (id: number) => get<MusicAlbum>(`/music/albums/${id}`),
   setAlbumMonitored: (id: number, monitored: boolean) => put<null>(`/music/albums/${id}/monitored`, { monitored }),
@@ -3628,17 +3837,20 @@ export const api = {
   rescanSeries: (id: number) => post<RescanReport>(`/series/${id}/rescan`),
   browseLibrary: (path = '') => get<BrowseAnswer>(`/library/browse?path=${encodeURIComponent(path)}`),
   locateMovieFile: (id: number, path: string) => post<RescanReport>(`/movies/${id}/locate-file`, { path }),
+  locateEpisodeFile: (id: number, path: string) => post<RescanReport>(`/episodes/${id}/locate-file`, { path }),
   locateMovieFolder: (id: number, path: string) => post<RescanReport>(`/movies/${id}/locate-folder`, { path }),
   changeSeriesFolder: (id: number, path: string) => post<SeriesFolderReport>(`/series/${id}/change-folder`, { path }),
   deleteMovieFile: (id: number) => del<{ files: number; episodes: number; trashed: boolean }>(`/movies/${id}/file`),
   deleteEpisodeFile: (id: number) => del<{ files: number; episodes: number; trashed: boolean }>(`/episodes/${id}/file`),
+  redoIncomplete: (req: { movieIds?: number[]; seriesIds?: number[]; episodeIds?: number[] }) =>
+    post<{ files: number; titles: number; searching: number; skipped: number }>('/library/incomplete/redo', req),
   deleteSeasonFiles: (seriesId: number, season: number) => del<{ files: number; episodes: number; trashed: boolean }>(`/series/${seriesId}/seasons/${season}/files`),
   deleteSeries: (id: number, deleteFiles = false) => del<null>(`/series/${id}?deleteFiles=${deleteFiles}`),
   titleCopies: (kind: 'movie' | 'series', id: number) => get<TitleCopies>(`/${kind === 'movie' ? 'movies' : 'series'}/${id}/copies`),
   addTitleCopy: (kind: 'movie' | 'series', id: number, profileId: number) => post<TitleCopy>(`/${kind === 'movie' ? 'movies' : 'series'}/${id}/copies`, { profileId }),
   seriesSearch: (id: number, season: number, episode?: number) =>
     get<SearchAnswer<SearchResult>>(`/series/${id}/search?detail=1&season=${season}${episode ? `&episode=${episode}` : ''}`),
-  grabSeries: (id: number, data: { releaseTitle: string; downloadUrl: string; sizeBytes: number; protocol?: 'usenet' | 'torrent'; season?: number; episode?: number }) =>
+  grabSeries: (id: number, data: { releaseTitle: string; downloadUrl: string; sizeBytes: number; protocol?: 'usenet' | 'torrent'; season?: number; episode?: number; replaceQueueId?: number; replace?: boolean }) =>
     post<{ queueId: number }>(`/series/${id}/grab`, data),
 
   discoverTrending: () => get<DiscoverMovie[]>('/discover/trending'),
@@ -3694,6 +3906,7 @@ export const api = {
   // With all: true, `query` (the page's filters, as problemQuery makes them) limits it to what matches; without one it is every problem.
   markProblemsRead: (req: { ids?: number[]; all?: boolean }, query = '') => post<{ marked: number; counts: ProblemCounts }>(`/system/problems/read${query}`, req),
   setNotifyOnProblems: (enabled: boolean) => put<{ notifyOnProblems: boolean }>('/system/problems/notify', { enabled }),
+  setDebugLogging: (enabled: boolean) => put<{ debugLogging: boolean }>('/system/problems/debug', { enabled }),
   flareSolverrStatus: () => get<FlareSolverrStatus>('/flaresolverr/status'),
   cleanupReport: () => get<CleanupReport>('/system/cleanup'),
   runCleanup: () => post<{ removedBytes: number; removed?: unknown[]; prunedQueueItems?: number; prunedActivity?: number; errors?: unknown }>('/system/cleanup'),
@@ -3707,6 +3920,12 @@ export const api = {
   putSystemOptions: (o: Partial<SystemOptions>) => put<SystemOptions>('/system/options', o),
   mcpSettings: () => get<McpSettings>('/system/mcp'),
   putMcpSettings: (enabled: boolean) => put<McpSettings>('/system/mcp', { enabled }),
+  mcpApps: () => get<{ apps: McpApp[]; clients: McpClient[] }>('/system/mcp/apps'),
+  revokeMcpApp: (id: number) => del<null>(`/system/mcp/apps/${id}`),
+  createMcpClient: (name: string, redirectUri: string) => post<McpClientMade>('/system/mcp/clients', { name, redirectUri }),
+  deleteMcpClient: (clientId: string) => del<null>(`/system/mcp/clients/${encodeURIComponent(clientId)}`),
+  oauthRequest: (id: string) => get<OAuthRequest>(`/oauth/requests/${encodeURIComponent(id)}`),
+  oauthDecide: (id: string, allow: boolean, write: boolean) => post<{ redirect: string }>(`/oauth/requests/${encodeURIComponent(id)}`, { allow, write }),
   getProxySignIn: () => get<ProxySignIn>('/auth/proxy-signin'),
   getScripts: () => get<ScriptsState>('/scripts'),
   putScripts: (body: { script: string; timeoutSec: number }) => put<ScriptsState>('/scripts', body),
@@ -3734,7 +3953,7 @@ export const api = {
       `/discover/list?kind=${kind}&list=${list}&page=${page}${older ? '&older=true' : ''}${who ? `&who=${encodeURIComponent(who)}` : ''}`,
     ),
   discoverGenres: (kind: 'movie' | 'tv') => get<{ id: number; name: string }[]>(`/discover/genres?kind=${kind}`),
-  discoverBrowse: (q: { kind: 'movie' | 'tv'; genre?: string; yearFrom?: string; yearTo?: string; sort?: string; page?: number }) =>
+  discoverBrowse: (q: { kind: 'movie' | 'tv'; genre?: string; yearFrom?: string; yearTo?: string; sort?: string; language?: string; minRating?: string; runtime?: string; page?: number }) =>
     get<{ page: number; totalPages: number; results: DiscoverMovie[] }>(
       `/discover/browse?${new URLSearchParams(Object.entries(q).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])).toString()}`,
     ),
@@ -3823,6 +4042,7 @@ export const api = {
   testService: (data: { service: 'tmdb' | 'opensubtitles' | 'subdl' | 'wizdom' | 'trakt' | 'simkl'; key?: string; username?: string; password?: string }) =>
     post<{ ok: boolean; message: string }>('/settings/test-service', data),
   createFolder: (path: string) => post<FolderCheck>('/settings/folder-create', { path }),
+  createRootMarker: (path: string, driveConnected: boolean) => post<{ ok: boolean; folder: string }>('/settings/library-marker', { path, driveConnected }),
   folderCheck: (path: string) => get<FolderCheck>(`/settings/folder-check?path=${encodeURIComponent(path)}`),
   health: () => get<{ items: HealthItem[] }>('/health'),
   modules: () => get<ModulesAnswer>('/modules'),
@@ -3869,6 +4089,8 @@ export interface MoveTitle {
   method: 'rename' | 'copy' | '' // same drive, another drive, or nothing on disk to move
   problem?: string // why this title will be left as it is
   note?: string
+  linkedFiles?: number // files hard-linked to something else (a seeding torrent)
+  linkNote?: string // what a copy to another drive does to those links
 }
 
 export interface MovePreview {

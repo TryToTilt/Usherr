@@ -1,5 +1,5 @@
 import { loadLanguage } from './i18n'
-import { applyPalette } from './palette' // Usherr
+import { applyBase, applyPalette } from './palette' // Usherr
 
 // Dark unless light was picked (ThemeToggle.tsx), set before anything paints.
 let theme = 'dark'
@@ -13,8 +13,16 @@ document.documentElement.dataset.theme = theme
 try {
   const palette = localStorage.getItem('usherr-palette')
   if (palette && palette !== 'wine' && /^[a-z]+$/.test(palette)) applyPalette(palette)
+  const base = localStorage.getItem('usherr-base') // and the main colour (BaseChoice.tsx)
+  if (base && base !== 'palette' && /^[a-z]+$/.test(base)) applyBase(base)
 } catch {
   // blocked storage: wine
+}
+// Usherr Neu (neu/look.ts), also before anything paints.
+try {
+  if (localStorage.getItem('usherr-look') === 'neu') document.documentElement.dataset.look = 'neu'
+} catch {
+  // blocked storage: Classic
 }
 
 // The app puts a page where it belongs when going back or forward (App shell); the browser's own guess would fight it.

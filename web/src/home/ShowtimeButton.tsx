@@ -9,6 +9,7 @@ import { useToast } from '../components/Toast'
 import { t } from '../i18n'
 import { useFocusTrap } from '../useFocusTrap'
 import { bookShowtime, listShowtimes, PLAY_ON_LABEL, showtimeEnds, whenLabel, type PlayOn, type Showtime } from './showtimes'
+import { preshowApi } from './preshowApi' // Usherr
 import './showtime.css'
 
 export interface ShowtimeFilm {
@@ -51,6 +52,15 @@ export function ShowtimeDialog({ film, onClose }: { film: ShowtimeFilm; onClose:
   const [others, setOthers] = useState<Showtime[]>([])
   const [tv, setTv] = useState(false)
   const [busy, setBusy] = useState(false)
+  // Usherr: the pre-show's theme (0: whichever the schedule picks).
+  const [themes, setThemes] = useState<{ id: number; name: string }[]>([])
+  const [theme, setTheme] = useState(0)
+  useEffect(() => {
+    preshowApi
+      .themeNames()
+      .then((d) => setThemes(d.themes))
+      .catch(() => undefined)
+  }, [])
   useEffect(() => {
     listShowtimes()
       .then((d) => {
@@ -68,7 +78,7 @@ export function ShowtimeDialog({ film, onClose }: { film: ShowtimeFilm; onClose:
   const book = async () => {
     setBusy(true)
     try {
-      await bookShowtime({ ...film, atMs: startMs, preshowMin: preshow, playOn })
+      await bookShowtime({ ...film, atMs: startMs, preshowMin: preshow, playOn, preshowTheme: theme })
       toast.success(
         playOn === 'here'
           ? t('{title} is booked for {when}. Leave the Showtime page open on the TV.', { title: film.title, when: whenLabel(startMs) })
@@ -118,16 +128,29 @@ export function ShowtimeDialog({ film, onClose }: { film: ShowtimeFilm; onClose:
             </label>
           )}
           <label>
-            {t('Pre-show on the Marquee first')}
+            {t('Pre-show first')}
             <select value={preshow} onChange={(e) => setPreshow(Number(e.target.value))}>
               <option value={0}>{t('None')}</option>
               {[5, 10, 15, 20, 30].map((n) => (
                 <option key={n} value={n}>
-                  {t('{n} minutes', { n })}
+                  {t('Up to {n} minutes', { n })}
                 </option>
               ))}
             </select>
           </label>
+          {preshow > 0 && themes.length > 0 && (
+            <label>
+              {t('Pre-show theme')}
+              <select value={theme} onChange={(e) => setTheme(Number(e.target.value))}>
+                <option value={0}>{t('Tonight’s (by the schedule)')}</option>
+                {themes.map((th) => (
+                  <option key={th.id} value={th.id}>
+                    {th.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
             {t('The film plays')}
             <select value={playOn} onChange={(e) => setPlayOn(e.target.value as PlayOn)}>

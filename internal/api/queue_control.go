@@ -96,6 +96,7 @@ func (s *Server) pauseItem(item queue.Item) error {
 	}
 	if s.pipelines.interrupt(item.ID, false, false, stopWait) {
 		s.pauseUsenetJob(item)
+		s.pauseClientTorrent(item)
 		return nil
 	}
 	// Nothing was running it. It may still have finished a moment ago: then
@@ -107,6 +108,7 @@ func (s *Server) pauseItem(item queue.Item) error {
 		return err
 	}
 	s.pauseUsenetJob(item)
+	s.pauseClientTorrent(item)
 	return nil
 }
 
@@ -916,10 +918,10 @@ type bulkQueueResponse struct {
 	Failed []bulkQueueFailure `json:"failed"`
 }
 
-// handleBulkQueue does one thing (pause, resume, stop, remove from the list, or send to the front)
-// to several downloads at once. Each one is tried on its own: one that can't
-// be done (say, pausing a finished download) is listed in "failed" and the
-// rest still go through.
+// handleBulkQueue does one thing (pause, resume, stop, retry, remove from the
+// list, or send to the front) to several downloads at once. Each one is tried
+// on its own: one that can't be done (say, pausing a finished download) is
+// listed in "failed" and the rest still go through.
 func (s *Server) handleBulkQueue(w http.ResponseWriter, r *http.Request) {
 	var req bulkQueueRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -927,9 +929,9 @@ func (s *Server) handleBulkQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch req.Action {
-	case "pause", "resume", "stop", "front", "remove":
+	case "pause", "resume", "stop", "retry", "front", "remove":
 	default:
-		writeError(w, http.StatusBadRequest, `Choose "pause", "resume", "stop", "front" or "remove".`)
+		writeError(w, http.StatusBadRequest, `Choose "pause", "resume", "stop", "retry", "front" or "remove".`)
 		return
 	}
 	if len(req.IDs) == 0 {
@@ -950,6 +952,24 @@ func (s *Server) handleBulkQueue(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	resp := bulkQueueResponse{Failed: []bulkQueueFailure{}}
+	if req.Action == "retry" {
+		// Retry is a new grab, like Retry on one download, which doesn't take
+		// queueControlMu either: grabbing can take it itself.
+		for _, id := range ids {
+			item, err := s.QueueRepo.Get(id)
+			if err != nil {
+				resp.Failed = append(resp.Failed, bulkQueueFailure{ID: id, Error: "This download no longer exists."})
+				continue
+			}
+			if _, err := s.retryQueueItem(item); err != nil {
+				resp.Failed = append(resp.Failed, bulkQueueFailure{ID: id, Error: err.Error()})
+				continue
+			}
+			resp.Done++
+		}
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
 	queueControlMu.Lock()
 	defer queueControlMu.Unlock()
 	for _, id := range ids {

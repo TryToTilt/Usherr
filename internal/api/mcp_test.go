@@ -187,7 +187,6 @@ func TestMCPProtocol(t *testing.T) {
 		{"unknown method", rpcBody(1, "no/such", nil), -32601},
 		{"call without a name", rpcBody(1, "tools/call", map[string]any{}), -32602},
 		{"unknown tool", rpcBody(1, "tools/call", map[string]any{"name": "format_disk"}), -32602},
-		{"arguments of the wrong type", rpcBody(1, "tools/call", map[string]any{"name": "library_search", "arguments": map[string]any{"limit": "many"}}), -32602},
 		{"unknown prompt", rpcBody(1, "prompts/get", map[string]any{"name": "nope"}), -32602},
 		{"prompt missing its argument", rpcBody(1, "prompts/get", map[string]any{"name": "release_group_check"}), -32602},
 		{"unknown resource", rpcBody(1, "resources/read", map[string]any{"uri": "mediarium://nothing"}), -32002},

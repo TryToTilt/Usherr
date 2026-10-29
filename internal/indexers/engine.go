@@ -149,8 +149,14 @@ func (inst Instance) IsCardigann() bool { return inst.Kind == KindCardigann }
 // never stalls the others.
 type Outcome struct {
 	IndexerName string
-	Results     []Result
-	Err         error
+	// IndexerID, Protocol and Elapsed say which indexer it was, whether it is a
+	// torrent or Usenet one, and how long its search took (zero when it was
+	// not asked).
+	IndexerID int64
+	Protocol  Protocol
+	Elapsed   time.Duration
+	Results   []Result
+	Err       error
 	// Skipped is set when the indexer was not asked because it is paused after
 	// repeated failures (see Tracker); PausedUntil says until when. Err is nil
 	// then: a paused indexer is not a new problem.
@@ -208,6 +214,8 @@ func SearchAll(ctx context.Context, instances []Instance, query string, categori
 		wg.Add(1)
 		go func(i int, inst Instance, limitNote string) {
 			defer wg.Done()
+			started := time.Now()
+			defer func() { outcomes[i].Elapsed = time.Since(started) }()
 			// A bug, or a site that finds one, must cost this indexer's
 			// results only, not the whole program.
 			defer func() {
@@ -265,6 +273,9 @@ func SearchAll(ctx context.Context, instances []Instance, query string, categori
 		}(i, inst, limitNote)
 	}
 	wg.Wait()
+	for i, inst := range enabled {
+		outcomes[i].IndexerID, outcomes[i].Protocol = inst.ID, inst.Protocol
+	}
 	if ctx.Err() == nil {
 		for _, o := range outcomes {
 			noteSearchProblem(o)
@@ -293,6 +304,12 @@ func ProblemMessage(o Outcome) string {
 	}
 	if msg := netproxy.WaitMessage(o.Err); msg != "" {
 		return msg
+	}
+	if addr, ok := FlareSolverrDown(o.Err); ok {
+		return FlareSolverrDownMessage(addr)
+	}
+	if status, ok := GoneStatus(o.Err); ok {
+		return GoneMessage(status)
 	}
 	if IsDailyLimit(o.Err) {
 		return fmt.Sprintf("The daily limit of requests for %s is used up. It is used again after midnight (UTC).", o.IndexerName)

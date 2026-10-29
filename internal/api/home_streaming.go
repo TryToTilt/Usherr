@@ -700,8 +700,11 @@ func (s *Server) handleStreamNext(w http.ResponseWriter, r *http.Request) {
 	}
 	streams.mu.Lock()
 	alts := append([]indexers.Result(nil), ss.alts...)
-	engine := ss.engine
+	engine, broke := ss.engine, ss.release
 	streams.mu.Unlock()
+	if engine == engineUsherr && broke != "" {
+		s.noteStream(broke, "", false) // it broke part-way, or wasn't right
+	}
 	if engine != engineUsherr || len(alts) == 0 {
 		writeError(w, http.StatusConflict, "There is no other release to try.")
 		return

@@ -221,6 +221,9 @@ type moviePayload struct {
 	// are left out until the file has been read (media_info.go).
 	Media    *mediaSummaryPayload `json:"media,omitempty"`
 	FileInfo *fileInfoPayload     `json:"fileInfo,omitempty"`
+	// ShortFile is set when the file is far shorter than the movie should be
+	// (a fake or cut-off file).
+	ShortFile *shortFileNote `json:"shortFile,omitempty"`
 }
 
 // toMoviePayload builds a library movie's JSON; who resolves the account
@@ -254,9 +257,14 @@ func (s *Server) handleListMovies(w http.ResponseWriter, r *http.Request) {
 	out := make([]moviePayload, len(list))
 	now := time.Now()
 	movieFolders := s.movieFolders()
-	media := s.mediaSummaryNow().movies
+	media := s.mediaSummaryNow(true).movies
+	short := s.incompleteNow().movies
 	for i, m := range list {
 		out[i] = toMoviePayload(m, who)
+		if e, ok := short[m.ID]; ok && e.Path == m.FilePath {
+			n := e.note
+			out[i].ShortFile = &n
+		}
 		if ms, ok := media[m.ID]; ok {
 			out[i].Media = mediaSummaryOf(ms)
 		}
@@ -294,6 +302,7 @@ func (s *Server) handleGetMovie(w http.ResponseWriter, r *http.Request) {
 	out.RootPath = folderShown(r, s.movieFolders(), m.RootPath)
 	out.SizeBytes = fileSize(m.FilePath)
 	out.FileInfo = s.movieFileInfo(m.FilePath)
+	out.ShortFile = s.shortFileOf(m.FilePath)
 	if isAdminRequest(r) { // only administrators see where the files lie
 		out.FolderPath = s.movieFolderFor(m)
 	}
@@ -400,7 +409,8 @@ type addMovieRequest struct {
 	// swapped for a better version later. On when left out: better versions
 	// are something the person asks for.
 	NoUpgrade *bool `json:"noUpgrade"`
-	// RootPath is the movie folder to keep it in; left out = the main one.
+	// RootPath is the movie folder to keep it in; left out = where new movies
+	// go (Settings > Library > Folders).
 	RootPath string `json:"rootPath"`
 }
 
@@ -445,7 +455,7 @@ func (s *Server) handleAddMovie(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	monitored := req.Monitored == nil || *req.Monitored
-	rootPath, problem := s.checkFolderChoice(req.RootPath, s.movieFolders(), "movie")
+	rootPath, problem := s.folderForNewMovie(req.RootPath)
 	if problem != "" {
 		writeError(w, http.StatusBadRequest, problem)
 		return

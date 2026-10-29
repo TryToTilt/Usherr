@@ -8,6 +8,7 @@ import { markSrc } from '../palette'
 import { dayLabel, hours, typeLabel, type Data, type Feature, type MarqueeSettings, type MarqueeStyle, type Playing, type SceneKind } from './marqueeData'
 import { Badges, FormatBadges } from './MarqueeExtras'
 import { Frame, Pic, Sign } from './marqueeParts'
+import { sportsImage } from './sportsApi' // Usherr: a game's pictures
 
 // Item is one thing a look shows: a film, a show, what's playing.
 export interface Item {
@@ -56,6 +57,10 @@ export function sceneLabel(kind: SceneKind): string {
       return t('Now showing')
     case 'preshow':
       return t('Pre-show')
+    case 'scores':
+      return t('Scoreboard')
+    case 'sports-tonight':
+      return t('Tonight’s games')
   }
 }
 
@@ -100,18 +105,34 @@ export function itemsFor(kind: SceneKind, d: Data): Item[] {
       }))
   switch (kind) {
     case 'playing':
-      return d.nowPlaying.map((p, i) => ({
-        key: `playing-${i}-${p.title}`,
-        kind,
-        label,
-        title: (p.kind === 'episode' ? p.series : p.title) || p.title,
-        sub: p.kind === 'episode' ? episodeLine(p) : undefined,
-        meta: [p.year, hours(p.runtime)].filter(Boolean).join('  ·  '),
-        posterUrl: p.posterUrl,
-        backdropUrl: p.backdropUrl,
-        note: p.device,
-        playing: p,
-      }))
+      return d.nowPlaying.map((p, i) =>
+        p.game
+          ? {
+              // Usherr: a game, with the league's badge and the game's picture
+              key: `playing-${i}-${p.game.id}`,
+              kind,
+              label,
+              title: p.game.home && p.game.away ? `${p.game.home} ${t('vs')} ${p.game.away}` : p.game.title,
+              sub: [p.game.league, p.game.state === 'live' ? p.game.clock || t('Live') : ''].filter(Boolean).join('  ·  ') || undefined,
+              meta: [p.game.venue, p.game.channel].filter(Boolean).join('  ·  '),
+              posterUrl: sportsImage(p.game.leagueBadge) || undefined,
+              backdropUrl: sportsImage(p.game.image) || undefined,
+              note: p.device,
+              playing: p,
+            }
+          : {
+              key: `playing-${i}-${p.title}`,
+              kind,
+              label,
+              title: (p.kind === 'episode' ? p.series : p.title) || p.title,
+              sub: p.kind === 'episode' ? episodeLine(p) : undefined,
+              meta: [p.year, hours(p.runtime)].filter(Boolean).join('  ·  '),
+              posterUrl: p.posterUrl,
+              backdropUrl: p.backdropUrl,
+              note: p.device,
+              playing: p,
+            },
+      )
     case 'new':
       return film('new')
     case 'theaters-film':
@@ -195,7 +216,7 @@ function PlayBar({ p }: { p: Playing }) {
 // Trailer plays a film's trailer: letterboxed as it is, or zoomed to a
 // poster's size or to fill the screen (Settings: Trailers fill).
 function Trailer({ it, sound, fit = 'letterbox' }: { it: Item; sound: boolean; fit?: MarqueeSettings['trailerFit'] }) {
-  const q = new URLSearchParams({ autoplay: '1', mute: sound ? '0' : '1', controls: '0', rel: '0', modestbranding: '1', playsinline: '1', iv_load_policy: '3', origin: window.location.origin })
+  const q = new URLSearchParams({ autoplay: '1', mute: sound ? '0' : '1', controls: '0', rel: '0', modestbranding: '1', playsinline: '1', iv_load_policy: '3', cc_load_policy: '0', origin: window.location.origin })
   return (
     <div className={`lk-video tf-${fit}`}>
       <iframe referrerPolicy="strict-origin-when-cross-origin" src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(it.trailer ?? '')}?${q}`} title={it.title} allow="autoplay; encrypted-media" />

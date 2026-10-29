@@ -268,7 +268,7 @@ func (s *Server) ownCandidates(ctx context.Context, q ownQuery) ([]indexers.Resu
 		}
 		if time.Since(f.at) < ttl {
 			ownMu.Unlock()
-			return append([]indexers.Result(nil), f.list...), nil
+			return s.reliableFirst(ctx, append([]indexers.Result(nil), f.list...)), nil
 		}
 	}
 	ownMu.Unlock()
@@ -338,7 +338,7 @@ func (s *Server) ownCandidates(ctx context.Context, q ownQuery) ([]indexers.Resu
 		}
 	}
 	ownMu.Unlock()
-	return append([]indexers.Result(nil), all...), nil
+	return s.reliableFirst(ctx, append([]indexers.Result(nil), all...)), nil // groups and indexers that keep failing go last
 }
 
 // ownServers are the Usenet servers streams read from.
@@ -378,8 +378,12 @@ func (s *Server) ownOpenFirst(ctx context.Context, list []indexers.Result) (ownO
 		u, err := s.ustreamOpen(ctx, servers, r)
 		if err != nil {
 			last = err
+			if ctx.Err() == nil {
+				s.noteStream(r.Title, r.IndexerName, false) // it wouldn't open
+			}
 			continue
 		}
+		s.noteStream(r.Title, r.IndexerName, true)
 		return ownOpened{token: ustreamToken(u), url: u, lanURL: s.ownLANURL(u), release: r.Title, rest: list[i+1:]}, nil
 	}
 	if last == nil {
@@ -607,6 +611,13 @@ func (s *Server) ownStreamOptions(w http.ResponseWriter, r *http.Request, kind s
 	if len(list) == 0 {
 		return false, errors.New("Usherr found no release of this on your indexers right now.")
 	}
+	writeJSON(w, http.StatusOK, map[string]any{"profile": "Usherr " + quality, "options": s.offerOwnOptions(r, list)})
+	return true, nil
+}
+
+// offerOwnOptions keeps the first releases of a list as stream options for
+// the person asking (each with the rest in line behind it) and answers them.
+func (s *Server) offerOwnOptions(r *http.Request, list []indexers.Result) []streamOptionPayload {
 	if len(list) > 12 {
 		list = list[:12]
 	}
@@ -634,8 +645,7 @@ func (s *Server) ownStreamOptions(w http.ResponseWriter, r *http.Request, kind s
 		out = append(out, streamOptionPayload{ID: oid, Name: "Usherr", Title: label, Quality: rel.Resolution, Codec: rel.Codec})
 	}
 	streams.mu.Unlock()
-	writeJSON(w, http.StatusOK, map[string]any{"profile": "Usherr " + quality, "options": out})
-	return true, nil
+	return out
 }
 
 // ownSearchedSource is the streamed library's way to a playing file with the

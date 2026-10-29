@@ -46,6 +46,7 @@ type usherrPlaying struct {
 	progress float64 // 0..1, when known
 	paused   bool
 	at       time.Time
+	sportID  string // Usherr: a game streamed from Sports (its id in the sports backend)
 }
 
 var usherrNow = struct {
@@ -53,16 +54,21 @@ var usherrNow = struct {
 	m  map[string]*usherrPlaying // a player's key -> what it plays
 }{m: map[string]*usherrPlaying{}}
 
-func usherrNowSet(key string, p *usherrPlaying) {
+// usherrNowSet notes what a player plays; fresh is true when it has just
+// started (the Marquee screens are told at once).
+func usherrNowSet(key string, p *usherrPlaying) (fresh bool) {
 	p.at = time.Now()
 	usherrNow.mu.Lock()
 	defer usherrNow.mu.Unlock()
+	old, had := usherrNow.m[key]
+	fresh = !had || time.Since(old.at) > usherrPlayingFor || old.title != p.title
 	usherrNow.m[key] = p
 	for k, v := range usherrNow.m {
 		if time.Since(v.at) > usherrPlayingFor {
 			delete(usherrNow.m, k)
 		}
 	}
+	return fresh
 }
 
 func usherrNowList() []usherrPlaying {
@@ -124,13 +130,14 @@ func (s *Server) handleNowPlaying(w http.ResponseWriter, r *http.Request) {
 		Position float64 `json:"position"`
 		Duration float64 `json:"duration"`
 		Paused   bool    `json:"paused"`
+		SportID  string  `json:"sportId"` // a game from Sports
 	}
 	if err := decodeJSON(r, &body); err != nil || !marqueeScreenIDRe.MatchString(strings.ToLower(body.Key)) {
 		writeError(w, http.StatusBadRequest, "That request couldn't be read.")
 		return
 	}
 	user := requestUserID(r)
-	p := &usherrPlaying{userID: user, device: "Usherr in the browser", kind: "other", paused: body.Paused}
+	p := &usherrPlaying{userID: user, device: "Usherr in the browser", kind: "other", paused: body.Paused, sportID: trimRunes(strings.TrimSpace(body.SportID), 64)}
 	if ch := trimRunes(strings.TrimSpace(body.Channel), 60); ch != "" {
 		p.device = "Live TV · " + ch
 	}
@@ -175,7 +182,11 @@ func (s *Server) handleNowPlaying(w http.ResponseWriter, r *http.Request) {
 	if _, needShape, ok := s.librarySpecs(p.source); !ok || needShape {
 		playSpecsFor(p.source) // what it really is, looked at in the background
 	}
-	usherrNowSet("p:"+strings.ToLower(body.Key), p)
+	if usherrNowSet("p:"+strings.ToLower(body.Key), p) {
+		// Something just started: every Marquee screen shows it now, not at
+		// its next look (every 30 seconds).
+		s.marqueeLive.send("", marqueeEvent{Type: "settings"})
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -245,7 +256,7 @@ func (s *Server) usherrNowShowing(ctx context.Context, already []marqueePlaying,
 	}
 	var out []marqueePlaying
 	for _, u := range usherrNowList() {
-		if u.kind == "other" && tmdbOK {
+		if u.kind == "other" && tmdbOK && u.sportID == "" { // a game isn't a film
 			s.usherrIdentify(ctx, &u)
 		}
 		k := ""
@@ -289,7 +300,7 @@ func (s *Server) usherrNowShowing(ctx context.Context, already []marqueePlaying,
 				}
 			}
 		}
-		mp := marqueePlaying{Playing: pl}
+		mp := marqueePlaying{Playing: pl, GameID: u.sportID, Release: u.release}
 		if strings.Contains(strings.ToUpper(u.release), "IMAX") {
 			mp.Formats = []string{"IMAX"} // an IMAX edition (taller scenes)
 		}

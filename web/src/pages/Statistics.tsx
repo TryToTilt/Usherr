@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, isAdmin, type IndexerStat, type LibraryStats, type WatchStats, type WatchedStatTitle } from '../api'
+import { api, isAdmin, type DashboardData, type IndexerStat, type LibraryStats, type WatchStats, type WatchedStatTitle } from '../api'
 import { useAuth } from '../AuthContext'
 import { formatBytes, timeAgo } from '../format'
-import KindGlyph from '../components/KindGlyph'
+import KindGlyph, { type GlyphKind } from '../components/KindGlyph'
+import Icon from '../components/Icon'
+import { useModules } from '../ModulesContext'
+import { useComicsOn } from '../home/libraryKinds' // Usherr
 import Loading from '../components/Loading'
 import OverTime from '../components/OverTime'
 import { locale, plural, t } from '../i18n'
+import { useConfirm } from '../components/ConfirmProvider'
+import { useToast } from '../components/Toast'
 import '../stats.css'
 import TipLabel from '../components/TipLabel'
 
@@ -20,67 +25,124 @@ function Ring({ pct }: { pct: number }) {
   )
 }
 
+// Usherr: one card per kind of media, with the totals the dashboard used to
+// show (streams too); the card opens that library.
+function KindStat({ k, glyph, label, value, unit, have, of, sub, to }: { k: string; glyph?: GlyphKind; label: string; value: number; unit?: string; have: number; of: number; sub: string; to: string }) {
+  return (
+    <Link to={to} className={`card stat-card k-${k}`}>
+      <span className="stat-shape">
+        <Ring pct={of > 0 ? Math.round((have * 100) / of) : 0} />
+        {glyph ? <KindGlyph kind={glyph} size={26} variant="solid" /> : <Icon name="trophy" size={24} />}
+      </span>
+      <small>{label}</small>
+      <strong>
+        {value.toLocaleString(locale())}
+        {unit && <em className="stat-unit">{unit}</em>}
+      </strong>
+      <span>{sub}</span>
+    </Link>
+  )
+}
+
 // Statistics: what is in the library, at which quality, how much space it
 // takes, and how downloads went month by month.
 export default function Statistics() {
   const [s, setS] = useState<LibraryStats | null>(null)
   const [error, setError] = useState('')
+  const admin = isAdmin(useAuth().user)
+  const confirm = useConfirm()
+  const toast = useToast()
+  const { on } = useModules()
+  const comicsOn = useComicsOn(admin)
+  // Usherr: the library totals (streams, anime, books, comics, sports) come from the dashboard numbers.
+  const [dash, setDash] = useState<DashboardData | null>(null)
   useEffect(() => {
+    api.dashboard().then(setDash).catch(() => undefined)
+  }, [])
+  const load = () =>
     api
       .libraryStats()
       .then(setS)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  useEffect(() => {
+    void load()
   }, [])
+
+  // Starts the download numbers again from zero. Nothing else is touched.
+  async function reset() {
+    const ok = await confirm({
+      title: t('Reset the statistics?'),
+      body: (
+        <p>
+          {t('The download numbers on this page and on the dashboard start again from zero: how many downloads were grabbed, finished and failed, how big they were, and the share from Usenet. Your library, your history and your files are not touched.')}
+        </p>
+      ),
+      confirmLabel: t('Reset statistics'),
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await api.resetStats()
+      toast.success(t('Statistics reset.'))
+      await load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   if (error) return <p className="error-text">{error}</p>
   if (!s) return <Loading height={300} />
   const qualityMax = Math.max(1, ...s.quality.map((q) => q.count))
   const monthMax = Math.max(1, ...s.months.map((m) => m.completed + m.failed))
-  const pct = (a: number, b: number) => (b > 0 ? Math.round((a * 100) / b) : 0)
+  const size = (n: number) => (n > 0 ? ` · ${formatBytes(n)}` : '')
+  const join = (parts: string[]) => parts.filter(Boolean).join(' · ')
+  const lib = dash?.library
+  const kinds = lib ? (
+    <>
+      {on('movies') && (
+        <KindStat k="movie" glyph="movie" label={t('Movies')} value={lib.movies.total} have={lib.movies.downloaded + (lib.movies.streams ?? 0)} of={lib.movies.total} to="/library?kind=movie"
+          sub={join([t('{n} on disk', { n: lib.movies.downloaded }), lib.movies.streams ? t('{n} stream', { n: lib.movies.streams }) : '', t('{n} missing', { n: lib.movies.missing })]) + size(s.movieBytes)} />
+      )}
+      {on('tv') && (
+        <KindStat k="tv" glyph="tv" label={t('TV shows')} value={lib.series.total} have={lib.series.episodesDownloaded + (lib.series.episodesStreams ?? 0)} of={lib.series.episodes} to="/library?kind=tv"
+          sub={join([plural(lib.series.episodes, '{n} episode', '{n} episodes'), t('{n} on disk', { n: lib.series.episodesDownloaded }), lib.series.episodesStreams ? t('{n} stream', { n: lib.series.episodesStreams }) : '']) + size(s.episodeBytes)} />
+      )}
+      {on('tv') && lib.anime && lib.anime.total > 0 && (
+        <KindStat k="anime" glyph="tv" label={t('Anime')} value={lib.anime.total} have={lib.anime.episodesDownloaded + lib.anime.episodesStreams} of={lib.anime.episodes} to="/library?kind=anime"
+          sub={join([plural(lib.anime.episodes, '{n} episode', '{n} episodes'), t('{n} on disk', { n: lib.anime.episodesDownloaded }), lib.anime.episodesStreams ? t('{n} stream', { n: lib.anime.episodesStreams }) : ''])} />
+      )}
+      {on('music') && lib.music && lib.music.artists > 0 && (
+        <KindStat k="music" glyph="music" label={t('Music')} value={lib.music.artists} unit={plural(lib.music.artists, 'artist', 'artists')} have={lib.music.downloaded} of={lib.music.albums} to="/library?kind=music"
+          sub={plural(lib.music.albums, '{n} album · {missing} missing', '{n} albums · {missing} missing', { missing: lib.music.missing })} />
+      )}
+      {on('ebooks') && lib.ebooks && lib.ebooks.books > 0 && (
+        <KindStat k="book" glyph="book" label={t('Ebooks')} value={lib.ebooks.books} unit={plural(lib.ebooks.books, 'book', 'books')} have={lib.ebooks.downloaded} of={lib.ebooks.books} to="/library?kind=ebook"
+          sub={t('{downloaded} downloaded · {missing} missing', { downloaded: lib.ebooks.downloaded, missing: lib.ebooks.missing })} />
+      )}
+      {on('audiobooks') && lib.audiobooks && lib.audiobooks.books > 0 && (
+        <KindStat k="audiobook" glyph="audiobook" label={t('Audiobooks')} value={lib.audiobooks.books} unit={plural(lib.audiobooks.books, 'book', 'books')} have={lib.audiobooks.downloaded} of={lib.audiobooks.books} to="/library?kind=audiobook"
+          sub={t('{downloaded} downloaded · {missing} missing', { downloaded: lib.audiobooks.downloaded, missing: lib.audiobooks.missing })} />
+      )}
+      {comicsOn && lib.comics && (
+        <KindStat k="comics" glyph="comic" label={t('Comics')} value={lib.comics.series} unit={plural(lib.comics.series, 'series', 'series')} have={lib.comics.downloaded} of={lib.comics.downloaded + lib.comics.missing} to="/comics"
+          sub={t('{downloaded} issues downloaded · {missing} missing', { downloaded: lib.comics.downloaded, missing: lib.comics.missing })} />
+      )}
+      {lib.sports?.on && (
+        <KindStat k="sports" label={t('Sports')} value={lib.sports.games + lib.sports.streams} unit={plural(lib.sports.games + lib.sports.streams, 'game', 'games')} have={lib.sports.games + lib.sports.streams} of={lib.sports.games + lib.sports.streams + lib.sports.wanted} to="/sports"
+          sub={join([plural(lib.sports.leagues, '{n} league', '{n} leagues'), t('{n} on disk', { n: lib.sports.games }), lib.sports.streams ? t('{n} stream', { n: lib.sports.streams }) : '', t('{n} wanted', { n: lib.sports.wanted })])} />
+      )}
+    </>
+  ) : null
   return (
     <div className="stats-page">
       <div className="page-header">
         <h1>{t('Statistics')}</h1>
       </div>
       <div className="stat-cards">
-        <div className="card stat-card k-movie">
-          <span className="stat-shape">
-            <Ring pct={pct(s.moviesHave, s.movies)} />
-            <KindGlyph kind="movie" size={26} variant="solid" />
-          </span>
-          <small>{t('Movies')}</small>
-          <strong>{s.movies}</strong>
-          <span>
-            {t('{n} downloaded ({pct}%)', { n: s.moviesHave, pct: pct(s.moviesHave, s.movies) })} · {formatBytes(s.movieBytes)}
-          </span>
-        </div>
-        <div className="card stat-card k-tv">
-          <span className="stat-shape">
-            <Ring pct={pct(s.episodesHave, s.episodes)} />
-            <KindGlyph kind="tv" size={26} variant="solid" />
-          </span>
-          <small>{t('TV shows')}</small>
-          <strong>{s.shows}</strong>
-          <span>
-            {t('{have} of {total} episodes ({pct}%)', { have: s.episodesHave, total: s.episodes, pct: pct(s.episodesHave, s.episodes) })} · {formatBytes(s.episodeBytes)}
-          </span>
-        </div>
-        {s.albums > 0 && (
-          <div className="card stat-card k-music">
-            <span className="stat-shape">
-              <Ring pct={pct(s.albumsHave, s.albums)} />
-              <KindGlyph kind="music" size={26} variant="solid" />
-            </span>
-            <small>{t('Albums')}</small>
-            <strong>{s.albums}</strong>
-            <span>
-              {t('{n} downloaded ({pct}%)', { n: s.albumsHave, pct: pct(s.albumsHave, s.albums) })}
-            </span>
-          </div>
-        )}
+        {kinds}
         <div className="card stat-card k-size">
           <small>{t('Library size')}</small>
-          <strong>{formatBytes(s.movieBytes + s.episodeBytes)}</strong>
+          <strong>{formatBytes(Math.max(s.movieBytes + s.episodeBytes, dash?.library.sizeBytes ?? 0))}</strong>
           <span>{s.usenetShare > 0 || s.months.length > 0 ? t('{pct}% of downloads came from Usenet', { pct: s.usenetShare }) : t('No downloads yet')}</span>
           {(s.usenetShare > 0 || s.months.length > 0) && (
             <span className="stat-split" aria-hidden="true">
@@ -112,7 +174,7 @@ export default function Statistics() {
         </section>
         <section className="card">
           <h2>{t('Downloads by month')}</h2>
-          {s.months.length === 0 && <p style={{ color: 'var(--text-dim)' }}>{t('No downloads in the history yet.')}</p>}
+          {s.months.length === 0 && <p style={{ color: 'var(--text-dim)' }}>{t('No downloads counted yet.')}</p>}
           <div className="bar-list">
             {s.months.map((m) => (
               <div key={m.month} className="bar-row">
@@ -127,7 +189,17 @@ export default function Statistics() {
               </div>
             ))}
           </div>
-          {s.historyKeptDays > 0 && <p className="field-hint">{plural(s.historyKeptDays, 'The history is kept for {n} day, so older months are not counted.', 'The history is kept for {n} days, so older months are not counted.')}</p>}
+          {(s.totals.grabs > 0 || s.totals.completed > 0 || s.totals.failed > 0) && (
+            <p className="stats-totals">
+              <b>{t('{grabbed} grabbed, {done} done, {failed} failed, {size} downloaded', { grabbed: s.totals.grabs, done: s.totals.completed, failed: s.totals.failed, size: formatBytes(s.totals.bytes) })}</b>
+            </p>
+          )}
+          <p className="field-hint">{t('These numbers are counted as downloads happen, so clearing the history list does not change them.')}</p>
+          {admin && (
+            <button type="button" className="btn-sm btn-danger" style={{ marginTop: 10 }} onClick={() => void reset()}>
+              {t('Reset statistics')}
+            </button>
+          )}
         </section>
       </div>
       <IndexerStats />

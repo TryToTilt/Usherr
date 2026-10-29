@@ -38,7 +38,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 }
 
 export const listShowtimes = () => call<ShowtimeList>('GET', '')
-export const bookShowtime = (b: { tmdbId: number; title: string; year?: number; posterUrl?: string; runtime?: number; atMs: number; preshowMin: number; playOn: PlayOn }) =>
+export const bookShowtime = (b: { tmdbId: number; title: string; year?: number; posterUrl?: string; runtime?: number; atMs: number; preshowMin: number; playOn: PlayOn; preshowTheme?: number }) =>
   call<{ id: number }>('POST', '', b)
 export const moveShowtime = (id: number, b: { atMs: number; preshowMin: number; playOn: PlayOn }) => call<{ id: number }>('PUT', `/${id}`, b)
 export const cancelShowtime = (id: number) => fetch(`/api/home/showtimes/${id}`, { method: 'DELETE', credentials: 'include' })

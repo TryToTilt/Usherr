@@ -134,6 +134,38 @@ shows on every screen as a band, "Showtime 8:00 PM · Dune · in 12 min", over
 whatever it's showing. When the pre-show minutes of the booking are left,
 the pre-show starts on every screen that's on, by itself.
 
+## Sports
+
+When Sports is set up (see [Sports](sports.md)), a screen can show the day's
+games. In the screen's settings (or the shared ones):
+
+- **Scoreboard** (a scene): the games under way, with the score and the
+  clock, then the day's results. Your teams' games stand out.
+- **Tonight's games** (a scene): what's on today, with kick-off times, the
+  league and the channel.
+- **Score ticker**: the day's games scrolling along the bottom, like a sports
+  channel.
+- **Countdown to the next kick-off**: a band over any scene, a followed
+  team's game first, from three hours before.
+- **Show scores**: off by default. Off, the screen never shows a score or a
+  result (they aren't even sent to it), so it won't spoil a game you'll watch
+  later; games under way just say *Live*.
+- **Only the teams we follow**, and **Leagues to show** (none ticked shows
+  them all).
+
+**The game you're watching.** When a game plays (streamed from Sports in
+Usherr, or from your Sports library in Jellyfin, recognised by its name),
+*Now showing* becomes a matchup card: the league, both teams with their crests,
+the round, venue and channel, over the game's picture. A game watched while
+it's on shows its live score when the screen shows scores; one watched after
+it was played never shows the result.
+
+Scores come from your sports backend, updated every minute while a screen
+shows sports: with Sportarr, live from Sportarr's own score feed (the score and
+whether a game is live or over). A paid TheSportsDB key (Settings → Extras →
+Sports) adds the clock ("Q3 08:12", "2H 85'") and the teams' crests, and gives
+Usherr's own engine its live scores.
+
 ## Your slides and the pre-show
 
 Under **Slides and pre-show**:
@@ -152,6 +184,12 @@ in the order, from the remote's **Pre-show** button, or, when *Play it when
 something starts playing* is on, as soon as something starts.
 
 ![The pre-show's built-in pieces: popcorn, phones, coming attractions, the countdown and the feature presentation](images/marquee-preshow.png)
+
+Usherr also has a pre-show of its own, played before the film itself on the
+Showtime screen, in Usherr's player and in the Jellyfin app: themes,
+schedules, your clips by category, downloaded coming-soon trailers. It's on
+**Settings → Movie night → Pre-show**, and has its own page in this guide:
+[The pre-show](preshow.md). The Marquee follows it piece by piece by itself.
 
 ## Theme music
 

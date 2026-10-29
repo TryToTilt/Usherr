@@ -8,6 +8,7 @@ export function currentPalette(): string {
 }
 
 export function markSrc(palette = currentPalette()): string {
+  if (document.documentElement.dataset.look === 'neu') return withBase('/neu-mark.svg') // Usherr Neu
   return withBase(palette === 'wine' ? '/usherr-mark.png' : `/usherr-mark-${palette}.png`)
 }
 
@@ -20,6 +21,12 @@ export function applyPalette(palette: string) {
     img.src = src
   })
   tabIcon(palette)
+}
+
+// Usherr: the main colour (BaseChoice.tsx), the tint under the colours.
+export function applyBase(base: string) {
+  if (base === 'palette') delete document.documentElement.dataset.base
+  else document.documentElement.dataset.base = base
 }
 
 // The browser tab: the original icons for wine, the coloured icon otherwise.

@@ -2,6 +2,7 @@ package library
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -66,12 +67,28 @@ func (r *Repo) SaveMediaInfo(m MediaInfoRow) error {
 	if m.CheckedAt == "" {
 		m.CheckedAt = m.ScannedAt
 	}
-	_, err := r.db.Exec(`INSERT OR REPLACE INTO media_info (`+mediaInfoCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		m.Path, m.Size, m.MTime, m.ScannedAt, m.CheckedAt, failed, m.Info, m.Container, m.VCodec, m.HDR, m.Res, m.ACodecs, m.ALangs, m.SLangs)
+	_, err := r.db.Exec(`INSERT OR REPLACE INTO media_info (`+mediaInfoCols+`, duration) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		m.Path, m.Size, m.MTime, m.ScannedAt, m.CheckedAt, failed, m.Info, m.Container, m.VCodec, m.HDR, m.Res, m.ACodecs, m.ALangs, m.SLangs, infoDuration(m))
 	if err != nil {
 		return fmt.Errorf("save media info: %w", err)
 	}
 	return nil
+}
+
+// infoDuration is the length in seconds that the saved JSON holds (0 when the
+// file could not be read or says nothing). It is kept in a column of its own so
+// the lists never have to read the JSON.
+func infoDuration(m MediaInfoRow) float64 {
+	if m.Failed || m.Info == "" {
+		return 0
+	}
+	var d struct {
+		Duration float64 `json:"duration"`
+	}
+	if json.Unmarshal([]byte(m.Info), &d) != nil || d.Duration < 0 {
+		return 0
+	}
+	return d.Duration
 }
 
 // TouchMediaInfo notes that the file was looked at and had not changed.
@@ -192,6 +209,45 @@ func (r *Repo) SeriesMediaSummaries() (map[int64][]MediaSummary, error) {
 		out[id] = append(out[id], s)
 	}
 	return out, rows.Err()
+}
+
+// MediaFilePaths maps each movie, and each show, to the paths of its
+// downloaded files that have been read, for looking beside them (subtitle
+// files next to the video).
+func (r *Repo) MediaFilePaths() (movies map[int64]string, series map[int64][]string, err error) {
+	movies, series = map[int64]string{}, map[int64][]string{}
+	rows, err := r.db.Query(`SELECT m.id, m.file_path FROM movies m JOIN media_info mi ON mi.path = m.file_path WHERE mi.failed = 0 AND m.status = 'downloaded'`)
+	if err != nil {
+		return nil, nil, fmt.Errorf("movie file paths: %w", err)
+	}
+	for rows.Next() {
+		var id int64
+		var p string
+		if err := rows.Scan(&id, &p); err != nil {
+			rows.Close()
+			return nil, nil, fmt.Errorf("scan movie file path: %w", err)
+		}
+		movies[id] = p
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, nil, fmt.Errorf("movie file paths: %w", err)
+	}
+	rows.Close()
+	rows, err = r.db.Query(`SELECT e.series_id, e.file_path FROM episodes e JOIN media_info mi ON mi.path = e.file_path WHERE mi.failed = 0 AND e.status = 'downloaded'`)
+	if err != nil {
+		return nil, nil, fmt.Errorf("episode file paths: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var p string
+		if err := rows.Scan(&id, &p); err != nil {
+			return nil, nil, fmt.Errorf("scan episode file path: %w", err)
+		}
+		series[id] = append(series[id], p)
+	}
+	return movies, series, rows.Err()
 }
 
 // EpisodeMediaInfo maps each downloaded episode of a show to the saved details

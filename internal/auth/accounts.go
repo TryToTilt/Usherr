@@ -176,9 +176,9 @@ func (s *Service) UpdateAccount(id int64, upd AccountUpdate) (*Account, error) {
 	}
 	defer tx.Rollback()
 
-	var isAdmin, wasDisabled bool
+	var isAdmin, isViewer, wasDisabled bool
 	var source string
-	if err := tx.QueryRow(`SELECT is_admin, disabled, auth_source FROM users WHERE id = ?`, id).Scan(&isAdmin, &wasDisabled, &source); err != nil {
+	if err := tx.QueryRow(`SELECT is_admin, is_viewer, disabled, auth_source FROM users WHERE id = ?`, id).Scan(&isAdmin, &isViewer, &wasDisabled, &source); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrUserNotFound
 		}
@@ -221,9 +221,20 @@ func (s *Service) UpdateAccount(id int64, upd AccountUpdate) (*Account, error) {
 			return nil, err
 		}
 	}
+	if (upd.IsAdmin != nil && *upd.IsAdmin != isAdmin) || (upd.Viewer != nil && *upd.Viewer != isViewer) {
+		// A role changed here is no longer one a sign-in group handed out.
+		if err := set(`UPDATE users SET group_role = '' WHERE id = ?`, id); err != nil {
+			return nil, err
+		}
+	}
 	if upd.IsAdmin != nil {
 		if err := set(`UPDATE users SET is_admin = ? WHERE id = ?`, *upd.IsAdmin, id); err != nil {
 			return nil, err
+		}
+		if !*upd.IsAdmin {
+			if err := revokeUserGrants(tx.Exec, id); err != nil { // apps signed in over MCP as an administrator
+				return nil, err
+			}
 		}
 		if *upd.IsAdmin {
 			if err := set(`UPDATE users SET is_viewer = 0 WHERE id = ?`, id); err != nil {
@@ -239,6 +250,9 @@ func (s *Service) UpdateAccount(id int64, upd AccountUpdate) (*Account, error) {
 			if err := set(`UPDATE users SET is_admin = 0 WHERE id = ?`, id); err != nil {
 				return nil, err
 			}
+			if err := revokeUserGrants(tx.Exec, id); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if upd.Disabled != nil {
@@ -247,6 +261,9 @@ func (s *Service) UpdateAccount(id int64, upd AccountUpdate) (*Account, error) {
 		}
 		if *upd.Disabled {
 			if err := set(`DELETE FROM sessions WHERE user_id = ?`, id); err != nil {
+				return nil, err
+			}
+			if err := revokeUserGrants(tx.Exec, id); err != nil {
 				return nil, err
 			}
 		}
@@ -270,6 +287,9 @@ func (s *Service) UpdateAccount(id int64, upd AccountUpdate) (*Account, error) {
 			if err := set(q, id); err != nil {
 				return nil, err
 			}
+		}
+		if err := revokeUserGrants(tx.Exec, id); err != nil {
+			return nil, err
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -302,6 +322,9 @@ func (s *Service) DeleteAccount(id int64) error {
 		if n == 0 {
 			return ErrLastAdmin
 		}
+	}
+	if err := revokeUserGrants(tx.Exec, id); err != nil {
+		return fmt.Errorf("delete account: %w", err)
 	}
 	for _, q := range []string{
 		`DELETE FROM sessions WHERE user_id = ?`,

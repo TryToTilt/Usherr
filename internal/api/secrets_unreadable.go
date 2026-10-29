@@ -21,6 +21,7 @@ var savedSettingNames = map[string]string{
 	settings.KeyTraktClientID:          "the Trakt key",
 	settings.KeySimklClientID:          "the Simkl key",
 	settings.KeySimklToken:             "the Simkl sign-in",
+	settings.KeySimklRefresh:           "the Simkl sign-in",
 	settings.KeyHardcoverToken:         "the Hardcover token",
 	settings.KeyDebridAPIKey:           "the debrid service key",
 	settings.KeyDownloadClientPassword: "the download client password",

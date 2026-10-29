@@ -5,6 +5,7 @@ import HelpLink from '../components/HelpLink'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ComicCatchUp } from './CatchUp'
 import LibraryTabs from './LibraryTabs' // library hook (home fork)
+import { PullDrawer } from '../components/CompactBar' // Usherr
 import { createPortal } from 'react-dom'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
@@ -22,6 +23,7 @@ import { flipSpeeds, type FlipSpeed } from './comicFlipSpeed'
 import Shelves from './Shelves' // home fork
 import { groupShelves, letterShelves, RowsByPick, ShelfControls, useShelfView } from './shelfKit' // home fork
 import { locale, plural, t } from '../i18n'
+import { PosterSizeSlider, usePosterSize } from './posterSize' // Usherr
 
 // The page-turn view loads only when a comic is opened.
 const ComicFlip = lazy(() => import('./ComicFlip'))
@@ -97,6 +99,7 @@ export default function Comics() {
     <div className="page-pad cx-page">
       {/* Usherr: search and AI are in the top bar */}
       {/* home fork: one card like the Library's other tabs: kinds, Comics' own tabs, and the search */}
+      <PullDrawer className="cx-pull">{/* Usherr: pulls down from under the top bar, like the Library's */}
       <div className="toolbar lib-toolbar cx-libbar">
         <LibraryTabs current="comics" />
         <HelpLink topic="home-watching#comics" />
@@ -128,6 +131,7 @@ export default function Comics() {
         </div>
         {tab === 'library' && enabled && <input type="search" value={libText} onChange={(e) => setLibText(e.target.value)} placeholder={t('Find a series or publisher')} aria-label={t('Find a series')} />}
       </div>
+      </PullDrawer>
       {tab === 'library' && enabled && <ComicLibrary text={libText} onAdd={admin || can(user, 'comics') ? () => setTab('add') : undefined} />}
       {tab === 'add' && (admin || can(user, 'comics')) && <ComicAdd />}
       {tab === 'week' && enabled && <ComicWeekView admin={admin} />}
@@ -221,6 +225,7 @@ function ComicLibrary({ onAdd, text }: { onAdd?: () => void; text: string }) {
   }, [list, text])
   // home fork: shelves, rows that scroll sideways, by publisher, decade…
   const shelfView = useShelfView<'publisher' | 'decade' | 'az' | 'wanted'>('comics', ['publisher', 'decade', 'az', 'wanted'], 'publisher')
+  const posterSize = usePosterSize('comics', 150)
   const shelves = useMemo(() => {
     if (!shelfView.on) return []
     const byName = (a: ComicSeries, b: ComicSeries) => a.name.localeCompare(b.name) || a.startYear - b.startYear
@@ -269,13 +274,14 @@ function ComicLibrary({ onAdd, text }: { onAdd?: () => void; text: string }) {
       </div>
     )
   return (
-    <>
+    <div style={posterSize.style}>
       <div className="cx-toolbar">
         <span className="hint">
           {t('{shown} of {total} series', { shown: shown.length, total: list.length })}
         </span>
         <span className="spacer" />
         <ShelfControls view={shelfView} />
+        <PosterSizeSlider value={posterSize} />
       </div>
       {shelfView.on && !text.trim() && <ArcsForYou />}
       {shelfView.on ? (
@@ -292,7 +298,7 @@ function ComicLibrary({ onAdd, text }: { onAdd?: () => void; text: string }) {
           ))}
         </ul>
       )}
-    </>
+    </div>
   )
 }
 
@@ -717,6 +723,11 @@ function ComicReleases({ issue, onClose, onGrabbed }: { issue: ComicIssue; onClo
 
 // ---- reader ----
 
+// Usherr: where you are in a comic, kept for you (home_positions.go).
+function keepComicPage(id: number, page: number, total: number, keepalive = false) {
+  void fetch('/api/home/position', { method: 'PUT', credentials: 'include', keepalive, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: `comic:${id}`, position: page, duration: total }) }).catch(() => undefined)
+}
+
 export function ComicReader({ issue, onClose }: { issue: ComicIssue; onClose: () => void }) {
   const [info, setInfo] = useState<{ pages?: number; pdf?: boolean; title: string } | null>(null)
   const [error, setError] = useState('')
@@ -779,18 +790,55 @@ export function ComicReader({ issue, onClose }: { issue: ComicIssue; onClose: ()
   }
 
   useEffect(() => {
-    comicsApi
-      .pages(issue.id)
-      .then((r) => {
+    // Usherr: the page you got to is kept for you (home_positions.go), so it
+    // opens there on any device; this browser's own note is the fallback. A
+    // comic read to the end opens at the first page again.
+    const kept = fetch(`/api/home/position?item=comic:${issue.id}`, { credentials: 'include' })
+      .then((x) => (x.ok ? (x.json() as Promise<{ position?: number }>) : null))
+      .catch(() => null)
+    Promise.all([comicsApi.pages(issue.id), kept])
+      .then(([r, at]) => {
         if (r.pdf) {
           window.open(comicsApi.fileUrl(issue.id), '_blank', 'noopener')
           onClose()
           return
         }
+        const pages = r.pages ?? 0
+        const from = at?.position ? Math.round(at.position) : 0
+        let local = 1
+        try {
+          local = Number(localStorage.getItem(`comic-page-${issue.id}`)) || 1
+        } catch {
+          /* private mode */
+        }
+        const n = from > 1 ? from : pages && local >= pages ? 1 : local
+        const p = pages ? Math.min(Math.max(1, n), pages) : n
+        setPage(p)
+        setFlipStart(p)
         setInfo(r)
       })
       .catch((e: Error) => setError(e.message))
   }, [issue.id, onClose])
+  // and told as you turn the pages, and on closing
+  const pageNow = useRef({ page, total: 0 })
+  useEffect(() => {
+    if (!info?.pages) return
+    pageNow.current = { page, total: info.pages }
+    const tm = window.setTimeout(() => keepComicPage(issue.id, page, info.pages ?? 0), 1500)
+    return () => window.clearTimeout(tm)
+  }, [page, info, issue.id])
+  useEffect(
+    () => () => {
+      const at = pageNow.current
+      if (at.total > 0) keepComicPage(issue.id, at.page, at.total, true)
+    },
+    [issue.id],
+  )
+  const startOver = () => {
+    setPage(1)
+    setFlipStart(1)
+    if (view === 'flip') flip.current?.turnTo(1)
+  }
 
   const go = useCallback(
     (d: number) => {
@@ -846,6 +894,11 @@ export function ComicReader({ issue, onClose }: { issue: ComicIssue; onClose: ()
           {total ? `${page} / ${total}` : ''}
           {view === 'panels' && panelAt.count > 0 && panelAt.index >= 0 ? ` · ${t('panel {n} of {count}', { n: panelAt.index + 1, count: panelAt.count })}` : ''}
         </span>
+        {page > 1 && (
+          <button type="button" className="btn-sm btn-with-icon" onClick={startOver} title={t('Back to the first page')}>
+            <Icon name="skip-prev" size={14} /> {t('Start over')}
+          </button>
+        )}
         {view !== 'panels' && (
           <button className="btn-sm" onClick={() => switchView()} title={view === 'flip' ? t('Show one page at a time, with fit to width') : t('Turn pages like a paper comic')}>
             {view === 'flip' ? t('Slide') : t('Page turn')}

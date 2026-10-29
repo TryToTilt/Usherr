@@ -29,10 +29,33 @@
   **Not now** closes it; *Play the next episode by itself* (kept on each
   device) turns the countdown off, leaving the button. Only episodes that
   have aired are offered; Live TV keeps to its own schedule.
+- **Skip intro**: while an intro plays, a button jumps past it. Usherr knows
+  where intros (and credits) are from the file's own chapters when they're
+  named so (Intro, Opening, OP, Credits, Ending, ED), or from Jellyfin, when
+  its *Intro Skipper* plugin has found them. When the credits are known,
+  *Up next* comes up as they start. Without either, there's no button.
+- **Pick up where you left off**: movies, episodes, NSFW videos, streams and
+  sports games open where you stopped, and comics at the page, on any device
+  (it's kept on the server for each person). The player says
+  *Picked up at …*, with **Start over**. Past 95% (or in the last 45
+  seconds) or under 15 seconds in, it starts at the beginning. Live TV is
+  live and never picked up. Music starts each song from the top; the
+  ebook reader, the audiobook player and the comic reader have their own
+  **Start over**.
 - **Audio & subtitles** in the player picks the language, for files and
   streams alike (a stream offers its sound tracks; its subtitles aren't read,
   since that means reading the whole film). The language you pick is
   remembered, and a release with several (MULTi) starts in it.
+
+## Releases that play
+
+Usherr's own streaming engine learns which releases play. Each release it
+opens counts for its release group and its indexer; one that won't open,
+breaks part-way, or is passed over with **Try another release** counts
+against them. A group or indexer that has failed at least three times and
+mostly fails goes to the back of the list, so the next stream starts with
+releases that work. Everything else keeps its order, nothing extra is asked
+of your indexers, and a release you pick yourself is always the one tried.
 
 ## Showtimes at home
 
@@ -48,7 +71,9 @@ runs first, and where the film plays.
   - **On the Showtime screen:** open the **Showtime** page (`/showtime`) in
     the browser on the TV and leave it there. It counts down and starts the
     film at showtime: your file, or a stream. Press **Ready** once when you
-    open it, so the browser lets it start with sound.
+    open it, so the browser lets it start with sound. Usherr's own
+    [pre-show](preshow.md) plays there first, full screen, so the feature
+    starts on the minute.
   - **On the TV:** the film opens there (Play on TV) at showtime.
   - **I'll start it myself:** for watching in Jellyfin, Stremio or Nuvio.
     The Marquee still counts down and runs the pre-show.

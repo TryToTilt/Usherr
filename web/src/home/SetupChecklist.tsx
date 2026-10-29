@@ -54,7 +54,7 @@ const GUIDE = '/help/home-setup#'
 export default function SetupChecklist() {
   const [items, setItems] = useState<Item[] | null>(null)
   const load = useCallback(async () => {
-    const [dash, mods, settings, x, eng, ai, mdb, news, notes, two, cinema, marquee] = await Promise.all([
+    const [dash, mods, settings, x, eng, ai, mdb, news, notes, two, cinema, marquee, preshowJF, trailers, sports, rtm] = await Promise.all([
       api.dashboard().catch(() => null) as Promise<DashboardData | null>,
       api.modules().catch(() => null),
       api.getSettings().catch(() => null),
@@ -67,6 +67,10 @@ export default function SetupChecklist() {
       api.twoStep().catch(() => null) as Promise<TwoStepStatus | null>,
       get<{ on: boolean }>('/api/home/cinema/settings'), // Usherr
       get<{ screens: unknown[] }>('/api/home/marquee/screens'), // Usherr
+      get<{ connected: boolean; plugin: string; configured: boolean }>('/api/home/preshow/jellyfin'), // Usherr: the pre-show in the Jellyfin app
+      get<{ settings: { on: boolean }; ytdlp: boolean }>('/api/home/preshow/trailers'), // Usherr
+      get<{ mode: string; ready: boolean; problem?: string }>('/api/home/sports/settings'), // Usherr
+      get<{ engines: { name: string; on: boolean; ready: boolean }[] }>('/api/home/readtome/settings'), // Usherr
     ])
     const on = (k: 'movies' | 'tv') => !!(mods as Record<string, { enabled?: boolean }> | null)?.[k]?.enabled
     const f = dash ? factsFromDashboard(dash, { movies: on('movies'), tv: on('tv') }) : null
@@ -108,6 +112,16 @@ export default function SetupChecklist() {
     if (news) add({ id: 'news', title: t('Entertainment news'), gives: t('Short news on the Dashboard'), state: news.on ? (ai && ai.provider ? 'ready' : 'setup') : 'off', missing: news.on && !(ai && ai.provider) ? t('the AI, to summarise the stories') : news.on ? undefined : t('turning on'), to: '/settings/extras', guide: 'entertainment-news' })
     if (cinema) add({ id: 'cinema', title: t('In theaters'), gives: t('Films in cinemas near you, on the Dashboard and the calendar'), state: cinema.on ? 'ready' : 'off', missing: cinema.on ? undefined : t('your ZIP or postcode'), to: '/settings/extras', guide: 'in-theaters' }) // Usherr
     if (marquee) add({ id: 'marquee', title: t('Marquee'), gives: t('A lobby display for a tablet or a screen by the TV'), state: (marquee.screens ?? []).length > 0 ? 'ready' : 'off', missing: (marquee.screens ?? []).length > 0 ? undefined : t('a screen showing /marquee'), to: '/marquee/manage', guide: 'marquee' }) // Usherr
+    if (preshowJF) {
+      const ready = preshowJF.plugin === 'active' && preshowJF.configured
+      add({ id: 'preshow', title: t('Pre-show in the Jellyfin app'), gives: t('The pre-show before films in every Jellyfin app (it plays in Usherr without anything)'), state: ready ? 'ready' : preshowJF.plugin !== '' ? 'setup' : 'off', missing: ready ? undefined : preshowJF.plugin === '' ? t('the NeXroll Intros plugin in Jellyfin') : t('restarting Jellyfin, or finishing setting it up'), to: '/preshow/manage', guide: 'pre-show' }) // Usherr
+    }
+    if (trailers) add({ id: 'trailers', title: t('Coming-soon trailers'), gives: t('Trailers downloaded ahead, so the pre-show plays them at once'), state: trailers.settings.on ? (trailers.ytdlp ? 'ready' : 'setup') : 'off', missing: !trailers.settings.on ? t('turning on') : trailers.ytdlp ? undefined : t('yt-dlp, which is in Usherr’s image'), to: '/preshow/manage', guide: 'pre-show' }) // Usherr
+    if (sports) add({ id: 'sports', title: t('Sports'), gives: t('Leagues, teams, games to stream and live scores'), state: sports.ready ? 'ready' : sports.mode ? 'setup' : 'off', missing: sports.ready ? undefined : sports.mode ? sports.problem || t('Sportarr or TheSportsDB to answer') : t('choosing Sportarr or Usherr’s own engine'), to: '/settings/extras', guide: 'sports' }) // Usherr
+    if (rtm) {
+      const kokoro = rtm.engines.find((e) => e.name === 'kokoro')
+      add({ id: 'readtome', title: t('Read-to-Me'), gives: t('Audiobooks made from ebooks with a computer voice'), state: kokoro?.ready ? 'ready' : kokoro?.on ? 'setup' : 'off', missing: kokoro?.ready ? undefined : t('Kokoro on a graphics card'), to: '/settings/extras', guide: 'read-to-me' }) // Usherr
+    }
     if (x) add({ id: 'comics', title: t('Comics'), gives: t('Comic series, new issues and a reader'), state: x.comics.enabled && x.comics.keySet ? 'ready' : x.comics.enabled ? 'setup' : 'off', missing: x.comics.enabled && !x.comics.keySet ? t('a ComicVine API key, on the Comics page') : x.comics.enabled ? undefined : t('turning on'), to: x.comics.enabled ? '/comics' : '/settings/extras', guide: 'comics' })
 
     // Looking after it

@@ -43,11 +43,11 @@ func SplitAppriseURLs(s string) []string {
 // services that colour or icon their messages do it sensibly.
 func appriseType(ev Event) string {
 	switch EventKind(ev.Type) {
-	case EventImported, EventSubtitle:
+	case EventImported, EventSubtitle, EventClientUp:
 		return "success"
 	case EventFailed:
 		return "failure"
-	case EventHealth, EventConflict:
+	case EventHealth, EventConflict, EventClientDown:
 		return "warning"
 	}
 	return "info"

@@ -1,6 +1,7 @@
 // Home fork: the NSFW module's pages (administrators only).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import LibraryTabs from './LibraryTabs' // library hook (home fork)
+import { PullDrawer } from '../components/CompactBar' // Usherr
 import { createPortal } from 'react-dom'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Icon from '../components/Icon'
@@ -15,6 +16,7 @@ import { useAuth } from '../AuthContext' // home fork
 import { isAdmin } from '../api' // home fork
 import Shelves from './Shelves' // home fork
 import { groupShelves, monthShelves, RowsByPick, ShelfControls, useShelfView } from './shelfKit' // home fork
+import { PosterSizeSlider, usePosterSize } from './posterSize' // Usherr
 
 type Tab = 'library' | 'following' | 'find' | 'queue' | 'settings'
 
@@ -112,6 +114,7 @@ export default function Nsfw() {
   // home fork: an account given the NSFW 18+ switch sees the section, not its settings or queue
   const admin = isAdmin(useAuth().user)
   const [memberReady, setMemberReady] = useState(false)
+  const posterSize = usePosterSize('nsfw', 260, 180, 480) // landscape cards
 
   const loadSettings = useCallback(() => {
     if (!admin) {
@@ -130,13 +133,11 @@ export default function Nsfw() {
   const shown: Tab = admin && settings && !ready ? 'settings' : !admin && (tab === 'settings' || tab === 'queue') ? 'library' : tab
 
   return (
-    <div className="nsfw-page">
+    <div className="nsfw-page" style={posterSize.style}>
+      <PullDrawer className="sc-pull">{/* Usherr: pulls down from under the top bar, like the Library's */}
       <div className="lib-tabs-row">
         <LibraryTabs current="nsfw" />
       </div>
-      <header className="page-header sc-head">
-        <h1>{t('NSFW 18+')}</h1>
-      </header>
       <div className="toolbar sc-tabs">
         <div className="seg" role="tablist" aria-label={t('NSFW')}>
           {TABS.filter((tg) => admin || (tg.key !== 'queue' && tg.key !== 'settings')).map((tg) => (
@@ -145,10 +146,12 @@ export default function Nsfw() {
             </button>
           ))}
         </div>
+        {shown === 'library' && ready && <PosterSizeSlider value={posterSize} />}
         {admin && <button className={`btn-sm sc-gear${shown === 'settings' ? ' primary' : ''}`} onClick={() => setTab(shown === 'settings' && ready ? 'library' : 'settings')} aria-label={t('NSFW settings')} title={t('NSFW settings')}>
           <Icon name="sliders" size={16} />
         </button>}
       </div>
+      </PullDrawer>
       {error && <p className="error-text">{error}</p>}
       {!admin && !memberReady && <p className="hint">{t('The NSFW 18+ section isn’t set up yet.')}</p>}
       {admin && settings && shown === 'settings' && <SettingsTab settings={settings} onSaved={setSettings} />}
@@ -828,6 +831,7 @@ const SINCE_YEARS = (() => {
 
 export function FindTab() {
   const [kind, setKind] = useState<FindKind>('video')
+  const posterSize = usePosterSize('nsfw', 260, 180, 480) // the same size as the NSFW library
   const [text, setText] = useState('')
   const [who, setWho] = useState<Who>('all')
   const [tags, setTags] = useState<StashTag[]>([])
@@ -983,7 +987,7 @@ export function FindTab() {
   const shown = kind === 'video' ? foundNsfw.length : foundPeople.length
   const whoLabel = WHO.find((w) => w.key === who)?.label
   return (
-    <section>
+    <section style={posterSize.style}>
       <div className="sc-bar">
         <div className="seg sc-find-kind" role="tablist" aria-label={t('Look for')}>
           {(['video', 'performer', 'studio'] as const).map((k) => (
@@ -1002,6 +1006,7 @@ export function FindTab() {
           aria-label={t('Search StashDB')}
         />
         <div className="sc-bar-row">
+          <PosterSizeSlider value={posterSize} />
           {kind !== 'studio' && (
             <div className="sc-pop-wrap">
               <button ref={filtersBtn} className={`btn-sm btn-with-icon${activeFilters > 0 ? ' primary' : ''}`} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -1555,6 +1560,7 @@ export function VideoDetail() {
 
 export function VideoBrowse() {
   const { kind, stashId } = useParams()
+  const posterSize = usePosterSize('nsfw', 260, 180, 480)
   const [params] = useSearchParams()
   const name = params.get('name') || ''
   const k = kind === 'studio' ? 'studio' : 'performer'
@@ -1585,12 +1591,13 @@ export function VideoBrowse() {
       .catch((e: Error) => setError(e.message))
   const pages = Math.max(1, Math.ceil(count / 40))
   return (
-    <div className="nsfw-page">
+    <div className="nsfw-page" style={posterSize.style}>
       <Link to="/nsfw?tab=following" className="btn-sm btn-with-icon">
         <Icon name="open" size={14} style={{ transform: 'rotate(180deg)' }} /> {t('NSFW 18+')}
       </Link>
       <h1>{name || (k === 'studio' ? t('Studio') : t('Performer'))}</h1>
       <div className="toolbar">
+        <PosterSizeSlider value={posterSize} />
         <button className="btn-sm" onClick={() => stashId && nsfwApi.follow(k, stashId, false).then(() => setNote(t('Following. New videos from now on will be added.'))).catch((e: Error) => setError(e.message))}>
           {t('Follow')}
         </button>

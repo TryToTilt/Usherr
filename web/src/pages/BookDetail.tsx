@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import VoteButtons from '../home/VoteButtons' // home fork
 import { BookAIButtons } from '../home/AIBooks' // home fork
+import { ReadToMeButton } from '../home/ReadToMe' // Usherr
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, can, isAdmin, type Book, type BookFormat, type QueueItem, type SearchResult } from '../api'
 import { useAuth } from '../AuthContext'
@@ -9,9 +10,11 @@ import { useConfirm } from '../components/ConfirmProvider'
 import Icon from '../components/Icon'
 import KindGlyph from '../components/KindGlyph'
 import { PosterFallback } from '../components/PosterCard'
+import ReleaseNotice from '../components/ReleaseNotice'
 import ReleaseTable from '../components/ReleaseTable'
 import Switch from '../components/Switch'
 import { useToast } from '../components/Toast'
+import { useTorrentsSwitch } from '../useTorrentsSwitch'
 import AuthorBooks from '../components/AuthorBooks'
 import BookSeries from '../components/BookSeries'
 import { audioDetails, localDate } from '../bookSeries'
@@ -21,6 +24,8 @@ import { useModules } from '../ModulesContext'
 import { useLive } from '../useLive'
 import { bookState } from './BookLibrary'
 import { listenPath, openBookApp, readPath } from '../bookshelf/open'
+import type { Unanswered } from '../releaseHint'
+import type { Searched } from '../searched'
 
 const FORMAT_TITLE: Record<BookFormat, string> = { ebook: t('Ebook'), audiobook: t('Audiobook') }
 
@@ -176,10 +181,12 @@ function BookPage({ id }: { id?: string }) {
 function FormatPanel({ book, format, queue, onChanged }: { book: Book; format: BookFormat; queue: QueueItem[]; onChanged: () => void }) {
   const me = useAuth().user
   const toast = useToast()
+  const { grabError } = useTorrentsSwitch()
   const st = book[format]
   const state = bookState(book, format, queue)
   const [searching, setSearching] = useState(false)
   const [releases, setReleases] = useState<SearchResult[] | null>(null)
+  const [answered, setAnswered] = useState<{ sources: number; unanswered: Unanswered[]; warnings?: string[]; skipped: string[]; searched?: Searched[] }>({ sources: 0, unanswered: [], skipped: [] })
   const [open, setOpen] = useState(false)
   const [releaseError, setReleaseError] = useState('')
   const [grabbing, setGrabbing] = useState<string | null>(null)
@@ -213,7 +220,10 @@ function FormatPanel({ book, format, queue, onChanged }: { book: Book; format: B
     setReleaseError('')
     api
       .bookReleases(book.id, format)
-      .then(setReleases)
+      .then((a) => {
+        setAnswered({ sources: a.sources, unanswered: a.unanswered, warnings: a.warnings, skipped: a.skipped ?? [], searched: a.searched })
+        setReleases(a.results)
+      })
       .catch((e) => setReleaseError(e instanceof Error ? e.message : String(e)))
   }
 
@@ -225,7 +235,7 @@ function FormatPanel({ book, format, queue, onChanged }: { book: Book; format: B
       setOpen(false)
       setTimeout(onChanged, 500)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      grabError(e, () => void grab(r))
     } finally {
       setGrabbing(null)
     }
@@ -270,6 +280,7 @@ function FormatPanel({ book, format, queue, onChanged }: { book: Book; format: B
             <Icon name="search" size={16} /> {searching ? t('Searching…') : t('Search now')}
           </button>
         )}
+        {format === 'ebook' && st.status === 'downloaded' && st.format === 'epub' && can(me, 'manage') && <ReadToMeButton bookId={book.id} title={book.title} onChanged={onChanged} />}
         {can(me, 'releases') && (
           <button className="btn-with-icon" onClick={() => (open ? setOpen(false) : showReleases())}>
             <Icon name="list" size={16} /> {open ? t('Hide releases') : t('Choose a release')}
@@ -280,12 +291,12 @@ function FormatPanel({ book, format, queue, onChanged }: { book: Book; format: B
         <div className="book-releases">
           {releaseError && <p className="error-text">{releaseError}</p>}
           {!releaseError && releases === null && <div className="skeleton" style={{ height: 120 }} />}
-          {releases && releases.length === 0 && <p className="hint">{t('No matching releases found on your indexers right now.')}</p>}
           {releases && releases.length > 0 && (
             <div className="table-scroll">
-              <ReleaseTable results={releases} grabbing={grabbing} onGrab={grab} onClose={() => setOpen(false)} />
+              <ReleaseTable results={releases} searched={answered.searched} grabbing={grabbing} onGrab={grab} onClose={() => setOpen(false)} />
             </div>
           )}
+          {releases && <ReleaseNotice sources={answered.sources} unanswered={answered.unanswered} warnings={answered.warnings} skipped={answered.skipped} searched={answered.searched} results={releases.length} />}
         </div>
       )}
     </section>

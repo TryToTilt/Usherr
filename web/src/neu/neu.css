@@ -1,0 +1,1184 @@
+/* Usherr Neu: the app's own soft look. Every surface is the page's colour,
+   raised from it (light from the top left, shade to the bottom right) or
+   pressed into it. Nothing of Mediarium's look is kept: its colours, gradients,
+   glows, textures, decorations, fonts, icons (neu/icons.tsx) and logo
+   (public/neu-mark.svg) are replaced; only the layout stays. Switched on per
+   browser (data-look="neu" on <html>, neu/look.ts); loaded last. */
+
+@import '@fontsource-variable/nunito';
+@import '@fontsource-variable/jetbrains-mono';
+
+/* ---- Tokens ---------------------------------------------------------- */
+
+:root[data-look='neu'] {
+  --n-bg: #1c1f2d;
+  --n-hi: #30354d;
+  --n-lo: #0b0d13;
+  --n-drop: rgba(0, 0, 0, 0.62);
+  --n-well: #191c29;
+  --n-text: #eef0fa;
+  --n-dim: #c4c8dc;
+  --n-faint: #9aa0bb;
+  --n-accent: #3ee6c8;
+  --n-on-accent: #06201b;
+  --n-good: #a8e05f;
+  --n-warn: #ffb057;
+  --n-bad: #ff7a7a;
+  --n-movie: #ffc857;
+  --n-tv: #3ddcff;
+  --n-music: #ff7eb6;
+  --n-book: #c8a2ff;
+  --n-audiobook: #ffa173;
+  --n-comic: #a8e05f;
+  --n-hair: rgba(255, 255, 255, 0.06);
+}
+:root[data-look='neu'][data-theme='light'] {
+  --n-bg: #e4e8ef;
+  --n-hi: #ffffff;
+  --n-lo: #adb5c4;
+  --n-drop: rgba(52, 62, 84, 0.28);
+  --n-well: #dce1e9;
+  --n-text: #1b1f26;
+  --n-dim: #3f4654;
+  --n-faint: #5b6372;
+  --n-accent: #0b7a6f;
+  --n-on-accent: #ffffff;
+  --n-good: #3e6b0a;
+  --n-warn: #9a4b00;
+  --n-bad: #b42318;
+  --n-movie: #8a5a00;
+  --n-tv: #00708f;
+  --n-music: #b0245e;
+  --n-book: #6b3fb5;
+  --n-audiobook: #a2440f;
+  --n-comic: #3e6b0a;
+  --n-hair: rgba(27, 31, 38, 0.08);
+}
+
+:root[data-look='neu'],
+:root[data-look='neu'][data-palette] {
+  /* raised: light from the top left, shade to the bottom right, and a wide
+     soft drop below so the piece floats over the page */
+  --n-up: 8px 8px 18px var(--n-lo), -7px -7px 16px var(--n-hi), 0 30px 46px -18px var(--n-drop), 0 46px 60px -34px var(--n-drop);
+  --n-up-sm: 4px 4px 10px var(--n-lo), -4px -4px 9px var(--n-hi), 0 14px 22px -10px var(--n-drop), 0 22px 30px -18px var(--n-drop);
+  /* floating: the same tile, lifted higher (hover) */
+  --n-float: 12px 12px 24px var(--n-lo), -9px -9px 20px var(--n-hi), 0 52px 64px -22px var(--n-drop), 0 76px 84px -42px var(--n-drop);
+  --n-float-sm: 6px 6px 14px var(--n-lo), -6px -6px 12px var(--n-hi), 0 34px 40px -14px var(--n-drop), 0 48px 54px -28px var(--n-drop);
+  --n-in: inset 5px 5px 11px var(--n-lo), inset -5px -5px 11px var(--n-hi);
+  --n-in-sm: inset 3px 3px 6px var(--n-lo), inset -3px -3px 6px var(--n-hi);
+  --n-r: 20px;
+
+  /* the app's own tokens, all from the Neu palette */
+  --font-display: 'Nunito Variable', ui-rounded, system-ui, sans-serif;
+  --font-body: 'Nunito Variable', ui-rounded, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+  --bg: var(--n-bg);
+  --surface: var(--n-bg);
+  --surface-2: var(--n-bg);
+  --panel-top: var(--n-bg);
+  --panel-bottom: var(--n-bg);
+  --border: var(--n-hair);
+  --rim: transparent;
+  --lift: var(--n-lo);
+  --text: var(--n-text);
+  --text-dim: var(--n-dim);
+  --text-faint: var(--n-faint);
+  --muted: var(--n-faint);
+  --accent: var(--n-accent);
+  --accent-hover: var(--n-accent);
+  --accent-pressed: var(--n-accent);
+  --accent-subtle: color-mix(in srgb, var(--n-accent) 12%, transparent);
+  --on-accent: var(--n-on-accent);
+  --focus-ring: color-mix(in srgb, var(--n-accent) 55%, transparent);
+  --accent-2: var(--n-accent);
+  --accent-2-subtle: color-mix(in srgb, var(--n-accent) 12%, transparent);
+  --success: var(--n-good);
+  --warning: var(--n-warn);
+  --danger: var(--n-bad);
+  --info: var(--n-accent);
+  --paper: var(--n-bg);
+  --paper-2: var(--n-well);
+  --radius: 12px;
+
+  /* one accent for every section; the media kinds keep their colours */
+  --c-dashboard: var(--n-accent);
+  --c-discover: var(--n-accent);
+  --c-library: var(--n-accent);
+  --c-wanted: var(--n-warn);
+  --c-calendar: var(--n-accent);
+  --c-rose: var(--n-music);
+  --c-activity: var(--n-accent);
+  --c-settings: var(--n-accent);
+  --c-profile: var(--n-accent);
+  --c-about: var(--n-accent);
+  --c-sports: var(--n-good);
+  --c-anime: var(--n-tv);
+  --c-comics: var(--n-comic);
+  --c-movie: var(--n-movie);
+  --c-tv: var(--n-tv);
+  --c-music: var(--n-music);
+  --c-book: var(--n-book);
+  --c-audiobook: var(--n-audiobook);
+  --on-sec: var(--n-on-accent);
+  --on-kind: var(--n-bg);
+  color-scheme: dark;
+}
+:root[data-look='neu'][data-theme='light'] { color-scheme: light; }
+
+:root[data-look='neu'] .app-shell,
+:root[data-look='neu'] .app-shell[data-section] {
+  --sec: var(--n-accent);
+  --sec-soft: color-mix(in srgb, var(--n-accent) 12%, transparent);
+  --sec-line: var(--n-hair);
+  --btn: var(--n-accent);
+  --on-btn: var(--n-on-accent);
+}
+
+/* ---- The page: one flat colour, no decorations ------------------------- */
+
+:root[data-look='neu'],
+:root[data-look='neu'] body,
+:root[data-look='neu'] #root,
+:root[data-look='neu'] .app-shell,
+:root[data-look='neu'] .main,
+:root[data-look='neu'] .content {
+  background: var(--n-bg) !important;
+  background-image: none !important;
+}
+:root[data-look='neu'] body {
+  font-family: var(--font-body);
+  color: var(--n-text);
+  -webkit-font-smoothing: antialiased;
+}
+:root[data-look='neu'] h1,
+:root[data-look='neu'] h2,
+:root[data-look='neu'] h3,
+:root[data-look='neu'] legend { font-family: var(--font-display); letter-spacing: -0.01em; }
+:root[data-look='neu'] h1 { font-weight: 850; letter-spacing: -0.025em; }
+:root[data-look='neu'] h2,
+:root[data-look='neu'] h3 { font-weight: 800; }
+:root[data-look='neu'] code,
+:root[data-look='neu'] .mono,
+:root[data-look='neu'] pre { font-family: var(--font-mono); }
+:root[data-look='neu'] * { text-shadow: none !important; }
+
+/* Mediarium's drifting shapes, ambient glows and sheens: gone. */
+:root[data-look='neu'] .ambient,
+:root[data-look='neu'] .hero-drift,
+:root[data-look='neu'] .drift-item,
+:root[data-look='neu'] .page-header::after,
+:root[data-look='neu'] .page-header h1::before,
+:root[data-look='neu'] button.primary::after { display: none !important; }
+
+:root[data-look='neu'] a { color: var(--n-accent); }
+:root[data-look='neu'] ::selection { background: color-mix(in srgb, var(--n-accent) 35%, transparent); }
+:root[data-look='neu'] input[type='checkbox'],
+:root[data-look='neu'] input[type='radio'],
+:root[data-look='neu'] input[type='range'],
+:root[data-look='neu'] progress { accent-color: var(--n-accent); }
+
+/* ---- Buttons: raised, pressed in when clicked --------------------------- */
+
+:root[data-look='neu'] button,
+:root[data-look='neu'] a.btn-link,
+:root[data-look='neu'] .link-pill,
+:root[data-look='neu'] .hero-pill {
+  font-family: var(--font-body);
+  font-weight: 700;
+  color: var(--n-text);
+  background: var(--n-bg);
+  border: 1px solid transparent;
+  border-radius: 14px;
+  box-shadow: var(--n-up-sm);
+  filter: none;
+}
+:root[data-look='neu'] button:hover:not(:disabled),
+:root[data-look='neu'] a.btn-link:hover { background: var(--n-bg); color: var(--n-accent); }
+:root[data-look='neu'] button:active:not(:disabled),
+:root[data-look='neu'] a.btn-link:active,
+:root[data-look='neu'] .link-pill:active {
+  transform: none;
+  box-shadow: var(--n-in-sm);
+}
+:root[data-look='neu'] button:disabled { box-shadow: none; opacity: 0.45; }
+:root[data-look='neu'] button.primary,
+:root[data-look='neu'] .btn-primary {
+  background: var(--n-accent) !important;
+  border-color: transparent !important;
+  color: var(--n-on-accent) !important;
+  box-shadow: var(--n-up-sm);
+}
+:root[data-look='neu'] button.primary:hover:not(:disabled) { filter: brightness(1.06); }
+:root[data-look='neu'] button.primary:active:not(:disabled) { box-shadow: inset 2px 2px 6px rgba(0, 0, 0, 0.3); }
+:root[data-look='neu'] button.danger-ghost,
+:root[data-look='neu'] button.danger { color: var(--n-bad) !important; background: var(--n-bg) !important; border-color: transparent !important; }
+:root[data-look='neu'] .icon-btn,
+:root[data-look='neu'] button.icon-btn { border-radius: 50%; }
+:root[data-look='neu'] .btn-link:not(button) { box-shadow: none; }
+
+/* Choices in a row: a well, the chosen one rises out of it. */
+:root[data-look='neu'] .seg {
+  background: var(--n-well);
+  box-shadow: var(--n-in-sm);
+  border: 0;
+  border-radius: 999px;
+  padding: 4px;
+  gap: 4px;
+}
+:root[data-look='neu'] .seg > button,
+:root[data-look='neu'] .seg > a {
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  border-radius: 999px;
+  color: var(--n-faint);
+}
+:root[data-look='neu'] .seg > button.active,
+:root[data-look='neu'] .seg > button[aria-pressed='true'],
+:root[data-look='neu'] .seg > button[aria-checked='true'],
+:root[data-look='neu'] .seg > button[aria-selected='true'] {
+  background: var(--n-bg);
+  color: var(--n-accent);
+  box-shadow: var(--n-up-sm);
+}
+
+/* Chips: raised; on, they are pressed in and take the accent. */
+:root[data-look='neu'] .chip,
+:root[data-look='neu'] .room-chip {
+  background: var(--n-bg);
+  border-color: transparent;
+  color: var(--n-dim);
+  box-shadow: var(--n-up-sm);
+  border-radius: 999px;
+}
+:root[data-look='neu'] .chip.active,
+:root[data-look='neu'] .chip[aria-pressed='true'] {
+  background: var(--n-well);
+  color: var(--n-accent);
+  border-color: transparent;
+  box-shadow: var(--n-in-sm);
+}
+
+/* ---- Fields: pressed into the page ---------------------------------------- */
+
+:root[data-look='neu'] input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']),
+:root[data-look='neu'] select,
+:root[data-look='neu'] textarea {
+  font-family: var(--font-body);
+  color: var(--n-text);
+  background: var(--n-well);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  box-shadow: var(--n-in-sm);
+}
+:root[data-look='neu'] input::placeholder,
+:root[data-look='neu'] textarea::placeholder { color: var(--n-faint); }
+:root[data-look='neu'] .omni-bar,
+:root[data-look='neu'] .omni-bar.ai,
+:root[data-look='neu'] .searchbox {
+  background: var(--n-well) !important;
+  border-color: transparent !important;
+  box-shadow: var(--n-in) !important;
+  border-radius: 999px;
+}
+:root[data-look='neu'] .omni-bar input,
+:root[data-look='neu'] .searchbox input { background: transparent; box-shadow: none; }
+
+/* ---- Panels: raised; a panel inside a panel is pressed in ------------------ */
+
+:root[data-look='neu'] .card,
+:root[data-look='neu'] .tile,
+:root[data-look='neu'] .mod-card,
+:root[data-look='neu'] .modal,
+:root[data-look='neu'] .menu-pop,
+:root[data-look='neu'] .searchbox-panel,
+:root[data-look='neu'] .empty-state,
+:root[data-look='neu'] .hero-welcome,
+:root[data-look='neu'] fieldset.group {
+  background: var(--n-bg) !important;
+  background-image: none !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--n-r) !important;
+  box-shadow: var(--n-up) !important;
+}
+:root[data-look='neu'] fieldset.group { padding-top: 22px; }
+:root[data-look='neu'] fieldset.group > legend {
+  color: var(--n-text);
+  background: var(--n-bg);
+  border: 0;
+  box-shadow: var(--n-up-sm);
+}
+:root[data-look='neu'] .card .card,
+:root[data-look='neu'] .tile .card,
+:root[data-look='neu'] .card fieldset.group,
+:root[data-look='neu'] fieldset.group fieldset.group,
+:root[data-look='neu'] .notice,
+:root[data-look='neu'] .badge,
+:root[data-look='neu'] .state-tag {
+  background: var(--n-well) !important;
+  background-image: none !important;
+  border-color: transparent !important;
+  box-shadow: var(--n-in-sm) !important;
+}
+:root[data-look='neu'] .notice { border-radius: 16px; color: var(--n-dim); }
+:root[data-look='neu'] .notice-warn { color: var(--n-warn); }
+:root[data-look='neu'] .mod-card:active { box-shadow: var(--n-in) !important; }
+:root[data-look='neu'] .stat-icon,
+:root[data-look='neu'] .tile-icon {
+  background: var(--n-well) !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: var(--n-in-sm) !important;
+}
+:root[data-look='neu'] .modal-backdrop {
+  background: color-mix(in srgb, var(--n-bg) 55%, transparent) !important;
+  backdrop-filter: blur(6px);
+}
+
+/* ---- Progress bars: a groove with the accent in it ---------------------- */
+
+:root[data-look='neu'] .bar {
+  background: var(--n-well) !important;
+  box-shadow: var(--n-in-sm);
+  border: 0;
+  border-radius: 999px;
+}
+:root[data-look='neu'] .bar > span {
+  background: var(--n-accent) !important;
+  background-image: none !important;
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+/* ---- Switches ------------------------------------------------------------ */
+
+:root[data-look='neu'] .switch-track {
+  background: var(--n-well) !important;
+  border-color: transparent !important;
+  box-shadow: var(--n-in-sm);
+}
+:root[data-look='neu'] .switch-thumb {
+  background: var(--n-bg) !important;
+  box-shadow: var(--n-up-sm);
+}
+
+/* ---- The menu ------------------------------------------------------------ */
+
+:root[data-look='neu'] .sidebar {
+  background: var(--n-bg) !important;
+  border-right: 0 !important;
+  box-shadow: none !important;
+}
+:root[data-look='neu'] .sidebar a {
+  color: var(--n-dim);
+  background: transparent;
+  border-radius: 16px;
+  margin-right: 10px;
+  font-weight: 700;
+}
+:root[data-look='neu'] .sidebar a:hover { color: var(--n-text); background: transparent; }
+:root[data-look='neu'] .sidebar a .nav-ico,
+:root[data-look='neu'] .sidebar a.active .nav-ico,
+:root[data-look='neu'] .sidebar a.parent-open .nav-ico,
+:root[data-look='neu'] .subnav a .nav-ico,
+:root[data-look='neu'] .subnav a.active .nav-ico {
+  background: transparent !important;
+  color: inherit;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+:root[data-look='neu'] .sidebar a.active,
+:root[data-look='neu'] .sidebar a.parent-open {
+  color: var(--n-text);
+  background: var(--n-well) !important;
+  box-shadow: var(--n-in) !important;
+  border-radius: 16px;
+  margin-right: 10px;
+}
+:root[data-look='neu'] .sidebar a.active .nav-ico,
+:root[data-look='neu'] .sidebar a.parent-open .nav-ico { color: var(--n-accent); }
+:root[data-look='neu'] .sidebar a.active::before,
+:root[data-look='neu'] .sidebar a.active::after { display: none; }
+:root[data-look='neu'] .subnav { border-left: 0; }
+:root[data-look='neu'] .subnav a { color: var(--n-dim); background: transparent !important; }
+:root[data-look='neu'] .subnav a.active,
+:root[data-look='neu'] .subnav a.sn-head.current,
+:root[data-look='neu'] .subnav .sn-pages a.sn-page.active {
+  color: var(--n-text);
+  background: var(--n-well) !important;
+  box-shadow: var(--n-in-sm);
+}
+:root[data-look='neu'] .subnav a.active .nav-ico { color: var(--sc, var(--n-accent)); }
+:root[data-look='neu'] .subnav .sn-pages { border-left-color: transparent; }
+:root[data-look='neu'] .nav-count { background: var(--n-well); color: var(--n-accent); box-shadow: var(--n-in-sm); }
+
+/* The top bar sits on the page. */
+:root[data-look='neu'] .topbar {
+  background: var(--n-bg) !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+/* ---- Icons and the logo -------------------------------------------------- */
+
+:root[data-look='neu'] .neu-ico,
+:root[data-look='neu'] .neu-glyph { flex: none; }
+:root[data-look='neu'] img.brand-mark,
+:root[data-look='neu'] img.usherr-glyph { border-radius: 28%; }
+
+/* ---- Posters: a soft frame, the art stays as it is -------------------------- */
+
+:root[data-look='neu'] .pcard {
+  background: var(--n-bg) !important;
+  border-color: transparent !important;
+  box-shadow: var(--n-up-sm) !important;
+  border-radius: 16px;
+}
+:root[data-look='neu'] .pcard:hover,
+:root[data-look='neu'] .pcard:focus-within { box-shadow: var(--n-up) !important; }
+:root[data-look='neu'] .pcard button { box-shadow: none; }
+
+/* ---- Tables ------------------------------------------------------------- */
+
+:root[data-look='neu'] th { color: var(--n-faint); font-weight: 700; border-color: var(--n-hair) !important; background: transparent !important; }
+:root[data-look='neu'] td { border-color: var(--n-hair) !important; }
+
+/* ---- The loading screen ---------------------------------------------------- */
+
+:root[data-look='neu'] .splash { background: var(--n-bg) !important; background-image: none !important; }
+:root[data-look='neu'] .splash-name { font-family: var(--font-display); font-weight: 850; color: var(--n-text); }
+:root[data-look='neu'] .splash-label { color: var(--n-faint); }
+
+/* ---- The frame: menu, top bar, tools --------------------------------------- */
+
+:root[data-look='neu'] .sidebar { border: 0 !important; border-image: none !important; }
+:root[data-look='neu'] .sidebar::before,
+:root[data-look='neu'] .sidebar::after { display: none !important; }
+:root[data-look='neu'] .brand-name { font-family: var(--font-display); font-weight: 850; color: var(--n-text) !important; letter-spacing: -0.02em; }
+:root[data-look='neu'] .main-area,
+:root[data-look='neu'] .top-actions,
+:root[data-look='neu'] .top-tools,
+:root[data-look='neu'] .top-search {
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+:root[data-look='neu'] .side-tool,
+:root[data-look='neu'] .omni-switch,
+:root[data-look='neu'] .top-icon {
+  background: var(--n-bg) !important;
+  color: var(--n-dim) !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  box-shadow: var(--n-up-sm) !important;
+}
+:root[data-look='neu'] .side-tool:hover,
+:root[data-look='neu'] .omni-switch:hover,
+:root[data-look='neu'] .top-icon:hover { color: var(--n-accent) !important; }
+:root[data-look='neu'] .side-tool:active,
+:root[data-look='neu'] .omni-switch.on,
+:root[data-look='neu'] .top-icon:active {
+  background: var(--n-well) !important;
+  color: var(--n-accent) !important;
+  box-shadow: var(--n-in-sm) !important;
+}
+
+/* The side stack: a raised panel, its empty state pressed in. */
+:root[data-look='neu'] .side-stack {
+  background: var(--n-bg) !important;
+  border: 0 !important;
+  border-radius: 18px !important;
+  box-shadow: var(--n-up) !important;
+}
+:root[data-look='neu'] .ss-empty {
+  border: 0 !important;
+  border-radius: 14px;
+  background: var(--n-well) !important;
+  box-shadow: var(--n-in-sm);
+}
+
+/* ---- Dashboard -------------------------------------------------------------- */
+
+:root[data-look='neu'] .news-line {
+  background: var(--n-well) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  box-shadow: var(--n-in-sm) !important;
+}
+:root[data-look='neu'] .news-line-tag { color: var(--n-accent) !important; background: transparent !important; }
+:root[data-look='neu'] .hero-welcome {
+  background: transparent !important;
+  box-shadow: none !important;
+  min-height: 0 !important;
+  padding-left: 4px !important;
+}
+:root[data-look='neu'] .health-item {
+  background: var(--n-well) !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  box-shadow: var(--n-in-sm) !important;
+}
+:root[data-look='neu'] .health-icon {
+  background: var(--n-bg) !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  box-shadow: var(--n-up-sm) !important;
+}
+:root[data-look='neu'] .health-item.level-error .health-icon { color: var(--n-bad) !important; }
+:root[data-look='neu'] .health-item.level-warning .health-icon,
+:root[data-look='neu'] .health-item.level-warn .health-icon { color: var(--n-warn) !important; }
+
+/* ---- Poster cards: one soft card for every kind (no ticket stubs, TV sets
+   or record sleeves): the art in a pressed-in frame, the words below. ---- */
+
+:root[data-look='neu'] .pcard,
+:root[data-look='neu'] .pcard[class*='kind-'] {
+  padding: 8px !important;
+  border-radius: 18px !important;
+  background: var(--n-bg) !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: var(--n-up-sm) !important;
+  transform: none !important;
+  filter: none !important;
+  clip-path: none !important;
+  mask: none !important;
+  -webkit-mask: none !important;
+}
+:root[data-look='neu'] .pcard:hover,
+:root[data-look='neu'] .pcard:focus-within { box-shadow: var(--n-up) !important; transform: none !important; }
+:root[data-look='neu'] .pcard.selected { box-shadow: var(--n-up), 0 0 0 2px var(--n-accent) !important; filter: none !important; }
+:root[data-look='neu'] .pcard::before,
+:root[data-look='neu'] .pcard::after,
+:root[data-look='neu'] .pcard .pcard-art::before,
+:root[data-look='neu'] .pcard .pcard-art::after,
+:root[data-look='neu'] .pcard .pcard-body::before,
+:root[data-look='neu'] .pcard .pcard-body::after,
+:root[data-look='neu'] .pcard .pcard-dash { display: none !important; content: none !important; }
+:root[data-look='neu'] .pcard .pcard-art {
+  border-radius: 12px !important;
+  overflow: hidden;
+  border: 0 !important;
+  background: var(--n-well) !important;
+  box-shadow: var(--n-in-sm) !important;
+  transform: none !important;
+  clip-path: none !important;
+  mask: none !important;
+  -webkit-mask: none !important;
+}
+:root[data-look='neu'] .pcard .pcard-art img { border-radius: 12px; }
+:root[data-look='neu'] .pcard .pcard-body {
+  background: transparent !important;
+  background-image: none !important;
+  color: var(--n-text) !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  clip-path: none !important;
+  mask: none !important;
+  -webkit-mask: none !important;
+  text-align: left !important;
+  padding: 10px 4px 2px !important;
+  font-family: var(--font-body) !important;
+}
+:root[data-look='neu'] .pcard .pcard-title { color: var(--n-text) !important; font-family: var(--font-body) !important; font-weight: 800 !important; letter-spacing: 0 !important; }
+:root[data-look='neu'] .pcard .pcard-meta,
+:root[data-look='neu'] .pcard .pcard-body small { color: var(--n-faint) !important; font-family: var(--font-body) !important; }
+:root[data-look='neu'] .pcard .pill {
+  background: color-mix(in srgb, var(--n-bg) 88%, transparent) !important;
+  color: var(--n-text) !important;
+  border: 0 !important;
+  box-shadow: var(--n-up-sm) !important;
+  backdrop-filter: blur(6px);
+  font-family: var(--font-body) !important;
+}
+
+/* The Library's kind picker and the compact bar. */
+:root[data-look='neu'] .kind-pick {
+  background: var(--n-bg) !important;
+  border: 0 !important;
+  border-radius: 14px !important;
+  box-shadow: var(--n-up-sm) !important;
+  color: var(--n-text) !important;
+}
+:root[data-look='neu'] .main-area::before,
+:root[data-look='neu'] .main-area::after,
+:root[data-look='neu'] .topbar::before,
+:root[data-look='neu'] .topbar::after { display: none !important; }
+
+/* ---- Activity ---------------------------------------------------------------- */
+
+:root[data-look='neu'] .waiting-list li,
+:root[data-look='neu'] .queue-item,
+:root[data-look='neu'] .hist-row {
+  background: var(--n-bg) !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-radius: 18px !important;
+  box-shadow: var(--n-up-sm) !important;
+}
+:root[data-look='neu'] .waiting-list li img { border-radius: 10px; }
+:root[data-look='neu'] .wait-search { font-family: var(--font-body) !important; color: var(--n-faint) !important; }
+:root[data-look='neu'] .ab-slot {
+  background: var(--n-bg) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  box-shadow: var(--n-up-sm) !important;
+  color: var(--n-dim) !important;
+}
+:root[data-look='neu'] .ab-slot.on { color: var(--n-text) !important; }
+:root[data-look='neu'] .ab-slot:active { box-shadow: var(--n-in-sm) !important; }
+:root[data-look='neu'] .act-quiet {
+  background: var(--n-well) !important;
+  border: 0 !important;
+  border-radius: 18px !important;
+  box-shadow: var(--n-in-sm) !important;
+}
+
+/* ---- The calendar ---------------------------------------------------------- */
+
+:root[data-look='neu'] .prog {
+  --line: var(--n-hair);
+  --cell: var(--n-bg);
+  --cell-wkend: var(--n-bg);
+  --lamp: var(--n-accent);
+}
+:root[data-look='neu'] .prog-month,
+:root[data-look='neu'] .prog-title h2 { font-family: var(--font-display) !important; font-weight: 850 !important; }
+:root[data-look='neu'] .prog-board {
+  background: var(--n-hair) !important;
+  border-radius: 22px !important;
+  box-shadow: var(--n-up) !important;
+}
+:root[data-look='neu'] .prog-dows span { background: var(--n-bg) !important; color: var(--n-faint) !important; font-family: var(--font-body) !important; font-weight: 800; }
+:root[data-look='neu'] .prog-cell.out { background: var(--n-bg) !important; }
+:root[data-look='neu'] .prog-cell.today {
+  background: var(--n-well) !important;
+  box-shadow: var(--n-in) !important;
+}
+:root[data-look='neu'] .prog-lamp { box-shadow: none !important; animation: none !important; }
+:root[data-look='neu'] .prog-console,
+:root[data-look='neu'] .prog-round,
+:root[data-look='neu'] .prog-today { background: var(--n-bg) !important; box-shadow: var(--n-up-sm) !important; border: 0 !important; }
+:root[data-look='neu'] .prog-console { background: var(--n-well) !important; box-shadow: var(--n-in-sm) !important; }
+:root[data-look='neu'] .prog-slot,
+:root[data-look='neu'] .prog-card {
+  border: 0 !important;
+  border-radius: 12px !important;
+  background: var(--n-bg) !important;
+  box-shadow: var(--n-up-sm) !important;
+}
+/* waiting: pressed in, the poster greyed */
+:root[data-look='neu'] .prog-slot.s-missing,
+:root[data-look='neu'] .prog-card.s-missing {
+  background: var(--n-well) !important;
+  box-shadow: var(--n-in-sm) !important;
+}
+:root[data-look='neu'] .prog-slot.late,
+:root[data-look='neu'] .prog-card.late { box-shadow: var(--n-in-sm), 0 0 0 1.5px color-mix(in srgb, var(--n-warn) 70%, transparent) !important; }
+:root[data-look='neu'] .prog-slot.s-downloading::after,
+:root[data-look='neu'] .prog-card.s-downloading::after {
+  background: var(--n-accent) !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+:root[data-look='neu'] .prog-slot-meta { font-family: var(--font-body) !important; font-weight: 700; }
+:root[data-look='neu'] .prog-thumb::before,
+:root[data-look='neu'] .prog-thumb::after { display: none !important; }
+:root[data-look='neu'] .prog-thumb { border-radius: 6px !important; overflow: hidden; transform: none !important; }
+:root[data-look='neu'] .prog-thumb img { border-radius: 6px !important; }
+
+/* The poster slot: a recess cut into the card, the poster (Posterizarr's art
+   later) sitting in it with a small rim of shadow all round. */
+:root[data-look='neu'] .pcard .pcard-art {
+  padding: 5px !important;
+  border-radius: 14px !important;
+  background: var(--n-well) !important;
+  box-shadow: inset 4px 4px 9px var(--n-lo), inset -3px -3px 8px var(--n-hi) !important;
+}
+:root[data-look='neu'] .pcard .pcard-art img,
+:root[data-look='neu'] .pcard .pcard-art .pcard-link { border-radius: 10px !important; overflow: hidden; }
+
+/* ---- A title's page --------------------------------------------------------- */
+
+/* The poster: no ticket stub, TV set or book cover; a raised card with the
+   art set into its recessed slot, like the Library's cards. */
+:root[data-look='neu'] .title-hero .title-side,
+:root[data-look='neu'] .title-hero[class*='kind-'] .title-side {
+  padding: 12px !important;
+  border-radius: 26px !important;
+  background: var(--n-bg) !important;
+  box-shadow: var(--n-up) !important;
+  filter: none !important;
+  transform: none !important;
+  animation: none !important;
+}
+:root[data-look='neu'] .title-side::after,
+:root[data-look='neu'] .title-hero .title-poster::before,
+:root[data-look='neu'] .title-hero .title-poster::after,
+:root[data-look='neu'] .title-stub,
+:root[data-look='neu'] .title-chin { display: none !important; }
+:root[data-look='neu'] .title-hero .title-poster,
+:root[data-look='neu'] .title-hero[class*='kind-'] .title-poster {
+  padding: 7px !important;
+  border-radius: 18px !important;
+  background: var(--n-well) !important;
+  box-shadow: inset 5px 5px 11px var(--n-lo), inset -4px -4px 10px var(--n-hi) !important;
+  mask: none !important;
+  -webkit-mask: none !important;
+  overflow: hidden;
+}
+:root[data-look='neu'] .title-hero .title-poster img { border-radius: 12px !important; }
+:root[data-look='neu'] .title-info { text-shadow: none !important; }
+:root[data-look='neu'] .title-year { font-family: var(--font-body) !important; font-weight: 700; }
+/* the little tags: pressed into the page, the colour only in the text */
+:root[data-look='neu'] .title-chips > span,
+:root[data-look='neu'] .title-hero .kind-tag,
+:root[data-look='neu'] .title-hero .state-tag,
+:root[data-look='neu'] .link-pill {
+  background: var(--n-well) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  box-shadow: var(--n-in-sm) !important;
+  backdrop-filter: none !important;
+  font-family: var(--font-body) !important;
+  font-weight: 700;
+}
+:root[data-look='neu'] .chip-genre { color: var(--n-dim) !important; }
+:root[data-look='neu'] .chip-rate svg { fill: var(--n-movie); color: var(--n-movie); }
+:root[data-look='neu'] .title-facts { border-color: var(--n-hair) !important; }
+:root[data-look='neu'] .title-facts dt { font-family: var(--font-body) !important; font-weight: 800; letter-spacing: 0.08em; }
+:root[data-look='neu'] .title-facts dd { font-family: var(--font-body) !important; font-weight: 800; }
+
+/* ---- Discover --------------------------------------------------------------- */
+
+:root[data-look='neu'] .taste-start,
+:root[data-look='neu'] .complete-teaser,
+:root[data-look='neu'] .recipes-bar {
+  background: var(--n-bg) !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-radius: 20px !important;
+  box-shadow: var(--n-up-sm) !important;
+  color: var(--n-text) !important;
+}
+:root[data-look='neu'] .complete-teaser:active { box-shadow: var(--n-in-sm) !important; }
+:root[data-look='neu'] .skeleton {
+  background: var(--n-well) !important;
+  background-image: none !important;
+  box-shadow: var(--n-in-sm) !important;
+  border-radius: 16px !important;
+}
+
+/* Settings' sub menu: no coloured tiles behind the icons. */
+:root[data-look='neu'] .subnav a.sn-head .nav-ico,
+:root[data-look='neu'] .subnav a.sn-head.current .nav-ico,
+:root[data-look='neu'] .subnav .sn-ico,
+:root[data-look='neu'] .subnav .sn-page.active .sn-ico {
+  background: transparent !important;
+  color: inherit !important;
+  box-shadow: none !important;
+}
+:root[data-look='neu'] .subnav a.sn-head.current .nav-ico,
+:root[data-look='neu'] .subnav .sn-page.active .sn-ico { color: var(--n-accent) !important; }
+:root[data-look='neu'] .subnav .sn-count { background: var(--n-well); color: var(--n-accent); box-shadow: var(--n-in-sm); }
+
+/* ---- Toasts ------------------------------------------------------------------ */
+
+:root[data-look='neu'] .toast {
+  background: var(--n-bg) !important;
+  border: 0 !important;
+  border-radius: 18px !important;
+  box-shadow: var(--n-up), 0 18px 40px -20px rgba(0, 0, 0, 0.35) !important;
+  color: var(--n-text) !important;
+}
+:root[data-look='neu'] .toast-icon {
+  background: var(--n-bg) !important;
+  box-shadow: var(--n-up-sm) !important;
+  color: var(--n-accent) !important;
+}
+:root[data-look='neu'] .toast-success .toast-icon { color: var(--n-good) !important; }
+:root[data-look='neu'] .toast-error .toast-icon { color: var(--n-bad) !important; }
+:root[data-look='neu'] .toast-warning .toast-icon,
+:root[data-look='neu'] .toast-warn .toast-icon { color: var(--n-warn) !important; }
+
+/* ---- Live TV ------------------------------------------------------------------ */
+
+:root[data-look='neu'] .tv-tune {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 16px !important;
+  white-space: normal;
+}
+:root[data-look='neu'] .tv-tune:active:not(:disabled) { box-shadow: var(--n-in-sm) !important; }
+:root[data-look='neu'] .tv-name { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
+
+/* ---- The colour choices: in Neu they pick the accent ------------------------------- */
+
+:root[data-look='neu'][data-palette='cherry'] { --n-accent: #ff7a7a; --n-on-accent: #2a0606; }
+:root[data-look='neu'][data-palette='amber'] { --n-accent: #ffb057; --n-on-accent: #2a1600; }
+:root[data-look='neu'][data-palette='emerald'] { --n-accent: #5ee08f; --n-on-accent: #04220f; }
+:root[data-look='neu'][data-palette='teal'] { --n-accent: #3ee6c8; --n-on-accent: #06201b; }
+:root[data-look='neu'][data-palette='blue'] { --n-accent: #6fb1ff; --n-on-accent: #04172e; }
+:root[data-look='neu'][data-palette='violet'] { --n-accent: #b39aff; --n-on-accent: #170a33; }
+:root[data-look='neu'][data-palette='rose'] { --n-accent: #ff8cc0; --n-on-accent: #2e0717; }
+:root[data-look='neu'][data-palette='graphite'] { --n-accent: #c4c8dc; --n-on-accent: #1c1f2d; }
+:root[data-look='neu'][data-theme='light'][data-palette='cherry'] { --n-accent: #b42318; --n-on-accent: #fff; }
+:root[data-look='neu'][data-theme='light'][data-palette='amber'] { --n-accent: #9a4b00; --n-on-accent: #fff; }
+:root[data-look='neu'][data-theme='light'][data-palette='emerald'] { --n-accent: #1d7a46; --n-on-accent: #fff; }
+:root[data-look='neu'][data-theme='light'][data-palette='teal'] { --n-accent: #0b7a6f; --n-on-accent: #fff; }
+:root[data-look='neu'][data-theme='light'][data-palette='blue'] { --n-accent: #1d4ed8; --n-on-accent: #fff; }
+:root[data-look='neu'][data-theme='light'][data-palette='violet'] { --n-accent: #6b3fb5; --n-on-accent: #fff; }
+:root[data-look='neu'][data-theme='light'][data-palette='rose'] { --n-accent: #b0245e; --n-on-accent: #fff; }
+:root[data-look='neu'][data-theme='light'][data-palette='graphite'] { --n-accent: #3f4654; --n-on-accent: #fff; }
+
+/* ---- Signing in ---------------------------------------------------------------- */
+
+:root[data-look='neu'] .auth-page,
+:root[data-look='neu'] .auth-page::before,
+:root[data-look='neu'] .auth-page::after {
+  background: var(--n-bg) !important;
+  background-image: none !important;
+}
+:root[data-look='neu'] .auth-page::before,
+:root[data-look='neu'] .auth-page::after { display: none !important; }
+:root[data-look='neu'] .auth-card {
+  background: var(--n-bg) !important;
+  border: 0 !important;
+  border-radius: 28px !important;
+  box-shadow: var(--n-up) !important;
+}
+:root[data-look='neu'] .auth-logo,
+:root[data-look='neu'] .auth-card h1 {
+  font-family: var(--font-display) !important;
+  font-weight: 850 !important;
+  color: var(--n-text) !important;
+  letter-spacing: -0.02em;
+}
+:root[data-look='neu'] .auth-mark { filter: none !important; box-shadow: var(--n-up-sm); border-radius: 28%; }
+
+/* ---- Phones -------------------------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  :root[data-look='neu'] .news-line { border-radius: 20px !important; }
+}
+:root[data-look='neu'] .sidebar .brand-name,
+:root[data-look='neu'] .splash-name,
+:root[data-look='neu'] .about-hero h1 span,
+:root[data-look='neu'] .auth-logo span {
+  font-family: var(--font-display) !important;
+  font-weight: 850 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--n-text) !important;
+}
+:root[data-look='neu'] .about-credit a { color: var(--n-accent) !important; }
+
+/* Switches, again: off is a groove with a grey knob, on fills with the accent. */
+:root[data-look='neu'] .switch-thumb { background: var(--n-faint) !important; box-shadow: 1px 1px 3px var(--n-lo) !important; }
+:root[data-look='neu'] .switch input:checked + .switch-track {
+  background: var(--n-accent) !important;
+  box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.25) !important;
+}
+:root[data-look='neu'] .switch input:checked + .switch-track .switch-thumb { background: #ffffff !important; }
+
+/* Ribbons on cards (a show that ended): a small raised chip; empty ones go. */
+:root[data-look='neu'] .pcard .pcard-ribbon {
+  background: var(--n-bg) !important;
+  color: var(--n-text) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  box-shadow: var(--n-up-sm) !important;
+  clip-path: none !important;
+  mask: none !important;
+  -webkit-mask: none !important;
+  font-family: var(--font-body) !important;
+}
+:root[data-look='neu'] .pcard .pcard-ribbon:empty { display: none !important; }
+
+/* Boxes that report something (an update, the legal notice). */
+:root[data-look='neu'] .update-box,
+:root[data-look='neu'] .legal-card {
+  background: var(--n-well) !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-radius: 18px !important;
+  box-shadow: var(--n-in-sm) !important;
+}
+:root[data-look='neu'] .update-box.ok { color: var(--n-good) !important; }
+:root[data-look='neu'] .legal-card .legal-head > :first-child { background: var(--n-bg) !important; border: 0 !important; box-shadow: var(--n-up-sm) !important; color: var(--n-warn) !important; }
+
+/* "In theaters now": each poster in its own slot too. */
+:root[data-look='neu'] .cinema-panel {
+  background: var(--n-bg) !important;
+  border: 0 !important;
+  border-radius: var(--n-r) !important;
+  box-shadow: var(--n-up) !important;
+}
+:root[data-look='neu'] .cinema-poster {
+  display: block;
+  padding: 5px;
+  border-radius: 14px !important;
+  background: var(--n-well) !important;
+  box-shadow: inset 4px 4px 9px var(--n-lo), inset -3px -3px 8px var(--n-hi) !important;
+  overflow: hidden;
+}
+:root[data-look='neu'] .cinema-poster img { border-radius: 10px !important; }
+:root[data-look='neu'] .cinema-title { color: var(--n-text) !important; font-weight: 800; }
+
+/* Rows that scroll sideways clip what spills out of them: room for the lift. */
+:root[data-look='neu'] .poster-scroll,
+:root[data-look='neu'] .shelf-row,
+:root[data-look='neu'] .cinema-strip,
+:root[data-look='neu'] .rail-scroll {
+  padding-block: 24px 30px !important;
+  margin-block: -24px -22px;
+  padding-inline: 4px;
+}
+
+/* ---- Floating tiles: cards hover over the page, rise under the pointer and
+   glide back down. The lift eases in and slows near the top (0.4 s); the
+   settle is a slower glide (0.55 s); a press is quick. On poster cards the
+   higher shadow is a layer of its own that fades in, so nothing is redrawn
+   frame by frame. -------------------------------------------------------- */
+:root[data-look='neu'] {
+  --n-lift: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --n-settle: cubic-bezier(0.45, 0, 0.25, 1);
+}
+:root[data-look='neu'] .pcard,
+:root[data-look='neu'] .mod-card,
+:root[data-look='neu'] .rp-voices li,
+:root[data-look='neu'] .rp-books button,
+:root[data-look='neu'] .waiting-list li {
+  transition: transform 0.55s var(--n-settle), box-shadow 0.55s var(--n-settle) !important;
+  will-change: transform;
+}
+:root[data-look='neu'] .pcard:hover,
+:root[data-look='neu'] .pcard:focus-within,
+:root[data-look='neu'] .rp-voices li:hover,
+:root[data-look='neu'] .rp-books button:hover,
+:root[data-look='neu'] .waiting-list li:hover,
+:root[data-look='neu'] .mod-card:hover {
+  transition: transform 0.4s var(--n-lift), box-shadow 0.4s var(--n-lift) !important;
+}
+:root[data-look='neu'] .pcard:hover,
+:root[data-look='neu'] .pcard:focus-within,
+:root[data-look='neu'] .rp-voices li:hover,
+:root[data-look='neu'] .rp-books button:hover,
+:root[data-look='neu'] .waiting-list li:hover {
+  transform: translateY(-10px) scale(1.02) !important;
+}
+:root[data-look='neu'] .rp-voices li:hover,
+:root[data-look='neu'] .rp-books button:hover,
+:root[data-look='neu'] .waiting-list li:hover { box-shadow: var(--n-float-sm) !important; }
+:root[data-look='neu'] .mod-card:hover {
+  transform: translateY(-8px) !important;
+  box-shadow: var(--n-float) !important;
+}
+/* poster cards: the card keeps its resting shadow; the higher one fades in */
+:root[data-look='neu'] .app-shell .pcard { position: relative; isolation: isolate; }
+:root[data-look='neu'] .app-shell .pcard:hover,
+:root[data-look='neu'] .app-shell .pcard:focus-within { box-shadow: var(--n-up-sm) !important; }
+:root[data-look='neu'] .app-shell .pcard::after {
+  display: block !important;
+  content: '' !important;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 34px 40px -14px var(--n-drop), 0 48px 54px -28px var(--n-drop);
+  opacity: 0;
+  transition: opacity 0.55s var(--n-settle);
+}
+:root[data-look='neu'] .app-shell .pcard:hover::after,
+:root[data-look='neu'] .app-shell .pcard:focus-within::after {
+  opacity: 1;
+  transition: opacity 0.4s var(--n-lift);
+}
+:root[data-look='neu'] .pcard:active,
+:root[data-look='neu'] .mod-card:active,
+:root[data-look='neu'] .rp-books button:active {
+  transform: translateY(1px) !important;
+  transition: transform 0.12s ease-out, box-shadow 0.12s ease-out !important;
+}
+/* the wide shadows need room under the last row of a panel */
+:root[data-look='neu'] .poster-grid { padding-bottom: 18px; }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-look='neu'] .pcard:hover,
+  :root[data-look='neu'] .pcard:focus-within,
+  :root[data-look='neu'] .mod-card:hover,
+  :root[data-look='neu'] .rp-voices li:hover,
+  :root[data-look='neu'] .rp-books button:hover,
+  :root[data-look='neu'] .waiting-list li:hover { transform: none !important; }
+}
+
+/* A poster card's hover buttons: round soft buttons floating over the art. */
+:root[data-look='neu'] .pcard .pcard-actions { gap: 6px !important; background: none !important; flex-wrap: wrap !important; justify-content: center !important; left: 8px !important; right: 8px !important; }
+:root[data-look='neu'] .pcard .pcard-actions .icon-btn {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  flex: none !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  display: grid !important;
+  place-items: center;
+  background: color-mix(in srgb, var(--n-bg) 90%, transparent) !important;
+  color: var(--n-text) !important;
+  border: 0 !important;
+  box-shadow: 0 6px 14px -4px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
+  backdrop-filter: blur(6px);
+}
+:root[data-look='neu'] .pcard .pcard-actions .icon-btn.primary-act {
+  background: var(--n-accent) !important;
+  color: var(--n-on-accent) !important;
+}
+:root[data-look='neu'] .pcard .pcard-actions .icon-btn.primary-act > span { display: none !important; }
+:root[data-look='neu'] .pcard .pcard-actions .icon-btn:hover:not(.primary-act),
+:root[data-look='neu'] .pcard .pcard-actions .icon-btn.on { color: var(--n-accent) !important; }
+:root[data-look='neu'] .pcard .pcard-actions .icon-btn.danger { color: var(--n-bad) !important; }
+:root[data-look='neu'] .pcard .pcard-actions .icon-btn:active { transform: scale(0.94); }
+/* Mediarium's appear-on-load animation holds the card's transform and stops
+   the lift from easing: Neu cards appear without it. */
+:root[data-look='neu'] .pcard,
+:root[data-look='neu'] .poster-grid > .pcard { animation: none !important; }
+
+/* No headphones on audiobooks, no record peeking out of music, no ribbon or
+   page edges on books: each cover sits plainly in its slot, full width
+   (square for audiobooks and music, as their covers are). */
+:root[data-look='neu'] .pcard .pcard-phones,
+:root[data-look='neu'] .pcard .pcard-disc,
+:root[data-look='neu'] .pcard .pcard-bookmark { display: none !important; }
+:root[data-look='neu'] .pcard[class*='kind-'] .pcard-art {
+  margin: 0 !important;
+  overflow: hidden !important;
+  transform: none !important;
+}
+:root[data-look='neu'] .pcard[class*='kind-'] .pcard-link,
+:root[data-look='neu'] .pcard[class*='kind-'] .pcard-art > img,
+:root[data-look='neu'] .pcard[class*='kind-'] .pcard-art > .poster-fallback {
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+
+/* ---- Comics and NSFW: the same floating tile as every other poster card,
+   the cover (or the video's still) sitting in a recessed slot. ------------- */
+:root[data-look='neu'] .cx-grid,
+:root[data-look='neu'] .sc-grid { gap: 18px; padding-bottom: 18px; }
+:root[data-look='neu'] .cx-card,
+:root[data-look='neu'] .sc-card {
+  position: relative;
+  isolation: isolate;
+  padding: 8px;
+  border: 0 !important;
+  border-radius: 18px !important;
+  background: var(--n-bg) !important;
+  box-shadow: var(--n-up-sm) !important;
+  color: var(--n-text);
+  overflow: visible !important;
+  transition: transform 0.55s var(--n-settle), box-shadow 0.55s var(--n-settle) !important;
+  will-change: transform;
+}
+:root[data-look='neu'] .cx-card { gap: 3px; text-align: left; font: inherit; cursor: pointer; }
+:root[data-look='neu'] .cx-card,
+:root[data-look='neu'] .cx-card:hover,
+:root[data-look='neu'] .cx-card *,
+:root[data-look='neu'] .sc-card a,
+:root[data-look='neu'] .sc-card a:hover { text-decoration: none !important; }
+:root[data-look='neu'] .cx-card .hint { font-size: 0.85em; }
+:root[data-look='neu'] .cx-card::after,
+:root[data-look='neu'] .sc-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 34px 40px -14px var(--n-drop), 0 48px 54px -28px var(--n-drop);
+  opacity: 0;
+  transition: opacity 0.55s var(--n-settle);
+}
+:root[data-look='neu'] .cx-card:hover,
+:root[data-look='neu'] .cx-card:focus-visible,
+:root[data-look='neu'] .sc-card:hover,
+:root[data-look='neu'] .sc-card:focus-within {
+  transform: translateY(-10px) scale(1.02);
+  transition: transform 0.4s var(--n-lift), box-shadow 0.4s var(--n-lift) !important;
+}
+:root[data-look='neu'] .cx-card:hover::after,
+:root[data-look='neu'] .cx-card:focus-visible::after,
+:root[data-look='neu'] .sc-card:hover::after,
+:root[data-look='neu'] .sc-card:focus-within::after { opacity: 1; transition: opacity 0.4s var(--n-lift); }
+:root[data-look='neu'] .cx-card:active,
+:root[data-look='neu'] .sc-card:active {
+  transform: translateY(1px);
+  transition: transform 0.12s ease-out, box-shadow 0.12s ease-out !important;
+}
+:root[data-look='neu'] .cx-card:disabled { cursor: default; }
+:root[data-look='neu'] .cx-card:disabled:hover { transform: none; }
+:root[data-look='neu'] .cx-card:disabled:hover::after { opacity: 0; }
+:root[data-look='neu'] .sc-card.sc-selected { box-shadow: var(--n-up-sm), 0 0 0 2px var(--n-accent) !important; }
+/* the slot: a rim of shadow round the cover */
+:root[data-look='neu'] .cx-grid .cx-card > img,
+:root[data-look='neu'] .cx-grid .cx-card > .cx-noimg,
+:root[data-look='neu'] .sc-card .sc-thumb {
+  padding: 5px;
+  border-radius: 14px;
+  background: var(--n-well);
+  box-shadow: inset 4px 4px 9px var(--n-lo), inset -3px -3px 8px var(--n-hi);
+  margin-bottom: 6px;
+}
+:root[data-look='neu'] .sc-card .sc-thumb img { border-radius: 10px; }
+:root[data-look='neu'] .sc-card,
+:root[data-look='neu'] .sc-card > a,
+:root[data-look='neu'] .sc-card .sc-pick,
+:root[data-look='neu'] .sc-card .sc-playthumb,
+:root[data-look='neu'] .sc-card .sc-thumb,
+:root[data-look='neu'] .cx-card { min-width: 0; }
+:root[data-look='neu'] .sc-card .sc-thumb { width: 100%; box-sizing: border-box; }
+:root[data-look='neu'] .cx-card strong,
+:root[data-look='neu'] .sc-card .sc-title { color: var(--n-text); font-weight: 800; padding-inline: 4px; }
+:root[data-look='neu'] .cx-card .hint,
+:root[data-look='neu'] .cx-card .cx-count { padding-inline: 4px; color: var(--n-faint); }
+:root[data-look='neu'] .sc-card .sc-sub { color: var(--n-faint); }
+:root[data-look='neu'] .sc-card .sc-meta { padding: 4px 4px 2px; }
+:root[data-look='neu'] .sc-card .sc-foot { padding: 6px 4px 2px; }
+:root[data-look='neu'] .sc-card > a:hover .sc-title { color: var(--n-accent); }
+:root[data-look='neu'] .sc-card .sc-playthumb,
+:root[data-look='neu'] .sc-card .sc-pick { background: none; border: 0; box-shadow: none; padding: 0; color: inherit; text-align: left; }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-look='neu'] .cx-card:hover,
+  :root[data-look='neu'] .sc-card:hover,
+  :root[data-look='neu'] .sc-card:focus-within { transform: none; }
+}
+
+/* the pinned Library/Discover bar and the strip over it are the page's colour */
+:root[data-look='neu'] .cbar,
+:root[data-look='neu'] .cbar::before { background: var(--n-bg) !important; }
+:root[data-look='neu'] .bks-top,
+:root[data-look='neu'] .bks-top::before { background: var(--n-bg) !important; }
+
+/* the news headlines are plain text in a row, with room round the dots */
+:root[data-look='neu'] .news-line-item {
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 2px 0 !important;
+  min-height: 0 !important;
+  transform: none !important;
+}
+:root[data-look='neu'] .news-line-item:hover { color: var(--n-accent) !important; }
+:root[data-look='neu'] .news-line-dot { margin: 0 22px; color: var(--n-faint); }
+
+/* Tonight's window: the picks sit straight in it */
+:root[data-look='neu'] .tonight-modal .tonight-card { background: none !important; box-shadow: none !important; border: 0 !important; padding: 0 !important; margin: 0 !important; }
+:root[data-look='neu'] .topbar button.top-tonight { border-radius: 999px; }
+
+/* the filter drawer's handle: a raised tab hanging under the top bar */
+:root[data-look='neu'] .cbar-pull { background: var(--n-bg) !important; border: 0 !important; box-shadow: var(--n-up-sm) !important; border-radius: 0 0 16px 16px !important; color: var(--n-faint) !important; }
+:root[data-look='neu'] .cbar-pull:hover { color: var(--n-text) !important; }
+:root[data-look='neu'] .cbar.down .cbar-pull { color: var(--n-accent) !important; }

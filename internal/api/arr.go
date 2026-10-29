@@ -7,6 +7,7 @@ import (
 	"github.com/rdborg/mediarium/internal/brand" // Usherr
 	"log/slog"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -102,6 +103,12 @@ func (s *Server) arrHandler(app arrApp) http.Handler {
 	h("GET", "/queue/status", s.arrQueueStatus(app))
 	h("GET", "/queue/details", s.arrQueueDetails(app))
 	h("DELETE", "/queue/{id}", s.arrDeleteQueueItem(app))
+	h("DELETE", "/queue/bulk", s.arrBulkDeleteQueue)
+	h("POST", "/queue/grab/{id}", s.arrGrabQueueItem)
+	h("GET", "/filesystem", s.arrFilesystem)
+	h("GET", "/filesystem/type", s.arrFilesystemType)
+	h("GET", "/filesystem/mediafiles", s.arrFilesystemMediaFiles)
+	h("GET", "/log/file", arrEmptyList)
 	h("GET", "/wanted/missing", s.arrWantedMissing(app))
 	h("GET", "/calendar", s.arrCalendar(app))
 	h("GET", "/indexer", s.arrIndexers)
@@ -126,6 +133,8 @@ func (s *Server) arrHandler(app arrApp) http.Handler {
 	h("GET", "/rename", arrEmptyList)
 	h("GET", "/manualimport", arrEmptyList)
 
+	app.extraRoutes(s, h)
+
 	switch app {
 	case arrRadarr:
 		h("GET", "/movie", s.arrListMovies)
@@ -140,6 +149,9 @@ func (s *Server) arrHandler(app arrApp) http.Handler {
 		h("GET", "/moviefile", s.arrMovieFiles)
 		h("GET", "/moviefile/{id}", s.arrGetMovieFile)
 		h("GET", "/history/movie", s.arrHistoryList(arrRadarr))
+		h("GET", "/credit", s.arrCredits)
+		h("GET", "/mediacover/{id}/{file}", s.arrMediaCover(arrRadarr))
+		mux.HandleFunc("GET /mediacover/{id}/{file}", s.arrMediaCover(arrRadarr))
 		h("GET", "/release", s.arrListReleases(arrRadarr))
 		h("POST", "/release", s.arrGrabRelease(arrRadarr))
 		h("POST", "/release/push", arrPushRelease)
@@ -159,6 +171,8 @@ func (s *Server) arrHandler(app arrApp) http.Handler {
 		h("GET", "/episodefile", s.arrEpisodeFiles)
 		h("GET", "/episodefile/{id}", s.arrGetEpisodeFile)
 		h("GET", "/history/series", s.arrHistoryList(arrSonarr))
+		h("GET", "/mediacover/{id}/{file}", s.arrMediaCover(arrSonarr))
+		mux.HandleFunc("GET /mediacover/{id}/{file}", s.arrMediaCover(arrSonarr))
 		h("GET", "/release", s.arrListReleases(arrSonarr))
 		h("POST", "/release", s.arrGrabRelease(arrSonarr))
 		h("POST", "/release/push", arrPushRelease)
@@ -192,6 +206,11 @@ func (s *Server) arrHandler(app arrApp) http.Handler {
 		}
 		path := strings.ToLower(strings.TrimPrefix(r.URL.Path, "/"+string(app)))
 		path = strings.TrimRight(path, "/")
+		if path == "/ping" || path == app.apiPrefix()+"/ping" {
+			// The health check some apps make before anything else.
+			writeJSON(w, http.StatusOK, map[string]string{"status": "OK"})
+			return
+		}
 		if path == "/api" || path == "" {
 			// Homarr's connection test, and what the real apps answer there.
 			writeJSON(w, http.StatusOK, map[string]any{"current": strings.TrimPrefix(app.apiPrefix(), "/api/"), "deprecated": []string{}})
@@ -218,7 +237,16 @@ func (s *Server) arrHandler(app arrApp) http.Handler {
 		}
 		sw := &arrStatusWriter{ResponseWriter: w, status: http.StatusOK}
 		mux.ServeHTTP(sw, r2)
-		slog.Debug("arr: request answered", "app", string(app), "method", r.Method, "path", r.URL.Path, "status", sw.status)
+		// The query is shown too, as the settings of the request (sort, page,
+		// filters), so an empty card can be matched to what the app asked for.
+		var asked []string
+		for k, v := range r.URL.Query() {
+			if !strings.EqualFold(k, "apikey") && len(v) > 0 && len(v[0]) <= 60 {
+				asked = append(asked, k+"="+v[0])
+			}
+		}
+		sort.Strings(asked)
+		slog.Debug("arr: request answered", "app", string(app), "method", r.Method, "path", r.URL.Path, "query", strings.Join(asked, "&"), "status", sw.status)
 	})
 }
 

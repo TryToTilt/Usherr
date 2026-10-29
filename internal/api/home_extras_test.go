@@ -7,8 +7,8 @@ func TestExtrasAddressHelpers(t *testing.T) {
 		"localhost:8264": true, "127.0.0.1:8264": true, "[::1]:8264": true, "app.localhost": true,
 		"192.168.1.20:8264": false, "media.example.com": false,
 	} {
-		if got := isLoopbackHost(host); got != want {
-			t.Errorf("isLoopbackHost(%q) = %v", host, got)
+		if got := isLocalHostport(host); got != want {
+			t.Errorf("isLocalHostport(%q) = %v", host, got)
 		}
 	}
 	for in, want := range map[string]string{

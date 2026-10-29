@@ -22,7 +22,10 @@ const BookshelfApp = lazy(() => import('./bookshelf/BookshelfApp'))
 const Marquee = lazy(() => import('./home/Marquee')) // Usherr: the lobby display
 const MarqueeRemote = lazy(() => import('./home/MarqueeRemote')) // Usherr: the Marquee's phone remote
 const MarqueeHub = lazy(() => import('./home/MarqueeHub')) // Usherr: the Marquee's own page
+const PreshowSettings = lazy(() => import('./home/PreshowSettings')) // Usherr: the pre-show
 const ShowtimePage = lazy(() => import('./home/ShowtimePage')) // Usherr: Showtimes at home
+const SportsPage = lazy(() => import('./home/Sports')) // Usherr: Sports
+const SportsLeaguePage = lazy(() => import('./home/Sports').then((m) => ({ default: m.SportsLeaguePage }))) // Usherr
 
 // The main pages are fetched as they are opened, not with the first load, so the
 // page that opens first is ready sooner (the rest is a big part of the program).
@@ -117,6 +120,8 @@ const ComicSeriesPage = lazy(() => import('./home/Comics').then((m) => ({ defaul
 const ComicArcPage = lazy(() => import('./home/ComicArcs').then((m) => ({ default: m.ComicArcPage })))
 const TV = lazy(() => import('./home/TV'))
 const Streamed = lazy(() => import('./home/Streamed'))
+const ReadToMePage = lazy(() => import('./home/ReadToMePage')) // Usherr: Read-to-Me
+const ConnectApp = lazy(() => import('./pages/ConnectApp'))
 
 // Pages only an administrator can use. A member who opens one (for example
 // by typing its address) is sent somewhere they can use instead.
@@ -188,6 +193,14 @@ function Gate() {
           </Suspense>
         }
       />
+      <Route
+        path="/connect-app"
+        element={
+          <Suspense fallback={<Splash label={t('Loading')} />}>
+            <ConnectApp />
+          </Suspense>
+        }
+      />
       <Route element={<AppShell />}>
         <Route index element={<Dashboard />} />
         <Route path="/search" element={<Search />} />
@@ -218,7 +231,10 @@ function Gate() {
         <Route path="/you" element={<You />} /> {/* home fork: your taste, votes and more */}
         <Route path="/marquee/remote" element={<AdminOnly><MarqueeRemote /></AdminOnly>} /> {/* Usherr */}
         <Route path="/marquee/manage" element={<AdminOnly><MarqueeHub /></AdminOnly>} /> {/* Usherr */}
+        <Route path="/preshow/manage" element={<AdminOnly><PreshowSettings /></AdminOnly>} /> {/* Usherr */}
         <Route path="/showtime" element={<ShowtimePage />} /> {/* Usherr: Showtimes at home */}
+        <Route path="/sports" element={<SportsPage />} /> {/* Usherr: Sports */}
+        <Route path="/sports/league/:id" element={<SportsLeaguePage />} /> {/* Usherr */}
         <Route path="/you/diary" element={<You tab="diary" />} /> {/* home fork */}
         <Route path="/you/wrapped" element={<You tab="wrapped" />} /> {/* home fork */}
         <Route path="/queue" element={<Queue />} />
@@ -232,6 +248,8 @@ function Gate() {
         <Route path="/comics/arc/:id" element={<ComicArcPage />} />
         <Route path="/tv" element={<TV />} />
         <Route path="/streamed" element={<Streamed />} />
+        <Route path="/read-to-me" element={<ReadToMePage />} />
+        <Route path="/read-to-me/:bookId" element={<ReadToMePage />} />
         <Route path="/apps/:id" element={<AppFrame />} />
         <Route path="/help" element={<Guide />} />
         <Route path="/help/:topic" element={<Guide />} />

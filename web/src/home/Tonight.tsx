@@ -1,8 +1,9 @@
-// Home fork: Tonight, on the Dashboard. One tap asks the AI for three things
+// Home fork: Tonight, from the top bar (Usherr: the button beside the dice). One tap asks the AI for three things
 // to watch tonight, from what you're in the middle of, the next episodes of
 // your shows and films you have but haven't seen (from Jellyfin or Emby).
 // Nothing is asked until you tap, and the answer is kept for the evening.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import Icon from '../components/Icon'
 import { currentLanguage, t } from '../i18n'
@@ -39,7 +40,7 @@ function labelOf(p: Pick): string {
   }
 }
 
-export default function Tonight({ autoAsk }: { autoAsk?: boolean } = {}) {
+export default function Tonight({ autoAsk, onPick }: { autoAsk?: boolean; onPick?: () => void } = {}) {
   const [on, setOn] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -101,7 +102,7 @@ export default function Tonight({ autoAsk }: { autoAsk?: boolean } = {}) {
       {answer && answer.items.length > 0 && (
         <div className="tonight-list">
           {answer.items.map((p) => (
-            <Link key={`${p.kind}-${p.tmdbId}`} to={p.to} className="tonight-item">
+            <Link key={`${p.kind}-${p.tmdbId}`} to={p.to} className="tonight-item" onClick={onPick}>
               {p.posterUrl ? <img src={p.posterUrl} alt="" loading="lazy" /> : <span className="tonight-noposter" />}
               <span className="tonight-body">
                 <small>{labelOf(p)}</small>
@@ -116,5 +117,50 @@ export default function Tonight({ autoAsk }: { autoAsk?: boolean } = {}) {
         </div>
       )}
     </section>
+  )
+}
+
+// Usherr: the top bar's button beside the dice. It opens Tonight in a window,
+// asking straight away (or showing this evening's answer again). Hidden when
+// the AI is off.
+export function TonightButton() {
+  const [on, setOn] = useState(false)
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    fetch('/api/home/ai/on', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : { on: false }))
+      .then((d: { on: boolean }) => setOn(d.on))
+      .catch(() => undefined)
+  }, [])
+  useEffect(() => {
+    if (open) box.current?.focus()
+  }, [open])
+  if (!on) return null
+  const close = () => setOpen(false)
+  return (
+    <>
+      <button type="button" className="icon-btn top-tonight" onClick={() => setOpen(true)} title={t('What should I watch tonight?')}>
+        <Icon name="sparkles" size={19} />
+        <span className="top-tonight-label">{t("Tonight's picks")}</span>
+      </button>
+      {open &&
+        createPortal(
+          <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && close()} onKeyDown={(e) => e.key === 'Escape' && close()}>
+            <div ref={box} tabIndex={-1} className="modal roulette tonight-modal" role="dialog" aria-modal="true" aria-label={t('Tonight')}>
+              <div className="roulette-head">
+                <h2>
+                  <Icon name="sparkles" size={18} /> {t('Tonight')}
+                </h2>
+                <button className="icon-btn" onClick={close} aria-label={t('Close')}>
+                  <Icon name="x" size={16} />
+                </button>
+              </div>
+              <Tonight autoAsk onPick={close} />
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
   )
 }

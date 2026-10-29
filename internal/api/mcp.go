@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -134,6 +136,11 @@ func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 		mcpReply(w, http.StatusNotFound, "MCP is switched off. An administrator can turn on Let AI assistants connect (MCP) in Settings > Other apps.")
 		return
 	}
+	if r.Method == http.MethodOptions {
+		oauthCORS(w)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		mcpReply(w, http.StatusMethodNotAllowed, "Send MCP messages with POST.")
@@ -142,11 +149,19 @@ func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 	key := mcpKey(r)
 	var user *auth.User
 	if key != "" {
-		user, _ = s.Auth.UserForAPIKey(key)
+		if auth.HasOAuthTokenPrefix(key) {
+			user, _ = s.Auth.UserForOAuthToken(key)
+		} else {
+			user, _ = s.Auth.UserForAPIKey(key)
+		}
 	}
 	if user == nil {
-		w.Header().Set("WWW-Authenticate", `Bearer realm="mediarium"`)
-		mcpReply(w, http.StatusUnauthorized, "Send an administrator's API key as a Bearer token.")
+		challenge := `Bearer realm="mediarium", resource_metadata="` + s.resourceMetadataURL(r) + `"`
+		if key != "" {
+			challenge += `, error="invalid_token"`
+		}
+		w.Header().Set("WWW-Authenticate", challenge)
+		mcpReply(w, http.StatusUnauthorized, "Send an administrator's API key as a Bearer token, or sign in with OAuth.")
 		return
 	}
 	if !user.IsAdmin {
@@ -240,7 +255,13 @@ func rpcFail(id json.RawMessage, code int, message string) *rpcResponse {
 
 // handleMessage answers one JSON-RPC message. It returns nil for a
 // notification (a message without an id), which gets no answer.
-func (c *mcpCtx) handleMessage(raw json.RawMessage) *rpcResponse {
+func (c *mcpCtx) handleMessage(raw json.RawMessage) (answer *rpcResponse) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("mcp: a message crashed", "panic", fmt.Sprint(r), "stack", string(debug.Stack()))
+			answer = rpcFail(nil, rpcInternalError, "Something went wrong inside Mediarium while handling that. An administrator can find the details in the log.")
+		}
+	}()
 	var req rpcRequest
 	if err := json.Unmarshal(raw, &req); err != nil {
 		return rpcFail(nil, rpcInvalidRequest, "That isn't a JSON-RPC message.")

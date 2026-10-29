@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { neuKind } from '../neu/icons' // Usherr Neu
 
 // The small drawing for each kind of media, the same shapes the posters use:
 // a ticket, a TV set, a record, a book with its ribbon, headphones. Drawn in
@@ -14,6 +15,8 @@ export type GlyphKind = 'movie' | 'tv' | 'music' | 'book' | 'audiobook' | 'comic
 export default function KindGlyph({ kind, size = 28, variant = 'line' }: { kind: GlyphKind; size?: number; variant?: 'line' | 'solid' }) {
   const id = useId().replace(/:/g, '')
   const solid = variant === 'solid'
+  const Neu = neuKind(kind) // Usherr Neu: Lucide's icon
+  if (Neu) return <Neu className={`kind-glyph neu-glyph g-${kind}`} size={size} strokeWidth={1.8} aria-hidden="true" />
   const body = solid ? `url(#b${id})` : undefined
   return (
     <svg

@@ -263,12 +263,12 @@ const aboutOf = (tg: StreamTarget): StreamExtras['about'] => ({ kind: tg.kind ==
 
 // Usherr's own engine keeps the other releases in line: "Try another release"
 // (and a release that breaks part-way) plays the next one from where it was.
-function nextExtras(st: StreamStart, title: string, onKeep?: () => void, about?: StreamExtras['about']): StreamExtras | undefined {
+export function nextExtras(st: StreamStart, title: string, onKeep?: () => void, about?: StreamExtras['about'], sport?: string): StreamExtras | undefined {
   if (!st.canNext) return undefined
   return {
     onNext: async (at) => {
       const n = await streamApi.next(st.id)
-      playStream(n, title, onKeep, { ...nextExtras(n, title, onKeep, about), startAt: at && at > 1 ? at : undefined, about })
+      playStream(n, title, onKeep, { ...nextExtras(n, title, onKeep, about, sport), startAt: at && at > 1 ? at : undefined, about, sport })
     },
   }
 }

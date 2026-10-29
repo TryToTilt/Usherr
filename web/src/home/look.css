@@ -3,7 +3,7 @@
    and the Library's tab row on Comics and NSFW 18+ (links there) looks like
    the Library's own kind tabs. */
 
-:root { --c-live: var(--c-rose); --c-comics: var(--c-wanted); --c-nsfw: var(--c-rose); }
+:root { --c-live: var(--c-rose); --c-comics: var(--c-wanted); --c-nsfw: var(--c-rose); --c-sports: var(--c-activity); }
 /* Secondary text in fork pages: v3 calls it --text-faint. (--muted was never
    defined, so captions showed at full strength.) */
 :root { --muted: var(--text-faint); }
@@ -111,3 +111,5 @@
   .dash-cards > .mod-wrap:nth-child(5) { grid-column: auto; }
   .dash-cards > .mod-wrap:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
+/* Usherr: the Sports card's notch: a trophy. */
+.mod-k-sports { --sil: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><path fill='%23fff' d='M18 6h28v6h10v6a12 12 0 0 1-11.4 12A14 14 0 0 1 36 39.5V48h8v8H20v-8h8v-8.5A14 14 0 0 1 19.4 30 12 12 0 0 1 8 18v-6h10zm0 12h-4a6 6 0 0 0 4 5.6zm28 0v5.6a6 6 0 0 0 4-5.6z'/></svg>"); }

@@ -137,7 +137,7 @@ func planSeasonPackFor(profile quality.Profile, sr library.Series, eps []library
 		}
 		switch ep.Status {
 		case library.StatusMissing:
-			if ep.AirDate != "" && ep.AirDate <= today {
+			if ep.AirDate != "" && ep.AirDate <= today && !ep.AirsLater(now) {
 				missing++
 			}
 		case library.StatusDownloaded:

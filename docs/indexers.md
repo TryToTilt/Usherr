@@ -22,6 +22,18 @@ The list on this page is sorted by that number, lowest first, and by name when t
 
 Under the address, each card says how its last test went ("Last test passed 2 hours ago", or why it failed). **Test all** above the list tests every enabled indexer, one after another, and says which did not answer.
 
+### Why some indexers are missing from a release list
+
+A release list (**Choose a release**) starts with a line like *Searched 8 indexers: 2 had releases, 5 had nothing for this title, 1 did not answer.* Press it to see every indexer in a table: its type, what it found (*12 releases*, *Nothing found*, *Did not answer: daily limit used up*, *Skipped: does not list this kind of release*) and how long it took. Seeing only a few indexers in the **Any indexer** list is normal when the others simply have nothing for that title. A movie site has no shows, and a Usenet indexer may not carry a new or small release. An indexer that did not answer is marked with a warning sign, and the table says why. Two reasons come with a full sentence under the result, and the technical text on a line below it:
+
+- *FlareSolverr isn't running or Mediarium can't reach it at http://127.0.0.1:8191. Start FlareSolverr, or set its address under Settings > Indexers & Search.* It shows the address Mediarium used (without any login in it). The site needs FlareSolverr to pass a Cloudflare check, and nothing answered at that address: start FlareSolverr, or fix the address ([Sites behind a Cloudflare check](#sites-behind-a-cloudflare-check)).
+- *This site says the page is gone (HTTP 410). The site may have moved or closed. Check its address, or turn it off.* The site answered a search with "gone" (410) or "not found" (404). Sites move and close. Open the indexer, check its address against the site's own, or turn it off.
+
+When a movie's list is empty, the line above it tells which of three things happened: an indexer did not answer (it is named), nothing was found (*Your indexers answered, but none of them has this yet*), or releases did come back but none of them fits the movie's title and year (*Your indexers answered with releases, but none of them fits this title and year*, followed by the names of a few of them). In the last case the movie in your library most likely has a different name or year from the releases, for example a re-release year or a title with the maker's name in front; compare those names with the movie's title and year on its page. A release that fits the title but is turned down by your quality profile or size limits is never left out: it stays in the list, marked with the reason. (Reported by Hoopes80 on GitHub, #121.)
+
+The same sentences are used on the indexer card (after **Test**, with the technical text under it), in the pause reason and in the problem log, which keeps the technical text as the detail.
+
+
 ## When an indexer keeps failing
 
 An indexer that is down, blocks you or limits your requests would otherwise slow every search and fill the Health page with the same error. After **3 failures in a row** (a site that cannot be reached, an HTTP 5xx error, a Cloudflare page, a refused key) Mediarium leaves it out of searches for a while: 5 minutes first, then 10, 20, 40 and so on, up to 6 hours. An indexer that says you made too many requests is paused at once, for as long as it asks with its `Retry-After` header (and at least 5 minutes, at most 6 hours).
@@ -39,6 +51,8 @@ Searches on one indexer are also spaced out, a second and a half apart (six seco
 An indexer whose saved key or password can't be read (usually because the `secret.key` in `/config` is not the one that belongs to this database) is a different problem: Mediarium can't ask it at all. **Health** names it ("Mediarium can't read the saved key of ...: re-enter it"), the log says the same, and it is left out of searches while your other indexers keep working. Open it, enter the key again and save.
 
 When the error on an indexer card (the pause reason, the last test or a test you just ran) is one that a newer version already fixed, and you run an older one, a line under it says "This is fixed in 3.2.1. Update Mediarium and press Try again." The list of known errors is in `web/src/knownFixes.ts`.
+
+Health adds one line when your indexers as a group can't search. **No indexer is set up** only appears when you haven't added one. If they are all turned off, it says *All your indexers are turned off*. If you only have torrent indexers and torrents are off, it says so and links to the torrent settings. If every indexer that is turned on is failing (paused, or its last search or test failed), it says *None of your indexers works right now*. One indexer that still works is enough to hide it.
 
 Scripts: `POST /api/indexers/{id}/resume` is **Try again now**; `GET /api/indexers` adds `failures`, `pausedUntil`, `pausedNote` and `pausedWhy` to a paused indexer.
 
@@ -180,7 +194,7 @@ services:
     #   - "8191:8191"
 ```
 
-Then set its address in the **Cloudflare sites (optional)** section of Settings > Indexers & Search (stored as `flaresolverr.url`, `flareSolverrUrl` in `GET/PUT /api/settings`): `http://flaresolverr:8191` when both are in the same compose file, otherwise `http://<host>:8191`. With no address set, Cloudflare-protected sites fail with the message above.
+Then set its address in the **Cloudflare sites (optional)** section of Settings > Indexers & Search (stored as `flaresolverr.url`, `flareSolverrUrl` in `GET/PUT /api/settings`): `http://flaresolverr:8191` when both are in the same compose file, otherwise `http://<host>:8191`. With no address set, Cloudflare-protected sites fail with the message above. With an address that nothing answers on (FlareSolverr stopped, or the wrong host or port), the site's card, a release list and Health's pause reason say *FlareSolverr isn't running or Mediarium can't reach it at ...* with that address.
 
 Cloudflare's clearance is tied to your IP address and the browser's User-Agent, so FlareSolverr should reach the internet the same way Mediarium does (same host, same VPN or none). The built-in helper of the `-full` image does while **Send indexer traffic through the VPN** is off, because it runs in the same container. With the switch on, Mediarium's own requests use the VPN but FlareSolverr's don't, which breaks that rule unless FlareSolverr is behind the same VPN.
 

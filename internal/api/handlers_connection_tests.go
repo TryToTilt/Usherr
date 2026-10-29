@@ -22,6 +22,10 @@ import (
 type connTestResult struct {
 	OK      bool   `json:"ok"`
 	Message string `json:"message"`
+	// Detail is the technical text behind Message when Message is an
+	// explanation written for the person (FlareSolverr not answering, a site
+	// that says its page is gone).
+	Detail string `json:"detail,omitempty"`
 }
 
 const connTestTimeout = 15 * time.Second

@@ -5,6 +5,156 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.7.2] - 2026-10-29
+
+### Added
+
+- A guide page for the pre-show (themes, Only when..., schedules, clips, coming-soon trailers, the Jellyfin app), in the in-app guide too, and the guide brought up to date: picking up where you left off, Usherr's look (Neu, main colours, the menu drawer), Read-to-Me and Sports in the README.
+- The setup wizard's Extras step has a Pre-show card, and the Setup checklist shows the pre-show in the Jellyfin app, coming-soon trailers, Sports and Read-to-Me.
+- Tooltips on the pre-show page's controls: the theme editor, schedules, clips, trailers and the Jellyfin app.
+
+## [2.7.1] - 2026-10-29
+
+### Changed
+
+- The menu goes away with a click or touch anywhere outside it, on a wide screen too.
+
+## [2.7.0] - 2026-10-29
+
+### Added
+
+- Coming-soon trailers downloaded ahead for the pre-show (after NeXroll's NeX-Up): the trailers of films you want, your shows' new seasons and the most talked-about films coming to and showing in cinemas, fetched with yt-dlp within 60 days of the release (4K, or the best each trailer has), every few hours a few at a time, and removed 14 days after the release or once the film is in the library, under a 10 GB cap. They play at once, in the Jellyfin app too; the pre-show takes the household's own and upcoming ones first. Pre-show page → Coming-soon trailers: what's ready and waiting, Watch, Keep, Remove, Look now, and when they come and go.
+- New pre-show cards: Coming soon before each trailer (its poster and when it comes), a coming-soon reel of posters, an announcement in your own words, and a QR code for Usherr; drawn live and, for the Jellyfin app, as short videos.
+- The image has yt-dlp, its YouTube helper and Deno.
+
+## [2.6.5] - 2026-10-28
+
+### Changed
+
+- The pre-show plays full screen (asked for at the start, kept for the film; a Full screen button when the browser wants a click first, as for a Showtime that starts by itself).
+- YouTube trailers play without captions, in the pre-show and on the Marquee (the pre-show also turns off captions a trailer forces on).
+
+## [2.6.4] - 2026-10-28
+
+### Fixed
+
+- A pre-show clip still arriving can't play cut short: uploads are written under a hidden name and named once whole, a file copied into the folder waits until it has settled (20 seconds unchanged), and the Jellyfin pre-show leaves out a clip whose file is still being written.
+
+## [2.6.3] - 2026-10-28
+
+### Added
+
+- The film gets ready while the Jellyfin pre-show plays: Usherr reads its start and end through Jellyfin, so a streamed copy (nzbdav's or a .strm) is fetching before its turn.
+- A slot with both sound and picture ticked can play when either matches ("Any ticked sound or picture is enough"), for files whose labels aren't all there.
+- The theme editor's One clip: a slot that plays a chosen clip shows (and picks) it.
+
+### Fixed
+
+- The Jellyfin pre-show judges the sound and picture by the copy Jellyfin plays, not the library's own release of the film.
+
+## [2.6.2] - 2026-10-28
+
+### Added
+
+- A pre-show theme's slot can play only in a holiday's season (Only when… → Season: chosen holidays, or any holiday), for clips like a Halloween "Presented by".
+
+## [2.6.1] - 2026-10-28
+
+### Added
+
+- The pre-show in the Jellyfin app: Usherr answers the NeXroll Intros plugin (`/plugin/intros`, with its own key and signed links), so the same pre-show plays before films in every Jellyfin app: your clips, and the cards made into short videos in the Marquee's colours (welcome with the film's poster, the rating, silence your phones, the countdown, the feature presentation). YouTube trailers are left out there for now. The Marquee follows each piece as Jellyfin plays it.
+- Pre-show page → In the Jellyfin app: Set it up adds the plugin's repository and installs it, Restart Jellyfin (only when nobody is playing) loads it, and Usherr gives the plugin its address and key. Before films (on), before episodes (off), and the theme.
+
+## [2.6.0] - 2026-10-28
+
+### Added
+
+- The pre-show: Usherr's own, after NeXroll. Clips from a pre-show folder (one folder level is the category: Bumpers, Halloween, Christmas...) or uploaded, themes made of blocks (welcome card, a clip from a category, holiday clips, coming-soon trailers, the rating card, silence your phones, the countdown, the feature), each with "Only when..." conditions (genre, rating, sound and picture formats, movie or episode, time of day), and schedules (holidays built in, dates, weekdays, hours) that pick the theme. "Movie night" and "Quick start" are ready out of the box. Clips and trailers rotate least-lately-played first, and the plan fits a time budget.
+- A booked Showtime runs its pre-show so the feature starts on the minute; each person can also have it before any film. Skip and Skip the pre-show are always there. The Marquee follows each piece ("Coming soon" with the poster, the rating, the countdown).
+- Settings → Movie night → Pre-show: themes, schedules, clips, theater name and trailer length.
+
+### Fixed
+
+- The settings menu: the group of the page you're on stays open when clicked, the Movie night group (Marquee, Pre-show) is reachable from any page, and on a phone opening a group shows its pages instead of jumping to the first.
+
+## [2.5.6] - 2026-10-28
+
+### Added
+
+- Everything picks up where you left off: movies, episodes, NSFW videos, streams and sports games open at the place you stopped, and comics at the page, kept for each person on the server (`home_positions`), so on any device. The player says "Picked up at …" with a Start over button, and Start over stays in its top bar. Finished (past 95%, or the last 45 seconds) or barely begun (under 15 seconds), it starts at the beginning. Live TV and the channels are live and never resumed.
+- Start over in the ebook reader, the audiobook player and the Bookshelf's comic reader; a book or comic read to the end opens at the start again.
+
+### Changed
+
+- Music starts each song from the top: the queue kept from last time no longer picks up part-way through a track.
+
+## [2.5.5] - 2026-10-28
+
+### Added
+
+- A main colour for the whole app, under the highlight colour (Settings → General): Midnight navy, Espresso, Forest, Plum, Oxblood, Ocean, Stone or OLED black, each with a dark and a light look, or the highlight's own tint as before. Kept per browser. Made by `tools/usherr/bases.py` into `usherr-bases.css`.
+
+## [2.5.4] - 2026-10-28
+
+**Changed**
+- Posters first: the menu is a hamburger drawer on every screen. On a wider screen it stays open while you move between pages and slides away after 8 seconds with no mouse movement over it (or with the hamburger, or Escape).
+- The filter bar of the Library, Discover, Upcoming, Wanted, Diary, Comics and NSFW pulls down from under the top bar; closed, a slim handle says what is showing. It stays open or closed as you left it.
+- Rows by sits beside the sort (Music's Genre too), and the Comics kind pick is its own size.
+
+## [2.5.3] - 2026-10-28
+
+**Changed**
+- Tonight's picks moved from the wide Dashboard button to the top bar, beside the dice: it opens in a window from any page and asks straight away.
+
+**Fixed**
+- Usherr Neu: the news ticker's headlines have room between them instead of running into each other.
+
+## [2.5.2] - 2026-10-28
+
+**Fixed**
+- The pinned filter bar (Library, Discover, Upcoming, Wanted, Diary) and the Books header no longer leave a slit under the top bar that posters scroll through.
+
+## [2.5.1] - 2026-10-28
+
+**Changed**
+- Usherr Neu: Comics and NSFW cards float in recessed slots and lift on hover, like every other library.
+
+## [2.5.0] - 2026-10-28
+
+**New**
+- **Usherr Neu**: a soft, raised look of Usherr's own (light and dark, new icons and font, covers in recessed slots, floating tiles). Pick it in Settings › General › Look; Usherr Classic stays the default.
+- **The Read-to-Me page**: making an audiobook moved from the pop-up to a full page, in colour-coded steps that fold, with hints on every part and a guide that walks new readers through it.
+- A poster size slider in every library: Music, Ebooks, Audiobooks, Comics, Discover and NSFW (Find too).
+
+**Changed**
+- The library totals moved from the Dashboard to Statistics, which now shows every kind (anime, books, comics, sports too) with streams counted; each card opens its library.
+
+## [2.4.0] - 2026-10-27
+
+Built on **Mediarium 3.8.0** (everything in Mediarium 3.4.0 to 3.8.0 is in, see [CHANGELOG.md](CHANGELOG.md)).
+
+**New**
+- **Read-to-Me**: make an audiobook from an ebook with Kokoro or Chatterbox. Pick the voice, the speed and the chapters, listen while it is made, and get a notice when it is done. A full cast gives the dialogue its own voices. Presets, a pronunciation list, lines read again, and copied voices (a WAV put in the voices folder becomes a voice).
+- **Sports**, stacked on Sportarr with Usherr's own TheSportsDB engine: leagues, teams and games for everyone, games streamed with your language first, live scores and a Dashboard card.
+- **Marquee Sports**: scoreboard, tonight's games, score ticker, kick-off countdown, and the game being watched as a matchup card.
+- From Mediarium: calendar times in your own time zone, too-short files turned away at import, custom season numbering, a Quality profile filter and sort in the Library, Ended and Continuing filters for shows, more Discover filters (original language, lowest rating, runtime), and much faster big libraries.
+
+**Changed**
+- The Library and Settings menus keep Usherr's way: open on their own pages, folded elsewhere, one at a time.
+
+**Fixed**
+- Household members can get their own Stremio and Nuvio add-on link: the card is on the **You** page too (Extras is for administrators).
+- Each NZB is fetched from the indexer once.
+
+## [2.3.0] - 2026-10-21
+
+Built on **Mediarium 3.3.0**.
+
+**New**
+- **Skip intro**: a button in Usherr's player while an intro plays, from the file's chapters (Intro, Opening, OP...) or Jellyfin's Intro Skipper segments; when the credits are known, *Up next* comes up as they start.
+- **Releases that play**: Usherr's streaming engine remembers which release groups and indexers open, fail to open, break part-way or get *Try another release*, and puts the ones that keep failing at the back of the list.
+- The Marquee shows something that starts playing in Usherr's player within seconds, not at its next look.
+
 ## [2.2.0] - 2026-10-21
 
 Built on **Mediarium 3.3.0**.

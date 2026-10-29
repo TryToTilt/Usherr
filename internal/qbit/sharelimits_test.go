@@ -66,6 +66,7 @@ func TestAddSendsShareLimits(t *testing.T) {
 		{"time only means no ratio limit", ShareLimits{Time: 90 * time.Minute}, "abc", false, true, "-1", "90"},
 		{"under a minute rounds up", ShareLimits{Time: 10 * time.Second}, "abc", false, true, "-1", "1"},
 		{"both zero sends nothing", ShareLimits{}, "abc", false, false, "", ""},
+		{"do not seed stops it at ratio 0", ShareLimits{NoSeed: true}, "abc", false, true, "0", "-1"},
 		{"no hash: only in the add call", ShareLimits{Ratio: 1}, "", false, true, "1", "-1"},
 		{"failed limit call doesn't fail the add", ShareLimits{Ratio: 1}, "abc", true, true, "1", "-1"},
 	}

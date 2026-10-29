@@ -8,6 +8,7 @@ Mediarium is licensed under the GNU Affero General Public License v3.0 (see LICE
 - [Packages bundled into the web app](#web-app-packages) (48)
 - [Fonts](#fonts) (3)
 - [Tools in the Docker images](#tools-in-the-docker-images)
+- [Data from other services](#data-from-other-services)
 
 ## Tools in the Docker images
 
@@ -23,6 +24,14 @@ The images install these from Alpine Linux (the standard image) or Debian (the `
 | tzdata | time zones | public domain |
 
 The `-full` image is built on the official FlareSolverr image (MIT), which brings Python, Chromium and their own licences: see https://github.com/FlareSolverr/FlareSolverr.
+
+## Data from other services
+
+| Service | What Mediarium uses it for | Licence |
+|---|---|---|
+| [TVmaze](https://www.tvmaze.com) | the time episodes air, shown on the calendar | CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/) |
+
+Air times from TVmaze. Only a show's TheTVDB or IMDb id, or its name and year, is sent to it, and it can be switched off under Settings > Metadata.
 
 ## Go modules
 

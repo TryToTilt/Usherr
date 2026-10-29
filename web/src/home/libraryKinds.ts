@@ -34,3 +34,20 @@ export function useNsfwOn(admin: boolean): boolean {
   }, [admin])
   return on
 }
+
+// useSportsOn: whether Sports shows in the menu (Usherr). Administrators
+// always see it, to set it up.
+export function useSportsOn(admin: boolean): boolean {
+  const [on, setOn] = useState(admin)
+  useEffect(() => {
+    if (admin) {
+      setOn(true)
+      return
+    }
+    fetch('/api/home/sports/on', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : { on: false }))
+      .then((d: { on: boolean }) => setOn(d.on))
+      .catch(() => setOn(false))
+  }, [admin])
+  return on
+}

@@ -305,7 +305,7 @@ func (s *Server) importLetterboxd(ctx context.Context, uid int64, exp *lbExport,
 				uid, strconv.Itoa(id), f.Name, f.Year)
 		}
 	}
-	s.fillRuntimes(ctx, uid)
+	s.fillDiaryRuntimes(ctx, uid)
 	s.markRewatches(ctx, uid)
 }
 
@@ -393,9 +393,9 @@ func pickFilm(res []metadata.Movie, name string, year int) int {
 	return best
 }
 
-// fillRuntimes looks up how long the dated films without a running time
+// fillDiaryRuntimes looks up how long the dated films without a running time
 // are, for Wrapped's hours.
-func (s *Server) fillRuntimes(ctx context.Context, uid int64) {
+func (s *Server) fillDiaryRuntimes(ctx context.Context, uid int64) {
 	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT tmdb_id FROM home_diary WHERE user_id = ? AND kind = 'movie' AND runtime = 0 AND dated = 1`, uid)
 	if err != nil {
 		return
@@ -531,6 +531,6 @@ func (s *Server) importTrakt(ctx context.Context, uid int64, user string, st *di
 			add(diaryEntry{Kind: rt.Kind, TMDBID: rt.TMDBID, Title: rt.Title, Year: rt.Year, WatchedOn: day(rt.RatedAt), Dated: false, Stars: rt.Rating, Source: "trakt"})
 		}
 	}
-	s.fillRuntimes(ctx, uid)
+	s.fillDiaryRuntimes(ctx, uid)
 	s.markRewatches(ctx, uid)
 }

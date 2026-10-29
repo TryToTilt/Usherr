@@ -83,6 +83,10 @@ test('file filters', () => {
     { name: 'missing a language: it has it', media: nightHarbour, filters: { nal: 'de' }, want: false },
     { name: 'missing a language: it lacks it', media: tidePool, filters: { nal: 'de' }, want: true },
     { name: 'missing a language: not read', media: undefined, filters: { nal: 'de' }, want: false },
+    { name: 'missing subtitles: it has them', media: nightHarbour, filters: { nsl: 'nl' }, want: false },
+    { name: 'missing subtitles: it lacks them', media: tidePool, filters: { nsl: 'nl' }, want: true },
+    { name: 'missing subtitles: a show with none listed', media: show, filters: { nsl: 'nl' }, want: true },
+    { name: 'missing subtitles: not read', media: undefined, filters: { nsl: 'nl' }, want: false },
     { name: 'filters add up', media: nightHarbour, filters: { vc: 'HEVC', al: 'de', sl: 'nl', res: '2160p' }, want: true },
     { name: 'filters add up, one fails', media: nightHarbour, filters: { vc: 'HEVC', al: 'de', sl: 'fr' }, want: false },
   ]

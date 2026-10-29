@@ -7,12 +7,17 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
+	"slices"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/mediainfo"
+	"github.com/rdborg/mediarium/internal/subtitles"
 )
 
 // What the library's video files hold (video codec, HDR, audio and subtitle
@@ -38,6 +43,9 @@ const (
 	// mediaInfoKickDelay lets the rest of a season pack finish importing.
 	mediaInfoKickDelay = 4 * time.Second
 	mediaSummaryTTL    = 15 * time.Second
+	// mediaSummaryMaxStale is how old the lists may be and still be handed out
+	// while they are renewed in the background; older ones are waited for.
+	mediaSummaryMaxStale = 10 * time.Minute
 )
 
 // mediaInfoSettle: a file changed more recently than this may still be being
@@ -50,16 +58,26 @@ type mediaInfoState struct {
 	kicked atomic.Bool // a pass after an import is already waiting to start
 	gen    atomic.Int64
 
-	mu        sync.Mutex
-	summaries *mediaSummaries
+	mu      sync.Mutex             // one build of the lists below at a time (media_cache.go)
+	folders map[string]folderNames // folder listings, for the subtitle files beside the videos
+
+	cache cacheState // who may read the two pointers above, and the renewals in progress (media_cache.go)
+}
+
+// folderNames is the files in one folder, valid while the folder's time is
+// the same.
+type folderNames struct {
+	mtime time.Time
+	names []string
 }
 
 // mediaSummaries is what the Library lists need, kept for a short time.
 type mediaSummaries struct {
-	at     time.Time
-	gen    int64
-	movies map[int64]library.MediaSummary
-	series map[int64][]library.MediaSummary
+	at       time.Time
+	gen      int64
+	sidecars bool // the subtitle files beside the videos were looked at too
+	movies   map[int64]library.MediaSummary
+	series   map[int64][]library.MediaSummary
 }
 
 type miOutcome int
@@ -130,7 +148,8 @@ func (s *Server) saveFileInfo(path string, known mediaRoots, settle bool) miOutc
 		slog.Warn("media info: couldn't save a file's details", "err", err)
 		return miSkipped
 	}
-	s.mediaInfo.gen.Add(1)
+	// The lists are not thrown away for every file read (a read pass saves
+	// several a second): they renew themselves every few seconds anyway.
 	return miDone
 }
 
@@ -185,6 +204,7 @@ func (s *Server) mediaInfoJob(ctx context.Context) {
 	defer s.mediaInfo.run.Unlock()
 	until := time.Now().Add(mediaInfoRunFor)
 	n := s.readPendingMediaInfo(ctx, until, true, mediaInfoPause)
+	s.fillRuntimes(ctx, time.Now().Add(2*time.Minute)) // what the Library needs to tell a cut-off file from a real one
 
 	known := mediaRoots{}
 	changed := 0
@@ -205,9 +225,7 @@ func (s *Server) mediaInfoJob(ctx context.Context) {
 		}
 		time.Sleep(mediaInfoPause)
 	}
-	if gone, err := s.MovieRepo.PruneMediaInfo(); err == nil && gone > 0 {
-		s.mediaInfo.gen.Add(1)
-	}
+	_, _ = s.MovieRepo.PruneMediaInfo()
 	if n > 0 || changed > 0 {
 		slog.Info("media info: read the details of files", "new", n, "changed", changed)
 	}
@@ -319,16 +337,38 @@ func mediaSummaryOf(list ...library.MediaSummary) *mediaSummaryPayload {
 }
 
 // mediaSummaryNow returns the file details of every movie and show, kept for
-// a few seconds and renewed when a file has been read since.
-func (s *Server) mediaSummaryNow() *mediaSummaries {
+// a few seconds and renewed when a file has been read since. Looking for
+// subtitle files beside the videos touches every folder on the disks, which
+// is slow on a big library or a network share, so sidecars says whether the
+// caller needs it.
+func (s *Server) mediaSummaryNow(sidecars bool) *mediaSummaries {
+	st := &s.mediaInfo
+	cur := st.cache.summaries()
+	if cur != nil && cur.gen == st.gen.Load() && (cur.sidecars || !sidecars) {
+		if time.Since(cur.at) < mediaSummaryTTL {
+			return cur
+		}
+		// Out of date, but of the right kind: hand it out and renew it in the
+		// background rather than make this request wait for the whole library.
+		if time.Since(cur.at) < mediaSummaryMaxStale {
+			st.cache.renew(&st.cache.renewingSummaries, func() { s.buildMediaSummaries(sidecars) })
+			return cur
+		}
+	}
+	return s.buildMediaSummaries(sidecars)
+}
+
+// buildMediaSummaries reads the lists afresh (unless another caller has just
+// done so) and keeps them.
+func (s *Server) buildMediaSummaries(sidecars bool) *mediaSummaries {
 	st := &s.mediaInfo
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	gen := st.gen.Load()
-	if st.summaries != nil && st.summaries.gen == gen && time.Since(st.summaries.at) < mediaSummaryTTL {
-		return st.summaries
+	if cur := st.cache.summaries(); cur != nil && cur.gen == gen && time.Since(cur.at) < mediaSummaryTTL && (cur.sidecars || !sidecars) {
+		return cur
 	}
-	out := &mediaSummaries{at: time.Now(), gen: gen}
+	out := &mediaSummaries{at: time.Now(), gen: gen, sidecars: sidecars}
 	var err error
 	if out.movies, err = s.MovieRepo.MovieMediaSummaries(); err != nil {
 		slog.Warn("media info: couldn't read the movies' file details", "err", err)
@@ -336,8 +376,85 @@ func (s *Server) mediaSummaryNow() *mediaSummaries {
 	if out.series, err = s.MovieRepo.SeriesMediaSummaries(); err != nil {
 		slog.Warn("media info: couldn't read the shows' file details", "err", err)
 	}
-	st.summaries = out
+	if sidecars {
+		s.addSidecarSubtitles(out)
+	}
+	st.cache.setSummaries(out)
 	return out
+}
+
+// addSidecarSubtitles adds the languages of the subtitle files that sit next
+// to the videos (movie.en.srt) to what each title's files hold, so a title
+// with a subtitle file in a language counts as having it, like one with the
+// track inside the video. The caller holds st.mu.
+func (s *Server) addSidecarSubtitles(out *mediaSummaries) {
+	st := &s.mediaInfo
+	moviePaths, seriesPaths, err := s.MovieRepo.MediaFilePaths()
+	if err != nil {
+		slog.Warn("media info: couldn't list the files to look beside for subtitles", "err", err)
+		return
+	}
+	seen := map[string]folderNames{}
+	langsOf := func(video string) []string {
+		dir := filepath.Dir(video)
+		f, ok := seen[dir]
+		if !ok {
+			f = st.folders[dir]
+			fi, err := os.Stat(dir)
+			if err != nil {
+				return nil
+			}
+			if f.names == nil || !f.mtime.Equal(fi.ModTime()) {
+				f = folderNames{mtime: fi.ModTime()}
+				if entries, err := os.ReadDir(dir); err == nil {
+					f.names = make([]string, 0, len(entries))
+					for _, e := range entries {
+						if !e.IsDir() {
+							f.names = append(f.names, e.Name())
+						}
+					}
+				}
+			}
+			seen[dir] = f
+		}
+		var langs []string
+		for lang := range subtitles.DiskHaveFromNames(video, f.names) {
+			if c := mediainfo.LanguageCode(lang); c != "" {
+				langs = append(langs, c)
+			}
+		}
+		return langs
+	}
+	join := func(have string, extra []string) string {
+		all := mediainfo.Split(have)
+		for _, l := range extra {
+			if !slices.Contains(all, l) {
+				all = append(all, l)
+			}
+		}
+		return strings.Join(all, ",")
+	}
+	for id, p := range moviePaths {
+		if ms, ok := out.movies[id]; ok {
+			ms.SLangs = join(ms.SLangs, langsOf(p))
+			out.movies[id] = ms
+		}
+	}
+	for id, paths := range seriesPaths {
+		var extra []string
+		for _, p := range paths {
+			for _, l := range langsOf(p) {
+				if !slices.Contains(extra, l) {
+					extra = append(extra, l)
+				}
+			}
+		}
+		if len(extra) > 0 && out.series != nil {
+			sort.Strings(extra)
+			out.series[id] = append(out.series[id], library.MediaSummary{SLangs: strings.Join(extra, ",")})
+		}
+	}
+	st.folders = seen // folders no title uses any more are dropped
 }
 
 // fileInfoPayload is the full details of one file for a detail page.

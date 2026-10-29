@@ -105,6 +105,8 @@ func TestFileDetailsAreReadAndShown(t *testing.T) {
 		}
 		ids[name] = m
 	}
+	// A subtitle file beside a video counts like a track inside it.
+	writeBody(t, filepath.Join(movies, "Tide Pool (2019)", "Tide.Pool.2019.1080p.de.srt"), "1 Hallo")
 	night := ids["Night Harbour (2021)/Night.Harbour.2021.2160p.mkv"]
 	tide := ids["Tide Pool (2019)/Tide.Pool.2019.1080p.mkv"]
 
@@ -152,7 +154,7 @@ func TestFileDetailsAreReadAndShown(t *testing.T) {
 	if fmt.Sprint(nm["audioLangs"]) != "[en de]" || fmt.Sprint(nm["audioCodecs"]) != "[TrueHD AC-3]" || fmt.Sprint(nm["subLangs"]) != "[nl]" || fmt.Sprint(nm["resolutions"]) != "[2160p]" {
 		t.Errorf("night's media = %v", nm)
 	}
-	if tm := media[float64(tide.ID)]; fmt.Sprint(tm["hdr"]) != "[SDR]" || fmt.Sprint(tm["videoCodecs"]) != "[H.264]" {
+	if tm := media[float64(tide.ID)]; fmt.Sprint(tm["hdr"]) != "[SDR]" || fmt.Sprint(tm["videoCodecs"]) != "[H.264]" || fmt.Sprint(tm["subLangs"]) != "[de]" {
 		t.Errorf("tide's media = %v", tm)
 	}
 
@@ -186,6 +188,10 @@ func TestFileDetailsAreReadAndShown(t *testing.T) {
 		{map[string]any{"video_codec": "x264"}, 1},
 		{map[string]any{"video_codec": "h264", "audio_language": "de"}, 0},
 		{map[string]any{"video_codec": "av1"}, 0},
+		{map[string]any{"missing_subtitle_language": "Dutch"}, 2}, // the night has it inside; the tide and the avi do not
+		{map[string]any{"missing_subtitle_language": "de"}, 2},    // the tide has a file beside it
+		{map[string]any{"missing_subtitle_language": "fr"}, 3},    // none has French
+		{map[string]any{"missing_subtitle_language": "nl", "audio_language": "english"}, 1},
 	}
 	for _, tt := range tests {
 		if got := count(tt.args); got != tt.want {

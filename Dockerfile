@@ -120,6 +120,9 @@ RUN apk add --no-cache ca-certificates tzdata su-exec par2cmdline p7zip tini
 RUN apk add --no-cache android-tools
 # home fork: ffmpeg/ffprobe for Mediarium TV (program lengths; later the Live TV tuner)
 RUN apk add --no-cache ffmpeg font-dejavu
+# Usherr: yt-dlp fetches the pre-show's coming-soon trailers; YouTube needs
+# its JavaScript helper (yt-dlp-ejs) and Deno to run it.
+RUN apk add --no-cache yt-dlp yt-dlp-ejs deno
 
 # Default UID/GID, overridable via PUID/PGID at runtime
 ENV PUID=1000 \

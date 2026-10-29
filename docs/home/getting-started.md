@@ -31,6 +31,9 @@ the same way; this guide covers what the fork adds and how to set it up.
 | An Android TV box | Play on TV: send a stream to the box | [Play on TV](integrations.md#play-on-tv) |
 | Nothing extra | Live TV: channels from your library and streams, free live channels, Real TV, in Jellyfin, Plex and IPTV apps | [Live TV](live-tv.md) |
 | A tablet or a spare screen | The Marquee: a lobby display of what's playing, coming and on Live TV, with a pre-show, steered from your phone or Home Assistant | [The Marquee](marquee.md) |
+| Nothing extra (Jellyfin for its app) | The pre-show: a cinema's welcome, trailers, your clips and the countdown before a film, in Usherr and in the Jellyfin app | [The pre-show](preshow.md) |
+| A graphics card | Read-to-Me: an audiobook made from an ebook with a computer voice | [Read-to-Me](read-to-me.md) |
+| Nothing extra (Sportarr optional) | Sports: leagues, teams, games, streams and live scores | [Sports](sports.md) |
 
 ## The quickest way to a working server
 
@@ -39,7 +42,8 @@ the same way; this guide covers what the fork adds and how to set it up.
    your TMDB key, your indexers and Usenet provider, and your media server.
    Its last step, **Extras**, offers the home fork's own parts: Mediarium's
    address on your network, the streaming engine, the AI, scores, In theaters
-   (your ZIP, theater and ticket service) and the Marquee. All of them are
+   (your ZIP, theater and ticket service), the Marquee and the pre-show. All
+   of them are
    optional and can wait. Everything the wizard asks can be changed later in
    **Settings**.
 
@@ -58,6 +62,24 @@ the same way; this guide covers what the fork adds and how to set it up.
    is ready, and has a **Test it** button.
 
 ![Settings → Extras: one card per optional part, each marked Optional with its state: Ready, Needs setting up or Off](images/extras.png)
+
+## Usherr's look
+
+- **Look** (*Settings → General*): **Usherr Classic**, or **Usherr Neu**, a
+  soft raised look with its own icons and font, in light and dark. Kept per
+  browser.
+- **Main colour**, under the highlight colour: Midnight navy, Espresso,
+  Forest, Plum, Oxblood, Ocean, Stone or OLED black, each light and dark, or
+  the highlight's own tint. Kept per browser.
+- **The menu** is a drawer behind the hamburger on every screen. On a wide
+  screen it stays open while you move between pages, and goes away after 8
+  seconds without the mouse over it, with a click or touch outside it, with
+  the hamburger or with Escape.
+- **The filter bar** of the Library, Discover, Upcoming, Wanted, Diary,
+  Comics and NSFW pulls down from under the top bar; closed, a slim handle
+  says what's showing.
+- **Poster size**: a slider in every library.
+- **Tonight's picks** is in the top bar, beside the dice.
 
 ## How the parts fit together
 
