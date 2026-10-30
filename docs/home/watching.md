@@ -59,9 +59,17 @@ of your indexers, and a release you pick yourself is always the one tried.
 
 ## Showtimes at home
 
-Book a film for a time, like a cinema: **Showtime** on a film's page (or on
-its poster in your stack) asks when, how many minutes of pre-show the Marquee
-runs first, and where the film plays.
+Book a film for a time, like a cinema: **Showtime** on a film's page, **Book
+a showtime** on a film's card (Library, Streams, Discover; or its poster in
+your stack), or **Book a film** on the Showtime page itself. It asks when, how
+many minutes of pre-show the Marquee runs first, and where the film plays.
+
+The **Showtime** button in the top bar, on nearly every page, counts down to
+the next booking and always opens the Showtime screen: "Showtime" with
+nothing booked, the time when it's more than an hour off, then **Pre-show
+starts 12:34**, **Show starting 07:48** and **Now showing**. On a phone it
+shows the countdown alone. The Dashboard has a line for it too, and
+**Showtime** is in the left menu.
 
 - **Starts:** a date and time, or **right after** another booking, for a
   double feature (ten minutes after the first film ends).
@@ -70,7 +78,9 @@ runs first, and where the film plays.
 - **The film plays:**
   - **On the Showtime screen:** open the **Showtime** page (`/showtime`) in
     the browser on the TV and leave it there. It counts down and starts the
-    film at showtime: your file, or a stream. Press **Ready** once when you
+    film at showtime: your file, its saved release in Streams (started during
+    the pre-show, so it's ready on the minute), or a stream found then. Press
+    **Ready** once when you
     open it, so the browser lets it start with sound. Usherr's own
     [pre-show](preshow.md) plays there first, full screen, so the feature
     starts on the minute.

@@ -530,6 +530,12 @@ export default function PreshowSettings() {
         <p className="hint">
           {t('Your own videos: bumpers, sound logos, intermissions, holiday clips. Each category is a folder in {folder}; files you put there show up by themselves.', { folder: all.settings.folder })}
         </p>
+        {all.settings.inConfig && (
+          <p className="hint psm-folder-tip">
+            {t('This folder is inside Usherr’s own storage, which your computer’s file browser may not show (a Docker volume). Upload clips here, or give Usherr a folder of your own: map one to /data/preshow in Usherr’s compose file, for example')} <code>- C:/Usherr/Preshow:/data/preshow</code>
+            {t(', and restart Usherr. It uses that folder by itself, makes the categories in it and copies these clips over.')}
+          </p>
+        )}
         <div className="psm-actions">
           <input type="text" list="psm-allcats" value={category} onChange={(e) => setCategory(e.target.value)} aria-label={t('Category')} title={t('Uploads go into this category (folder); a holiday’s name plays them in its season')} placeholder={t('Category')} />
           <datalist id="psm-allcats">

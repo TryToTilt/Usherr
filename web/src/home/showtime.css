@@ -32,3 +32,28 @@
 .mq-showtime-band b { color: var(--mq-hi, #f5c96a); letter-spacing: 0.1em; text-transform: uppercase; font-size: 0.8em; }
 .mq-showtime-band span { overflow: hidden; text-overflow: ellipsis; }
 .mq-showtime-band.soon { background: color-mix(in srgb, var(--mq-accent, #b8323a) 85%, black); }
+
+/* Usherr: the top bar's Showtime button, counting down (ShowtimePill.tsx). */
+.topbar .top-showtime { display: inline-flex; align-items: center; gap: 7px; width: auto; height: 40px; padding: 0 14px 0 11px; border-radius: 12px; flex: none; font: inherit; font-size: 0.88rem; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.topbar .top-showtime.st-soon { background: color-mix(in srgb, #f2c14e 26%, transparent); color: var(--text); }
+.topbar .top-showtime.st-preshow { background: color-mix(in srgb, #e5484d 30%, transparent); color: var(--text); animation: sht-pulse 2s ease-in-out infinite; }
+.topbar .top-showtime.st-on { background: color-mix(in srgb, #30a46c 30%, transparent); color: var(--text); }
+/* A rounded rectangle in every look (Neu's round icon buttons would make it an oval). */
+:root[data-look='neu'] .topbar button.top-showtime { border-radius: 12px; }
+@keyframes sht-pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, #e5484d 25%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .topbar .top-showtime.st-preshow { animation: none; } }
+/* On a phone: the clock alone with no booking; the icon and the countdown when one is near. */
+@media (max-width: 760px) { .topbar .top-showtime { padding: 0 10px; gap: 5px; } .topbar .top-showtime .top-showtime-word { display: none; } .topbar .top-showtime:not(:has(.top-showtime-time)) { width: 40px; padding: 0; justify-content: center; } .top-showtime-time { font-size: 0.82rem; } }
+
+/* Usherr: Book a film, on the Showtime page. */
+.sht-book input[type='search'] { width: 100%; max-width: 420px; }
+.sht-found { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.sht-found button { display: grid; gap: 6px; width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.sht-found img, .sht-noposter { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; background: var(--surface-2); display: block; }
+.sht-found button:hover img, .sht-found button:focus-visible img { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Usherr: the Dashboard's Showtime strip. */
+.sht-strip { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; padding: 8px 10px 8px 12px; border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--surface) 70%, transparent); font-size: 0.92rem; cursor: pointer; width: 100%; text-align: left; color: inherit; font-family: inherit; }
+.sht-strip img { width: 32px; height: 48px; object-fit: cover; border-radius: 4px; }
+.sht-strip strong { font-variant-numeric: tabular-nums; }
+.sht-strip .sht-strip-main { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

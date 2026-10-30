@@ -13,22 +13,93 @@ import { t } from '../i18n'
 import { playStream, playTitle, playWithPreshow } from './Player'
 import { preshowApi } from './preshowApi' // Usherr
 import { cancelShowtime, clockLabel, inLabel, listShowtimes, moveShowtime, PLAY_ON_LABEL, showtimeEnds, whenLabel, type Showtime } from './showtimes'
-import { rememberedQuality, streamApi } from './streamApi'
+import { rememberedQuality, streamApi, type StreamStart } from './streamApi'
+import { api, type ImportCandidate } from '../api'
+import { openShowtimeBooking } from './ShowtimePill' // Usherr: book from here
 import './showtime.css'
 
-// startFilm plays a showtime's film here: the library's file, or the best
-// stream at this device's quality.
-async function startFilm(s: Showtime) {
-  if (s.libraryId) {
-    playTitle('movie', s.libraryId, s.title, { noPreshow: true }) // its pre-show has played
-    return
-  }
+// findStream starts the best stream for a showtime's film at this device's
+// quality, trying the next release when one won't start (an indexer that
+// doesn't hand over its file, a release missing on the servers).
+async function findStream(s: Showtime): Promise<StreamStart> {
+  if (s.streamedFileId) return watchStreamed(s)
   const status = await streamApi.status()
   if (!status.ready) throw new Error(t('{title} isn’t in your library and streaming isn’t set up.', { title: s.title }))
   const { options } = await streamApi.options({ kind: 'movie', tmdbId: s.tmdbId, quality: rememberedQuality(status.qualities ?? []) })
   if (!options.length) throw new Error(t('No stream found for {title}.', { title: s.title }))
-  const st = await streamApi.start({ option: options[0].id, title: s.title })
+  let last: unknown = null
+  for (const o of options.slice(0, 4)) {
+    try {
+      return await streamApi.start({ option: o.id, title: s.title })
+    } catch (e) {
+      last = e
+    }
+  }
+  throw last instanceof Error ? last : new Error(t('No stream for {title} would start.', { title: s.title }))
+}
+
+// watchStreamed starts the film's saved release in the streamed library
+// (Streams), or the next in line when it won't start.
+async function watchStreamed(s: Showtime): Promise<StreamStart> {
+  const status = await streamApi.status().catch(() => null)
+  const quality = rememberedQuality(status?.qualities ?? [])
+  let last: unknown = null
+  for (let i = 0; i < 4; i++) {
+    const res = await fetch(`/api/streamed/files/${s.streamedFileId}/watch`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quality, next: i > 0 }) })
+    const data = await res.json().catch(() => null)
+    if (res.ok) return data as StreamStart
+    last = new Error(data?.error ?? t("Couldn't start it (error {status}).", { status: res.status }))
+  }
+  throw last
+}
+
+// startFilm plays a showtime's film here: the library's file, or a stream
+// (found ahead, during the pre-show, when it could be).
+async function startFilm(s: Showtime, ahead?: Promise<StreamStart> | null) {
+  if (s.libraryId) {
+    playTitle('movie', s.libraryId, s.title, { noPreshow: true }) // its pre-show has played
+    return
+  }
+  const st = await (ahead ?? Promise.reject(new Error('none'))).catch(() => findStream(s))
   playStream(st, s.title, undefined, { about: { kind: 'movie', tmdbId: s.tmdbId } })
+}
+
+// BookFilm: book a film from the Showtime page itself: search, pick, then
+// the usual booking window.
+function BookFilm() {
+  const [q, setQ] = useState('')
+  const [found, setFound] = useState<ImportCandidate[]>([])
+  useEffect(() => {
+    if (q.trim().length < 2) return
+    const id = window.setTimeout(() => {
+      api
+        .tmdbSearch('movie', q.trim())
+        .then((r) => setFound(r.slice(0, 8)))
+        .catch(() => setFound([]))
+    }, 350)
+    return () => window.clearTimeout(id)
+  }, [q])
+  return (
+    <section className="card sht-book">
+      <h2>{t('Book a film')}</h2>
+      <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('Search for a film')} aria-label={t('Search for a film')} title={t('Any film: from your library, Streams, or one to stream')} />
+      {q.trim().length >= 2 && found.length > 0 && (
+        <ul className="sht-found">
+          {found.map((f) => (
+            <li key={f.tmdbId}>
+              <button type="button" onClick={() => openShowtimeBooking({ tmdbId: f.tmdbId, title: f.title, year: f.year, posterUrl: f.posterUrl })} title={t('Book a showtime')}>
+                {f.posterUrl ? <img src={f.posterUrl} alt="" loading="lazy" /> : <span className="sht-noposter" />}
+                <span>
+                  {f.title}
+                  {f.year ? ` (${f.year})` : ''}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
 }
 
 export default function ShowtimePage() {
@@ -40,7 +111,8 @@ export default function ShowtimePage() {
   const [offset, setOffset] = useState(0) // the server's clock minus this one
   const [now, setNow] = useState(() => Date.now())
   const [ready, setReady] = useState(false) // pressed: allowed to start with sound
-  const [started, setStarted] = useState<number | null>(null)
+  const [started, setStarted] = useState<number | null>(null) // the film is on
+  const [starting, setStarting] = useState<number | null>(null) // ... being started
   const [error, setError] = useState('')
   const load = useCallback(() => {
     listShowtimes()
@@ -85,18 +157,39 @@ export default function ShowtimePage() {
     preTried.current = key
     void playWithPreshow({ showtime: next.id, budget: Math.max(30, Math.round((next.atMs - serverNow) / 1000)) }, () => undefined)
   }, [next, ready, preStart, due, serverNow])
+  // A film that isn't in the library: its stream is found while the pre-show
+  // runs (from five minutes before at the latest), so it's ready at showtime.
+  const ahead = useRef<{ id: number; at: number; p: Promise<StreamStart> } | null>(null)
+  useEffect(() => {
+    if (!next || !ready || next.libraryId || serverNow < next.atMs - Math.max(next.preshowMin, 5) * 60_000) return
+    if (ahead.current?.id === next.id && ahead.current.at === next.atMs) return
+    const p = findStream(next)
+    p.catch(() => undefined) // tried again at showtime
+    ahead.current = { id: next.id, at: next.atMs, p }
+  }, [next, ready, serverNow])
+  const go = useCallback(
+    (s: Showtime) => {
+      setStarting(s.id)
+      setError('')
+      const a = ahead.current?.id === s.id && ahead.current.at === s.atMs ? ahead.current.p : null
+      startFilm(s, a)
+        .then(() => setStarted(s.id))
+        .catch((e: Error) => {
+          ahead.current = null
+          setError(e.message)
+        })
+        .finally(() => setStarting(null))
+    },
+    [],
+  )
   const tried = useRef(0)
   useEffect(() => {
     if (!next || !due || !ready || tried.current === next.id) return
     // Started a while ago (the page was closed): not on its own.
     if (serverNow - next.atMs > 5 * 60_000) return
     tried.current = next.id
-    setStarted(next.id)
-    startFilm(next).catch((e: Error) => {
-      setError(e.message)
-      setStarted(null)
-    })
-  }, [next, due, ready, serverNow])
+    go(next)
+  }, [next, due, ready, serverNow, go])
 
   const move = async (s: Showtime, byMin: number) => {
     try {
@@ -136,9 +229,10 @@ export default function ShowtimePage() {
               ) : (
                 !due && <p className="sht-armed">{t('Ready. Leave this page open: the film starts by itself.')}</p>
               )}
-              {due && ready && started !== next.id && (
-                <button className="primary btn-with-icon sht-ready" onClick={() => void startFilm(next).catch((e: Error) => setError(e.message))}>
-                  <Icon name="play" size={18} /> {t('Start the film')}
+              {starting === next.id && <p className="sht-armed">{next.libraryId ? t('Starting the film…') : t('Starting the film: finding its stream…')}</p>}
+              {due && ready && started !== next.id && starting !== next.id && (
+                <button className="primary btn-with-icon sht-ready" onClick={() => go(next)}>
+                  <Icon name="play" size={18} /> {error ? t('Try again') : t('Start the film')}
                 </button>
               )}
               {error && <p className="error-text">{error}</p>}
@@ -148,10 +242,12 @@ export default function ShowtimePage() {
           <div className="sht-count">
             <Icon name="clock" size={40} />
             <h1>{t('No showtime here yet')}</h1>
-            <p className="hint">{t('Book one with Showtime on a film’s page, choosing “On the Showtime screen”. Then leave this page open in the browser on the TV.')}</p>
+            <p className="hint">{t('Book one below, or with Showtime on a film’s page or card, choosing “On the Showtime screen”. Then leave this page open in the browser on the TV.')}</p>
           </div>
         )}
       </section>
+
+      <BookFilm />
 
       <section className="card sht-list">
         <h2>{t('Showtimes')}</h2>

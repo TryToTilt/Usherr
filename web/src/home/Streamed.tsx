@@ -12,6 +12,7 @@ import PosterCard from '../components/PosterCard'
 import { isAdmin } from '../api'
 import { useAuth } from '../AuthContext'
 import { playStream } from './Player'
+import { showtimeAction } from './ShowtimePill' // Usherr: a showtime
 import { rememberQuality, rememberedQuality, streamApi, type StreamStart } from './streamApi'
 import './streamed.css'
 import { plural, t } from '../i18n'
@@ -261,7 +262,7 @@ export default function Streamed() {
               title={ti.title}
               kind={ti.kind === 'movie' ? 'movie' : 'tv'}
               meta={[ti.year || null, ti.kind === 'movie' ? [quality(ti.release), hdr(ti.release)].filter(Boolean).join(' ') || null : t('{n} ep', { n: ti.files })].filter(Boolean).join(' · ')}
-              actions={[{ icon: 'play', label: t('Play'), primary: true, onClick: () => setOpen(ti) }]}
+              actions={[{ icon: 'play', label: t('Play'), primary: true, onClick: () => setOpen(ti) }, ...(ti.kind === 'movie' ? [showtimeAction({ tmdbId: ti.tmdbId, title: ti.title, year: ti.year, posterUrl: ti.poster })] : [])]}
             />
           </div>
         ))}

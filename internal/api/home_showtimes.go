@@ -41,7 +41,10 @@ type showtime struct {
 	State      string `json:"state"`  // booked, preshow, playing, done
 	Mine       bool   `json:"mine"`
 	LibraryID  int64  `json:"libraryId,omitempty"` // the film's file in the library, played from it
-	Theme      int64  `json:"preshowTheme"`        // Usherr: the pre-show theme (0: the schedule's)
+	// Usherr: the film's saved release in the streamed library (Streams),
+	// played from it when there's no file.
+	StreamedFileID int64 `json:"streamedFileId,omitempty"`
+	Theme          int64 `json:"preshowTheme"` // Usherr: the pre-show theme (0: the schedule's)
 }
 
 const showtimeCols = `id, user_id, tmdb_id, title, year, poster_url, runtime, at_ms, preshow_min, play_on, state, preshow_theme`
@@ -76,7 +79,9 @@ func (s *Server) withLibrary(list []showtime, me int64) []showtime {
 		list[i].Mine = list[i].UserID == me
 		if m, ok, err := s.MovieRepo.GetByTMDBID(list[i].TMDBID); err == nil && ok && m.FilePath != "" {
 			list[i].LibraryID = m.ID
+			continue
 		}
+		_ = s.db.QueryRow(`SELECT f.id FROM streamed_files f JOIN streamed_titles t ON t.id = f.title_id WHERE t.kind = 'movie' AND t.tmdb_id = ? ORDER BY f.id LIMIT 1`, list[i].TMDBID).Scan(&list[i].StreamedFileID)
 	}
 	return list
 }

@@ -51,6 +51,7 @@ import { largestFirst, libraryTotalText, sumBytes } from '../diskTotals'
 import { compareByProfile, matchesProfile, profileFilterOptions, profileName } from '../libraryProfile'
 import { redoAnswerText, redoRequest } from '../shortFile'
 import { fileFilterOptions, fileFiltersActive, langName, matchesFileFilters, NO_FILE_FILTERS, type FileFilters } from '../fileInfo'
+import { showtimeAction } from '../home/ShowtimePill' // Usherr
 
 type Kind = 'movie' | 'tv'
 type View = 'grid' | 'list' | 'shelves' // shelves: home fork
@@ -565,7 +566,10 @@ export default function Library() {
     await run(() => (i.kind === 'movie' ? api.deleteMovie(i.id, files) : api.deleteSeries(i.id, files)), files ? t('Removed {title} and its files.', { title: i.title }) : t('Removed {title}.', { title: i.title }))
   }
 
-  const onStackOf = (i: Item): CardAction[] => (i.kind === 'movie' || i.kind === 'tv' ? [stackAction(stack, { kind: i.kind, tmdbId: i.tmdbId, title: i.title, year: i.year, posterUrl: i.posterUrl }, (e) => toast.error(e instanceof Error ? e.message : String(e)))] : []) // Usherr: your stack
+  const onStackOf = (i: Item): CardAction[] => [
+    ...(i.kind === 'movie' || i.kind === 'tv' ? [stackAction(stack, { kind: i.kind, tmdbId: i.tmdbId, title: i.title, year: i.year, posterUrl: i.posterUrl }, (e) => toast.error(e instanceof Error ? e.message : String(e)))] : []), // Usherr: your stack
+    ...(i.kind === 'movie' ? [showtimeAction({ tmdbId: i.tmdbId, title: i.title, year: i.year, posterUrl: i.posterUrl })] : []), // Usherr: a showtime
+  ]
   const actionsFor = (i: Item): CardAction[] => [...actionsOf(i), ...onStackOf(i)]
   const actionsOf = (i: Item): CardAction[] =>
     i.streamedId

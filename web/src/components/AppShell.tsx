@@ -32,6 +32,7 @@ import OmniBar, { type OmniPage } from '../home/OmniBar' // Usherr: the header's
 import './navDrawer.css' // Usherr: the menu as a drawer at every width
 import RouletteButton from '../home/RouletteButton' // Usherr
 import { TonightButton } from '../home/Tonight' // Usherr
+import { ShowtimeBookingHost, ShowtimePill } from '../home/ShowtimePill' // Usherr: Showtime from any page
 import { CalendarHeaderSearch } from '../home/CalendarSearch' // Usherr
 import ThemeToggle from './ThemeToggle'
 import UsageStatsPrompt from './UsageStats'
@@ -46,6 +47,7 @@ const NAV: { to: string; label: string; icon: IconName; sec: SectionKey; end?: b
   { to: '/discover', label: t('Discover'), icon: 'compass', sec: 'discover' },
   { to: '/library', label: t('Library'), icon: 'film', sec: 'library' },
   { to: '/calendar', label: t('Upcoming'), icon: 'calendar', sec: 'calendar' },
+  { to: '/showtime', label: t('Showtime'), icon: 'clock', sec: 'live' }, // Usherr: Showtimes at home, the screen and the bookings
   { to: '/sports', label: t('Sports'), icon: 'trophy', sec: 'live' }, // Usherr: Sports
   { to: '/tv', label: t('Live TV'), icon: 'tv', sec: 'live' }, // Mediarium TV (home fork): the one kind of media outside the Library
   { to: '/marquee/manage', label: t('Marquee'), icon: 'monitor', sec: 'live' }, // Usherr: the lobby display (administrators)
@@ -459,6 +461,7 @@ function Shell() {
         {t('Skip to content')}
       </a>
       <PlayerHost /> {/* play hook (home fork) */}
+      <ShowtimeBookingHost /> {/* Usherr: "Book a showtime" from a card */}
       <div className={`sidebar-backdrop${menuOpen ? ' open' : ''}`} onClick={() => setMenuOpen(false)} />
       <nav id="main-menu" ref={navRef} className={`sidebar${menuOpen ? ' open' : ''}`} aria-label={tc('menu', 'Main')}>
         <div className="brand">
@@ -668,6 +671,7 @@ function Shell() {
             </button>
           </div>
           <RouletteButton iconOnly className="icon-btn top-dice" /> {/* Usherr: Roulette */}
+          <ShowtimePill /> {/* Usherr: Showtime, counting down, from any page */}
           <TonightButton /> {/* Usherr: what to watch tonight */}
           <button type="button" className="icon-btn search-toggle" onClick={() => setSearchOpen(true)} aria-label={t('Search')}>
             <Icon name="search" size={19} />

@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -38,7 +39,8 @@ import (
 )
 
 const (
-	keyPreshowFolder   = "home.preshow.folder"   // where the clips are (default: preshow in the config folder)
+	keyPreshowFolder   = "home.preshow.folder"   // where the clips are (default: /data/preshow when mapped, else preshow in the config folder)
+	keyPreshowStarted  = "home.preshow.started"  // the folder the starter categories were made in (once a folder)
 	keyPreshowTheater  = "home.preshow.theater"  // the theater's name on the welcome card
 	keyPreshowTheme    = "home.preshow.theme"    // the theme that plays when no schedule says otherwise
 	keyPreshowTrailerS = "home.preshow.trailerS" // how long a trailer plays at most, in seconds
@@ -329,7 +331,88 @@ func (s *Server) preshowDir() string {
 	if v, _ := s.Settings.Get(keyPreshowFolder); strings.TrimSpace(v) != "" {
 		return strings.TrimSpace(v)
 	}
+	// Usherr: a folder of the household's own, mapped into the container (as
+	// /data/trailers is), so they can drop clips in from their computer.
+	if st, err := os.Stat(preshowMapped); err == nil && st.IsDir() {
+		return preshowMapped
+	}
 	return filepath.Join(s.cfg.ConfigDir, "preshow")
+}
+
+// preshowMapped is where a mapped clips folder is looked for.
+var preshowMapped = "/data/preshow"
+
+// preshowStarters are the categories a new clips folder starts with, so
+// there's somewhere to put each kind of clip (a holiday's plays in its season).
+var preshowStarters = []string{"Bumpers", "Policy", "Commercials", "Sound", "Intermission", "Halloween", "Christmas"}
+
+// preshowStart makes the starter categories in a clips folder, once (a
+// category deleted later stays deleted). The first time Usherr uses a mapped
+// folder, clips from the one in its config are copied over, so none are left
+// behind.
+func (s *Server) preshowStart(dir string) {
+	if done, _ := s.Settings.Get(keyPreshowStarted); done == dir {
+		return
+	}
+	for _, c := range preshowStarters {
+		_ = os.MkdirAll(filepath.Join(dir, c), 0o755)
+	}
+	old := filepath.Join(s.cfg.ConfigDir, "preshow")
+	if dir != old {
+		_ = filepath.WalkDir(old, func(p string, d os.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if d.IsDir() {
+				if strings.HasPrefix(d.Name(), ".") && p != old {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if _, ok := preshowVideoExt[strings.ToLower(filepath.Ext(d.Name()))]; !ok {
+				return nil
+			}
+			rel, err := filepath.Rel(old, p)
+			if err != nil {
+				return nil
+			}
+			to := filepath.Join(dir, rel)
+			if _, err := os.Stat(to); err == nil {
+				return nil
+			}
+			if os.MkdirAll(filepath.Dir(to), 0o755) == nil {
+				if err := copyFile(p, to); err != nil {
+					slog.Info("pre-show: a clip wasn't copied to the new folder", "clip", rel, "err", err)
+				}
+			}
+			return nil
+		})
+	}
+	_ = s.Settings.Set(keyPreshowStarted, dir, false)
+}
+
+// copyFile copies a file whole (to a temporary name first).
+func copyFile(from, to string) error {
+	in, err := os.Open(from)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	tmp := to + ".part"
+	out, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := out.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, to)
 }
 
 // preshowSettle is how long a file must sit unchanged before it's a clip
@@ -359,6 +442,7 @@ func (s *Server) preshowScanFolder(ctx context.Context) error {
 	defer preshowScan.Unlock()
 	dir := s.preshowDir()
 	_ = os.MkdirAll(dir, 0o755)
+	s.preshowStart(dir)
 	known := map[string]preshowClip{}
 	rows, err := s.db.QueryContext(ctx, `SELECT id, path, size FROM preshow_clips`)
 	if err != nil {
@@ -512,6 +596,7 @@ func (s *Server) preshowSchedules(ctx context.Context) ([]preshowSchedule, error
 
 type preshowSettings struct {
 	Folder         string `json:"folder"`
+	InConfig       bool   `json:"inConfig,omitempty"` // Usherr: the folder is the one in Usherr's config (often out of sight)
 	Theater        string `json:"theater"`
 	ThemeID        int64  `json:"themeId"`
 	TrailerSeconds int    `json:"trailerSeconds"`
@@ -526,7 +611,8 @@ func (s *Server) preshowSettingsNow() preshowSettings {
 	if tr <= 0 {
 		tr = 150
 	}
-	return preshowSettings{Folder: s.preshowDir(), Theater: strings.TrimSpace(theater), ThemeID: theme, TrailerSeconds: tr}
+	dir := s.preshowDir()
+	return preshowSettings{Folder: dir, InConfig: dir == filepath.Join(s.cfg.ConfigDir, "preshow"), Theater: strings.TrimSpace(theater), ThemeID: theme, TrailerSeconds: tr}
 }
 
 // ---- the admin's pages ----

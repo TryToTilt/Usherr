@@ -5,6 +5,31 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.9.7] - 2026-10-30
+
+### Changed
+
+- Pre-show clips: Usherr uses `/data/preshow` by itself when a folder is mapped there (as for trailers), so clips can be dropped in from the computer; a new clips folder starts with the usual categories (Bumpers, Policy, Commercials, Sound, Intermission, Halloween, Christmas), and clips in the old folder are copied over. The Pre-show page says when the folder is out of sight in Usherr's own storage, and how to map one.
+
+## [2.9.6] - 2026-10-30
+
+### Changed
+
+- The top bar's Showtime button is a rounded rectangle in every look (Neu made it an oval).
+
+## [2.9.5] - 2026-10-29
+
+### Added
+
+- Showtime from any page: a Showtime button in the top bar counts down to the next booking (its time, then "Pre-show starts 12:34", "Show starting 07:48", "Now showing"; on a phone the countdown alone) and always opens the Showtime screen. Showtime in the left menu, a line on the Dashboard, Book a showtime on film cards (Library, Streams, Discover), and Book a film on the Showtime page.
+
+## [2.9.4] - 2026-10-29
+
+### Fixed
+
+- Showtime: a film that isn't in the library has its stream found during the pre-show (five minutes before at the latest), trying the next release when one won't start, so it plays at showtime. While it starts, the Showtime page says so ("Starting the film: finding its stream") instead of "No showtime here yet", and if it can't, Try again.
+- Showtime plays a film that's in Streams (the streamed library) from its saved release, as its Play button does, instead of looking for a new stream.
+
 ## [2.9.3] - 2026-10-29
 
 ### Changed

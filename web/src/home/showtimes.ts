@@ -17,6 +17,7 @@ export interface Showtime {
   state: 'booked' | 'preshow' | 'playing' | 'done'
   mine: boolean
   libraryId?: number // the film's file in the library
+  streamedFileId?: number // Usherr: its saved release in Streams
 }
 export interface ShowtimeList {
   showtimes: Showtime[]

@@ -69,9 +69,21 @@ A holiday beats dates, and dates beat days of the week.
 
 ## Clips
 
-Your own videos live in the pre-show folder, by default `preshow` in Usherr's
-config folder (change it under **Settings → Clips folder**, as Usherr sees
-it). One folder level is the category:
+Your own videos live in the pre-show folder: `/data/preshow` when a folder of
+yours is mapped there, otherwise `preshow` in Usherr's config folder (which,
+in a Docker volume, your computer's file browser may not show). Change it
+under **Settings → Clips folder**, as Usherr sees it. To drop clips in from
+your computer, map a folder in Usherr's compose file and restart Usherr:
+
+```yaml
+    volumes:
+      - C:/Usherr/Preshow:/data/preshow
+```
+
+Usherr starts a new clips folder with the usual categories (Bumpers, Policy,
+Commercials, Sound, Intermission, Halloween, Christmas), and the first time it
+uses a mapped folder it copies the clips from the one in its config over. One
+folder level is the category:
 
 ```
 preshow/

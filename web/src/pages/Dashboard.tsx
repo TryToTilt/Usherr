@@ -1,5 +1,6 @@
 import KindGlyph, { type GlyphKind } from '../components/KindGlyph'
 import News from '../home/News' // home fork
+import { ShowtimeStrip } from '../home/ShowtimePill' // Usherr
 import InTheaters from '../home/InTheaters' // Usherr
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
@@ -284,6 +285,7 @@ export default function Dashboard() {
   return (
     <div className="dashboard">
       <News /> {/* Usherr: the news, one line at the top */}
+      <ShowtimeStrip /> {/* Usherr: the next showtime, counting down */}
       <section className="hero-welcome">
         <div className="hero-drift" aria-hidden="true">
           {DRIFT.map((d, i) => (

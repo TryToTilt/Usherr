@@ -37,7 +37,7 @@ export type PreshowSchedule = { id: number; name: string; themeId: number; rule:
 
 export type PreshowClip = { id: number; path: string; category: string; title: string; seconds: number; width?: number; height?: number; size: number; enabled: boolean; fileUrl: string }
 
-export type PreshowSettings = { folder: string; theater: string; themeId: number; trailerSeconds: number }
+export type PreshowSettings = { folder: string; inConfig?: boolean; theater: string; themeId: number; trailerSeconds: number }
 
 export type PreshowAll = {
   settings: PreshowSettings

@@ -23,6 +23,7 @@ import { pickKey, usePicks } from '../discoverPicks'
 import Icon from './Icon'
 import PosterCard from './PosterCard'
 import { t } from '../i18n'
+import { showtimeAction } from '../home/ShowtimePill' // Usherr
 
 // The posters of one Discover list. Titles you already own say so and open
 // their page; the rest offer Add, which opens the usual add dialog.
@@ -51,7 +52,7 @@ export function DiscoverCards({ items, kind, owned, onAdd, why }: { items: Disco
             rating={coming ? undefined : m.rating}
             kind={kind}
             state={own?.state ?? (streamed(m.tmdbId) ? describeState('streams') : undefined)} // Usherr: streamed titles say so
-            actions={[...voteActions(votes, kind, m.tmdbId, { title: m.title, year: m.year, image: m.posterUrl }), stackAction(stack, { kind, tmdbId: m.tmdbId, title: m.title, year: m.year, posterUrl: m.posterUrl })]} // home fork: votes; Usherr: your stack
+            actions={[...voteActions(votes, kind, m.tmdbId, { title: m.title, year: m.year, image: m.posterUrl }), stackAction(stack, { kind, tmdbId: m.tmdbId, title: m.title, year: m.year, posterUrl: m.posterUrl }), ...(kind === 'movie' ? [showtimeAction({ tmdbId: m.tmdbId, title: m.title, year: m.year, posterUrl: m.posterUrl })] : [])]} // home fork: votes; Usherr: your stack, a showtime
             footer={
               <div className="pcard-footer">
                 {libraryId ? (
