@@ -103,6 +103,7 @@ func New(cfg Config) (*Client, error) {
 		PieceCompletion: storage.NewMapPieceCompletion(),
 	})
 	tcfg.ListenPort = cfg.ListenPort
+	tcfg.Logger = engineLogger()
 	// The download speed limit set in Settings, shared with Usenet.
 	tcfg.DownloadRateLimiter = speed.Limiter()
 	// The upload limit has its own setting.
@@ -276,6 +277,7 @@ func (c *Client) addSpecIn(ctx context.Context, spec *torrent.TorrentSpec, dir s
 // Remove stops t (downloading and seeding) and releases its files, which
 // stay on disk.
 func (c *Client) Remove(t *torrent.Torrent) {
+	announces.forget(t.InfoHash().HexString())
 	t.Drop()
 	c.mu.Lock()
 	st := c.storages[t]
@@ -308,13 +310,29 @@ func (c *Client) waitForInfo(ctx context.Context, t *torrent.Torrent) error {
 	}
 	timer := time.NewTimer(MetadataTimeout)
 	defer timer.Stop()
-	select {
-	case <-t.GotInfo():
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return ErrNoMetadata
+	started := time.Now()
+	logIn := waitLogFirst
+	for {
+		// A debug line shortly after the start and then once a minute, so the
+		// log shows whether trackers answered and peers turned up, without
+		// filling up while a magnet link waits.
+		logTimer := time.NewTimer(logIn)
+		select {
+		case <-t.GotInfo():
+			logTimer.Stop()
+			return nil
+		case <-ctx.Done():
+			logTimer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+			logTimer.Stop()
+			err := &NoMetadataError{Waited: MetadataTimeout, Diag: Diagnose(t)}
+			logSwarm("torrent: gave up waiting for the torrent's details", t, "waited", time.Since(started).Round(time.Second).String())
+			return err
+		case <-logTimer.C:
+			logSwarm("torrent: still waiting for the torrent's details", t, "waited", time.Since(started).Round(time.Second).String())
+			logIn = waitLogEvery
+		}
 	}
 }
 

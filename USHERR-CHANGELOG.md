@@ -5,6 +5,14 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-10-30
+
+Built on **Mediarium 3.9.0** (everything in Mediarium 3.8.1 to 3.9.0 is in, see [CHANGELOG.md](CHANGELOG.md)): release lists past 60 results, download speed and what is left per client in Activity, extra indexer categories, a VPN test, why a torrent failed, umlaut spellings in searches, and security updates.
+
+### Changed
+
+- A show named in another language (Mediarium 3.9.0's folder language) keeps its existing folder, alongside Usherr's own rule that new episodes go into the show's and the season's existing folders.
+
 ## [2.9.7] - 2026-10-30
 
 ### Changed

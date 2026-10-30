@@ -62,6 +62,16 @@ export default function ReleaseTable({
     if (r.top < 70 || r.top > window.innerHeight - 120) box.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [results])
 
+  // Two releases can share one link (the same torrent listed twice), and React mixes up rows that share a key: a row the filter removed could stay on screen.
+  const rowKeys = useMemo(() => {
+    const seen = new Map<string, number>()
+    return shown.map((r) => {
+      const n = seen.get(r.downloadUrl) ?? 0
+      seen.set(r.downloadUrl, n + 1)
+      return n === 0 ? r.downloadUrl : `${r.downloadUrl}#${n}`
+    })
+  }, [shown])
+
   // First click sorts the natural way for that column, the second reverses it, the third goes back to the starting order (best match first, then by score).
   function clickSort(key: ReleaseSortKey) {
     setSort((cur) => {
@@ -156,11 +166,11 @@ export default function ReleaseTable({
               </tr>
             </thead>
             <tbody>
-              {shown.map((r) => {
+              {shown.map((r, i) => {
                 const why = whyOf(r)
                 const open = why !== null && (opened[r.downloadUrl] ?? showWhy)
                 return (
-                <Fragment key={r.downloadUrl}>
+                <Fragment key={rowKeys[i]}>
                 <tr className={open ? 'rel-open' : undefined} style={r.rejections?.length || r.blocklisted ? { opacity: 0.75 } : undefined}>
                   <td className="rel-name">
                     {nameParts(r.title).map((p, i) => (
@@ -175,6 +185,7 @@ export default function ReleaseTable({
                       </span>
                     )}
                     {r.matchedTitle && <div className="lang-hint lang-hint-wrap">{t('Matched on the title "{title}"', { title: r.matchedTitle })}</div>}
+                    {r.categories && r.categories.length > 0 && <div className="lang-hint lang-hint-wrap">{t('Category {numbers}', { numbers: r.categories.join(', ') })}</div>}
                     {showPackBadge && (r.episodes?.length ?? 0) === 0 && (
                       <span className="badge" style={{ marginLeft: 8 }}>
                         {t('season pack')}

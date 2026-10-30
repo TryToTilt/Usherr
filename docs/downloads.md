@@ -371,6 +371,14 @@ A torrent that gets no data at all for 2 hours counts as stalled: usually no one
 
 A magnet link first needs a peer to send the torrent's details (its file list). In the built-in client, a magnet whose details don't arrive within 10 minutes is treated the same way: dead, blocklisted, and the next release is tried. It no longer holds its place in the line for good.
 
+**The reason says what was tried.** The message in Activity is not just "nobody answered". For example: "No metadata after 10 minutes: no peer sent the torrent's details (0 of 3 trackers answered, 1 peer found, 0 connected). The VPN was on and connected. Try the same torrent with the VPN off, to see if the VPN is the problem." It gives:
+
+- how many of the torrent's trackers answered, how many peers were found and how many connected (a stalled torrent says the same, after its 2 hours or the time you chose);
+- how the traffic left your computer: through the VPN (connected, or not answering), through your proxy, or with the VPN off;
+- a hint that fits. "Try the same torrent with the VPN off" is only given when a VPN really was on. A link with no trackers at all says so: with a VPN or proxy DHT is off, so there was no way to find peers, and another release is the answer. If the VPN itself wasn't answering, it points to the **Test** button on the VPN page ([VPN protection](./vpn.md#is-traffic-really-flowing)).
+
+With **Detailed logging** on (Settings > System > Logs and errors), the log also gets which trackers answered or failed (their host only), the peer counts and how far a magnet link got, one line a minute while it waits for its details and one every five minutes while it downloads.
+
 Not every stop is the release's fault, and those never go on the blocklist: a disk that refuses the data (full, or not writable) stops the torrent at once with that reason, and when the VPN connection a torrent runs through is replaced or closed (another server chosen, or Disconnect pressed), the torrent is stopped with "the VPN connection changed". Press **Retry** to carry on through the current connection.
 
 A torrent whose download finished but then failed (the import was refused, the folder isn't writable) stops seeding at once, so **Retry** can add it again. A torrent you take off the Activity list stops with it. If your own torrent client reports an error for a torrent (its disk is full or read-only, or its files were deleted), the release isn't blocklisted and the torrent stays in the client for you to look at.

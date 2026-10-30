@@ -237,6 +237,39 @@ func (t *Tunnel) LastHandshake() (time.Time, error) {
 	return parseHandshake(raw), nil
 }
 
+// Traffic is what the tunnel has carried since it came up, plus the time of the
+// latest handshake (the zero time when the server has never answered).
+type Traffic struct {
+	Handshake time.Time
+	RxBytes   int64 // received from the VPN server
+	TxBytes   int64 // sent to the VPN server
+}
+
+// Traffic reads the handshake time and the byte counters from the device.
+func (t *Tunnel) Traffic() (Traffic, error) {
+	raw, err := t.dev.IpcGet()
+	if err != nil {
+		return Traffic{}, fmt.Errorf("ipc get: %w", err)
+	}
+	rx, tx := parseBytes(raw)
+	return Traffic{Handshake: parseHandshake(raw), RxBytes: rx, TxBytes: tx}, nil
+}
+
+// parseBytes adds up rx_bytes and tx_bytes over all peers in the device state.
+func parseBytes(raw string) (rx, tx int64) {
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if v, ok := strings.CutPrefix(line, "rx_bytes="); ok {
+			n, _ := strconv.ParseInt(v, 10, 64)
+			rx += n
+		} else if v, ok := strings.CutPrefix(line, "tx_bytes="); ok {
+			n, _ := strconv.ParseInt(v, 10, 64)
+			tx += n
+		}
+	}
+	return rx, tx
+}
+
 // parseHandshake reads the newest last_handshake_time_sec/_nsec pair out of
 // the device state. A zero value means no handshake yet.
 func parseHandshake(raw string) time.Time {

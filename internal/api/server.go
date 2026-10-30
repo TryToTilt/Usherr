@@ -105,10 +105,11 @@ type Server struct {
 	version      string
 	security     securityState // trusted proxies, allowed origins, per-account sign-in limit (security.go)
 
-	arrRecs arrRecommended
-	tmdbMu  sync.RWMutex
-	tmdb    *metadata.Client
-	tvmaze  *tvmaze.Client // episode air times (tvmaze_airtimes.go); never contacted while the switch is off
+	arrRecs      arrRecommended
+	tmdbMu       sync.RWMutex
+	tmdb         *metadata.Client
+	folderTitles folderTitleCache // localized titles for new movie and show folders (folder_title.go)
+	tvmaze       *tvmaze.Client   // episode air times (tvmaze_airtimes.go); never contacted while the switch is off
 
 	subsMu sync.RWMutex
 	subs   *subtitles.Client
@@ -934,6 +935,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("DELETE /api/indexer-definitions/custom/{id}", s.handleRemoveCustomDefinition)
 	admin.HandleFunc("POST /api/indexers/test", s.handleTestIndexerConfig)
 	admin.HandleFunc("POST /api/indexers/{id}/test", s.handleTestIndexer)
+	admin.HandleFunc("GET /api/indexers/{id}/categories", s.handleIndexerCategories)
 	admin.HandleFunc("PUT /api/indexers/{id}/enabled", s.handleSetIndexerEnabled)
 	admin.HandleFunc("PUT /api/indexers/{id}/priority", s.handleSetIndexerPriority)
 	admin.HandleFunc("GET /api/usenet-servers", s.handleListUsenetServers)
@@ -1096,6 +1098,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/vpn/configs/{id}/activate", s.handleActivateVPNConfig)
 	admin.HandleFunc("POST /api/vpn/deactivate", s.handleDeactivateVPN)
 	admin.HandleFunc("GET /api/vpn/status", s.handleVPNStatus)
+	admin.HandleFunc("POST /api/vpn/test", s.handleVPNTest)
 	admin.HandleFunc("GET /api/proxy", s.handleGetProxy)
 	admin.HandleFunc("PUT /api/proxy", s.handlePutProxy)
 	admin.HandleFunc("POST /api/proxy/test", s.handleTestProxy)

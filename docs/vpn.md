@@ -97,6 +97,22 @@ A torrent that started without a VPN doesn't keep going from your home address o
 
 **Check my IP address** appears while connected. It makes a real request through the tunnel and shows the public address the internet sees, so you can check that it is your VPN's address and not your own.
 
+### Is traffic really flowing?
+
+"Connected" means the VPN server has answered. Under the connection that is switched on, Mediarium also shows:
+
+- **Last handshake**, with how long ago it was. WireGuard repeats the handshake about every two minutes while the tunnel is in use, so a few seconds to a couple of minutes is normal. It turns into a warning when the server has been quiet for four minutes or more.
+- **Received and sent**, what the tunnel has carried since it connected. If the sent number grows and the received number stays at zero, the server isn't answering.
+- **No handshake yet** in a warning colour, when a new tunnel has waited about 20 seconds and the server still hasn't answered. The usual causes are a wrong server address, a wrong key, or a key that has expired.
+
+The **Test** button on the connection goes one step further. It makes a small real request through the tunnel (it gets the public address, waiting at most 8 seconds) and answers in plain words:
+
+- **The tunnel works.** A request came back through the VPN, with the address it came from and the last handshake.
+- **The VPN server did not answer**, so the key may have expired or the address is wrong. Private Internet Access (PIA) keys expire, and a stale file looks connected but moves nothing. For PIA, run their script again and load the new file (remove the old connection and add the new one).
+- **The VPN server answered earlier but has gone quiet**, or **the tunnel is up but the test request got no answer**. Try another server of your provider; some servers block traffic or are overloaded.
+
+The test only runs when you press the button. Nothing is sent in the background, and no key or password is logged.
+
 ### If the server address is IPv6
 
 Docker gives a container IPv4 only unless you turn IPv6 on. If the server address in your connection is an IPv6 address (it looks like `[2a03:1b20:6:f011::a09f]:51820`), Mediarium can't reach it from such a container and says right away: "This VPN server address is IPv6, and this computer or Docker container has no IPv6 connection." Either of these fixes it:
@@ -151,4 +167,4 @@ The endpoint is `host:port` with a port from 1 to 65535, the two keys are 44-cha
 
 ## For scripts
 
-The routes are `GET/POST /api/vpn/configs`, `DELETE /api/vpn/configs/{id}`, `POST /api/vpn/configs/{id}/activate`, `POST /api/vpn/deactivate`, `GET /api/vpn/status` (`connected`, `state` of `off`, `connecting`, `connected` or `down`, `label`, `reason`) and `GET /api/vpn/egress-ip`, all for administrators ([reference/api.md](./reference/api.md)). The kill switch is the setting `vpn.require_for_torrents`, and indexers through the VPN is `vpn.route_indexers` (`routeIndexersThroughVpn` in `/api/settings`). The code is in `internal/vpn`.
+The routes are `GET/POST /api/vpn/configs`, `DELETE /api/vpn/configs/{id}`, `POST /api/vpn/configs/{id}/activate`, `POST /api/vpn/deactivate`, `GET /api/vpn/status` (`connected`, `state` of `off`, `connecting`, `connected` or `down`, `label`, `reason`, and while a tunnel exists `tunnelUp`, `lastHandshake`, `handshakeAgeSec`, `noHandshake`, `rxBytes`, `txBytes`), `POST /api/vpn/test` (`ok`, `ip`, `reason`, `handshakeAgeSec`, `rxBytes`, `txBytes`) and `GET /api/vpn/egress-ip`, all for administrators ([reference/api.md](./reference/api.md)). The kill switch is the setting `vpn.require_for_torrents`, and indexers through the VPN is `vpn.route_indexers` (`routeIndexersThroughVpn` in `/api/settings`). The code is in `internal/vpn`.

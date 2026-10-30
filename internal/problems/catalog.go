@@ -286,7 +286,7 @@ var catalog = []Help{
 	{CodeFolderPermission, LevelError, AreaDisk,
 		"Mediarium may not write to a folder",
 		"The system refused access to a folder.",
-		"Give the PUID and PGID user read and write access to the folder. On a Synology, check the shared folder's permissions.",
+		"Give the PUID and PGID user read and write access to the folder. On a Synology, check the shared folder's permissions. On Docker Desktop for Windows, a virus scanner may be holding the file: wait, then retry.",
 		"Open folders", pathMedia},
 	{CodeFolderMissing, LevelError, AreaDisk,
 		"A folder is missing",

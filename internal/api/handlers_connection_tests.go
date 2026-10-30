@@ -167,6 +167,44 @@ func (s *Server) handleTestIndexer(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
+// handleIndexerCategories lists the categories a saved Newznab or Torznab
+// indexer says it has (its capabilities), as suggestions for the extra
+// categories. It is a help only: when the indexer can't be asked, or it is a
+// site from the definition list, the answer is an empty list.
+func (s *Server) handleIndexerCategories(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "That isn't a valid indexer ID.")
+		return
+	}
+	inst, err := s.IndexerRepo.Get(id)
+	if errors.Is(err, indexers.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "That indexer no longer exists.")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	out := struct {
+		Categories []indexers.CapCategory `json:"categories"`
+	}{Categories: []indexers.CapCategory{}}
+	if inst.IsCardigann() || inst.SecretError != "" {
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
+	inst.Tracker.CountRequest(inst.ID, 1)
+	cctx, cancel := context.WithTimeout(r.Context(), max(connTestTimeout, indexers.FeedWait(inst.BaseURL)))
+	defer cancel()
+	cats, err := indexers.NewNewznabClient(inst.Name, inst.BaseURL, inst.APIKey).Categories(cctx)
+	if err != nil {
+		log.Printf("api: could not read the categories of indexer %q: %v", inst.Name, err)
+	} else {
+		out.Categories = cats
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 type enabledRequest struct {
 	Enabled bool `json:"enabled"`
 }

@@ -57,7 +57,7 @@ Switch on **Tell me when an error happens** at the bottom of the page to get a m
 
 ## Detailed logging
 
-**Detailed logging**, at the bottom of the page, makes Mediarium write more to its log. With it on, the log also gets the small details it normally leaves out, such as what an app like nzb360 asked for when one of its cards stays empty. It is meant for finding a problem together with someone who is helping you. Switch it on, repeat what went wrong, press **Copy for support** (the log lines are in what it copies), and switch it off again. It writes a lot, so the recent lines fill up fast.
+**Detailed logging**, at the bottom of the page, makes Mediarium write more to its log. With it on, the log also gets the small details it normally leaves out, such as what an app like nzb360 asked for when one of its cards stays empty, and how torrents are doing in finding peers (which trackers answered, how many peers were found and connected, how far a magnet link got; one line a minute while a magnet link waits and one every five minutes while a torrent downloads). It is meant for finding a problem together with someone who is helping you. Switch it on, repeat what went wrong, press **Copy for support** (the log lines are in what it copies), and switch it off again. It writes a lot, so the recent lines fill up fast.
 
 The switch works at once, with no restart, and it stays on after a restart until you switch it off. Only administrators can change it. Passwords, API keys and tokens are taken out of the extra lines like any others. The setting is `log.debug`.
 

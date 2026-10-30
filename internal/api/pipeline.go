@@ -581,8 +581,9 @@ func (s *Server) downloadTorrent(ctx context.Context, queueID int64, downloadURL
 			return errVPNChanged
 		}
 		if errors.Is(err, torrentclient.ErrNoMetadata) && ctx.Err() == nil {
-			// A dead magnet: blocklist it and try another release.
-			return badRelease(err)
+			// A dead magnet: blocklist it and try another release. The message
+			// says what was tried and how the traffic was routed.
+			return badRelease(s.explainTorrentFailure(err, tunnel))
 		}
 		return fmt.Errorf("couldn't add the torrent: %w", err)
 	}
@@ -609,7 +610,7 @@ func (s *Server) downloadTorrent(ctx context.Context, queueID int64, downloadURL
 		}
 		if errors.Is(err, torrentclient.ErrStalled) {
 			// No one is sharing it: blocklist it and try another release.
-			return badRelease(err)
+			return badRelease(s.explainTorrentFailure(err, tunnel))
 		}
 		return err
 	}
@@ -1295,6 +1296,9 @@ func (s *Server) buildDestPathFor(root, movieTitle string, year, tmdbID int, rel
 	}
 
 	sanitizeMode, replacement := s.illegalCharSettings()
+	// Folder and file use the title in the info language. Indexers are still
+	// searched for the English title the library stores.
+	ctx.MovieTitle = s.folderTitle(tmdbID, "movie", movieTitle)
 	folder := organizer.Sanitize(organizer.Render(s.movieFolderFormat(), ctx), sanitizeMode, replacement)
 	name, src := s.keptName(videoFile, releaseTitle, releaseMayName, sanitizeMode, replacement)
 	if name != "" {

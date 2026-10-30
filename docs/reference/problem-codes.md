@@ -61,7 +61,7 @@ Every problem on Settings > System > Logs and errors has one of these codes. The
 | Code | Level | What it means | What to try | Where |
 |---|---|---|---|---|
 | `disk.full` | error | **The disk is full.** There isn't enough free space. | Free up some space, or run Clean up in Settings > System. Then retry in Activity. | `/settings/system` |
-| `folder.permission_denied` | error | **Mediarium may not write to a folder.** The system refused access to a folder. | Give the PUID and PGID user read and write access to the folder. On a Synology, check the shared folder's permissions. | `/settings/media` |
+| `folder.permission_denied` | error | **Mediarium may not write to a folder.** The system refused access to a folder. | Give the PUID and PGID user read and write access to the folder. On a Synology, check the shared folder's permissions. On Docker Desktop for Windows, a virus scanner may be holding the file: wait, then retry. | `/settings/media` |
 | `folder.missing` | error | **A folder is missing.** A folder Mediarium needs isn't there. | Create the folder, or check its drive is connected and mounted. | `/settings/media` |
 | `disk.low` | warning | **Downloads are waiting: the disk is nearly full.** The downloads folder has less free space than the limit you set, so no new download starts. | Free some space, or lower "Keep at least this much free" in Settings > Downloading. Waiting downloads start by themselves once there is room. | `/settings/download-rules` |
 

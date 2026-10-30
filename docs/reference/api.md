@@ -357,6 +357,32 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/home/ai/tonight` | any account | POST /api/home/ai/tonight {lang, again}: three picks for tonight. |
 | POST | `/api/home/ai/vibe` | any account | POST /api/home/ai/vibe {kind, tmdbId, lang} |
 | GET | `/api/home/anime-series` | signed in |  |
+| GET | `/api/home/art` | admin | GET /api/home/art (admin): the settings, where things stand, the counts. |
+| GET | `/api/home/art/changes` | admin | GET /api/home/art/changes?state=waiting&limit=60 (admin) |
+| POST | `/api/home/art/changes/apply` | admin | POST /api/home/art/changes/apply {ids, all} (admin): makes the approved changes, in the background, a picture a second. |
+| POST | `/api/home/art/changes/skip` | admin | POST /api/home/art/changes/skip {ids, all} (admin): not wanted; not proposed again. |
+| GET | `/api/home/art/changes/{id}/look` | admin | GET /api/home/art/changes/{id}/look (admin): what a change in the style would make (for the waiting list). |
+| POST | `/api/home/art/changes/{id}/undo` | admin | POST /api/home/art/changes/{id}/undo (admin): puts the old picture back. |
+| GET | `/api/home/art/current/{item}/{type}` | admin | GET /api/home/art/current/{item}/{type} (admin): the picture Jellyfin has now, small, for the side-by-side. |
+| POST | `/api/home/art/look` | admin | POST /api/home/art/look (admin): a pass now (as at night; it still stops when someone starts watching). |
+| POST | `/api/home/art/overlays` | admin | POST /api/home/art/overlays (admin, a form with "file"): a PNG to lay over pictures, ideally with see-through parts and the shape of a poster (or a backgroun... |
+| DELETE | `/api/home/art/overlays/{name}` | admin | DELETE /api/home/art/overlays/{name} (admin) |
+| GET | `/api/home/art/overlays/{name}` | admin | GET /api/home/art/overlays/{name} (admin): to show it. |
+| GET | `/api/home/art/poster/{id}` | any account | GET /api/home/art/poster/{id} (members): the poster a change put on. |
+| GET | `/api/home/art/preview` | admin | GET /api/home/art/preview?u=<fanart.tv picture> (admin): fanart.tv's small copy, or the picture itself made small when there's none. |
+| GET | `/api/home/art/samples` | admin | GET /api/home/art/samples?q=&kind= (admin): titles to try a style on. |
+| PUT | `/api/home/art/settings` | admin | PUT /api/home/art/settings (admin) |
+| GET | `/api/home/art/styles` | admin | GET /api/home/art/styles (admin): the styles, which the nightly look makes, the fonts, Jellyfin's libraries and the overlays. |
+| PUT | `/api/home/art/styles` | admin | PUT /api/home/art/styles {styles, on} (admin) |
+| POST | `/api/home/art/styles/preview` | admin | POST /api/home/art/styles/preview {what, style?, library?, kind, tmdbId, url?, words?, res?} (admin): the picture a style makes for a title (the saved style ... |
+| POST | `/api/home/art/test-fanart` | admin | POST /api/home/art/test-fanart (admin): asks fanart.tv for a well-known film's art with the key. |
+| POST | `/api/home/art/test-posterizarr` | admin | POST /api/home/art/test-posterizarr (admin): is Posterizarr there? |
+| POST | `/api/home/art/test-tvdb` | admin | POST /api/home/art/test-tvdb (admin): asks TheTVDB for a well-known show's art with the key. |
+| GET | `/api/home/art/title` | admin | GET /api/home/art/title?kind=movie&tmdbId= (admin): every candidate, and what the title has now. |
+| POST | `/api/home/art/title/choose` | admin | POST /api/home/art/title/choose {kind, tmdbId, type, url} (admin): a picture chosen by hand, put on at once and kept. |
+| POST | `/api/home/art/title/style` | admin | POST /api/home/art/title/style {kind, tmdbId, what, url?, words?} (admin): makes the title's poster or background (or a show's season posters or title cards)... |
+| POST | `/api/home/art/upload` | admin | POST /api/home/art/upload (admin, a form with "file"): a picture of the household's own to make a poster or background from. |
+| GET | `/api/home/art/uploads/{name}` | admin | GET /api/home/art/uploads/{name} (admin) |
 | GET | `/api/home/autostream` | any account | GET /api/home/autostream: whether Streams for you is allowed, set up and on for you, this week's count, and what it added for you. |
 | PUT | `/api/home/autostream` | any account | PUT /api/home/autostream {"on": bool}: switch it on or off for yourself. |
 | PUT | `/api/home/autostream/household` | admin | PUT /api/home/autostream/household {"on": bool}: an administrator allows Streams for you for the household, or stops it for everyone. |
@@ -436,6 +462,34 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/person/{id}` | any account | GET /api/home/person/{id}: someone's page: who they are, and the films and shows they're best known for (directed, wrote, or starred in). |
 | POST | `/api/home/playing` | any account | POST /api/home/playing: Usherr's player says what it plays now. |
 | DELETE | `/api/home/playing/{key}` | any account | DELETE /api/home/playing/{key}: the player closed. |
+| GET | `/api/home/position` | any account | GET /api/home/position?item=...: where this person got to (0 when nowhere). |
+| PUT | `/api/home/position` | any account | PUT /api/home/position: where this person is now. |
+| GET | `/api/home/preshow` | admin | GET /api/home/preshow (admin): everything the Pre-show settings show. |
+| POST | `/api/home/preshow/clips` | admin | POST /api/home/preshow/clips (admin): a clip uploaded into a category's folder. |
+| DELETE | `/api/home/preshow/clips/{id}` | admin | DELETE /api/home/preshow/clips/{id} (admin): the file goes to the folder's .removed folder, from where it can be put back by hand. |
+| PUT | `/api/home/preshow/clips/{id}` | admin | PUT /api/home/preshow/clips/{id} (admin): its title, on or off, or another category (the file moves). |
+| GET | `/api/home/preshow/clips/{id}/file` | any account | GET /api/home/preshow/clips/{id}/file: the clip, to play. |
+| GET | `/api/home/preshow/jellyfin` | admin | GET /api/home/preshow/jellyfin (admin) |
+| PUT | `/api/home/preshow/jellyfin` | admin | PUT /api/home/preshow/jellyfin (admin): the address, films, episodes, theme. |
+| POST | `/api/home/preshow/jellyfin/key` | admin | POST /api/home/preshow/jellyfin/key (admin): a new key (the old stops working). |
+| POST | `/api/home/preshow/jellyfin/restart` | admin | POST /api/home/preshow/jellyfin/restart (admin): restarts Jellyfin to load the plugin, only when nobody is playing anything. |
+| POST | `/api/home/preshow/jellyfin/setup` | admin | POST /api/home/preshow/jellyfin/setup (admin): the next step of setting it up: the repository and the plugin, then (after a restart) its settings. |
+| POST | `/api/home/preshow/now` | any account | POST /api/home/preshow/now: the player's pre-show is on this step (or over); the Marquee screens follow it. |
+| GET | `/api/home/preshow/plan` | any account | GET /api/home/preshow/plan?kind=movie&id=<library id>&tmdbId=&release=&showtime=<id>&theme=&budget=<seconds> The pre-show for a film, to play now. |
+| POST | `/api/home/preshow/schedules` | admin | POST /api/home/preshow/schedules and PUT /api/home/preshow/schedules/{id} (admin). |
+| DELETE | `/api/home/preshow/schedules/{id}` | admin | DELETE /api/home/preshow/schedules/{id} (admin). |
+| PUT | `/api/home/preshow/schedules/{id}` | admin | POST /api/home/preshow/schedules and PUT /api/home/preshow/schedules/{id} (admin). |
+| PUT | `/api/home/preshow/settings` | admin | PUT /api/home/preshow/settings (admin). |
+| GET | `/api/home/preshow/themes` | any account | GET /api/home/preshow/themes: the themes by name, for booking a Showtime. |
+| POST | `/api/home/preshow/themes` | admin | POST /api/home/preshow/themes and PUT /api/home/preshow/themes/{id} (admin). |
+| DELETE | `/api/home/preshow/themes/{id}` | admin | DELETE /api/home/preshow/themes/{id} (admin): its schedules go with it. |
+| PUT | `/api/home/preshow/themes/{id}` | admin | POST /api/home/preshow/themes and PUT /api/home/preshow/themes/{id} (admin). |
+| GET | `/api/home/preshow/trailers` | admin | GET /api/home/preshow/trailers (admin): the trailers, the settings, the space. |
+| POST | `/api/home/preshow/trailers/fetch` | admin | POST /api/home/preshow/trailers/fetch (admin): look and download now. |
+| PUT | `/api/home/preshow/trailers/settings` | admin | PUT /api/home/preshow/trailers/settings (admin) |
+| DELETE | `/api/home/preshow/trailers/{id}` | admin | DELETE /api/home/preshow/trailers/{id} (admin): its file goes, and it isn't fetched again. |
+| PUT | `/api/home/preshow/trailers/{id}` | admin | PUT /api/home/preshow/trailers/{id} (admin): {keep}, or {again: true} to fetch it again. |
+| GET | `/api/home/preshow/trailers/{id}/file` | any account | GET /api/home/preshow/trailers/{id}/file: the downloaded trailer. |
 | GET | `/api/home/providers` | any account | GET /api/home/providers: the services of the country, with the ones you pay for. |
 | POST | `/api/home/quiet` | admin | POST /api/home/quiet {"minutes":120,"when":"now"\|"finish"} holds every heavy task for a while; {"minutes":0} ends it. |
 | GET | `/api/home/readtome/book` | signed in | GET /api/home/readtome/book?bookId=: what making this book into an audiobook involves, for the dialog. |
@@ -564,6 +618,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/indexers/test` | admin | tests an indexer that has not been saved yet. |
 | DELETE | `/api/indexers/{id}` | admin |  |
 | PUT | `/api/indexers/{id}` | admin | edits a saved indexer. |
+| GET | `/api/indexers/{id}/categories` | admin | lists the categories a saved Newznab or Torznab indexer says it has (its capabilities), as suggestions for the extra categories. |
 | PUT | `/api/indexers/{id}/enabled` | admin |  |
 | PUT | `/api/indexers/{id}/priority` | admin | sets how much an indexer is preferred: a number from 1 to 50, lower first. |
 | POST | `/api/indexers/{id}/resume` | admin | is "Try again now": the indexer is asked by the next search, and its failures are forgotten. |
@@ -1280,6 +1335,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/vpn/deactivate` | admin |  |
 | GET | `/api/vpn/egress-ip` | admin | makes a real request through the active tunnel, so a person can check for themselves that traffic leaves through the VPN provider and is not leaking. |
 | GET | `/api/vpn/status` | admin | surfaces connection state for the UI, so VPN status is shown clearly in the UI, not just in logs. |
+| POST | `/api/vpn/test` | admin | makes a small real request through the active tunnel and answers whether it worked, with the time of the latest handshake or, when it failed, a plain reason. |
 
 ## wanted
 
@@ -1298,4 +1354,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-888 routes.
+944 routes.

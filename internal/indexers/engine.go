@@ -70,6 +70,9 @@ type Instance struct {
 	// MinSeeders is the fewest seeders a torrent release from this indexer needs
 	// to be picked by itself; 0 = off. Usenet indexers ignore it.
 	MinSeeders int
+	// ExtraCategories are category numbers the indexer is searched in besides the
+	// standard ones, per kind of media (see ExtraCategories).
+	ExtraCategories ExtraCategories
 	// SecretError is set when the saved key or password of this indexer could
 	// not be read (usually a secret.key that does not belong to the database).
 	// The indexer is still listed, so it can be fixed, but it is never searched.
@@ -244,6 +247,8 @@ func SearchAll(ctx context.Context, instances []Instance, query string, categori
 				results []Result
 				err     error
 			)
+			// The indexer's own extra categories go along with the standard ones.
+			categories := inst.ExtraCategories.WithExtraCategories(categories)
 			if inst.IsCardigann() {
 				if inst.Cardigann == nil {
 					err = fmt.Errorf("%s: sites from the site list are not available", inst.Name)
@@ -253,6 +258,9 @@ func SearchAll(ctx context.Context, instances []Instance, query string, categori
 			} else {
 				client := NewNewznabClient(inst.Name, inst.BaseURL, inst.APIKey)
 				results, err = client.Search(reqCtx, query, categories)
+				if client.ExtraRequests > 0 {
+					inst.Tracker.CountRequest(inst.ID, client.ExtraRequests)
+				}
 			}
 			for j := range results {
 				results[j].Protocol = inst.Protocol

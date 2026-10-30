@@ -613,15 +613,21 @@ func (s *Server) buildTVDestPathFor(series library.Series, ep library.Episode, r
 		OriginalTitle: releaseTitle, OriginalFilename: originalStem(videoFile),
 	}
 	mode, replacement := s.illegalCharSettings()
+	// The show folder and the episode file use the title in the info language.
+	// Indexers are still searched for the English title the library stores.
+	ctx.SeriesTitle = s.folderTitle(series.TMDBID, "tv", series.Title)
 	clean := func(f string) string { return organizer.Sanitize(organizer.Render(f, ctx), mode, replacement) }
+	showFolder := clean(s.seriesFolderFormat())
 
 	// tv folders hook (home fork): reuse the show's and the season's existing
 	// folders. A new show's folder follows the show folder format (Mediarium
 	// 3.2.19); one that has files keeps its folder.
-	showDir := filepath.Join(root, clean(s.seriesFolderFormat()))
+	showDir := filepath.Join(root, showFolder)
 	if d := s.existingShowFolder(series.ID, root); d != "" {
 		showDir = d
-	} else if s.seriesFolderFormat() != organizer.DefaultSeriesFolder {
+	} else if s.seriesFolderFormat() != organizer.DefaultSeriesFolder || s.folderNameWouldChange(series.TMDBID, "tv", series.Title) {
+		// A show named in another language keeps its folder too (Mediarium 3.9.0),
+		// so a language change never splits the episodes into a second folder.
 		if dir, ok := s.existingSeriesDir(series, root); ok {
 			showDir = dir
 		}
