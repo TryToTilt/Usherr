@@ -12,7 +12,9 @@ import Icon from '../components/Icon'
 import TitleHero from '../components/TitleHero'
 import { CastCard, PeopleLinks, SeasonsCard, titleLinks } from '../components/TitlePreview'
 import { crewWith } from '../people'
-import { api, type TVDetail } from '../api'
+import { api, isAdmin, type TVDetail } from '../api'
+import { useAuth } from '../AuthContext'
+import ArtworkButton from '../home/ArtworkButton' // Usherr: Re-Posterr
 import { useDocumentTitle } from '../documentTitle'
 import { t } from '../i18n'
 import CatchUp from '../home/CatchUp' // Catch me up (home fork)
@@ -27,6 +29,7 @@ export default function ShowDetail() {
   const { tmdbId } = useParams<{ tmdbId: string }>()
   const navigate = useNavigate()
   const id = Number(tmdbId)
+  const admin = isAdmin(useAuth().user) // Usherr: Re-Posterr
   const [show, setShow] = useState<TVDetail | null>(null)
   useDocumentTitle(show?.title)
   const [error, setError] = useState('')
@@ -85,6 +88,7 @@ export default function ShowDetail() {
             <WhatsItLike kind="tv" tmdbId={show.tmdbId} title={show.title} /> {/* home fork */}
             <VoteButtons kind="tv" refId={show.tmdbId} meta={{ title: show.title, year: show.year, image: show.posterUrl }} /> {/* home fork */}
             <StackButton item={{ kind: 'tv', tmdbId: show.tmdbId, title: show.title, year: show.year, posterUrl: show.posterUrl }} /> {/* Usherr */}
+            {admin && <ArtworkButton kind="tv" tmdbId={show.tmdbId} title={show.title} />} {/* Usherr: a streamed show is in Jellyfin too */}
             <SkipGuide tmdbId={show.tmdbId} title={show.title} /> {/* home fork */}
           </>
         }

@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import VoteButtons from '../home/VoteButtons' // home fork
 import StackButton from '../home/StackButton' // Usherr: your stack
+import ArtworkButton from '../home/ArtworkButton' // Usherr: artwork picking
 import { StreamingOn } from '../home/Recipes' // home fork
 import { ScoresLine } from '../home/scores' // home fork
 import { SkipGuide, WhatsItLike } from '../home/AIGuides' // home fork
@@ -480,6 +481,7 @@ function SeriesPage() {
             <VoteButtons kind="tv" refId={series.tmdbId} meta={{ title: series.title, year: series.year, image: series.posterUrl }} /> {/* home fork */}
             <StackButton item={{ kind: 'tv', tmdbId: series.tmdbId, title: series.title, year: series.year, posterUrl: series.posterUrl }} /> {/* Usherr */}
             <SkipGuide tmdbId={series.tmdbId} title={series.title} /> {/* home fork */}
+            {admin && <ArtworkButton kind="tv" tmdbId={series.tmdbId} title={series.title} />} {/* Usherr */}
             {admin && (
               <button className="btn-with-icon danger-ghost" onClick={remove}>
                 <Icon name="trash" size={16} /> {t('Remove')}

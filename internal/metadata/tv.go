@@ -72,6 +72,8 @@ type EpisodeInfo struct {
 	Overview string `json:"overview"`
 	AirDate  string `json:"air_date"`
 	Runtime  int    `json:"runtime"` // minutes; 0 when TMDB doesn't know
+	// Usherr: the episode's still (Re-Posterr's title cards).
+	Still string `json:"still_path"`
 }
 
 type pagedShows struct {

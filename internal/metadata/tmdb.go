@@ -355,5 +355,8 @@ func PosterURL(posterPath string) string {
 	if posterPath == "" {
 		return ""
 	}
+	if u, ok := SwappedPoster(posterPath); ok { // Usherr: Re-Posterr's poster
+		return u
+	}
 	return "https://image.tmdb.org/t/p/w500" + posterPath
 }

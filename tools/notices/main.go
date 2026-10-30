@@ -155,22 +155,24 @@ func npmPackages(root string) ([]component, error) {
 var fontLicence = regexp.MustCompile(`^OFL-(.+)\.txt$`)
 
 func fontFiles(root string) ([]component, error) {
-	dir := filepath.Join(root, "web", "public", "fonts")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
 	var out []component
-	for _, e := range entries {
-		m := fontLicence.FindStringSubmatch(e.Name())
-		if m == nil {
-			continue
-		}
-		text, err := os.ReadFile(filepath.Join(dir, e.Name()))
+	// Usherr: Re-Posterr's fonts (internal/api/artfonts) too.
+	for _, dir := range []string{filepath.Join(root, "web", "public", "fonts"), filepath.Join(root, "internal", "api", "artfonts")} {
+		entries, err := os.ReadDir(dir)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, component{Name: m[1] + " font", Licence: "OFL-1.1", Texts: []string{clean(text)}})
+		for _, e := range entries {
+			m := fontLicence.FindStringSubmatch(e.Name())
+			if m == nil {
+				continue
+			}
+			text, err := os.ReadFile(filepath.Join(dir, e.Name()))
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, component{Name: m[1] + " font", Licence: "OFL-1.1", Texts: []string{clean(text)}})
+		}
 	}
 	return out, nil
 }

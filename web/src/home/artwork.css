@@ -1,0 +1,82 @@
+/* Usherr: artwork picking (ArtworkSettings.tsx, ArtworkButton.tsx). */
+.art-warn { padding: 8px 12px; border-radius: 10px; background: var(--surface-2); color: var(--text); }
+.art-counts { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 10px 0; }
+.art-counts span { color: var(--text-dim); }
+.art-counts strong { color: var(--text); font-size: 1.1rem; }
+.art-sec-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.art-sec-head h2 { margin: 0; }
+
+.art-review, .art-done { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 12px; }
+.art-review li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; padding: 10px; border-radius: 12px; background: var(--surface-2); }
+.art-pair { display: flex; align-items: center; gap: 8px; color: var(--text-dim); }
+.art-pair figure { margin: 0; display: grid; gap: 4px; justify-items: center; }
+.art-pair figcaption { font-size: 0.72rem; color: var(--text-dim); max-width: 180px; text-align: center; }
+.art-pair img, .art-none { display: block; object-fit: cover; border-radius: 6px; background: var(--surface); }
+.art-none { display: grid; place-items: center; font-size: 0.75rem; color: var(--text-dim); }
+.art-pair .art-poster img, .art-pair .art-poster .art-none { width: 92px; height: 138px; }
+.art-pair .art-backdrop img, .art-pair .art-backdrop .art-none { width: 176px; height: 99px; }
+.art-pair .art-logo img, .art-pair .art-logo .art-none { width: 176px; height: 68px; object-fit: contain; background: #333; }
+.art-review-main { display: grid; gap: 2px; min-width: 0; }
+.art-done li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; }
+.art-done img { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; }
+.art-done img.art-logo { object-fit: contain; background: #333; }
+@media (max-width: 720px) {
+  .art-review li { grid-template-columns: 1fr; }
+  .art-pair .art-backdrop img, .art-pair .art-backdrop .art-none, .art-pair .art-logo img, .art-pair .art-logo .art-none { width: 130px; }
+}
+
+.art-dialog { width: min(980px, calc(100vw - 24px)); display: grid; gap: 12px; padding: 18px 20px; box-sizing: border-box; }
+.art-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.art-head h2 { margin: 0; font-size: 1.15rem; }
+.art-tabs { display: flex; gap: 6px; }
+.art-tabs button { display: inline-flex; align-items: center; gap: 4px; padding: 6px 14px; border-radius: 999px; }
+.art-tabs button.on { background: var(--accent); color: var(--on-accent, #fff); }
+.art-now { display: flex; align-items: center; gap: 14px; padding: 10px; border-radius: 12px; background: var(--surface-2); }
+.art-now p { margin: 4px 0 8px; }
+.art-now-pic img, .art-now-pic span { display: block; border-radius: 6px; object-fit: cover; background: var(--surface); }
+.art-now-pic.art-poster img, .art-now-pic.art-poster span { width: 80px; height: 120px; }
+.art-now-pic.art-backdrop img, .art-now-pic.art-backdrop span { width: 192px; height: 108px; }
+.art-now-pic.art-logo img, .art-now-pic.art-logo span { width: 192px; height: 74px; object-fit: contain; background: #333; }
+.art-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.art-grid.art-backdrop, .art-grid.art-logo { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.art-grid li { display: grid; gap: 4px; }
+.art-grid button { position: relative; padding: 0; border: 2px solid transparent; border-radius: 8px; overflow: hidden; background: var(--surface-2); cursor: pointer; }
+.art-grid button:hover:not(:disabled), .art-grid button:focus-visible { border-color: var(--accent); }
+.art-grid img { display: block; width: 100%; object-fit: cover; }
+.art-grid.art-poster img { aspect-ratio: 2 / 3; }
+.art-grid.art-backdrop img { aspect-ratio: 16 / 9; }
+.art-grid.art-logo img { aspect-ratio: 2.6 / 1; object-fit: contain; background: #333; }
+.art-grid small { color: var(--text-dim); font-size: 0.72rem; }
+.art-busy { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.6); color: #fff; }
+.art-page .psm-field select, .art-page .psm-field input { width: 100%; min-width: 0; margin: 0; box-sizing: border-box; }
+
+/* Usherr: Re-Posterr's own posters (ArtStyleDesigner.tsx, the dialog's Your style tab). */
+.art-style h3 { margin: 14px 0 4px; font-size: 0.95rem; }
+.art-style-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 340px); gap: 18px; align-items: start; margin-top: 10px; }
+.art-layouts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.art-check { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.art-check input { width: auto; margin: 0; }
+.art-style input[type='range'] { width: 100%; }
+.art-style input[type='color'] { width: 56px; height: 32px; padding: 2px; }
+.art-style-try { display: grid; gap: 10px; position: sticky; top: 12px; }
+.art-style-pic { display: grid; place-items: center; aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+.art-style-pic.wide { aspect-ratio: 16 / 9; }
+.art-style-pic img { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.2s; }
+.art-style-pic img.drawing { opacity: 0.6; }
+.art-samples { display: flex; flex-wrap: wrap; gap: 6px; }
+.art-made { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); align-items: start; }
+.art-made figure { margin: 0; display: grid; gap: 6px; }
+.art-made img { width: 100%; border-radius: 8px; display: block; background: var(--surface-2); }
+.art-made .tall img { aspect-ratio: 2 / 3; object-fit: cover; }
+.art-made .wide img { aspect-ratio: 16 / 9; object-fit: cover; }
+.art-grid button.picked { border-color: var(--accent); }
+@media (max-width: 720px) {
+  .art-style-grid { grid-template-columns: 1fr; }
+  .art-style-try { position: static; order: -1; }
+}
+/* Usherr: more of Posterizarr's options (P1-P7). */
+.art-style fieldset.art-style-controls { border: 0; margin: 0; padding: 0; min-width: 0; }
+.art-style fieldset:disabled .psm-settings, .art-style fieldset:disabled .art-check, .art-style fieldset:disabled .art-layouts { opacity: 0.55; }
+.art-lib { margin: 6px 0; align-items: end; }
+.art-lib .psm-field { min-width: 240px; }
+.art-own-words { flex: 1 1 260px; }

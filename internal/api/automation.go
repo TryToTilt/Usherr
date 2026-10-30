@@ -28,6 +28,7 @@ const (
 // internal/automation. Called once from cmd/app/main.go after the server
 // is constructed.
 func (s *Server) StartAutomation() *automation.Scheduler {
+	go s.artPosterSwaps(context.Background()) // Usherr: Re-Posterr's posters on Usherr's pages
 	s.applySpeedLimit(time.Now())
 	_, _ = s.QueueRepo.ClearSettledFailures()
 	if n, err := s.MovieRepo.RepairFutureOnlyMonitoring(todayUTC()); err != nil {
@@ -62,6 +63,7 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "read-to-me", Interval: time.Hour, InitialDelay: 20 * time.Second, Run: s.readToMeJob},         // Usherr: audiobooks left to make from before a restart
 		automation.Job{Name: "tv-warm", Interval: 3 * time.Hour, InitialDelay: 90 * time.Second, Run: s.heavy(s.tvWarmJob)}, // Usherr: streamed programs looked up before they are tuned
 		// Usherr: coming-soon trailers fetched ahead, and rotated out.
+		automation.Job{Name: "artwork", Interval: time.Hour, InitialDelay: 10 * time.Minute, Run: s.heavy(s.artJob)}, // Usherr: artwork picked at night, when nobody is watching
 		automation.Job{Name: "preshow-trailers", Interval: 4 * time.Hour, InitialDelay: 5 * time.Minute, Run: s.heavy(s.trailersJob)},
 		automation.Job{Name: "sports-sync", Interval: 6 * time.Hour, InitialDelay: 3 * time.Minute, Run: s.sportsSyncJob},   // Usherr: Sports' schedules and scores (Usherr's own engine)
 		automation.Job{Name: "real-tv-refresh", Interval: 20 * time.Minute, Run: s.realTVRefreshJob},                        // Usherr: Real TV's day before, each night

@@ -8,7 +8,25 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
+	"sync/atomic"
 )
+
+// posterSwaps maps a title's TMDB poster path to the poster Re-Posterr put
+// on it in Jellyfin (Usherr serves it), so Usherr shows the same.
+var posterSwaps atomic.Pointer[map[string]string]
+
+// SetPosterSwaps replaces the whole map.
+func SetPosterSwaps(m map[string]string) { posterSwaps.Store(&m) }
+
+// SwappedPoster is the poster to show instead of TMDB's, if there's one.
+func SwappedPoster(path string) (string, bool) {
+	m := posterSwaps.Load()
+	if m == nil {
+		return "", false
+	}
+	u, ok := (*m)[path]
+	return u, ok
+}
 
 // ImageURL is a TMDB picture at the given size ("w500", "w1280", ...).
 func ImageURL(size, path string) string {
@@ -48,4 +66,25 @@ func (c *Client) TitleLogo(ctx context.Context, kind string, tmdbID int) (string
 	}
 	c.pages.put(key, path)
 	return path, nil
+}
+
+// CollectionImages is a TMDB collection's posters and backdrops (Usherr's
+// artwork picking), in the same languages as GetImages. Kept for a few
+// minutes; not to be modified.
+func (c *Client) CollectionImages(ctx context.Context, id int) (*Images, error) {
+	key := fmt.Sprintf("images:collection:%d:%s", id, c.lang())
+	if v, ok := c.pages.get(key); ok {
+		return v.(*Images), nil
+	}
+	lang := baseLanguage(c.lang())
+	include := lang + ",en,null"
+	if lang == "en" {
+		include = "en,null"
+	}
+	var img Images
+	if err := c.get(ctx, fmt.Sprintf("/collection/%d/images", id), url.Values{"include_image_language": {include}, "language": {lang}}, &img); err != nil {
+		return nil, err
+	}
+	c.pages.put(key, &img)
+	return &img, nil
 }

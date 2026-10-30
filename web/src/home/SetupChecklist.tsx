@@ -54,7 +54,7 @@ const GUIDE = '/help/home-setup#'
 export default function SetupChecklist() {
   const [items, setItems] = useState<Item[] | null>(null)
   const load = useCallback(async () => {
-    const [dash, mods, settings, x, eng, ai, mdb, news, notes, two, cinema, marquee, preshowJF, trailers, sports, rtm] = await Promise.all([
+    const [dash, mods, settings, x, eng, ai, mdb, news, notes, two, cinema, marquee, preshowJF, trailers, sports, rtm, art] = await Promise.all([
       api.dashboard().catch(() => null) as Promise<DashboardData | null>,
       api.modules().catch(() => null),
       api.getSettings().catch(() => null),
@@ -71,6 +71,7 @@ export default function SetupChecklist() {
       get<{ settings: { on: boolean }; ytdlp: boolean }>('/api/home/preshow/trailers'), // Usherr
       get<{ mode: string; ready: boolean; problem?: string }>('/api/home/sports/settings'), // Usherr
       get<{ engines: { name: string; on: boolean; ready: boolean }[] }>('/api/home/readtome/settings'), // Usherr
+      get<{ settings: { on: boolean; fanartKeySet: boolean }; jellyfin: boolean }>('/api/home/art'), // Usherr
     ])
     const on = (k: 'movies' | 'tv') => !!(mods as Record<string, { enabled?: boolean }> | null)?.[k]?.enabled
     const f = dash ? factsFromDashboard(dash, { movies: on('movies'), tv: on('tv') }) : null
@@ -122,6 +123,7 @@ export default function SetupChecklist() {
       const kokoro = rtm.engines.find((e) => e.name === 'kokoro')
       add({ id: 'readtome', title: t('Read-to-Me'), gives: t('Audiobooks made from ebooks with a computer voice'), state: kokoro?.ready ? 'ready' : kokoro?.on ? 'setup' : 'off', missing: kokoro?.ready ? undefined : t('Kokoro on a graphics card'), to: '/settings/extras', guide: 'read-to-me' }) // Usherr
     }
+    if (art) add({ id: 'artwork', title: 'Re-Posterr', gives: t('The best poster, background and logo for each title in Jellyfin'), state: art.settings.on && art.jellyfin ? 'ready' : art.settings.on ? 'setup' : 'off', missing: !art.settings.on ? t('turning on') : art.jellyfin ? undefined : t('Jellyfin connected'), to: '/settings/re-posterr', guide: 're-posterr' }) // Usherr
     if (x) add({ id: 'comics', title: t('Comics'), gives: t('Comic series, new issues and a reader'), state: x.comics.enabled && x.comics.keySet ? 'ready' : x.comics.enabled ? 'setup' : 'off', missing: x.comics.enabled && !x.comics.keySet ? t('a ComicVine API key, on the Comics page') : x.comics.enabled ? undefined : t('turning on'), to: x.comics.enabled ? '/comics' : '/settings/extras', guide: 'comics' })
 
     // Looking after it

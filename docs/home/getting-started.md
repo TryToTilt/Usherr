@@ -32,6 +32,7 @@ the same way; this guide covers what the fork adds and how to set it up.
 | Nothing extra | Live TV: channels from your library and streams, free live channels, Real TV, in Jellyfin, Plex and IPTV apps | [Live TV](live-tv.md) |
 | A tablet or a spare screen | The Marquee: a lobby display of what's playing, coming and on Live TV, with a pre-show, steered from your phone or Home Assistant | [The Marquee](marquee.md) |
 | Nothing extra (Jellyfin for its app) | The pre-show: a cinema's welcome, trailers, your clips and the countdown before a film, in Usherr and in the Jellyfin app | [The pre-show](preshow.md) |
+| Jellyfin (fanart.tv, TheTVDB optional) | Re-Posterr: the best poster, background and logo for each title in Jellyfin, or made in your style (season posters, title cards, backgrounds, overlays, a style per library), asked first, every change undoable | [Re-Posterr](re-posterr.md) |
 | A graphics card | Read-to-Me: an audiobook made from an ebook with a computer voice | [Read-to-Me](read-to-me.md) |
 | Nothing extra (Sportarr optional) | Sports: leagues, teams, games, streams and live scores | [Sports](sports.md) |
 
@@ -42,7 +43,8 @@ the same way; this guide covers what the fork adds and how to set it up.
    your TMDB key, your indexers and Usenet provider, and your media server.
    Its last step, **Extras**, offers the home fork's own parts: Mediarium's
    address on your network, the streaming engine, the AI, scores, In theaters
-   (your ZIP, theater and ticket service), the Marquee and the pre-show. All
+   (your ZIP, theater and ticket service), the Marquee, the pre-show and
+   Re-Posterr. All
    of them are
    optional and can wait. Everything the wizard asks can be changed later in
    **Settings**.

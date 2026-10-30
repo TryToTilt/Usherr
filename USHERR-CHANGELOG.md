@@ -5,6 +5,78 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.9.3] - 2026-10-29
+
+### Changed
+
+- Change the style, from a title's Re-Posterr, opens the style page trying it on that title (first in Try it on), not a random one.
+
+### Fixed
+
+- A title's Re-Posterr window no longer breaks the page when fanart.tv doesn't answer: fanart.tv and TheTVDB get eight seconds, one that doesn't answer is left out for five minutes, and the window opens with TMDB's pictures.
+
+## [2.9.2] - 2026-10-29
+
+### Added
+
+- Re-Posterr, more of Posterizarr's options: an outline and a shadow on the words, up to 1-4 lines, your own wording for season posters and title cards, collections without "Collection", and titles in other alphabets drawn in a font that has their letters (WenQuanYi Zen Hei for Japanese, Korean and Chinese; DejaVu for the rest). Overlays: your own PNGs laid over the picture, by the copy's resolution too (a 4K badge on the 4K copy). A library's own poster style. Backgrounds with the title on, by hand or in the nightly look. TheTVDB as a source for shows (with a key). Your own picture and your own words on one title. Styles saved as a file and loaded back. The full Posterizarr app connected, able to take over the posters.
+
+## [2.9.1] - 2026-10-29
+
+### Changed
+
+- A poster Re-Posterr puts on a title in Jellyfin (picked or made in your style) shows on Usherr's own pages too: the title page, rows, searches and the rest. Putting the old one back brings TMDB's back in Usherr as well.
+
+## [2.9.0] - 2026-10-29
+
+### Added
+
+- Re-Posterr makes posters in your style (after Posterizarr): art without words with the title in a font and layout of your choosing (Fade, Band, Logo, Centre or Framed to start from; Bebas Neue, Anton, Oswald, Playfair Display or Usherr's own font; place, size, colour, capitals; a fade or band behind; a border), or the title's logo. Posters, season posters ("Season 2") and episode title cards (a still with the episode's name and number). Designed under Your style on the Re-Posterr page, tried live on any title; used on one title (the Re-Posterr button's Your style tab) or by the nightly look (asked first, or by itself), and put back like any change. A new style is offered again. Kept as a versioned recipe of layers, so more of Posterizarr's options can be added.
+
+## [2.8.6] - 2026-10-29
+
+### Changed
+
+- Re-Posterr opens a title quicker: the titles its nightly look keeps say which Jellyfin items it is (Jellyfin's whole list is read only for a title not among them), and fanart.tv's answers are kept half an hour, so choosing a picture doesn't ask again.
+
+## [2.8.5] - 2026-10-29
+
+### Fixed
+
+- Re-Posterr can put a picture on in Jellyfin 12: the upload carries Usherr's key the way Jellyfin wants it (it answered 401 before).
+
+## [2.8.4] - 2026-10-29
+
+### Fixed
+
+- Re-Posterr's fanart.tv pictures show in the side-by-side: Usherr fetches fanart.tv's small copies itself (making one from the picture when fanart.tv has none), and a picture that won't load at all is left out instead of shown as an empty box.
+- A title's page on an Android phone no longer shows a stale second copy of its facts (year, runtime, director, writers) while the trailer plays behind them: the header's lines don't keep a layer of their own once they've risen into place.
+
+## [2.8.3] - 2026-10-29
+
+### Fixed
+
+- The Re-Posterr button is on a streamed film's or show's page too (one not in the library), since Jellyfin has it.
+
+## [2.8.2] - 2026-10-29
+
+### Added
+
+- The setup wizard's Extras step (and Settings → Extras) has a Re-Posterr card: what it does, ask first or on its own, turning on its nightly look, the fanart.tv key with Test it, and its page.
+
+## [2.8.1] - 2026-10-29
+
+### Changed
+
+- The button on a film's or show's page that picks its poster, background and logo is called Re-Posterr, like its page.
+
+## [2.8.0] - 2026-10-29
+
+### Added
+
+- Re-Posterr, Usherr's artwork picker (after Posterizarr): it picks the poster, background and logo for each film, show and collection in Jellyfin from TMDB and fanart.tv (your language first, backgrounds without words, big enough, the best liked) and puts them on every copy, at the size a TV tile wants. Ask me first (the default: picks wait beside what Jellyfin has, to use or skip), fill in what's missing, or also replace pictures that are too small. At night, a title every few seconds, never while someone is watching on Jellyfin and not when its metadata disk is low; a booked Showtime's film straight away. Settings → Re-Posterr, a page of its own.
+- Change artwork on a film's or show's page: every candidate side by side; a picture chosen by hand goes on at once and is kept. Every picture replaced is kept first, so Put the old one back returns it.
+
 ## [2.7.2] - 2026-10-29
 
 ### Added

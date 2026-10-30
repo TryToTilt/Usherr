@@ -23,6 +23,7 @@ const Marquee = lazy(() => import('./home/Marquee')) // Usherr: the lobby displa
 const MarqueeRemote = lazy(() => import('./home/MarqueeRemote')) // Usherr: the Marquee's phone remote
 const MarqueeHub = lazy(() => import('./home/MarqueeHub')) // Usherr: the Marquee's own page
 const PreshowSettings = lazy(() => import('./home/PreshowSettings')) // Usherr: the pre-show
+const ArtworkSettings = lazy(() => import('./home/ArtworkSettings')) // Usherr: Re-Posterr, artwork picking
 const ShowtimePage = lazy(() => import('./home/ShowtimePage')) // Usherr: Showtimes at home
 const SportsPage = lazy(() => import('./home/Sports')) // Usherr: Sports
 const SportsLeaguePage = lazy(() => import('./home/Sports').then((m) => ({ default: m.SportsLeaguePage }))) // Usherr
@@ -267,6 +268,7 @@ function Gate() {
           <Route path="vpn" element={<AdminOnly><VPNSettings /></AdminOnly>} />
           <Route path="schedules" element={<AdminOnly><SchedulesSettings /></AdminOnly>} /> {/* home fork */}
           <Route path="extras" element={<AdminOnly><ExtrasSettings /></AdminOnly>} /> {/* home fork */}
+          <Route path="re-posterr" element={<AdminOnly><ArtworkSettings /></AdminOnly>} /> {/* Usherr: Re-Posterr */}
           <Route path="setup" element={<AdminOnly><SetupChecklist /></AdminOnly>} /> {/* home fork */}
           <Route path="subtitles" element={<AdminOnly><SubtitleSettings /></AdminOnly>} />
           <Route path="metadata" element={<AdminOnly><MetadataSettings /></AdminOnly>} />

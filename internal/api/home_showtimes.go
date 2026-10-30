@@ -174,6 +174,7 @@ func (s *Server) handleAddShowtime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, _ := res.LastInsertId()
+	go s.artForFilm(b.TMDBID) // Usherr: its artwork ready before the night
 	s.marqueeLive.send("", marqueeEvent{Type: "settings"})
 	writeJSON(w, http.StatusCreated, map[string]any{"id": id})
 }

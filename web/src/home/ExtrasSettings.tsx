@@ -16,6 +16,7 @@ import { TICKET_SITES, type TicketService } from './cinema' // Usherr
 import { TicketsButton } from './InTheaters' // Usherr
 import { sportsApi, type SportsSettings } from './sportsApi' // Usherr
 import { readToMeApi, type RtvSettings } from './readToMeApi'
+import { artApi, type ArtAll, type ArtSettings } from './artApi' // Usherr: Re-Posterr
 
 interface Extras {
   server: { kind: '' | 'jellyfin' | 'emby'; name: string; plex: boolean }
@@ -137,6 +138,7 @@ export default function ExtrasSettings({ only }: { only?: string[] } = {}) {
       {show('cinema') && <CinemaCard />}
       {show('marquee') && <MarqueeCard inWizard={!!only} />}
       {show('preshow') && <PreshowCard inWizard={!!only} />}
+      {show('reposterr') && <ReposterrCard inWizard={!!only} />}
       {show('comics') && <ComicsCard x={x} act={act} />}
       {show('direct') && <DirectCard x={x} save={save} />}
       {show('sports') && <SportsCard />}
@@ -1357,6 +1359,96 @@ function PreshowCard({ inWizard }: { inWizard: boolean }) {
           ? t('It also plays before films in the Jellyfin app.')
           : t('To play it in the Jellyfin app too, press Set it up under In the Jellyfin app on its page (it installs the NeXroll Intros plugin).')}
       </p>
+    </Card>
+  )
+}
+
+// Usherr: Re-Posterr, the posters, backgrounds and logos Jellyfin shows
+// (ArtworkSettings.tsx). Asks first unless told otherwise; fanart.tv's key
+// is optional.
+function ReposterrCard({ inWizard }: { inWizard: boolean }) {
+  const toast = useToast()
+  const [all, setAll] = useState<ArtAll | null>(null)
+  const [key, setKey] = useState('')
+  const load = useCallback(() => {
+    artApi
+      .all()
+      .then(setAll)
+      .catch(() => undefined)
+  }, [])
+  useEffect(() => load(), [load])
+  if (!all) return null
+  const set = all.settings
+  const save = async (patch: Partial<ArtSettings> & { fanartKey?: string }, ok?: string) => {
+    try {
+      await artApi.saveSettings({ ...set, ...patch })
+      if (ok) toast.success(ok)
+      load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
+  const page = '/settings/re-posterr'
+  const ready = set.on && all.jellyfin && all.tmdb
+  return (
+    <Card
+      title="Re-Posterr"
+      state={ready ? 'ready' : 'setup'}
+      guide="re-posterr"
+      needs={!all.jellyfin ? t('Jellyfin connected (the Media server step).') : !all.tmdb ? t('the TMDB key.') : !set.on ? t('turning on its nightly look, below.') : undefined}
+      blurb={t('The best poster, background and logo for every film, show and collection in Jellyfin, from TMDB and fanart.tv. It asks first: its picks wait beside what Jellyfin has, and nothing changes until you say so. It looks at night, never while someone is watching, and every change can be put back. It can also make the posters in your own style (on its page, Your style): the title in your font and layout on art without words, with season posters, title cards, backgrounds, your own overlays and a style per library.')}
+    >
+      <div style={row}>
+        <label style={row} title={t('Ask first is the safest: nothing changes until you approve it')}>
+          {t('What it does')}
+          <select value={set.mode} onChange={(e) => void save({ mode: e.target.value as ArtSettings['mode'] })}>
+            <option value="ask">{t('Ask me first')}</option>
+            <option value="fill">{t('Fill in what’s missing, by itself')}</option>
+            <option value="auto">{t('Fill in and replace small ones, by itself')}</option>
+          </select>
+        </label>
+        {!set.on && (
+          <button type="button" className="btn-sm" onClick={() => void save({ on: true }, t('Re-Posterr looks tonight.'))} title={t('Looks every night, a title every few seconds')}>
+            {t('Turn on')}
+          </button>
+        )}
+      </div>
+      <div style={row}>
+        {set.fanartKeySet ? (
+          <>
+            <span className="badge downloaded">{t('fanart.tv key saved')}</span>
+            <TestButton label={t('Test it')} run={() => artApi.testFanart().then((r) => ({ ok: true, message: t('fanart.tv answered with {n} pictures.', { n: r.pictures }) }), (e: Error) => ({ ok: false, message: e.message }))} />
+          </>
+        ) : (
+          <>
+            <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder={t('fanart.tv key (optional)')} aria-label={t('fanart.tv key')} autoComplete="off" title={t('A free personal key from your fanart.tv profile: more logos and textless art')} />
+            <button
+              type="button"
+              className="btn-sm"
+              disabled={!key.trim()}
+              title={t('Kept encrypted with Usherr’s other keys')}
+              onClick={() => {
+                void save({ fanartKey: key.trim() }, t('fanart.tv key saved.'))
+                setKey('')
+              }}
+            >
+              {t('Save')}
+            </button>
+          </>
+        )}
+      </div>
+      <div style={row}>
+        {inWizard ? (
+          <a className="primary btn-sm btn-with-icon" href={page} target="_blank" rel="noreferrer" title={t('Opens beside the setup, so it isn’t left halfway')}>
+            <Icon name="image" size={14} /> {t('Re-Posterr’s page')}
+          </a>
+        ) : (
+          <Link className="primary btn-sm btn-with-icon" to={page}>
+            <Icon name="image" size={14} /> {t('Re-Posterr’s page')}
+          </Link>
+        )}
+      </div>
+      <p className="hint">{t('Each film’s and show’s page also gets a Re-Posterr button, to pick its pictures by hand or make them in your style, from your own picture too. A TheTVDB key (on its page) adds more art for shows.')}</p>
     </Card>
   )
 }

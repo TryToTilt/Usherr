@@ -585,6 +585,33 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("PUT /api/home/preshow/trailers/{id}", s.handlePutTrailer)
 	admin.HandleFunc("DELETE /api/home/preshow/trailers/{id}", s.handleDeleteTrailer)
 	admin.HandleFunc("GET /api/home/preshow/jellyfin", s.handlePreshowJF)
+	// Usherr: artwork picking (home_artwork.go)
+	admin.HandleFunc("GET /api/home/art", s.handleArt)
+	admin.HandleFunc("PUT /api/home/art/settings", s.handlePutArtSettings)
+	admin.HandleFunc("POST /api/home/art/test-fanart", s.handleArtTestFanart)
+	admin.HandleFunc("POST /api/home/art/look", s.handleArtLook)
+	admin.HandleFunc("GET /api/home/art/changes", s.handleArtChanges)
+	admin.HandleFunc("POST /api/home/art/changes/apply", s.handleArtApply)
+	admin.HandleFunc("POST /api/home/art/changes/skip", s.handleArtSkip)
+	admin.HandleFunc("POST /api/home/art/changes/{id}/undo", s.handleArtUndo)
+	admin.HandleFunc("GET /api/home/art/title", s.handleArtTitle)
+	admin.HandleFunc("POST /api/home/art/title/choose", s.handleArtChoose)
+	admin.HandleFunc("GET /api/home/art/current/{item}/{type}", s.handleArtCurrent)
+	admin.HandleFunc("GET /api/home/art/preview", s.handleArtPreview)
+	admin.HandleFunc("GET /api/home/art/styles", s.handleArtStyles)                     // Usherr: Re-Posterr's own posters
+	admin.HandleFunc("PUT /api/home/art/styles", s.handlePutArtStyles)                  // Usherr
+	admin.HandleFunc("POST /api/home/art/styles/preview", s.handleArtStylePreview)      // Usherr
+	admin.HandleFunc("GET /api/home/art/samples", s.handleArtSamples)                   // Usherr
+	admin.HandleFunc("GET /api/home/art/changes/{id}/look", s.handleArtChangeLook)      // Usherr
+	admin.HandleFunc("POST /api/home/art/title/style", s.handleArtTitleStyle)           // Usherr
+	admin.HandleFunc("POST /api/home/art/overlays", s.handleArtOverlayAdd)              // Usherr: Re-Posterr's overlays, own pictures, TheTVDB, Posterizarr
+	admin.HandleFunc("GET /api/home/art/overlays/{name}", s.handleArtOverlayGet)        // Usherr
+	admin.HandleFunc("DELETE /api/home/art/overlays/{name}", s.handleArtOverlayDelete)  // Usherr
+	admin.HandleFunc("POST /api/home/art/upload", s.handleArtUpload)                    // Usherr
+	admin.HandleFunc("GET /api/home/art/uploads/{name}", s.handleArtUploadGet)          // Usherr
+	admin.HandleFunc("POST /api/home/art/test-tvdb", s.handleArtTestTVDB)               // Usherr
+	admin.HandleFunc("POST /api/home/art/test-posterizarr", s.handleArtTestPosterizarr) // Usherr
+	member.HandleFunc("GET /api/home/art/poster/{id}", s.handleArtPoster)               // Usherr: Re-Posterr's posters on Usherr's pages
 	admin.HandleFunc("PUT /api/home/preshow/jellyfin", s.handlePutPreshowJF)
 	admin.HandleFunc("POST /api/home/preshow/jellyfin/key", s.handlePreshowJFKey)
 	admin.HandleFunc("POST /api/home/preshow/jellyfin/setup", s.handlePreshowJFSetup)

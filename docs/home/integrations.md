@@ -299,6 +299,22 @@ Pre-show**.
 - **Check:** **Watch a sample**, then play a film in the Jellyfin app.
   See [The pre-show](preshow.md).
 
+## Re-Posterr
+
+**Optional.** Re-Posterr, Usherr's artwork picker, picks the poster, background and logo for each title in
+Jellyfin from TMDB (and fanart.tv), and asks before changing anything.
+
+- **Needs:** Jellyfin connected and the TMDB key.
+- **fanart.tv (optional):** a free personal key from your fanart.tv profile,
+  pasted on **Settings → Re-Posterr**.
+- **Your style (optional):** posters, season posters, episode title cards and
+  backgrounds made by Re-Posterr, the title in your font and layout on art
+  without words; your own overlays, a style per library.
+- **TheTVDB (optional):** a TheTVDB API key, for more art for shows.
+- **Posterizarr (optional):** its address; it can take over the posters.
+- **Check:** **Look now**, then see **Waiting for you**; or the **Re-Posterr** button
+  on a film's page. See [Re-Posterr](re-posterr.md).
+
 ## Comics
 
 **Optional.** Follow comic series, get new issues and read them in a

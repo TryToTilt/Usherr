@@ -62,6 +62,13 @@ export const HOME_TOPICS: TopicDef[] = [
     sources: [{ file: 'home/preshow.md' }],
   },
   {
+    id: 'home-reposterr',
+    title: 'Re-Posterr',
+    summary: 'The posters, backgrounds and logos Jellyfin shows: Usherr’s picks from TMDB and fanart.tv, posters made in your own style (season posters, title cards, backgrounds, overlays, a style per library, your own picture and words), TheTVDB and Posterizarr, asking first, choosing by hand, putting one back, and when it looks.',
+    group: HOME_GROUP,
+    sources: [{ file: 'home/re-posterr.md' }],
+  },
+  {
     id: 'home-readtome',
     title: 'Read-to-Me',
     summary: 'Turn an ebook into an audiobook with a computer voice: Kokoro and Chatterbox on your graphics card, samples, a preview, night-only, and the finished M4B in your Audiobooks.',
