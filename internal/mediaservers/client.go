@@ -27,6 +27,12 @@ type Client struct {
 	// SeriesIDs gives a show's TheTVDB and IMDb ids from its TMDB id, for
 	// servers that file shows under those (Silo). Nil means unknown.
 	SeriesIDs func(tmdbID int) (tvdbID int, imdbID string)
+	// NearbyPlex (Usherr) are addresses tried before the ones plex.tv lists,
+	// such as http://host.docker.internal:32400 for a Plex on the computer
+	// Docker runs on: those plex.tv lists can change with the computer's
+	// network address. One is used only when the server answering there is
+	// the same one, asked without its token.
+	NearbyPlex []string
 }
 
 // maxAnswerBytes is the most read of a media server's answer (a library

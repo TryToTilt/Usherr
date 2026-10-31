@@ -101,6 +101,7 @@ func (s *Server) shelfOf(ctx context.Context, person string) (*roomShelf, error)
 				continue
 			}
 			list, err := s.mediaClient.PlexShelf(ctx, srv)
+			plexAnswered(srv.ID, err)
 			if err != nil {
 				return nil, err
 			}

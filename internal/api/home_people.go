@@ -21,7 +21,35 @@ import (
 	"github.com/rdborg/mediarium/internal/mediaservers"
 )
 
-// plexServers are the enabled Plex servers Usherr can read.
+// A Plex that didn't answer is left alone for a few minutes, so a page
+// doesn't wait on it each time.
+var plexDown = struct {
+	sync.Mutex
+	m map[int64]time.Time
+}{m: map[int64]time.Time{}}
+
+const plexDownFor = 5 * time.Minute
+
+func plexIsDown(id int64) bool {
+	plexDown.Lock()
+	defer plexDown.Unlock()
+	at, ok := plexDown.m[id]
+	return ok && time.Since(at) < plexDownFor
+}
+
+// plexAnswered notes whether a Plex answered (err == nil).
+func plexAnswered(id int64, err error) {
+	plexDown.Lock()
+	defer plexDown.Unlock()
+	if err == nil {
+		delete(plexDown.m, id)
+	} else {
+		plexDown.m[id] = time.Now()
+	}
+}
+
+// plexServers are the enabled Plex servers Usherr can read (leaving out one
+// that didn't answer a moment ago).
 func (s *Server) plexServers() []mediaservers.Server {
 	list, err := s.MediaServers.List()
 	if err != nil {
@@ -29,7 +57,7 @@ func (s *Server) plexServers() []mediaservers.Server {
 	}
 	var out []mediaservers.Server
 	for _, m := range list {
-		if m.Enabled && m.Kind == mediaservers.KindPlex && m.Token != "" {
+		if m.Enabled && m.Kind == mediaservers.KindPlex && m.Token != "" && !plexIsDown(m.ID) {
 			out = append(out, m)
 		}
 	}
@@ -117,8 +145,12 @@ func (s *Server) plexPeople(ctx context.Context, srv mediaservers.Server) ([]med
 		return seen.list, nil
 	}
 	list, err := s.mediaClient.PlexAccounts(ctx, srv)
+	plexAnswered(srv.ID, err)
 	if err != nil {
 		return nil, err
+	}
+	if len(list) == 0 {
+		slog.Info("plex: the server lists nobody who watches", "server", srv.Name)
 	}
 	plexPeopleCache.Lock()
 	plexPeopleCache.m[srv.ID] = plexPeopleSeen{list, time.Now()}
@@ -162,6 +194,7 @@ func (s *Server) playedBy(ctx context.Context, person string, since time.Time, l
 			continue
 		}
 		list, err := s.mediaClient.PlexHistory(ctx, srv, ref.account, since)
+		plexAnswered(srv.ID, err)
 		if err != nil {
 			if jf == "" && len(plex) == 1 {
 				return nil, err
@@ -322,6 +355,7 @@ func (s *Server) plexShelves(ctx context.Context) []mediaservers.ShelfTitle {
 	var out []mediaservers.ShelfTitle
 	for _, srv := range s.plexServers() {
 		list, err := s.mediaClient.PlexShelf(ctx, srv)
+		plexAnswered(srv.ID, err)
 		if err != nil {
 			slog.Info("plex: libraries not read", "server", srv.Name, "err", err)
 			continue

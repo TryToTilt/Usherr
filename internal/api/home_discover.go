@@ -169,6 +169,7 @@ func (s *Server) jfPeople(ctx context.Context) ([]jfPerson, error) {
 	for _, srv := range s.plexServers() {
 		accounts, err := s.plexPeople(ctx, srv)
 		if err != nil {
+			slog.Info("plex: who watches not read", "server", srv.Name, "err", err)
 			if firstErr == nil {
 				firstErr = err
 			}

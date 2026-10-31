@@ -278,6 +278,7 @@ func New(db *sql.DB, cfg config.Config, box *crypto.Box, defaultTMDBAPIKey, vers
 	s.Monitor = s.newMonitor()
 	s.MediaServers = mediaservers.NewRepo(db, box)
 	s.mediaClient = mediaservers.NewClient(version)
+	s.mediaClient.NearbyPlex = []string{"http://host.docker.internal:32400"} // Usherr: a Plex on the same computer
 	s.mediaClient.SeriesIDs = func(tmdbID int) (int, string) {
 		if s.MovieRepo == nil {
 			return 0, ""

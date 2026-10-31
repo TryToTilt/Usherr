@@ -5,6 +5,19 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.27.2] - 2026-10-31
+
+### Fixed
+
+- **Sign in with Plex picks an address that keeps working**: for a Plex on the same computer as Docker, Usherr now uses http://host.docker.internal first (after checking, without the token, that it's the same server), instead of a plex.direct address tied to the computer's network address, which can change.
+- **A Plex that doesn't answer no longer slows pages down**: after a failed answer Usherr leaves that server alone for five minutes instead of waiting on it each time.
+
+## [2.27.1] - 2026-10-31
+
+### Fixed
+
+- **Plex**: when Usherr can't read who watches on a Plex server, the log says why.
+
 ## [2.27.0] - 2026-10-31
 
 ### Added

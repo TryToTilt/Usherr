@@ -254,6 +254,9 @@ func (c *Client) ConnectPlex(ctx context.Context, r PlexResource, preferred stri
 		return Server{}, TestResult{}, userErr(nil, "plex.tv did not give Mediarium access to %q. Only servers you own or that are shared with you can be added.", r.Name)
 	}
 	cands := r.Candidates(preferred)
+	if strings.TrimSpace(preferred) == "" {
+		cands = append(c.nearbyPlex(ctx, r), cands...)
+	}
 	if len(cands) == 0 {
 		return Server{}, TestResult{}, userErr(nil, "plex.tv lists no address for %q. Make sure the server is running and signed in to your Plex account.", r.Name)
 	}
@@ -282,6 +285,21 @@ func (c *Client) ConnectPlex(ctx context.Context, r PlexResource, preferred stri
 		tried, lastErr = append(tried, u), err
 	}
 	return Server{}, TestResult{}, userErr(lastErr, "Could not connect to %q at any of its addresses (%s). Check that Mediarium can reach it on your network, or add it by address instead.", r.Name, strings.Join(tried, ", "))
+}
+
+// nearbyPlex are the NearbyPlex addresses where this very server answers
+// (its machine id, asked without the token, so the token only goes to it).
+func (c *Client) nearbyPlex(ctx context.Context, r PlexResource) []string {
+	var out []string
+	for _, u := range c.NearbyPlex {
+		ictx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		id, err := c.plexIdentity(ictx, Server{Kind: KindPlex, BaseURL: u})
+		cancel()
+		if err == nil && r.ClientIdentifier != "" && id.MachineIdentifier == r.ClientIdentifier {
+			out = append(out, u)
+		}
+	}
+	return out
 }
 
 // HasAddress reports whether u is one of the addresses Candidates lists.
