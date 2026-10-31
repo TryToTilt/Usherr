@@ -142,32 +142,46 @@ type jfPerson struct {
 	IsAdmin bool   `json:"-"`
 }
 
-// jfPeople lists the media server's users.
+// jfPeople lists who watches: the Jellyfin or Emby server's users and, Usherr,
+// the Plex servers' accounts, someone on both being one person (home_people.go).
 func (s *Server) jfPeople(ctx context.Context) ([]jfPerson, error) {
-	srv, ok := s.jellyfinServer()
-	if !ok {
-		return nil, nil
-	}
-	var users []struct {
-		ID     string `json:"Id"`
-		Name   string `json:"Name"`
-		Policy struct {
-			IsAdministrator bool `json:"IsAdministrator"`
-			IsDisabled      bool `json:"IsDisabled"`
-			IsHidden        bool `json:"IsHidden"`
-		} `json:"Policy"`
-	}
-	if err := jfJSON(ctx, srv, http.MethodGet, "/Users", nil, &users); err != nil {
-		return nil, err
-	}
-	var out []jfPerson
-	for _, u := range users {
-		if !u.Policy.IsDisabled {
-			out = append(out, jfPerson{ID: u.ID, Name: u.Name, IsAdmin: u.Policy.IsAdministrator})
+	var all []jfPerson
+	var firstErr error
+	if srv, ok := s.jellyfinServer(); ok {
+		var users []struct {
+			ID     string `json:"Id"`
+			Name   string `json:"Name"`
+			Policy struct {
+				IsAdministrator bool `json:"IsAdministrator"`
+				IsDisabled      bool `json:"IsDisabled"`
+				IsHidden        bool `json:"IsHidden"`
+			} `json:"Policy"`
+		}
+		if err := jfJSON(ctx, srv, http.MethodGet, "/Users", nil, &users); err != nil {
+			firstErr = err
+		}
+		for _, u := range users {
+			if !u.Policy.IsDisabled {
+				all = append(all, jfPerson{ID: u.ID, Name: u.Name, IsAdmin: u.Policy.IsAdministrator})
+			}
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
-	return out, nil
+	for _, srv := range s.plexServers() {
+		accounts, err := s.plexPeople(ctx, srv)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		for _, a := range accounts {
+			all = append(all, jfPerson{ID: plexPersonID(srv.ID, a.ID), Name: a.Name, IsAdmin: a.Owner})
+		}
+	}
+	if len(all) == 0 {
+		return nil, firstErr
+	}
+	return mergePeople(all), nil
 }
 
 // personFor is the media server user that matches a Mediarium account: same
@@ -213,6 +227,15 @@ type watching struct {
 	names        map[int]string // a title's name, by TMDB id
 	seen         map[int]bool   // movies finished and shows started
 	at           time.Time
+	// Usherr: each show's furthest episode watched (season, episode), and,
+	// for one watched in Plex, where Plex has it (for its next episode).
+	furthest map[int][2]int
+	plexShow map[int]plexShowRef
+}
+
+type plexShowRef struct {
+	server int64
+	key    string
 }
 
 var (
@@ -229,59 +252,37 @@ func (s *Server) watchingOf(ctx context.Context, person string) (*watching, erro
 		return wa, nil
 	}
 	watchMu.Unlock()
-	srv, ok := s.jellyfinServer()
-	if !ok || person == "" {
+	if person == "" || !s.hasWatchServer() {
 		return &watching{names: map[int]string{}, seen: map[int]bool{}}, nil
 	}
 	wa := &watching{names: map[int]string{}, seen: map[int]bool{}, at: time.Now()}
-	base := "/Users/" + url.PathEscape(person) + "/Items?Recursive=true&Filters=IsPlayed&SortBy=DatePlayed&SortOrder=Descending&EnableImages=false&Fields=ProviderIds"
-	var movies struct {
-		Items []jfItem `json:"Items"`
-	}
-	if err := jfJSON(ctx, srv, http.MethodGet, base+"&IncludeItemTypes=Movie&Limit=2000", nil, &movies); err != nil {
+	list, err := s.playedBy(ctx, person, time.Time{}, playedLimits{movies: 2000, episodes: 3000})
+	if err != nil {
 		return nil, err
 	}
-	for _, it := range movies.Items {
-		if id := it.tmdbID(); id > 0 && !wa.seen[id] {
-			wa.seen[id] = true
-			wa.recentMovies = append(wa.recentMovies, id)
-			wa.names[id] = it.Name
+	// Films finished, and shows in the order their latest episode was
+	// watched (shows are kept negative, apart from movies).
+	wa.furthest, wa.plexShow = map[int][2]int{}, map[int]plexShowRef{}
+	for _, p := range list {
+		key := p.TMDBID
+		if p.Kind == "episode" {
+			key = -p.TMDBID
+			if f := wa.furthest[p.TMDBID]; p.Season > 0 && (p.Season > f[0] || (p.Season == f[0] && p.Episode > f[1])) {
+				wa.furthest[p.TMDBID] = [2]int{p.Season, p.Episode}
+			}
+			if _, ok := wa.plexShow[p.TMDBID]; !ok && p.ShowKey != "" {
+				wa.plexShow[p.TMDBID] = plexShowRef{p.server, p.ShowKey}
+			}
 		}
-	}
-	var eps struct {
-		Items []jfItem `json:"Items"`
-	}
-	if err := jfJSON(ctx, srv, http.MethodGet, base+"&IncludeItemTypes=Episode&Limit=3000", nil, &eps); err != nil {
-		return nil, err
-	}
-	// The shows, in the order their latest episode was watched.
-	var seriesOrder []string
-	seriesName := map[string]string{}
-	for _, it := range eps.Items {
-		if it.SeriesID != "" && seriesName[it.SeriesID] == "" {
-			seriesOrder = append(seriesOrder, it.SeriesID)
-			seriesName[it.SeriesID] = it.SeriesName
+		if wa.seen[key] {
+			continue
 		}
-	}
-	// Their TMDB ids, a batch at a time.
-	tmdbOf := map[string]int{}
-	for i := 0; i < len(seriesOrder); i += 100 {
-		batch := seriesOrder[i:min(i+100, len(seriesOrder))]
-		var shows struct {
-			Items []jfItem `json:"Items"`
-		}
-		if err := jfJSON(ctx, srv, http.MethodGet, "/Users/"+url.PathEscape(person)+"/Items?EnableImages=false&Fields=ProviderIds&Ids="+strings.Join(batch, ","), nil, &shows); err != nil {
-			return nil, err
-		}
-		for _, it := range shows.Items {
-			tmdbOf[it.ID] = it.tmdbID()
-		}
-	}
-	for _, sid := range seriesOrder {
-		if id := tmdbOf[sid]; id > 0 && !wa.seen[-id] {
-			wa.seen[-id] = true // shows are kept negative, apart from movies
-			wa.recentShows = append(wa.recentShows, id)
-			wa.names[-id] = seriesName[sid]
+		wa.seen[key] = true
+		wa.names[key] = p.Title
+		if key > 0 {
+			wa.recentMovies = append(wa.recentMovies, p.TMDBID)
+		} else {
+			wa.recentShows = append(wa.recentShows, p.TMDBID)
 		}
 	}
 	watchMu.Lock()
@@ -431,15 +432,7 @@ func (s *Server) ownedMovies(ctx context.Context) map[int]bool {
 	if srv, ok := s.jellyfinServer(); ok {
 		people, _ := s.jfPeople(ctx)
 		// Read through an administrator, who sees every library.
-		viewer := ""
-		for _, p := range people {
-			if p.IsAdmin && viewer == "" {
-				viewer = p.ID
-			}
-		}
-		if viewer == "" && len(people) > 0 {
-			viewer = people[0].ID
-		}
+		viewer := jfViewer(people)
 		if viewer != "" {
 			var res struct {
 				Items []jfItem `json:"Items"`
@@ -452,6 +445,11 @@ func (s *Server) ownedMovies(ctx context.Context) map[int]bool {
 					}
 				}
 			}
+		}
+	}
+	for _, t := range s.plexShelves(ctx) { // Usherr: and Plex's libraries
+		if t.Kind == "movie" {
+			have[t.TMDBID] = true
 		}
 	}
 	if list, err := s.MovieRepo.List(); err == nil {

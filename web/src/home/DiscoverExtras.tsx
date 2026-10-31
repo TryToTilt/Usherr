@@ -1,5 +1,5 @@
 // Home fork: Discover's rails from what the household watches.
-//   - "Because you watched": from a person's watching in Jellyfin (or Emby),
+//   - "Because you watched": from a person's watching in Jellyfin, Plex or Emby,
 //     so it follows what they actually finish, not just what's on disk. An
 //     administrator can switch to anyone in the household (people without a
 //     Mediarium account included).
@@ -207,7 +207,7 @@ export function ForYouRail({ kind, owned, onAdd, invite = true }: { kind: Kind; 
           <Icon name="sparkles" size={20} />
           <div>
             <strong>{t('Get suggestions made for you')}</strong>
-            <p className="hint">{t('Rate 20 titles, or watch a few in Jellyfin, and a For you row appears here, each title with how well it fits your taste.')}</p>
+            <p className="hint">{t('Rate 20 titles, or watch a few in Jellyfin or Plex, and a For you row appears here, each title with how well it fits your taste.')}</p>
           </div>
           <RateButton className="btn-sm primary btn-with-icon" />
         </div>

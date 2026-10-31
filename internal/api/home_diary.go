@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -65,7 +64,7 @@ func (s *Server) diaryPut(ctx context.Context, uid int64, e diaryEntry) error {
 			note = CASE WHEN home_diary.note = '' THEN excluded.note ELSE home_diary.note END,
 			dated = MAX(home_diary.dated, excluded.dated),
 			rewatch = MAX(home_diary.rewatch, excluded.rewatch),
-			hidden = CASE WHEN excluded.source = 'jellyfin' THEN home_diary.hidden ELSE 0 END`,
+			hidden = CASE WHEN excluded.source IN ('jellyfin', 'plex') THEN home_diary.hidden ELSE 0 END`,
 		uid, e.Kind, e.TMDBID, e.Title, e.Year, e.Image, e.WatchedOn, b2i(e.Dated), e.Episodes, e.Episode, e.Runtime, e.Stars, e.Note, b2i(e.Rewatch), e.Source)
 	return err
 }
@@ -120,8 +119,7 @@ func (s *Server) syncDiary(ctx context.Context, u *auth.User) error {
 	mu, _ := diarySyncMu.LoadOrStore(u.ID, &sync.Mutex{})
 	mu.(*sync.Mutex).Lock()
 	defer mu.(*sync.Mutex).Unlock()
-	srv, ok := s.jellyfinServer()
-	if !ok {
+	if !s.hasWatchServer() {
 		return nil
 	}
 	people, err := s.jfPeople(ctx)
@@ -132,83 +130,47 @@ func (s *Server) syncDiary(ctx context.Context, u *auth.User) error {
 	if person == "" {
 		return nil
 	}
-	base := "/Users/" + url.PathEscape(person) + "/Items?Recursive=true&Filters=IsPlayed&SortBy=DatePlayed&SortOrder=Descending&EnableImages=false&Fields=ProviderIds"
 	// After the first look, only what changed since the last one (an hour's
 	// margin for clocks).
+	var since time.Time
 	var last string
 	_ = s.db.QueryRowContext(ctx, `SELECT synced_at FROM home_diary_sync WHERE user_id = ?`, u.ID).Scan(&last)
 	if t, err := time.Parse(time.RFC3339, last); err == nil {
-		base += "&MinDateLastSavedForUser=" + url.QueryEscape(t.Add(-time.Hour).UTC().Format(time.RFC3339))
+		since = t.Add(-time.Hour)
 	}
-	var movies, eps struct {
-		Items []jfPlayed `json:"Items"`
-	}
-	if err := jfJSON(ctx, srv, http.MethodGet, base+"&IncludeItemTypes=Movie&Limit=5000", nil, &movies); err != nil {
+	list, err := s.playedBy(ctx, person, since, playedLimits{movies: 5000, episodes: 20000})
+	if err != nil {
 		return err
 	}
-	if err := jfJSON(ctx, srv, http.MethodGet, base+"&IncludeItemTypes=Episode&Limit=20000", nil, &eps); err != nil {
-		return err
-	}
-	for _, it := range movies.Items {
-		id := jfItem{ProviderIDs: it.ProviderIDs}.tmdbID()
-		day := it.day()
-		if id <= 0 || day == "" {
-			continue
-		}
-		if err := s.diaryPut(ctx, u.ID, diaryEntry{Kind: "movie", TMDBID: id, Title: it.Name, Year: it.ProductionYear, WatchedOn: day, Dated: true, Runtime: int(it.RunTimeTicks / 600_000_000), Source: "jellyfin"}); err != nil {
-			return err
-		}
-	}
-	// Episodes: one entry per show per day.
+	// Films: one entry each. Episodes: one entry per show per day.
 	type showDay struct {
-		series, day string
+		tmdb int
+		day  string
 	}
-	days := map[showDay][]jfPlayed{}
-	var series []string
-	seenSeries := map[string]bool{}
-	for _, it := range eps.Items {
-		day := it.day()
-		if it.SeriesID == "" || day == "" {
+	days := map[showDay][]played{}
+	for _, it := range list {
+		if it.Kind == "movie" {
+			if err := s.diaryPut(ctx, u.ID, diaryEntry{Kind: "movie", TMDBID: it.TMDBID, Title: it.Title, Year: it.Year, WatchedOn: it.day(), Dated: true, Runtime: it.Minutes, Source: it.source}); err != nil {
+				return err
+			}
 			continue
 		}
-		days[showDay{it.SeriesID, day}] = append(days[showDay{it.SeriesID, day}], it)
-		if !seenSeries[it.SeriesID] {
-			seenSeries[it.SeriesID] = true
-			series = append(series, it.SeriesID)
-		}
+		k := showDay{it.TMDBID, it.day()}
+		days[k] = append(days[k], it)
 	}
-	tmdbOf := map[string]int{}
-	yearOf := map[string]int{}
-	for i := 0; i < len(series); i += 100 {
-		var shows struct {
-			Items []jfItem `json:"Items"`
-		}
-		batch := series[i:min(i+100, len(series))]
-		if err := jfJSON(ctx, srv, http.MethodGet, "/Users/"+url.PathEscape(person)+"/Items?EnableImages=false&Fields=ProviderIds&Ids="+strings.Join(batch, ","), nil, &shows); err != nil {
-			return err
-		}
-		for _, it := range shows.Items {
-			tmdbOf[it.ID] = it.tmdbID()
-			yearOf[it.ID] = it.ProductionYear
-		}
-	}
-	for k, list := range days {
-		id := tmdbOf[k.series]
-		if id <= 0 {
-			continue
-		}
-		sort.Slice(list, func(i, j int) bool {
-			return list[i].Season < list[j].Season || list[i].Season == list[j].Season && list[i].Episode < list[j].Episode
+	for k, eps := range days {
+		sort.Slice(eps, func(i, j int) bool {
+			return eps[i].Season < eps[j].Season || eps[i].Season == eps[j].Season && eps[i].Episode < eps[j].Episode
 		})
-		var mins int64
-		for _, e := range list {
-			mins += e.RunTimeTicks
+		mins := 0
+		for _, e := range eps {
+			mins += e.Minutes
 		}
-		label := fmt.Sprintf("S%dE%d", list[0].Season, list[0].Episode)
-		if last := list[len(list)-1]; len(list) > 1 {
+		label := fmt.Sprintf("S%dE%d", eps[0].Season, eps[0].Episode)
+		if last := eps[len(eps)-1]; len(eps) > 1 {
 			label += fmt.Sprintf("–S%dE%d", last.Season, last.Episode)
 		}
-		e := diaryEntry{Kind: "tv", TMDBID: id, Title: list[0].SeriesName, Year: yearOf[k.series], WatchedOn: k.day, Dated: true, Episodes: len(list), Episode: label, Runtime: int(mins / 600_000_000), Source: "jellyfin"}
+		e := diaryEntry{Kind: "tv", TMDBID: k.tmdb, Title: eps[0].Title, Year: eps[0].Year, WatchedOn: k.day, Dated: true, Episodes: len(eps), Episode: label, Runtime: mins, Source: eps[0].source}
 		if err := s.diaryPut(ctx, u.ID, e); err != nil {
 			return err
 		}
@@ -222,7 +184,7 @@ func (s *Server) syncDiary(ctx context.Context, u *auth.User) error {
 
 // diaryJob keeps everyone's Diary up to date with the media server.
 func (s *Server) diaryJob(ctx context.Context) {
-	if _, ok := s.jellyfinServer(); !ok {
+	if !s.hasWatchServer() {
 		return
 	}
 	list, err := s.Auth.ListAccounts()
@@ -359,7 +321,7 @@ func (s *Server) handleDiary(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) hasMediaServerPerson(ctx context.Context, u *auth.User) bool {
-	if _, ok := s.jellyfinServer(); !ok {
+	if !s.hasWatchServer() {
 		return false
 	}
 	people, err := s.jfPeople(ctx)
@@ -431,7 +393,7 @@ func (s *Server) handleDiaryDelete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "That entry couldn't be read.")
 		return
 	}
-	res, err := s.db.ExecContext(r.Context(), `UPDATE home_diary SET hidden = 1, stars = 0, note = '' WHERE id = ? AND user_id = ? AND source = 'jellyfin'`, id, userID(r))
+	res, err := s.db.ExecContext(r.Context(), `UPDATE home_diary SET hidden = 1, stars = 0, note = '' WHERE id = ? AND user_id = ? AND source IN ('jellyfin', 'plex')`, id, userID(r))
 	if n, _ := rowsAffected(res, err); n == 0 {
 		res, err = s.db.ExecContext(r.Context(), `DELETE FROM home_diary WHERE id = ? AND user_id = ?`, id, userID(r))
 	}

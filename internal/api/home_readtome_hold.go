@@ -4,7 +4,7 @@ package api
 // a job holds back (and says so) while
 //   - "night only" is on and it isn't night yet (two times of day, which may
 //     cross midnight), and
-//   - something is playing: in Usherr's own player, or on Jellyfin or Emby (a
+//   - something is playing: in Usherr's own player, or on Jellyfin, Plex or Emby (a
 //     paused picture doesn't count), so a film never stutters for an audiobook.
 //
 // A job that waits keeps what it has spoken and goes on when the way is clear.

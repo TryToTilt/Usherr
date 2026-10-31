@@ -77,15 +77,7 @@ func (s *Server) have(ctx context.Context) *havePayload {
 	// The media server: each title's path says disk or streamed.
 	if srv, ok := s.jellyfinServer(); ok {
 		people, _ := s.jfPeople(ctx)
-		viewer := ""
-		for _, p := range people {
-			if p.IsAdmin && viewer == "" {
-				viewer = p.ID
-			}
-		}
-		if viewer == "" && len(people) > 0 {
-			viewer = people[0].ID
-		}
+		viewer := jfViewer(people)
 		if viewer != "" {
 			var res struct {
 				Items []struct {
@@ -113,6 +105,23 @@ func (s *Server) have(ctx context.Context) *havePayload {
 					}
 				}
 			}
+		}
+	}
+
+	// Usherr: Plex's libraries, the virtual drive's titles being streamed.
+	drive := strings.ToLower(strings.TrimRight(strings.ReplaceAll(s.driveWhere(), "\\", "/"), "/")) + "/"
+	for _, t := range s.plexShelves(ctx) {
+		p := strings.ToLower(strings.ReplaceAll(t.File, "\\", "/"))
+		streamed := streamedPath(t.File) || (s.driveOn() && t.File != "" && strings.HasPrefix(p, drive))
+		switch {
+		case t.Kind == "movie" && streamed:
+			ms[t.TMDBID] = true
+		case t.Kind == "movie":
+			md[t.TMDBID] = true
+		case streamed:
+			ss[t.TMDBID] = true
+		default:
+			sd[t.TMDBID] = true
 		}
 	}
 

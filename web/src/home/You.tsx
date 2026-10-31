@@ -123,7 +123,7 @@ function TasteCard({ title, s }: { title: string; s: Summary }) {
           )}
         </>
       ) : (
-        <p>{t('Not enough to go on yet. Like a few titles, rate 20, or watch a few in Jellyfin.')}</p>
+        <p>{t('Not enough to go on yet. Like a few titles, rate 20, or watch a few in Jellyfin or Plex.')}</p>
       )}
     </section>
   )

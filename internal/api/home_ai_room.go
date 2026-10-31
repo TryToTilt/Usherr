@@ -78,9 +78,47 @@ func (s *Server) shelfOf(ctx context.Context, person string) (*roomShelf, error)
 		return sh, nil
 	}
 	shelfMu.Unlock()
+	sh := &roomShelf{at: time.Now()}
+	seenM, seenS := map[int]bool{}, map[int]bool{}
+	add := func(typ string, t roomTitle) {
+		if typ == "Movie" && !seenM[t.TMDB] {
+			seenM[t.TMDB] = true
+			sh.movies = append(sh.movies, t)
+		} else if typ == "Series" && !seenS[t.TMDB] {
+			seenS[t.TMDB] = true
+			sh.shows = append(sh.shows, t)
+		}
+	}
+	jf, plex := personParts(person)
+	// Usherr: what the Plex servers they watch on have.
+	if len(plex) > 0 {
+		on := map[int64]bool{}
+		for _, ref := range plex {
+			on[ref.server] = true
+		}
+		for _, srv := range s.plexServers() {
+			if !on[srv.ID] {
+				continue
+			}
+			list, err := s.mediaClient.PlexShelf(ctx, srv)
+			if err != nil {
+				return nil, err
+			}
+			for _, t := range list {
+				typ := "Movie"
+				if t.Kind == "show" {
+					typ = "Series"
+				}
+				add(typ, roomTitle{TMDB: t.TMDBID, Name: t.Title, Year: t.Year, Genres: t.Genres, Rating: t.Rating})
+			}
+		}
+	}
 	srv, ok := s.jellyfinServer()
-	if !ok || person == "" {
-		return &roomShelf{}, nil
+	if !ok || jf == "" {
+		shelfMu.Lock()
+		shelfCache[person] = sh
+		shelfMu.Unlock()
+		return sh, nil
 	}
 	var views struct {
 		Items []struct {
@@ -89,11 +127,9 @@ func (s *Server) shelfOf(ctx context.Context, person string) (*roomShelf, error)
 			CollectionType string `json:"CollectionType"`
 		} `json:"Items"`
 	}
-	if err := jfJSON(ctx, srv, http.MethodGet, "/Users/"+url.PathEscape(person)+"/Views", nil, &views); err != nil {
+	if err := jfJSON(ctx, srv, http.MethodGet, "/Users/"+url.PathEscape(jf)+"/Views", nil, &views); err != nil {
 		return nil, err
 	}
-	sh := &roomShelf{at: time.Now()}
-	seenM, seenS := map[int]bool{}, map[int]bool{}
 	for _, v := range views.Items {
 		if adultLibrary.MatchString(v.Name) {
 			continue
@@ -115,7 +151,7 @@ func (s *Server) shelfOf(ctx context.Context, person string) (*roomShelf, error)
 				OfficialRating  string   `json:"OfficialRating"`
 			} `json:"Items"`
 		}
-		p := "/Users/" + url.PathEscape(person) + "/Items?Recursive=true&ParentId=" + url.QueryEscape(v.ID) +
+		p := "/Users/" + url.PathEscape(jf) + "/Items?Recursive=true&ParentId=" + url.QueryEscape(v.ID) +
 			"&IncludeItemTypes=" + typ + "&EnableImages=false&Fields=ProviderIds,Genres"
 		if err := jfJSON(ctx, srv, http.MethodGet, p, nil, &res); err != nil {
 			continue
@@ -125,14 +161,7 @@ func (s *Server) shelfOf(ctx context.Context, person string) (*roomShelf, error)
 			if id <= 0 || strings.EqualFold(it.OfficialRating, "XXX") {
 				continue
 			}
-			t := roomTitle{TMDB: id, Name: it.Name, Year: it.ProductionYear, Genres: it.Genres, Rating: it.CommunityRating}
-			if typ == "Movie" && !seenM[id] {
-				seenM[id] = true
-				sh.movies = append(sh.movies, t)
-			} else if typ == "Series" && !seenS[id] {
-				seenS[id] = true
-				sh.shows = append(sh.shows, t)
-			}
+			add(typ, roomTitle{TMDB: id, Name: it.Name, Year: it.ProductionYear, Genres: it.Genres, Rating: it.CommunityRating})
 		}
 	}
 	shelfMu.Lock()
@@ -286,7 +315,7 @@ func (s *Server) handleAIRoom(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	people, err := s.jfPeople(ctx)
 	if err != nil || len(people) == 0 {
-		writeError(w, http.StatusServiceUnavailable, "Pick for the Room needs Jellyfin or Emby connected.")
+		writeError(w, http.StatusServiceUnavailable, "Pick for the Room needs Jellyfin, Plex or Emby connected.")
 		return
 	}
 	known := map[string]string{}
@@ -486,9 +515,17 @@ type recapPayload struct {
 // lastWatched is the furthest episode of the show a person has finished in
 // the media server, or 0, 0.
 func (s *Server) lastWatched(ctx context.Context, person string, tmdbID int) (int, int) {
+	// Usherr: what the history says (Plex as well as Jellyfin), then
+	// Jellyfin's own played marks, the furthest of them.
+	season, episode := 0, 0
+	if wa, err := s.watchingOf(ctx, person); err == nil && wa != nil {
+		f := wa.furthest[tmdbID]
+		season, episode = f[0], f[1]
+	}
 	srv, ok := s.jellyfinServer()
-	if !ok || person == "" {
-		return 0, 0
+	jf := jfPart(person)
+	if !ok || jf == "" {
+		return season, episode
 	}
 	sh, err := s.shelfOf(ctx, person)
 	if err != nil {
@@ -502,17 +539,16 @@ func (s *Server) lastWatched(ctx context.Context, person string, tmdbID int) (in
 		}
 	}
 	if !found {
-		return 0, 0
+		return season, episode
 	}
 	// The show's id in the media server.
 	var series struct {
 		Items []jfItem `json:"Items"`
 	}
-	p := "/Users/" + url.PathEscape(person) + "/Items?Recursive=true&IncludeItemTypes=Series&EnableImages=false&Fields=ProviderIds&HasTmdbId=true"
+	p := "/Users/" + url.PathEscape(jf) + "/Items?Recursive=true&IncludeItemTypes=Series&EnableImages=false&Fields=ProviderIds&HasTmdbId=true"
 	if err := jfJSON(ctx, srv, http.MethodGet, p, nil, &series); err != nil {
-		return 0, 0
+		return season, episode
 	}
-	season, episode := 0, 0
 	for _, it := range series.Items {
 		if it.tmdbID() != tmdbID {
 			continue
@@ -523,7 +559,7 @@ func (s *Server) lastWatched(ctx context.Context, person string, tmdbID int) (in
 				Episode int `json:"IndexNumber"`
 			} `json:"Items"`
 		}
-		q := "/Users/" + url.PathEscape(person) + "/Items?Recursive=true&ParentId=" + url.QueryEscape(it.ID) +
+		q := "/Users/" + url.PathEscape(jf) + "/Items?Recursive=true&ParentId=" + url.QueryEscape(it.ID) +
 			"&IncludeItemTypes=Episode&Filters=IsPlayed&SortBy=ParentIndexNumber,IndexNumber&SortOrder=Descending&Limit=5&EnableImages=false"
 		if jfJSON(ctx, srv, http.MethodGet, q, nil, &eps) != nil {
 			continue

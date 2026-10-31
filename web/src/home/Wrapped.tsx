@@ -118,7 +118,7 @@ export default function Wrapped() {
           <Icon name="sparkles" size={32} />
           <p>
             {data.fromServer
-              ? t('Nothing in your Diary for {year} yet. What you finish in Jellyfin counts by itself.', { year: data.year })
+              ? t('Nothing in your Diary for {year} yet. What you finish in Jellyfin or Plex counts by itself.', { year: data.year })
               : t('Nothing in your Diary for {year} yet. Log what you watch, or import your history, on the Diary tab.', { year: data.year })}
           </p>
         </section>

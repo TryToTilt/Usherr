@@ -5,6 +5,13 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.27.0] - 2026-10-31
+
+### Added
+
+- **Plex households get the personal side too**: the people on a Plex server (its owner, Plex Home members and friends it's shared with) are matched to Usherr accounts by name, like Jellyfin's users, and someone on both servers is one person. The Diary and Wrapped fill in from each account's Plex history; For you and *Because you watched* learn from it; Tonight, Pick for the Room and Catch Me Up choose from what's in Plex's libraries, with Tonight's *Next* episode worked out from the history (and *Continue* from Plex's On Deck for the server's owner). *What we have* and *Complete the collection* count Plex's libraries, a title on the virtual drive as streamed.
+- **The Marquee shows what Plex is playing**, with the same details as Jellyfin's: the poster, 4K, Dolby Vision and Atmos, the progress and the device. Read-to-Me also waits while someone watches in Plex.
+
 ## [2.26.2] - 2026-10-31
 
 ### Fixed

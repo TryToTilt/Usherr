@@ -139,7 +139,7 @@ export default function MarqueeForm({ m, profiles, change, name }: { m: MarqueeS
       <h3>{t('Now showing comes from')}</h3>
       <div style={row}>
         <label className="cx-check">
-          <input type="checkbox" checked={m.fromJellyfin} onChange={(e) => change({ fromJellyfin: e.target.checked })} /> {t('The media server (Jellyfin or Emby)')}
+          <input type="checkbox" checked={m.fromJellyfin} onChange={(e) => change({ fromJellyfin: e.target.checked })} /> {t('The media server (Jellyfin, Plex or Emby)')}
         </label>
         <label className="cx-check">
           <input type="checkbox" checked={m.fromStreamNZB} onChange={(e) => change({ fromStreamNZB: e.target.checked })} /> {t('StreamNZB (Nuvio, Stremio)')}

@@ -74,7 +74,7 @@ dim at night.
 The scenes, in the order you set, each for as long as you set; a scene with
 nothing to show is skipped.
 
-- **Now showing**: what's playing, wherever it plays: Jellyfin or Emby,
+- **Now showing**: what's playing, wherever it plays: Jellyfin, Plex or Emby,
   StreamNZB (Nuvio, Stremio), and Usherr itself: its player in the browser
   (library files, Stream now, Live TV, labelled with the channel) and its
   Stremio and Nuvio add-on. Each shows with its progress and badges (below).
@@ -100,7 +100,7 @@ is:
 - the sound: **Dolby Atmos**, **DTS:X**, **TrueHD**, **DTS-HD MA**, **Dolby
   Digital+**..., and its channels (**7.1**, **5.1**, **Stereo**).
 
-Jellyfin and Emby say what they play. For a library file Usherr plays, the
+Jellyfin, Plex and Emby say what they play. For a library file Usherr plays, the
 badges come from the details Mediarium reads from every file's headers in
 the background (the same ones a film's page shows); only when the picture
 could hold black bars does Usherr look at a few seconds of it for its real

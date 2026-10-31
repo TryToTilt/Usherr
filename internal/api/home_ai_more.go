@@ -75,12 +75,17 @@ const tonightSystem = `You suggest what one person should watch tonight from a n
 
 // tonightChoices gathers what a person could watch tonight.
 func (s *Server) tonightChoices(ctx context.Context, person string) ([]tonightChoice, error) {
-	srv, ok := s.jellyfinServer()
-	if !ok || person == "" {
+	if person == "" || !s.hasWatchServer() {
 		return nil, nil
 	}
 	var out []tonightChoice
 	seenShow := map[int]bool{}
+	out = s.plexTonight(ctx, person, out, seenShow) // Usherr: Plex's own (home_people.go)
+	srv, ok := s.jellyfinServer()
+	jf := jfPart(person)
+	if !ok || jf == "" {
+		return s.tonightFromShelf(ctx, person, out, seenShow), nil
+	}
 	// The shows' TMDB ids, by the media server's id.
 	showTMDB := func(ids []string) map[string]int {
 		res := map[string]int{}
@@ -90,7 +95,7 @@ func (s *Server) tonightChoices(ctx context.Context, person string) ([]tonightCh
 		var r struct {
 			Items []jfItem `json:"Items"`
 		}
-		if jfJSON(ctx, srv, http.MethodGet, "/Users/"+url.PathEscape(person)+"/Items?EnableImages=false&Fields=ProviderIds&Ids="+strings.Join(ids, ","), nil, &r) == nil {
+		if jfJSON(ctx, srv, http.MethodGet, "/Users/"+url.PathEscape(jf)+"/Items?EnableImages=false&Fields=ProviderIds&Ids="+strings.Join(ids, ","), nil, &r) == nil {
 			for _, it := range r.Items {
 				res[it.ID] = it.tmdbID()
 			}
@@ -108,12 +113,12 @@ func (s *Server) tonightChoices(ctx context.Context, person string) ([]tonightCh
 	var resume struct {
 		Items []jfEpisode `json:"Items"`
 	}
-	_ = jfJSON(ctx, srv, http.MethodGet, "/Users/"+url.PathEscape(person)+"/Items/Resume?Limit=8&MediaTypes=Video&EnableImages=false&Fields=ProviderIds", nil, &resume)
+	_ = jfJSON(ctx, srv, http.MethodGet, "/Users/"+url.PathEscape(jf)+"/Items/Resume?Limit=8&MediaTypes=Video&EnableImages=false&Fields=ProviderIds", nil, &resume)
 	// Next episodes.
 	var next struct {
 		Items []jfEpisode `json:"Items"`
 	}
-	_ = jfJSON(ctx, srv, http.MethodGet, "/Shows/NextUp?UserId="+url.QueryEscape(person)+"&Limit=12&EnableImages=false&Fields=ProviderIds", nil, &next)
+	_ = jfJSON(ctx, srv, http.MethodGet, "/Shows/NextUp?UserId="+url.QueryEscape(jf)+"&Limit=12&EnableImages=false&Fields=ProviderIds", nil, &next)
 	var sids []string
 	for _, e := range append(append([]jfEpisode{}, resume.Items...), next.Items...) {
 		if e.SeriesID != "" {
@@ -140,10 +145,14 @@ func (s *Server) tonightChoices(ctx context.Context, person string) ([]tonightCh
 			out = append(out, tonightChoice{roomTitle: roomTitle{TMDB: id, Name: e.SeriesName}, Kind: "tv", Label: "Next", Why: "next episode of a show they watch, " + fmt.Sprintf("S%dE%d", e.Season, e.Episode), Episode: epCode(e)})
 		}
 	}
-	// Films and shows they have but haven't seen.
+	return s.tonightFromShelf(ctx, person, out, seenShow), nil
+}
+
+// tonightFromShelf adds the films and shows they have but haven't seen.
+func (s *Server) tonightFromShelf(ctx context.Context, person string, out []tonightChoice, seenShow map[int]bool) []tonightChoice {
 	sh, err := s.shelfOf(ctx, person)
 	if err != nil {
-		return out, nil
+		return out
 	}
 	wa, _ := s.watchingOf(ctx, person)
 	r := rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 11))
@@ -180,7 +189,7 @@ func (s *Server) tonightChoices(ctx context.Context, person string) ([]tonightCh
 	for _, t := range tasteSample(shows, sm, 15, r) {
 		out = append(out, tonightChoice{roomTitle: t, Kind: "tv", Label: "New show", Why: "show they have and haven't started" + genres(t) + fits(sm[t.TMDB])})
 	}
-	return out, nil
+	return out
 }
 
 // POST /api/home/ai/tonight {lang, again}: three picks for tonight.
@@ -199,7 +208,7 @@ func (s *Server) handleAITonight(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFromContext(ctx)
 	people, err := s.jfPeople(ctx)
 	if err != nil || len(people) == 0 {
-		writeError(w, http.StatusServiceUnavailable, "Tonight needs Jellyfin or Emby connected.")
+		writeError(w, http.StatusServiceUnavailable, "Tonight needs Jellyfin, Plex or Emby connected.")
 		return
 	}
 	person := personFor(people, u)

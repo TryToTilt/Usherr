@@ -1,6 +1,6 @@
 // Home fork: Tonight, from the top bar (Usherr: the button beside the dice). One tap asks the AI for three things
 // to watch tonight, from what you're in the middle of, the next episodes of
-// your shows and films you have but haven't seen (from Jellyfin or Emby).
+// your shows and films you have but haven't seen (from Jellyfin, Plex or Emby).
 // Nothing is asked until you tap, and the answer is kept for the evening.
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'

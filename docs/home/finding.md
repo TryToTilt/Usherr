@@ -81,7 +81,7 @@ your phone.
 
 ## For you
 
-From your votes and what you watch in Jellyfin, Mediarium works out your taste
+From your votes and what you watch in Jellyfin or Plex, Mediarium works out your taste
 for films and for shows: the genres, subjects, actors, directors and creators
 you keep coming back to, and the ones you don't. Nobody else sees it.
 
@@ -147,14 +147,14 @@ you there.
 
 **You → Diary** is what you watched and when, newest first, month by month.
 
-- **It fills itself in** from what you finish in Jellyfin (or Emby): each film,
+- **It fills itself in** from what you finish in Jellyfin, Plex or Emby: each film,
   and each show once a day with the episodes you watched (*6 episodes ·
   S3E1–S3E6*). It reads your history the first time and keeps up after that.
 - **Stars and a note:** tap a star for that many, again for a half less, a
   third time to clear. The pencil writes a note. Stars count towards your taste:
   four and up as liked, two and under against.
 - **Log something** adds a film or show by hand, with the day you watched it.
-- **×** takes an entry out. One from Jellyfin stays out; it isn't added again.
+- **×** takes an entry out. One from Jellyfin or Plex stays out; it isn't added again.
 - **Import** brings your history in:
   - **Letterboxd:** on letterboxd.com, *Settings → Import & Export → Export your
     data*, then choose the zip it gives you (or its *diary.csv*). Your diary
@@ -167,9 +167,20 @@ you there.
     ratings come in. This needs Trakt's key, which an administrator adds under
     **Settings → Info, lists and subtitles → Import lists**.
 
-The account has to match a Jellyfin user by name (user name, first name, or
-the part of the e-mail address before the @) for the Diary to fill itself in;
-an administrator falls back to Jellyfin's administrator.
+The account has to match someone on the media server by name (user name,
+first name, or the part of the e-mail address before the @) for the Diary to
+fill itself in: a Jellyfin or Emby user, or a Plex account (the server's
+owner, a Plex Home member or a friend it's shared with). Someone on both
+Jellyfin and Plex with the same name is one person, and their Diary, taste
+and picks take in both. An administrator falls back to the server's
+administrator.
+
+**With Plex**, everything here works the same: the Diary and Wrapped from
+each account's Plex history, For you and *Because you watched*, and Tonight,
+Pick for the Room and Catch Me Up from what's in Plex's libraries. Tonight's
+*Continue* (something started) comes from Plex's On Deck, which Plex keeps
+for the server's owner; for everyone, *Next* is the next episode of the shows
+they've been watching.
 
 ![The Diary: what you watched, with stars and notes](images/diary.png)
 
@@ -197,7 +208,7 @@ Rows of films and shows to browse, picked in different ways. Switch between
   won't be suggested again.
 - **Browse more** opens a whole row as pages; **Load more** adds a row in place.
 - Rows you'll find, depending on what's set up:
-  - **Because you watched…**, from what you've finished in Jellyfin.
+  - **Because you watched…**, from what you've finished in Jellyfin or Plex.
   - **From people you follow**: the new and coming work of actors and
     directors you follow (see [People](#people-and-following)).
   - **Top rated**, **Box office**, **Hidden gems** and **World cinema**:

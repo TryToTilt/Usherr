@@ -1,5 +1,5 @@
 // Home fork: the Diary, on the You page. What you watched and when, newest
-// first, by month: from Jellyfin by itself, logged by hand, or imported
+// first, by month: from Jellyfin or Plex by itself, logged by hand, or imported
 // from Letterboxd or Trakt. Rate with stars, write a note, take an entry out.
 import Dropdown from '../components/Dropdown' // Usherr
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -26,7 +26,7 @@ interface Entry {
   stars?: number
   note?: string
   rewatch?: boolean
-  source: 'jellyfin' | 'manual' | 'letterboxd' | 'trakt'
+  source: 'jellyfin' | 'plex' | 'manual' | 'letterboxd' | 'trakt'
 }
 interface ImportState {
   running: boolean
@@ -50,6 +50,7 @@ const json = (method: string, body: unknown): RequestInit => ({ method, headers:
 
 const SOURCE: Record<Entry['source'], () => string> = {
   jellyfin: () => t('From Jellyfin'),
+  plex: () => t('From Plex'),
   manual: () => t('Logged by hand'),
   letterboxd: () => t('From Letterboxd'),
   trakt: () => t('From Trakt'),
@@ -407,7 +408,7 @@ export default function Diary() {
       ) : entries.length === 0 ? (
         <div className="diary-empty">
           <Icon name="calendar" size={32} />
-          <p>{media ? t('Nothing yet. What you finish in Jellyfin shows up here by itself.') : t('Nothing yet. Log what you watch, or bring your history in from Letterboxd or Trakt.')}</p>
+          <p>{media ? t('Nothing yet. What you finish in your media server (Jellyfin or Plex) shows up here by itself.') : t('Nothing yet. Log what you watch, or bring your history in from Letterboxd or Trakt.')}</p>
         </div>
       ) : (
         months.map((m) => (

@@ -203,9 +203,12 @@ func AspectLabel(w, h float64) string {
 	return strconv.FormatFloat(math.Round(r*100)/100, 'f', 2, 64) + ":1"
 }
 
-// NowPlaying lists what Jellyfin or Emby is playing right now. Other servers
-// answer nothing.
+// NowPlaying lists what Jellyfin, Emby or Plex is playing right now. Other
+// servers answer nothing.
 func (c *Client) NowPlaying(ctx context.Context, s Server) ([]Playing, error) {
+	if s.Kind == KindPlex {
+		return c.plexNowPlaying(ctx, s) // Usherr
+	}
 	if s.Kind != KindJellyfin && s.Kind != KindEmby {
 		return nil, nil
 	}

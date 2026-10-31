@@ -20,7 +20,7 @@ It is built on **[Mediarium](https://github.com/rdborg/Mediarium) by rdborg**, a
 ## What's different from Mediarium
 
 **Finding something to watch**
-- **For you**: a taste profile for each person, from thumbs up and down and what they watch in Jellyfin or Emby, with "For you" rows, a match percentage on every title and the reason ("because you liked Arrival").
+- **For you**: a taste profile for each person, from thumbs up and down and what they watch in Jellyfin, Plex or Emby, with "For you" rows, a match percentage on every title and the reason ("because you liked Arrival").
 - **Rate 20**: thumb through twenty titles to teach it your taste in a minute.
 - **Tonight**, **Pick for the Room** and **Roulette**: one tap for what to watch, for you or everyone on the sofa, leaning towards what fits the people watching.
 - **Discover recipes**: saved filters that become their own rows, ready-made rows, the services you subscribe to, a family filter by age, and following actors and directors.
@@ -28,7 +28,7 @@ It is built on **[Mediarium](https://github.com/rdborg/Mediarium) by rdborg**, a
 
 **Your own page**
 - **You**: your taste in films and shows, everything you've voted on, and, if you choose to share it, how much taste you have in common with others in the house.
-- **Diary**: what you watched and when, filled in from Jellyfin by itself, with stars and notes; import from Letterboxd or a public Trakt profile.
+- **Diary**: what you watched and when, filled in from Jellyfin or Plex by itself, with stars and notes; import from Letterboxd or a public Trakt profile.
 - **Wrapped**: your year in watching.
 
 **Watching**
