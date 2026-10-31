@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rdborg/mediarium/internal/auth"
 	"github.com/rdborg/mediarium/internal/crypto"
@@ -54,10 +56,17 @@ func fakeHouseholdPlex(t *testing.T) *httptest.Server {
 		case r.URL.Path == "/status/sessions/history/all":
 			c = map[string]any{}
 			if r.URL.Query().Get("accountID") == "7" {
-				c["Metadata"] = []map[string]any{
+				var plays []map[string]any
+				after, _ := strconv.ParseInt(r.URL.Query().Get("viewedAt>"), 10, 64)
+				for _, p := range []map[string]any{
 					{"ratingKey": "21", "type": "episode", "viewedAt": 1_761_900_000},
 					{"ratingKey": "10", "type": "movie", "viewedAt": 1_761_700_000},
+				} {
+					if p["viewedAt"].(int) > int(after) {
+						plays = append(plays, p)
+					}
 				}
+				c["Metadata"] = plays
 			}
 		case strings.HasPrefix(r.URL.Path, "/library/metadata/"):
 			var found []map[string]any
@@ -107,6 +116,11 @@ func TestPlexHouseholdWatching(t *testing.T) {
 		t.Fatalf("Sam is %q", person)
 	}
 
+	// Sam's Diary was read a moment ago, before Usherr kept who it read:
+	// linking Plex reads the whole Plex history anyway.
+	if _, err := db.Exec(`INSERT INTO home_diary_sync (user_id, synced_at) VALUES (?, ?)`, sam.ID, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		t.Fatal(err)
+	}
 	if err := server.syncDiary(ctx, sam); err != nil {
 		t.Fatal(err)
 	}

@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.27.3] - 2026-10-31
+
+### Fixed
+
+- **Diary: a Plex account linked later brings its whole history**: the Diary reads only what's new since its last look, so an account linked to Plex after that missed what it had watched in Plex before. When where someone watches changes, the Diary now reads their whole history once.
+
 ## [2.27.2] - 2026-10-31
 
 ### Fixed

@@ -131,11 +131,14 @@ func (s *Server) syncDiary(ctx context.Context, u *auth.User) error {
 		return nil
 	}
 	// After the first look, only what changed since the last one (an hour's
-	// margin for clocks).
+	// margin for clocks); everything again when where they watch changed
+	// (a Plex account linked), so its older history isn't missed.
 	var since time.Time
-	var last string
-	_ = s.db.QueryRowContext(ctx, `SELECT synced_at FROM home_diary_sync WHERE user_id = ?`, u.ID).Scan(&last)
-	if t, err := time.Parse(time.RFC3339, last); err == nil {
+	var last, lastPerson string
+	_ = s.db.QueryRowContext(ctx, `SELECT synced_at, person FROM home_diary_sync WHERE user_id = ?`, u.ID).Scan(&last, &lastPerson)
+	// Before Usherr kept who it read, only a Plex account means a change.
+	same := lastPerson == person || (lastPerson == "" && !strings.Contains(person, "plex:"))
+	if t, err := time.Parse(time.RFC3339, last); err == nil && same {
 		since = t.Add(-time.Hour)
 	}
 	list, err := s.playedBy(ctx, person, since, playedLimits{movies: 5000, episodes: 20000})
@@ -176,8 +179,8 @@ func (s *Server) syncDiary(ctx context.Context, u *auth.User) error {
 		}
 	}
 	s.markRewatches(ctx, u.ID)
-	_, err = s.db.ExecContext(ctx, `INSERT INTO home_diary_sync (user_id, synced_at) VALUES (?, ?)
-		ON CONFLICT (user_id) DO UPDATE SET synced_at = excluded.synced_at`, u.ID, time.Now().UTC().Format(time.RFC3339))
+	_, err = s.db.ExecContext(ctx, `INSERT INTO home_diary_sync (user_id, synced_at, person) VALUES (?, ?, ?)
+		ON CONFLICT (user_id) DO UPDATE SET synced_at = excluded.synced_at, person = excluded.person`, u.ID, time.Now().UTC().Format(time.RFC3339), person)
 	tasteChanged(u.ID)
 	return err
 }
