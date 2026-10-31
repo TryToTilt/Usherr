@@ -392,7 +392,7 @@ function MoviePage() {
               {can(me, 'releases') && <InfoTip text={t('Lists every release your indexers found for this movie, so you can pick one yourself instead of letting Mediarium choose.')} />}
               {movie.status === 'downloaded' && movie.libraryId && can(me, 'play') && (
                 // play hook (home fork)
-                <button className="primary btn-with-icon" onClick={() => playTitle('movie', movie.libraryId!, movie.title)}>
+                <button className="primary btn-with-icon" data-walk="title-play" onClick={() => playTitle('movie', movie.libraryId!, movie.title)}>
                   <Icon name="play" size={16} /> {t('Play')}
                 </button>
               )}
@@ -424,7 +424,7 @@ function MoviePage() {
             </>
           ) : (
             <>
-              <button className="primary btn-with-icon big" onClick={() => setAdding(true)}>
+              <button className="primary btn-with-icon big" data-walk="title-add" onClick={() => setAdding(true)}>
                 <Icon name="plus" size={18} /> {t('Add to library')}
               </button>
               {can(me, 'play') && (

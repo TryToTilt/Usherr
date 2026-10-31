@@ -55,7 +55,7 @@ export default function SideStack() {
   }
 
   return (
-    <section className="side-stack" aria-label={t('Your stack')}>
+    <section className="side-stack" data-walk="side-stack" aria-label={t('Your stack')}>
       <div className="ss-head">
         <Icon name="stack" size={15} />
         <span className="ss-title">{t('Your stack')}</span>

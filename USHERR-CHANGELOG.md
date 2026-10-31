@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-10-31
+
+### Added
+
+- **Show Me How**, the everyday ones: find something for tonight, let Usherr pick (Roulette), watch a film now or keep it (Stream or Add to library, only offered when streaming is set up), teach Usherr your taste (votes and Rate 20), keep a list of what to watch next (your stack), your diary and your year (Wrapped), add a family member (roles, and requests for children), and Usherr on your phone (a code to scan, then Add to Home Screen; Tailscale for away from home). The coach card opens the side menu by itself when a step is about something in it.
+
 ## [2.11.0] - 2026-10-31
 
 ### Added

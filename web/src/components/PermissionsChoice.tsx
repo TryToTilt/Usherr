@@ -33,7 +33,7 @@ export default function PermissionsChoice({ value, onChange, disabled }: { value
     { key: 'nsfw', label: t('NSFW 18+'), show: nsfwOn },
   ]
   return (
-    <div className="perm-choice">
+    <div className="perm-choice" data-walk="account-perms">
       <span className="field-title"><TipLabel help="accounts#permissions-for-basic-users">{t('Permissions')}</TipLabel></span>
       <div className="perm-kinds" role="group" aria-label={t('What they can add or ask for')}>
         <span className="field-note">{t('They can add or ask for:')}</span>

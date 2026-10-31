@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { isAdmin } from '../api'
 import { useAuth } from '../AuthContext'
 import Icon from '../components/Icon'
+import { QRCode } from '../components/TwoStepCard'
 import { t } from '../i18n'
 import DecisionCard from './DecisionCard'
 import { markSmhDone, setSmhRun, smhSecrets, startSmh, stopSmh, type SmhRun } from './engine'
@@ -39,13 +40,22 @@ function useBox(id: string | undefined): { el: HTMLElement | null; box: DOMRect 
     if (!id) return
     let scrolled = false
     let opened = false
+    let menuAt = 0
     const look = () => {
       // Something in a folded-away header (the pull-down bar of the Library,
       // Discover, Comics) is shown by opening the header first.
-      const folded = document.querySelector(sel(id))?.closest('.cbar:not(.down)')
+      const raw = document.querySelector(sel(id))
+      const folded = raw?.closest('.cbar:not(.down)')
       if (folded && !opened) {
         opened = true
         folded.querySelector<HTMLElement>('.cbar-pull')?.click()
+      }
+      // Something in the side menu (your stack) opens the menu, and keeps it
+      // open while the step is about it (it slides away when left alone).
+      const menu = raw?.closest('#main-menu')
+      if (menu && !menu.classList.contains('open') && Date.now() - menuAt > 1500) {
+        menuAt = Date.now()
+        document.querySelector<HTMLElement>('.menu-button[aria-controls="main-menu"]:not(.menu-close)')?.click()
       }
       const el = find(id)
       const r = el ? el.getBoundingClientRect() : null
@@ -259,6 +269,7 @@ export default function Coach({ run }: { run: SmhRun }) {
         )}
         {!wandered && lost && target && !box && <p className="smh-note">{t('I can’t find it on this page yet. If a window closed, go back a step.')}</p>}
 
+        {step.kind === 'say' && step.qr && <Qr text={step.qr(ctx)} />}
         {step.kind === 'ask' && (
           <Ask
             key={run.i}
@@ -323,6 +334,28 @@ export default function Coach({ run }: { run: SmhRun }) {
       </section>
     </>,
     document.body,
+  )
+}
+
+// Qr: a code to scan with a phone's camera (drawn by the server).
+function Qr({ text }: { text: string }) {
+  const [rows, setRows] = useState<string[] | null>(null)
+  useEffect(() => {
+    let gone = false
+    fetch(`/api/home/marquee/qr?text=${encodeURIComponent(text)}`, { credentials: 'include' })
+      .then((r) => (r.ok ? (r.json() as Promise<{ rows: string[] }>) : null))
+      .then((d) => !gone && d && setRows(d.rows))
+      .catch(() => undefined)
+    return () => {
+      gone = true
+    }
+  }, [text])
+  if (!rows) return null
+  return (
+    <div className="smh-qr">
+      <QRCode rows={rows} label={text} />
+      <code>{text}</code>
+    </div>
   )
 }
 

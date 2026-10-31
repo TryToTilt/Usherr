@@ -298,7 +298,9 @@ export default function You({ tab = 'taste' }: { tab?: YouTab }) {
 
               <section className="card you-card">
                 <h2>{t('The household')}</h2>
-                <Switch checked={data.share} onChange={(v) => void share(v)} label={t('Share my taste with the household')} />
+                <span data-walk="you-share">
+                  <Switch checked={data.share} onChange={(v) => void share(v)} label={t('Share my taste with the household')} />
+                </span>
                 <p className="hint">{t('Others who share theirs see what you lean towards and how much taste you have in common. Your votes stay yours. To see theirs, share yours.')}</p>
                 {data.share &&
                   (household.length === 0 ? (

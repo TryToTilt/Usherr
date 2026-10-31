@@ -124,7 +124,7 @@ export default function Wrapped() {
         </section>
       ) : (
         <>
-          <section className="card wrapped-hero">
+          <section className="card wrapped-hero" data-walk="wrapped-hero">
             <span className="wrapped-year">{data.year}</span>
             <h2>{data.about ? t('About {n} hours of watching', { n: hours.toLocaleString(lang) }) : plural(hours, 'One hour of watching', '{n} hours of watching')}</h2>
             <p>

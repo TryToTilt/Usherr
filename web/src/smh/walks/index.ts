@@ -3,11 +3,30 @@ import { t } from '../../i18n'
 import type { SmhGroup, Walkthrough } from '../types'
 import { completeCollection } from './collection'
 import { comicArcs, comicReview, comicWeek, readComic, setupComics } from './comics'
+import { diary, familyMember, phone, roulette, stack, streamOrKeep, tonight, vote } from './everyday'
 import { setUpPreshow } from './preshow'
 import { ebookToAudiobook } from './readtome'
 import { bookShowtime } from './showtime'
 
-export const WALKS: Walkthrough[] = [bookShowtime, setUpPreshow, readComic, comicArcs, comicWeek, comicReview, setupComics, ebookToAudiobook, completeCollection]
+export const WALKS: Walkthrough[] = [
+  tonight,
+  roulette,
+  streamOrKeep,
+  vote,
+  stack,
+  diary,
+  bookShowtime,
+  setUpPreshow,
+  readComic,
+  comicArcs,
+  comicWeek,
+  comicReview,
+  setupComics,
+  ebookToAudiobook,
+  completeCollection,
+  familyMember,
+  phone,
+]
 
 export function walkById(id: string): Walkthrough | undefined {
   return WALKS.find((w) => w.id === id)

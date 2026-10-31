@@ -140,14 +140,14 @@ export function TonightButton() {
   const close = () => setOpen(false)
   return (
     <>
-      <button type="button" className="icon-btn top-tonight" onClick={() => setOpen(true)} title={t('What should I watch tonight?')}>
+      <button type="button" className="icon-btn top-tonight" data-walk="tonight" onClick={() => setOpen(true)} title={t('What should I watch tonight?')}>
         <Icon name="sparkles" size={19} />
         <span className="top-tonight-label">{t("Tonight's picks")}</span>
       </button>
       {open &&
         createPortal(
           <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && close()} onKeyDown={(e) => e.key === 'Escape' && close()}>
-            <div ref={box} tabIndex={-1} className="modal roulette tonight-modal" role="dialog" aria-modal="true" aria-label={t('Tonight')}>
+            <div ref={box} tabIndex={-1} className="modal roulette tonight-modal" data-walk="tonight-box" role="dialog" aria-modal="true" aria-label={t('Tonight')}>
               <div className="roulette-head">
                 <h2>
                   <Icon name="sparkles" size={18} /> {t('Tonight')}

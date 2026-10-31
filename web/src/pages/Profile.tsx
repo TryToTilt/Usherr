@@ -557,7 +557,7 @@ function AddAccountForm({ onAdded }: { onAdded: (a: Account) => void }) {
   }
 
   return (
-    <fieldset className="group usenet">
+    <fieldset className="group usenet" data-walk="account-add">
       <legend>
         <Icon name="plus" size={14} /> <TipLabel help="accounts#adding-a-family-account">{t('Add an account')}</TipLabel>
       </legend>
@@ -595,7 +595,7 @@ function AddAccountForm({ onAdded }: { onAdded: (a: Account) => void }) {
             <PasswordStrength password={password} />
             <span className="field-note">{t('They can change it from their profile once signed in.')}</span>
           </label>
-          <div>
+          <div data-walk="account-role">
             <span className="field-title">{t('What can they do?')}</span>
             <RoleChoice value={role} onChange={setRole} />
             {role === 'member' && <PermissionsChoice value={perms} onChange={setPerms} />}
@@ -603,7 +603,7 @@ function AddAccountForm({ onAdded }: { onAdded: (a: Account) => void }) {
         </div>
         {error && <p className="error-text">{error}</p>}
         <div>
-          <button className="primary btn-with-icon" onClick={() => void add()} disabled={busy}>
+          <button className="primary btn-with-icon" data-walk="account-addbtn" onClick={() => void add()} disabled={busy}>
             <Icon name="plus" size={16} /> {busy ? t('Adding…') : t('Add account')}
           </button>
           <FormProblem v={v} action="account" />

@@ -60,7 +60,7 @@ export default function RateDeck({ onClose }: { onClose: () => void }) {
   const done = items !== null && !cur
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()} onKeyDown={onKey}>
-      <div ref={box} tabIndex={-1} className="modal roulette" role="dialog" aria-modal="true" aria-label={t('Rate 20')}>
+      <div ref={box} tabIndex={-1} className="modal roulette" data-walk="rate-deck" role="dialog" aria-modal="true" aria-label={t('Rate 20')}>
         <div className="roulette-head">
           <h2>
             <Icon name="thumb-up" size={18} /> {t('Rate 20')}

@@ -34,6 +34,7 @@ export default function StreamButton({ target, onKeep, small = false }: { target
     <>
       <button
         className={small ? 'btn-sm btn-with-icon' : 'btn-with-icon'}
+        data-walk="stream-btn"
         onClick={(e) => {
           e.stopPropagation()
           setOpen(true)
@@ -148,7 +149,7 @@ function StreamSheet({ target, onKeep, onClose }: { target: StreamTarget; onKeep
 
   return (
     <div className="hs-backdrop" role="dialog" aria-modal="true" aria-label={t('Stream {title}', { title: target.title })} onClick={onClose}>
-      <div className="hs-sheet" onClick={(e) => e.stopPropagation()}>
+      <div className="hs-sheet" data-walk="stream-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="hs-head">
           <strong>{t('Stream {title}', { title: target.title })}</strong>
           <button className="btn-sm" onClick={onClose} aria-label={t('Close')}>

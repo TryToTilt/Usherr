@@ -13,11 +13,11 @@ export default function RouletteButton({ className = 'btn-sm btn-with-icon', ico
     <>
       {iconOnly ? (
         // Usherr: the dice in the top bar
-        <button type="button" className={className} onClick={() => setOpen(true)} title={t('Roulette: spin for something to watch')} aria-label={t('Roulette')}>
+        <button type="button" className={className} data-walk="roulette" onClick={() => setOpen(true)} title={t('Roulette: spin for something to watch')} aria-label={t('Roulette')}>
           <Icon name="dice" size={19} />
         </button>
       ) : (
-        <button className={className} onClick={() => setOpen(true)} title={t('Spin for something to watch')}>
+        <button className={className} data-walk="roulette" onClick={() => setOpen(true)} title={t('Spin for something to watch')}>
           <Icon name="shuffle" size={14} /> {t('Roulette')}
         </button>
       )}

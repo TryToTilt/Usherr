@@ -104,7 +104,7 @@ export default function Roulette({ onClose }: { onClose: () => void }) {
   const chip = (on: boolean) => `room-chip${on ? ' on' : ''}`
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <div ref={box} tabIndex={-1} className="modal roulette" role="dialog" aria-modal="true" aria-label={t('Roulette')}>
+      <div ref={box} tabIndex={-1} className="modal roulette" data-walk="roulette-box" role="dialog" aria-modal="true" aria-label={t('Roulette')}>
         <div className="roulette-head">
           <h2>
             <Icon name="shuffle" size={18} /> {t('Roulette')}

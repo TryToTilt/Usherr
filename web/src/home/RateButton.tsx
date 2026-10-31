@@ -10,7 +10,7 @@ export default function RateButton({ className = 'btn-sm btn-with-icon' }: { cla
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button className={className} onClick={() => setOpen(true)} title={t('Thumb up or down 20 titles, so recommendations learn your taste')}>
+      <button className={className} data-walk="rate20" onClick={() => setOpen(true)} title={t('Thumb up or down 20 titles, so recommendations learn your taste')}>
         <Icon name="thumb-up" size={14} /> {t('Rate 20')}
       </button>
       {/* On the page's top level, like Roulette: a transformed parent would hold the dialog. */}

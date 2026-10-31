@@ -81,7 +81,7 @@ function Row({ e, onChange, onRemove }: { e: Entry; onChange: (e: Entry) => void
   const day = dayLabel(e.watchedOn)
   const to = e.kind === 'tv' ? `/show/${e.tmdbId}` : `/title/${e.tmdbId}`
   return (
-    <li className="diary-row">
+    <li className="diary-row" data-walk="diary-row">
       <span className="diary-day" title={e.dated ? undefined : t('No watch date: the day it was rated or logged')}>
         <strong>{day.n}</strong>
         <small>{day.w}</small>
@@ -368,7 +368,7 @@ export default function Diary() {
           <Dropdown icon="calendar" label={t('Year')} value={year} onChange={setYear} options={[{ value: '', label: t('Every year') }, ...years.map((y) => ({ value: String(y), label: String(y) }))]} />
         )}
         <span className="spacer" />
-        <div className="diary-buttons">
+        <div className="diary-buttons" data-walk="diary-buttons">
           <button className="btn-sm btn-with-icon" onClick={() => setImporting(true)} aria-label={t('Import')} title={t('Import')}>
             <Icon name="download" size={14} /> <span className="cbar-add-label">{t('Import')}</span>
           </button>

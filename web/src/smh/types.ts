@@ -47,8 +47,8 @@ interface StepBase {
 }
 
 export type SmhStep =
-  // A card with a Next button.
-  | (StepBase & { kind: 'say' })
+  // A card with a Next button; qr shows a code to scan (an address).
+  | (StepBase & { kind: 'say'; qr?: (c: SmhCtx) => string })
   // A page to be on. Usherr goes there itself; in "Let me do it" with via,
   // it points at the link to tap.
   | (StepBase & { kind: 'go'; to: string | ((c: SmhCtx) => string); via?: string })
