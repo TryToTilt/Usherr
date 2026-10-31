@@ -225,7 +225,8 @@ func TestDriveBudget(t *testing.T) {
 	s, db := optionsServer(t)
 	s.db = db
 	_ = s.Settings.Set(keyDriveBudget, "2", false)
-	if !s.driveSpend() || !s.driveSpend() {
+	first, second := s.driveSpend(), s.driveSpend()
+	if !first || !second {
 		t.Fatal("the first two searches should be allowed")
 	}
 	if s.driveSpend() {

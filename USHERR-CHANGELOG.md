@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.26.1] - 2026-10-31
+
+### Fixed
+
+- **GitHub checks are green again**: the third-party licence list matches what the release is actually built with, a drive test no longer trips static analysis, and the phone-size header test checks the menu button itself.
+
 ## [2.26.0] - 2026-10-31
 
 ### Added
