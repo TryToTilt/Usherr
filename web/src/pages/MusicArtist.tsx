@@ -367,7 +367,7 @@ function ArtistPage() {
           <div className="title-actions">
             {player && haveMusic && (
               <>
-                <button className="primary btn-with-icon" onClick={() => void playEverything(false)} disabled={loadingTracks}>
+                <button className="primary btn-with-icon" data-walk="artist-play" onClick={() => void playEverything(false)} disabled={loadingTracks}>
                   <Icon name="play" size={16} /> {t('Play')}
                 </button>
                 <button className="btn-with-icon" onClick={() => void playEverything(true)} disabled={loadingTracks}>

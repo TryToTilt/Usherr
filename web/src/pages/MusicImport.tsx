@@ -144,7 +144,7 @@ export default function MusicImport() {
           <FieldError v={v} name="root" />
         </div>
         <div className="mi-start-action">
-          <button className="primary big btn-with-icon" onClick={() => void start()} disabled={starting || running || !on('music')}>
+          <button className="primary big btn-with-icon" data-walk="music-scan" onClick={() => void start()} disabled={starting || running || !on('music')}>
             <Icon name="search" size={18} /> {starting ? t('Starting…') : running ? t('Scanning…') : job ? t('Scan again') : t('Start scanning')}
           </button>
           <small>{t("Safe to run again. Albums you've added are listed as already in your library.")}</small>

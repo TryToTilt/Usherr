@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-10-31
+
+### Added
+
+- **Show Me How**, listening and reading: play some music (and the player: queue, lyrics, its own window), make a playlist, bring in the music you already have, get a book, listen to an audiobook and read an ebook in Usherr Books (how to open it, the player and reader, installing it as an app, e-readers).
+
 ## [2.14.0] - 2026-10-31
 
 ### Added

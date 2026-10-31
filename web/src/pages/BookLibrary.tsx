@@ -235,7 +235,7 @@ export default function BookLibrary({
             { value: 'added', label: t('Recently added') },
           ]} />} {/* Usherr: Rows by, beside the sort */}
             <span className="spacer" />
-            <button className="primary btn-with-icon toolbar-add" onClick={() => setAdding((a) => !a)} aria-expanded={adding} aria-label={adding ? t('Close') : t('Add')}>
+            <button className="primary btn-with-icon toolbar-add" data-walk="books-add" onClick={() => setAdding((a) => !a)} aria-expanded={adding} aria-label={adding ? t('Close') : t('Add')}>
               <Icon name={adding ? 'x' : 'plus'} size={16} /> <span className="cbar-add-label">{adding ? t('Close') : t('Add')}</span>
             </button>
           </>
@@ -370,7 +370,7 @@ function AddBook({ format, onAdded }: { format: BookFormat; onAdded: () => void 
   }
 
   return (
-    <section className="card book-add">
+    <section className="card book-add" data-walk="books-search">
       <div className="book-add-head">
         <input type="search" autoFocus placeholder={t('Title or author, for example The Hobbit')} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t('Find a book')} />
         {otherOn && (

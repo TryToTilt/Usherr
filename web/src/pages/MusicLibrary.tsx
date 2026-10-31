@@ -424,7 +424,9 @@ export default function MusicLibrary({
       ) : shelfView.on ? (
         <Shelves key={shelfView.by} memory="music" shelves={shelves} render={card} itemKey={(a) => String(a.id)} rowClass="music-shelf" />
       ) : (
-        <WindowedGrid className="poster-grid music-grid" items={shown} render={card} />
+        <div data-walk="music-grid">
+          <WindowedGrid className="poster-grid music-grid" items={shown} render={card} />
+        </div>
       )}
     </div>
   )

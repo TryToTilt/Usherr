@@ -169,6 +169,7 @@ export function MusicPlaylists() {
         {!viewer && (
           <form
             className="mpl-create"
+            data-walk="pl-create"
             onSubmit={(e) => {
               e.preventDefault()
               void create()

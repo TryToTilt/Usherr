@@ -779,7 +779,7 @@ export function MiniPlayer() {
   return (
     <div className="mp-dock">
       {p.panel && <NowPlayingPanel />}
-      <section className="mini-player" aria-label={t('Music player')}>
+      <section className="mini-player" data-walk="music-bar" aria-label={t('Music player')}>
         <Cover albumId={c.albumId} />
         <div className="mp-info">
           <strong title={c.title}>{c.title}</strong>

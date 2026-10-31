@@ -51,7 +51,7 @@ function PlayMenu({ homes, apps, ebooksOn, audiobooksOn, musicOn, at, onClose, b
         <>
           <div className="side-menu-head">{t('Read and listen')}</div>
           {ebooksOn && (
-            <a role="menuitem" href={withBase('/bookshelf?tab=ebook')} onClick={(e) => open(e, () => openBookApp('/bookshelf?tab=ebook'))}>
+            <a role="menuitem" data-walk="books-read" href={withBase('/bookshelf?tab=ebook')} onClick={(e) => open(e, () => openBookApp('/bookshelf?tab=ebook'))}>
               <span className="app-mark book" aria-hidden="true">
                 <Icon name="book" size={14} />
               </span>
@@ -63,7 +63,7 @@ function PlayMenu({ homes, apps, ebooksOn, audiobooksOn, musicOn, at, onClose, b
             </a>
           )}
           {audiobooksOn && (
-            <a role="menuitem" href={withBase('/bookshelf?tab=audiobook')} onClick={(e) => open(e, () => openBookApp('/bookshelf?tab=audiobook'))}>
+            <a role="menuitem" data-walk="books-listen" href={withBase('/bookshelf?tab=audiobook')} onClick={(e) => open(e, () => openBookApp('/bookshelf?tab=audiobook'))}>
               <span className="app-mark audiobook" aria-hidden="true">
                 <Icon name="headphones" size={14} />
               </span>
@@ -172,6 +172,7 @@ function Tool({ label, className = '', href, onClick, children, expanded, showTi
   return (
     <button
       type="button"
+      data-walk={className ? `tool-${className.split(' ')[0]}` : undefined}
       className={`side-tool ${className}`}
       aria-haspopup={expanded === undefined ? undefined : 'menu'}
       aria-expanded={expanded}

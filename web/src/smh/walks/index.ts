@@ -5,6 +5,7 @@ import { completeCollection } from './collection'
 import { comicArcs, comicReview, comicWeek, readComic, setupComics } from './comics'
 import { askAi, completeLibrary, discover, followPerson, getShow, upcoming } from './discover'
 import { diary, familyMember, phone, roulette, stack, streamOrKeep, tonight, vote } from './everyday'
+import { getBook, importMusic, listenAudiobook, makePlaylist, playMusic, readEbook } from './listen'
 import { followTeam, makeChannel, marquee, marqueeRemote, playOnTv, watchLiveTv } from './night'
 import { setUpPreshow } from './preshow'
 import { ebookToAudiobook } from './readtome'
@@ -29,6 +30,11 @@ export const WALKS: Walkthrough[] = [
   watchLiveTv,
   makeChannel,
   followTeam,
+  playMusic,
+  makePlaylist,
+  listenAudiobook,
+  getBook,
+  readEbook,
   readComic,
   comicArcs,
   comicWeek,
@@ -37,6 +43,7 @@ export const WALKS: Walkthrough[] = [
   ebookToAudiobook,
   completeCollection,
   completeLibrary,
+  importMusic,
   familyMember,
   phone,
   playOnTv,
