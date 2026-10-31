@@ -170,7 +170,7 @@ export default function DriveCard() {
             {' · '}
             {plural(st.waiting, '{n} waiting for a release', '{n} waiting for a release', { n: st.waiting })}
             {st.dead > 0 && ` · ${plural(st.dead, '{n} to replace', '{n} to replace', { n: st.dead })}`}{' '}
-            <InfoTip text={t('A file shows on the drive once Usherr knows its release, because a drive needs every file’s size up front. Anything someone plays is kept for free; the rest are looked for one at a time, within the searches a day below. A release that disappears from Usenet is replaced the same way.')} />
+            <InfoTip text={t('A file shows on the drive once Usherr knows its release, because a drive needs every file’s size up front. Anything someone plays is kept for free. A stream you add goes on right away (the film, or the show’s newest season), and a stream’s page has Put it on the virtual drive now. The rest are looked for one at a time, within the searches a day below, new episodes first. A release that disappears from Usenet is replaced the same way.')} />
           </p>
           <div className="drive-row">
             <label>

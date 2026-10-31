@@ -615,6 +615,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("GET /api/home/drive", s.handleDrive)                             // Usherr: the virtual drive, for Plex
 	admin.HandleFunc("PUT /api/home/drive", s.handlePutDrive)
 	admin.HandleFunc("POST /api/home/drive/prepare", s.handleDrivePrepare)
+	admin.HandleFunc("POST /api/home/drive/title/{id}", s.handleDriveTitle)
 	admin.HandleFunc("POST /api/home/art/test-posterizarr", s.handleArtTestPosterizarr) // Usherr
 	member.HandleFunc("GET /api/home/art/poster/{id}", s.handleArtPoster)               // Usherr: Re-Posterr's posters on Usherr's pages
 	admin.HandleFunc("PUT /api/home/preshow/jellyfin", s.handlePutPreshowJF)

@@ -110,7 +110,7 @@ function help(step: WizardStep): Help {
           title: t('Jellyfin or Plex, for your streams'),
           options: [
             { name: t('Jellyfin'), good: t('Plays streamed films and shows straight from the Streams library: nothing else to install.') },
-            { name: t('Plex'), good: t('Works for everything you download. For streamed titles, Usherr switches on its virtual drive: a drive of ordinary video files that Plex reads.'), bad: t('The drive needs rclone and WinFsp (free) on the Plex computer; Show me how, Set up Plex with the virtual drive, walks you through it after setup.') },
+            { name: t('Plex'), good: t('Works for everything you download. For streamed titles, Usherr switches on its virtual drive: a drive of ordinary video files that Plex reads, with streams you add there within minutes.'), bad: t('The drive needs rclone and WinFsp (free) on the Plex computer; Show me how, Set up Plex with the virtual drive, walks you through it after setup.') },
           ],
           recommend: t('Whichever you already use. Both can run side by side.'),
           later: t('Add, change or remove media servers any time; the drive has its own switch.'),

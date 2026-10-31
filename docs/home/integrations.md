@@ -160,11 +160,18 @@ websites: Usherr doesn't install anything on your computer.
 - **What's on the drive.** A drive needs each file's size before it's played,
   so a streamed film or episode appears once Usherr knows its release. Anything
   someone plays (in Usherr, Jellyfin or the add-on) is kept at once, at no
-  cost; the rest are looked for one at a time, a few a day (**Searches a day**,
-  30 to start with, never more than one every ten minutes), so your indexers'
-  daily limits are never spent in one go. **Get one ready now** looks for one
-  more straight away. A release that disappears from Usenet leaves the drive
-  until another is found.
+  cost.
+- **Streams you add go on right away.** **Add as stream** puts the film, or the
+  show's newest season, on the drive at once: one search a film or episode, a
+  few seconds apart, and Plex has each a couple of minutes later. For a title
+  already in your streams, its page has **Put it on the virtual drive now**
+  (the newest season, for a show). Both use the day's searches.
+- **The rest, a few a day.** Everything else is looked for one at a time
+  (**Searches a day**, 30 to start with, never more than one every ten
+  minutes), so your indexers' daily limits are never spent in one go: newest
+  first, and a new episode of a show you stream goes to the front of the
+  queue. **Get one ready now** looks for the next one straight away. A release
+  that disappears from Usenet leaves the drive until another is found.
 - **Its own sign-in.** The drive has its own user (`usherr`) and password,
   shown on the card. It only opens the drive, and only to read; it is never a
   person's account. **New password** makes another (then run rclone's setup

@@ -272,7 +272,8 @@ var errDriveNoBudget = errors.New("today's searches for the drive are used up")
 
 // driveNext is the next file the drive's search should get ready: one with
 // no release kept (or a dead one), not tried this week, already out, newest
-// titles first.
+// first: by when the title was added or, for an episode, when it aired, so
+// a new episode of a show added long ago doesn't wait behind the backlog.
 func (s *Server) driveNext(ctx context.Context) (int64, error) {
 	cut := time.Now().Add(-driveRetryAfter).UTC().Format(time.RFC3339)
 	now := time.Now()
@@ -283,21 +284,26 @@ func (s *Server) driveNext(ctx context.Context) (int64, error) {
 	err := s.db.QueryRowContext(ctx, `SELECT f.id FROM streamed_files f JOIN streamed_titles t ON t.id = f.title_id
 		WHERE (f.nzb = '' OR f.health = 'dead') AND (f.drive_tried_at = '' OR f.drive_tried_at < ?)
 		  AND ((t.kind = 'movie' AND t.year <= ?) OR (t.kind != 'movie' AND f.air_date != '' AND f.air_date <= ?))
-		ORDER BY t.added_at DESC, f.season, f.episode LIMIT 1`, cut, now.Year(), today).Scan(&id)
+		ORDER BY MAX(t.added_at, f.air_date) DESC, f.season, f.episode LIMIT 1`, cut, now.Year(), today).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, errDriveNothingToDo
 	}
 	return id, err
 }
 
-// drivePrepOne gets one more streamed file ready for the drive: one search
-// (from the day's budget), then up to three releases tried. It says what it
-// got ready.
+// drivePrepOne gets the next streamed file in line ready for the drive.
 func (s *Server) drivePrepOne(ctx context.Context) (string, error) {
 	id, err := s.driveNext(ctx)
 	if err != nil {
 		return "", err
 	}
+	return s.drivePrepFile(ctx, id)
+}
+
+// drivePrepFile gets one streamed file ready for the drive: one search (from
+// the day's budget), then up to three releases tried. It says what it got
+// ready.
+func (s *Server) drivePrepFile(ctx context.Context, id int64) (string, error) {
 	f, err := s.streamedFile(ctx, id)
 	if err != nil {
 		return "", err
@@ -350,6 +356,71 @@ func (s *Server) drivePrepOne(ctx context.Context) (string, error) {
 
 // driveJob is the background search: one title at a time, while the drive is
 // on and the day's budget lasts.
+// driveNowGap spaces out the searches for a title got ready right away (a
+// season is one search an episode), so the indexers never see a burst.
+var driveNowGap = 5 * time.Second
+
+var driveNowMu sync.Mutex // one title at a time
+
+// driveTitleFiles are the files of a title to get ready right away: the
+// film, or every aired episode of a show's newest season, that has no
+// working release kept yet.
+func (s *Server) driveTitleFiles(ctx context.Context, titleID int64) ([]int64, error) {
+	today := time.Now().Format("2006-01-02")
+	rows, err := s.db.QueryContext(ctx, `SELECT f.id FROM streamed_files f JOIN streamed_titles t ON t.id = f.title_id
+		WHERE f.title_id = ? AND (f.nzb = '' OR f.health = 'dead')
+		  AND (t.kind = 'movie' OR (f.air_date != '' AND f.air_date <= ? AND f.season = (
+			SELECT MAX(season) FROM streamed_files WHERE title_id = f.title_id AND season > 0 AND air_date != '' AND air_date <= ?)))
+		ORDER BY f.season, f.episode`, titleID, today, today)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// driveReadyTitle gets a title onto the drive right away, in the
+// background: the film, or a show's newest season. It uses the day's
+// searches like the rest and stops when they run out. It returns how many
+// files it's getting ready.
+func (s *Server) driveReadyTitle(titleID int64) (int, error) {
+	if !s.driveOn() {
+		return 0, nil
+	}
+	ids, err := s.driveTitleFiles(context.Background(), titleID)
+	if err != nil || len(ids) == 0 {
+		return 0, err
+	}
+	go func() {
+		driveNowMu.Lock()
+		defer driveNowMu.Unlock()
+		for i, id := range ids {
+			if i > 0 {
+				time.Sleep(driveNowGap)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+			label, err := s.drivePrepFile(ctx, id)
+			cancel()
+			if errors.Is(err, errDriveNoBudget) {
+				slog.Info("drive: today's searches ran out; the rest of the title comes with the daily search", "title", label)
+				return
+			}
+			if err != nil {
+				slog.Info("drive: couldn't get it ready right away", "title", label, "err", err)
+			}
+		}
+	}()
+	return len(ids), nil
+}
+
 func (s *Server) driveJob(ctx context.Context) {
 	if !s.driveOn() || s.driveBudget() == 0 {
 		return
@@ -441,6 +512,36 @@ func (s *Server) handlePutDrive(w http.ResponseWriter, r *http.Request) {
 		s.newDrivePassword()
 	}
 	writeJSON(w, http.StatusOK, s.driveStatus(r.Context()))
+}
+
+// POST /api/home/drive/title/{id}: put a streamed title on the drive right
+// away (the film, or a show's newest season), within today's searches.
+func (s *Server) handleDriveTitle(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		writeError(w, http.StatusBadRequest, "Say which title.")
+		return
+	}
+	if !s.driveOn() {
+		writeError(w, http.StatusConflict, "The virtual drive is off (Settings, Extras, Virtual drive).")
+		return
+	}
+	n, err := s.driveReadyTitle(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	left := max(s.driveBudget()-s.driveUsedToday(), 0)
+	msg := "It's already on the drive."
+	switch {
+	case n > 0 && left == 0:
+		msg = "Today's searches for the drive are used up: it comes with tomorrow's."
+	case n == 1:
+		msg = "Getting it onto the drive now: Plex has it in a few minutes."
+	case n > 1:
+		msg = fmt.Sprintf("Getting %d episodes onto the drive now, one after another: Plex has them as each is ready.", n)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"files": n, "searchesLeft": left, "message": msg})
 }
 
 // POST /api/home/drive/prepare: get one more title ready now (it counts

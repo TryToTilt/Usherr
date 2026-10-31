@@ -5,6 +5,13 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.26.0] - 2026-10-31
+
+### Added
+
+- **Virtual drive: streams reach Plex right away**: *Add as stream* now puts the film, or the show's newest season, on the drive at once, one search a film or episode a few seconds apart, and Plex has each a couple of minutes later. A stream's page in Library, Streams has *Put it on the virtual drive now* (the newest season, for a show) for anything already in your streams. Both use the day's searches for the drive, and stop when they run out.
+- **Virtual drive: new episodes first**: a newly aired episode of a show you stream goes to the front of the drive's daily search, instead of waiting behind the backlog.
+
 ## [2.25.0] - 2026-10-31
 
 ### Added

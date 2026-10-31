@@ -76,6 +76,11 @@ func (s *Server) handleStreamedAdd(w http.ResponseWriter, r *http.Request) {
 			msg = "Already in your streams, with every episode that has aired."
 		}
 	}
+	// With the virtual drive on, Plex gets it right away too: the film, or
+	// the show's newest season (Usherr: home_drive.go).
+	if d, _ := s.driveReadyTitle(id); d > 0 {
+		msg += " Putting it on the virtual drive for Plex now."
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "files": n, "message": msg})
 }
 

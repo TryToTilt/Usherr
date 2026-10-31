@@ -33,7 +33,7 @@ It is built on **[Mediarium](https://github.com/rdborg/Mediarium) by rdborg**, a
 
 **Watching**
 - **Your stack**: the films and shows you want to watch next, as a stack of tickets in the menu to swipe through, reorder and play straight from.
-- **Streaming**: play from Usenet without downloading first, with Usherr's own engine or StreamNZB, and a streamed library that sits next to your files in Jellyfin. **Streams for you** can add films that fit someone's taste, a few a week, with nothing downloaded.
+- **Streaming**: play from Usenet without downloading first, with Usherr's own engine or StreamNZB, and a streamed library that sits next to your files in Jellyfin, and in Plex through Usherr's own virtual drive (streams you add reach Plex within minutes). **Streams for you** can add films that fit someone's taste, a few a week, with nothing downloaded.
 - **Live TV**: channels built from your library and streams, programmed like a network, with Real TV (a real network's day, as it aired), guide looks of their own, and the channels in Jellyfin, Plex and IPTV apps.
 - **The Marquee**: a lobby display for a tablet or a screen by the TV in seven looks, with what's playing, trailers, tonight on Live TV, your own slides and a cinema pre-show, steered from your phone, Home Assistant or the API.
 - **The pre-show**: before a film, a cinema's welcome, trailers for what's coming (downloaded ahead, up to 4K), your own clips by category, holiday clips in their season, the rating and the countdown. Themes and schedules pick what plays; it runs on the Showtime screen, in Usherr's player and in every Jellyfin app.

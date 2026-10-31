@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -173,6 +174,50 @@ func TestDriveServerFolder(t *testing.T) {
 		if got := driveServerFolder(c.where, c.rel); got != c.want {
 			t.Errorf("driveServerFolder(%q, %q) = %q, want %q", c.where, c.rel, got, c.want)
 		}
+	}
+}
+
+// Right away means the film, or the aired episodes of a show's newest
+// season that aren't on the drive yet: not older seasons, specials or
+// episodes still to air.
+func TestDriveTitleFilesNewestSeason(t *testing.T) {
+	s, _, _ := driveTestServer(t)
+	soon := time.Now().AddDate(0, 0, 7).Format("2006-01-02")
+	for _, q := range []string{
+		`INSERT INTO streamed_files (id, title_id, season, episode, air_date) VALUES (20, 3, 1, 2, '2022-02-18'), (21, 3, 2, 1, '2025-01-17'), (22, 3, 2, 2, '2025-01-24'), (24, 3, 0, 1, '2025-01-01')`,
+		`INSERT INTO streamed_files (id, title_id, season, episode, air_date) VALUES (23, 3, 2, 3, '` + soon + `')`,
+		`INSERT INTO streamed_files (id, title_id, season, episode, air_date, nzb, size, health) VALUES (25, 3, 2, 4, '2025-01-31', 'drive-25.nzb', 9, 'ok')`,
+	} {
+		if _, err := s.db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx := context.Background()
+	for _, c := range []struct {
+		title int64
+		want  string
+	}{{3, "[21 22]"}, {2, "[11]"}, {1, "[]"}} {
+		ids, err := s.driveTitleFiles(ctx, c.title)
+		if got := fmt.Sprint(ids); err != nil || got != c.want {
+			t.Errorf("title %d: %s, %v; want %s", c.title, got, err, c.want)
+		}
+	}
+}
+
+// A new episode of a show added long ago goes ahead of the backlog.
+func TestDriveNextNewEpisodeFirst(t *testing.T) {
+	s, _, _ := driveTestServer(t)
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	for _, q := range []string{
+		`UPDATE streamed_titles SET added_at = '2020-01-01T00:00:00.000Z'`,
+		`INSERT INTO streamed_files (id, title_id, season, episode, air_date) VALUES (30, 3, 3, 1, '` + yesterday + `')`,
+	} {
+		if _, err := s.db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if id, err := s.driveNext(context.Background()); err != nil || id != 30 {
+		t.Errorf("next: %d, %v; want yesterday's episode (30)", id, err)
 	}
 }
 

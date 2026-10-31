@@ -11,7 +11,7 @@ export const plexDrive: Walkthrough = {
   title: t('Set up Plex with the virtual drive'),
   blurb: t('Streamed films and shows in Plex: Usherr serves them as a drive of ordinary video files, and rclone puts it on your computer.'),
   icon: 'server',
-  words: 'plex virtual drive webdav rclone winfsp mount streams streamed library',
+  words: 'plex virtual drive webdav rclone winfsp mount streams streamed library now right away put on drive season',
   simple: [
     {
       kind: 'ask',
@@ -51,7 +51,7 @@ export const plexDrive: Walkthrough = {
       until: 'next',
       optional: true,
       title: t('How far along it is'),
-      text: t('Each streamed film or episode appears once Usherr knows its release: anything someone plays is kept at once, and the rest are looked for a few a day, so your indexers’ daily limits are never spent in one go.'),
+      text: t('Each streamed film or episode appears once Usherr knows its release: anything someone plays is kept at once, and a stream you add goes on right away (the film, or the show’s newest season). The rest are looked for a few a day, new episodes first, so your indexers’ daily limits are never spent in one go.'),
     },
     {
       kind: 'point',
@@ -87,7 +87,7 @@ export const plexDrive: Walkthrough = {
     {
       kind: 'done',
       title: t('Plex has your streams'),
-      text: t('New streamed titles appear on the drive as their releases are found. If Plex stops seeing it, Something not right? in Show me how checks the drive.'),
+      text: t('Streams you add reach Plex within minutes. For one already in your streams, open it in Library, Streams and press Put it on the virtual drive now. If Plex stops seeing the drive, Something not right? in Show me how checks it.'),
     },
   ],
 }

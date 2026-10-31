@@ -9,6 +9,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import Icon from '../components/Icon'
 import KindGlyph from '../components/KindGlyph'
 import PosterCard from '../components/PosterCard'
+import { useToast } from '../components/Toast'
 import { isAdmin } from '../api'
 import { useAuth } from '../AuthContext'
 import { playStream } from './Player'
@@ -280,7 +281,31 @@ export function StreamedSheet({ id, tmdbId, title, onClose }: { id: number; tmdb
 
 function TitleSheet({ ti: card, onClose, onRemoved }: { ti: Title; onClose: () => void; onRemoved?: () => void }) {
   const admin = isAdmin(useAuth().user)
+  const toast = useToast()
   const [removing, setRemoving] = useState(false)
+  // Usherr: with the virtual drive on, an administrator can put the title on
+  // it right away, for Plex (the film, or the newest season).
+  const [driveOn, setDriveOn] = useState(false)
+  const [toDrive, setToDrive] = useState(false)
+  useEffect(() => {
+    if (!admin) return
+    fetch('/api/home/drive', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { on?: boolean } | null) => setDriveOn(!!d?.on))
+      .catch(() => undefined)
+  }, [admin])
+  const putOnDrive = () => {
+    setErr('')
+    setToDrive(true)
+    fetch(`/api/home/drive/title/${card.id}`, { method: 'POST', credentials: 'include' })
+      .then(async (r) => {
+        const d = await r.json().catch(() => null)
+        if (!r.ok) throw new Error(d?.error ?? t('Something went wrong (error {status}).', { status: r.status }))
+        toast.success(d.message)
+      })
+      .catch((e: Error) => setErr(e.message))
+      .finally(() => setToDrive(false))
+  }
   // The list has what a card needs; the rest (overview, backdrop) comes
   // with the title.
   const [full, setFull] = useState<Title | null>(null)
@@ -395,6 +420,11 @@ function TitleSheet({ ti: card, onClose, onRemoved }: { ti: Title; onClose: () =
         {err && <p className="error-text">{err}</p>}
         {admin && (
           <div className="sl-remove">
+            {driveOn && !removing && (
+              <button className="btn-sm" data-walk="drive-now" onClick={putOnDrive} disabled={toDrive} title={t('For Plex: finds its release now instead of waiting its turn (one search a film or episode, from today’s searches)')}>
+                <Icon name="server" size={13} /> {ti.kind === 'movie' ? t('Put it on the virtual drive now') : t('Put the newest season on the virtual drive now')}
+              </button>
+            )}
             {removing ? (
               <>
                 <span>{t("Take {title} out of your streams? Files on disk aren't touched.", { title: ti.title })}</span>
