@@ -192,6 +192,7 @@ export default function OmniBar({ page, header }: { page: OmniPage; header?: boo
     <div className={`omni${header ? ' omni-header' : ''}`}>
       <form
         className="omni-bar ai"
+        data-walk="ask-bar"
         onSubmit={(e) => {
           e.preventDefault()
           void ask(q)

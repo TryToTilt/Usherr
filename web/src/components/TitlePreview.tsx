@@ -72,7 +72,7 @@ export function CastCard({ cast }: { cast: CastMember[] }) {
   if (cast.length === 0) return null
   const { visible } = firstOf(cast, all ? cast.length : CAST_FIRST)
   return (
-    <section className="card" style={{ marginBottom: 24 }}>
+    <section className="card" data-walk="title-cast" style={{ marginBottom: 24 }}>
       <h2>{t('Cast')}</h2>
       <ul className="preview-cast" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {visible.map((p) => (

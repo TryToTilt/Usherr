@@ -262,7 +262,7 @@ export default function Complete() {
     )
 
   return (
-    <div className="page-pad complete-page">
+    <div className="page-pad complete-page" data-walk="complete-page">
       <div className="complete-head">
         <div>
           <h1>
@@ -329,7 +329,7 @@ export function CompleteTeaser() {
   const { data } = useGaps()
   const res = data?.result
   return (
-    <Link to="/discover/complete" className="complete-teaser">
+    <Link to="/discover/complete" className="complete-teaser" data-walk="complete-teaser">
       <Icon name="check" size={18} />
       <span>
         <strong>{t('Complete your library')}</strong>

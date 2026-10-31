@@ -257,7 +257,7 @@ function AddForm({
               </select>
             </label>
           ) : (
-            <label>
+            <label data-walk="add-monitor">
               <span className="has-tip">
                 {t('Which episodes to monitor')}
                 <InfoTip text={t('Only monitored episodes are searched for and downloaded. "None" adds the show to your library and downloads nothing; you can switch episodes on later.')} />
@@ -369,7 +369,7 @@ function AddForm({
         <div className="modal-foot">
           <button onClick={onClose} disabled={busy}>{t('Cancel')}</button>
           {!alreadyStreams && <AddAsStream kind={target.kind} tmdbId={target.tmdbId} title={target.title} disabled={busy} onDone={onClose} />}
-          <button className="primary btn-with-icon" onClick={submit} disabled={busy}>
+          <button className="primary btn-with-icon" data-walk="add-go" onClick={submit} disabled={busy}>
             <Icon name="plus" size={16} /> {busy ? (asks ? t('Sending…') : t('Adding…')) : alreadyStreams && !asks ? t('Download a copy anyway') : asks ? (isMovie ? t('Request movie') : t('Request show')) : isMovie ? t('Add movie') : t('Add show')}
           </button>
         </div>

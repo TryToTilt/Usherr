@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-10-31
+
+### Added
+
+- **Show Me How**, finding things: browse Discover (what to show, Filters, Hide what I have, the family filter, recipes), get a TV show (all episodes, only new ones, or ones you pick), follow an actor or director, see what's coming (Calendar, Wanted, Following), fill the gaps in your library (Complete your library), and ask for something in your own words (the Ask bar, What's it like?, Catch me up).
+
 ## [2.12.0] - 2026-10-31
 
 ### Added

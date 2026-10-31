@@ -81,7 +81,7 @@ export default function ShowDetail() {
                 <Icon name="play" size={18} /> {t('Watch (streams)')}
               </button>
             )}
-            <button className={`${streamedHere ? '' : 'primary '}btn-with-icon big`} onClick={() => setAdding(true)}>
+            <button className={`${streamedHere ? '' : 'primary '}btn-with-icon big`} data-walk="title-add" onClick={() => setAdding(true)}>
               <Icon name="plus" size={18} /> {t('Add to library')}
             </button>
             <CatchUp tmdbId={show.tmdbId} /> {/* home fork */}

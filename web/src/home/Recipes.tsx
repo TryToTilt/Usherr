@@ -199,7 +199,7 @@ export default function RecipeRails({ tab, owned, onAdd }: { tab: RecipeTab; own
 
   return (
     <>
-      <div className="recipes-bar">
+      <div className="recipes-bar" data-walk="recipes-bar">
         <span className="recipes-title">
           <Icon name="list" size={16} /> {t('Your recipes')} <HelpLink topic="home-finding#your-recipes" />
         </span>

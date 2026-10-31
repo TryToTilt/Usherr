@@ -181,7 +181,7 @@ export default function Coach({ run }: { run: SmhRun }) {
     const id = window.setTimeout(() => {
       acted.current = run.i
       if (step.act === 'click') el.click()
-      else el.focus()
+      else (el.matches('input, textarea') ? el : (el.querySelector<HTMLElement>('input, textarea') ?? el)).focus()
     }, ACT_DELAY)
     return () => window.clearTimeout(id)
   }, [step, el, run.watch, run.i])

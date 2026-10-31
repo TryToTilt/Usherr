@@ -64,7 +64,7 @@ export default function PersonPage() {
         <div>
           <h1>{p.name}</h1>
           <p className="hint">{[p.known === 'Directing' ? t('Director') : p.known === 'Acting' ? t('Actor') : p.known, life, p.place].filter(Boolean).join(' · ')}</p>
-          <button className={`btn-sm person-follow${data.following ? ' on' : ''}`} onClick={toggle} disabled={busy} aria-pressed={data.following}>
+          <button data-walk="person-follow" className={`btn-sm person-follow${data.following ? ' on' : ''}`} onClick={toggle} disabled={busy} aria-pressed={data.following}>
             <Icon name={data.following ? 'check' : 'plus'} size={14} /> {data.following ? t('Following') : t('Follow')}
           </button>{' '}
           <HelpLink topic="home-finding#people-and-following" />

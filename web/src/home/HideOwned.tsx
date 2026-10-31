@@ -33,7 +33,7 @@ export default function HideOwned({ label }: { label: string }) {
   const chosen = opts.filter((o) => what[o.key])
   const summary = chosen.length === opts.length ? t('All') : chosen.length === 0 ? t('Nothing') : chosen.map((o) => o.label).join(', ')
   return (
-    <span className="hide-owned">
+    <span className="hide-owned" data-walk="hide-owned">
       <Switch checked={on} onChange={setOn} label={label} />
       <div className={`dropdown hide-owned-pick${open ? ' open' : ''}`} ref={root}>
         <button type="button" className="dropdown-btn" onClick={() => setOpen((o) => !o)} aria-haspopup="true" aria-expanded={open} aria-label={t('What to hide')} title={t('What to hide')} disabled={!on}>

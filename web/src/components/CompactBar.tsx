@@ -21,7 +21,7 @@ export function KindPicker({ options, value, onChange, label }: { options: KindO
   const cur = options.find((o) => o.key === value) ?? options[0]
   if (!cur) return null
   return (
-    <label className="kind-pick" style={{ ['--kc' as string]: cur.color }} title={label ?? t('What to show')}>
+    <label className="kind-pick" data-walk="kind-pick" style={{ ['--kc' as string]: cur.color }} title={label ?? t('What to show')}>
       <KindGlyph kind={cur.glyph} size={18} />
       <span className="kind-pick-name">{cur.label}</span>
       {cur.count !== undefined && <small className="mono kind-pick-count">{cur.count}</small>}
@@ -40,7 +40,7 @@ export function KindPicker({ options, value, onChange, label }: { options: KindO
 // FiltersButton: opens the panel; says how many filters are on.
 export function FiltersButton({ open, onToggle, count }: { open: boolean; onToggle: () => void; count: number }) {
   return (
-    <button type="button" className={`cbar-filters${open ? ' open' : ''}${count > 0 ? ' on' : ''}`} aria-expanded={open} onClick={onToggle} aria-label={t('Filters')}>
+    <button type="button" data-walk="filters-btn" className={`cbar-filters${open ? ' open' : ''}${count > 0 ? ' on' : ''}`} aria-expanded={open} onClick={onToggle} aria-label={t('Filters')}>
       <Icon name="sliders" size={16} /> <span className="cbar-filters-label">{t('Filters')}</span>
       {count > 0 && <span className="cbar-count">{count}</span>}
       <Icon name="chevron-down" size={14} />

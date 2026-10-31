@@ -448,7 +448,7 @@ function DiscoverPage() {
               </>
             )}
             <HideOwned label={t('Hide what I have')} /> {/* home fork: choose on disk, streamed, wanted */}
-            {titleKind && <FamilyFilter />} {/* home fork */}
+            {titleKind && <span data-walk="family-filter"><FamilyFilter /></span>} {/* home fork */}
             <PosterSizeSlider value={posterSize} />
             <span className="spacer" />
             <NotInterestedList />

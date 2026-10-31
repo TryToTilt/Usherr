@@ -11,7 +11,7 @@ export default function Upcoming({ tab }: { tab: 'calendar' | 'wanted' | 'follow
   return (
     <div>
       {/* Usherr: the calendar puts its kind picker and its menu at the end of the tabs (its search is in the top bar). */}
-      <nav className="page-tabs" aria-label={t('Upcoming')} style={{ ['--tc' as string]: 'var(--c-calendar)' }}>
+      <nav className="page-tabs" data-walk="upcoming-tabs" aria-label={t('Upcoming')} style={{ ['--tc' as string]: 'var(--c-calendar)' }}>
         <NavLink to="/calendar" className={({ isActive }) => (isActive ? 'active' : '')}>
           <Icon name="calendar" size={15} /> {t('Calendar')}
         </NavLink>

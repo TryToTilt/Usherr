@@ -3,6 +3,7 @@ import { t } from '../../i18n'
 import type { SmhGroup, Walkthrough } from '../types'
 import { completeCollection } from './collection'
 import { comicArcs, comicReview, comicWeek, readComic, setupComics } from './comics'
+import { askAi, completeLibrary, discover, followPerson, getShow, upcoming } from './discover'
 import { diary, familyMember, phone, roulette, stack, streamOrKeep, tonight, vote } from './everyday'
 import { setUpPreshow } from './preshow'
 import { ebookToAudiobook } from './readtome'
@@ -11,7 +12,12 @@ import { bookShowtime } from './showtime'
 export const WALKS: Walkthrough[] = [
   tonight,
   roulette,
+  askAi,
+  discover,
   streamOrKeep,
+  getShow,
+  followPerson,
+  upcoming,
   vote,
   stack,
   diary,
@@ -24,6 +30,7 @@ export const WALKS: Walkthrough[] = [
   setupComics,
   ebookToAudiobook,
   completeCollection,
+  completeLibrary,
   familyMember,
   phone,
 ]
