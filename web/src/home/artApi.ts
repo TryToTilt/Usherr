@@ -17,6 +17,7 @@ export type ArtSettings = {
   tvdbKeySet: boolean
   posterizarr: string
   posterizarrOwns: boolean
+  perServer?: boolean // Usherr: pictures can differ from Jellyfin to Plex
 }
 export type ArtStatus = { running: boolean; lastMs?: number; looked: number; proposed: number; applied: number; note?: string; freeGB: number }
 export type ArtAll = {
@@ -52,6 +53,9 @@ export type ArtChange = {
   doneMs?: number
   current?: string
 }
+// Usherr: which media server a picture goes to ('' both).
+export type ArtServer = '' | 'jellyfin' | 'plex'
+
 export type ArtTitle = {
   candidates: Record<ArtType, ArtCand[]>
   current: string
@@ -59,6 +63,8 @@ export type ArtTitle = {
   copies: number
   chosen: Record<ArtType, boolean>
   changes: ArtChange[]
+  servers?: ('jellyfin' | 'plex')[] // the media servers the title is on
+  perServer?: boolean
 }
 
 export const ART_LABEL: Record<ArtChangeType, string> = { poster: t('Poster'), backdrop: t('Background'), logo: t('Logo'), seasons: t('Season posters'), cards: t('Title cards') }
@@ -146,11 +152,11 @@ export const artApi = {
   skip: (b: { ids?: number[]; all?: boolean }) => call<{ changes: number }>('POST', '/changes/skip', b),
   undo: (id: number) => call<{ undone: boolean }>('POST', `/changes/${id}/undo`),
   title: (kind: ArtKind, tmdbId: number) => call<ArtTitle>('GET', `/title?kind=${kind}&tmdbId=${tmdbId}`),
-  choose: (b: { kind: ArtKind; tmdbId: number; type: ArtType; url: string }) => call<{ id: number }>('POST', '/title/choose', b),
+  choose: (b: { kind: ArtKind; tmdbId: number; type: ArtType; url: string; server?: ArtServer }) => call<{ id: number }>('POST', '/title/choose', b),
   styles: () => call<ArtStylesAll>('GET', '/styles'),
   saveStyles: (b: { styles: ArtStyles; on: Partial<Record<StyleWhat, boolean>> }) => call<ArtStylesAll>('PUT', '/styles', b),
   samples: (q: string, kind?: ArtKind) => call<ArtSample[]>('GET', `/samples?q=${encodeURIComponent(q)}${kind ? `&kind=${kind}` : ''}`),
-  titleStyle: (b: { kind: ArtKind; tmdbId: number; what: 'poster' | 'backdrop' | 'seasons' | 'cards'; url?: string; words?: string }) => call<{ id: number; background?: boolean }>('POST', '/title/style', b),
+  titleStyle: (b: { kind: ArtKind; tmdbId: number; what: 'poster' | 'backdrop' | 'seasons' | 'cards'; url?: string; words?: string; server?: ArtServer }) => call<{ id: number; background?: boolean }>('POST', '/title/style', b),
 }
 
 // A picture that won't load: its small preview gives way to the full picture,

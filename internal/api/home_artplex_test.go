@@ -141,3 +141,79 @@ func TestArtWithPlex(t *testing.T) {
 		t.Fatal("the old poster isn't back in Plex")
 	}
 }
+
+// A title in Jellyfin and in Plex: a change for every server goes to both;
+// with different pictures for each, a change for one leaves the other.
+func TestArtPerServer(t *testing.T) {
+	s, db := optionsServer(t)
+	s.db = db
+	box, err := crypto.LoadOrCreateKey(filepath.Join(t.TempDir(), "secret.key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.MediaServers = mediaservers.NewRepo(db, box)
+	s.mediaClient = mediaservers.NewClient("test")
+	_ = s.Settings.Set(keyArtFolder, t.TempDir(), false)
+	old := pngOf(t, 40, 60, color.RGBA{R: 200, A: 255})
+	fp := &fakeArtPlex{thumb: old}
+	ps := httptest.NewServer(fp)
+	defer ps.Close()
+	plex, err := s.MediaServers.Create(mediaservers.Server{Name: "Plex", Kind: mediaservers.KindPlex, BaseURL: ps.URL, Token: "tok", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	jf := &fakeJF{images: map[string][]byte{"a1/Primary": old}, posted: map[string]int{}}
+	js := httptest.NewServer(jf)
+	defer js.Close()
+	srv := mediaservers.Server{Kind: mediaservers.KindJellyfin, BaseURL: js.URL, Token: "k", Enabled: true}
+	big := pngOf(t, 2000, 3000, color.RGBA{G: 200, A: 255})
+	pics := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(big) }))
+	defer pics.Close()
+	oldHTTP, oldHost := artHTTP, artTestHost
+	artHTTP = func() *http.Client { return pics.Client() }
+	artTestHost = func(u string) bool { return strings.HasPrefix(u, pics.URL) }
+	defer func() { artHTTP, artTestHost = oldHTTP, oldHost }()
+
+	plexID := artPlexRef{plex.ID, "77", "1", "movie"}.String()
+	if _, err := db.Exec(`INSERT INTO art_titles (kind, tmdb_id, title, jf_ids) VALUES ('movie', 438631, 'Dune', ?)`, "a1,"+plexID); err != nil {
+		t.Fatal(err)
+	}
+	if got := artServersOf("a1," + plexID); strings.Join(got, ",") != "jellyfin,plex" {
+		t.Errorf("servers: %v", got)
+	}
+	ctx := context.Background()
+	change := func(server string) {
+		t.Helper()
+		res, err := db.Exec(`INSERT INTO art_changes (kind, tmdb_id, title, type, source, url, why, by_hand, created_ms, server) VALUES ('movie', 438631, 'Dune', 'poster', 'tmdb', ?, 'chosen', 1, 1, ?)`, pics.URL+"/p.png", server)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _ := res.LastInsertId()
+		if err := s.artMake(ctx, srv, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	change("plex")
+	if fp.uploads != 1 || jf.posted["a1/Primary"] != 0 {
+		t.Fatalf("for Plex only: Plex %d, Jellyfin %d", fp.uploads, jf.posted["a1/Primary"])
+	}
+	change("jellyfin")
+	if fp.uploads != 1 || jf.posted["a1/Primary"] != 1 {
+		t.Fatalf("for Jellyfin only: Plex %d, Jellyfin %d", fp.uploads, jf.posted["a1/Primary"])
+	}
+	change("")
+	if fp.uploads != 2 || jf.posted["a1/Primary"] != 2 {
+		t.Fatalf("for both: Plex %d, Jellyfin %d", fp.uploads, jf.posted["a1/Primary"])
+	}
+
+	// A copy's poster style: its library's, else its server's, else the house's.
+	st := artStyles{Poster: artStyle{V: 1}, Libraries: map[string]artStyle{"Plex": {V: 2}, "Plex: Anime": {V: 3}}}
+	for _, c := range []struct {
+		server, lib string
+		want        int
+	}{{"Plex", "Plex: Anime", 3}, {"Plex", "Plex: Movies", 2}, {"Jellyfin", "Movies", 1}} {
+		if got := st.forCopy(c.server, c.lib).V; got != c.want {
+			t.Errorf("%s %s: style %d, want %d", c.server, c.lib, got, c.want)
+		}
+	}
+}

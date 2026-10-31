@@ -12,7 +12,7 @@ import { useConfirm } from '../components/ConfirmProvider'
 import { useToast } from '../components/Toast'
 import { t } from '../i18n'
 import { useFocusTrap } from '../useFocusTrap'
-import { ART_LABEL, artApi, artImgError, candLine, currentArt, stylePreview, type ArtCand, type ArtKind, type ArtTitle, type ArtType, type StyleWhat } from './artApi'
+import { ART_LABEL, artApi, artImgError, candLine, currentArt, stylePreview, type ArtCand, type ArtKind, type ArtTitle, type ArtType, type StyleWhat, type ArtServer } from './artApi'
 import './artwork.css'
 
 type Tab = ArtType | 'style'
@@ -40,6 +40,7 @@ function ArtworkDialog({ kind, tmdbId, title, onClose }: { kind: ArtKind; tmdbId
   const [busy, setBusy] = useState('')
   const [stamp, setStamp] = useState(0) // a new picture: the current one is asked for again
   const [gone, setGone] = useState<Set<string>>(new Set()) // pictures that wouldn't load
+  const [server, setServer] = useState<ArtServer>('') // Usherr: both media servers, or one
   useEffect(() => {
     let live = true
     artApi
@@ -63,7 +64,7 @@ function ArtworkDialog({ kind, tmdbId, title, onClose }: { kind: ArtKind; tmdbId
     if (!(await confirm({ title: t('Use this {what}?', { what: ART_LABEL[type].toLowerCase() }), body: `${t('It goes on at once and stays: the nightly pass won’t replace it. The one there now is kept, so it can be put back.')} ${copies}`, confirmLabel: t('Use it') }))) return
     setBusy(url)
     try {
-      await artApi.choose({ kind, tmdbId, type, url })
+      await artApi.choose({ kind, tmdbId, type, url, server: server || undefined })
       toast.success(t('Your media server has the new {what}.', { what: ART_LABEL[type].toLowerCase() }))
       setStamp((n) => n + 1)
     } catch (e) {
@@ -107,10 +108,19 @@ function ArtworkDialog({ kind, tmdbId, title, onClose }: { kind: ArtKind; tmdbId
             {t('Your style')}
           </button>
         </div>
+        {data?.perServer && (data.servers?.length ?? 0) > 1 && (
+          <div className="art-servers" role="group" aria-label={t('Which media server it goes to')}>
+            {(['', 'jellyfin', 'plex'] as const).map((k) => (
+              <button key={k || 'both'} type="button" className={`btn-sm${server === k ? ' primary' : ''}`} onClick={() => setServer(k)}>
+                {k === '' ? t('Both servers') : k === 'jellyfin' ? 'Jellyfin' : 'Plex'}
+              </button>
+            ))}
+          </div>
+        )}
         {error && <p className="error">{error}</p>}
         {!data && !error && <p className="hint">{t('Looking at TMDB and fanart.tv…')}</p>}
         {data && !data.inJellyfin && <p className="art-warn">{t('Your media server doesn’t have this title yet, so there’s nothing to change. Once it’s in a Jellyfin or Plex library, its artwork can be picked here.')}</p>}
-        {data && tab === 'style' && <StyleTab kind={kind} tmdbId={tmdbId} title={title} data={data} busy={busy} setBusy={setBusy} onDone={() => setStamp((n) => n + 1)} onUndo={undo} />}
+        {data && tab === 'style' && <StyleTab kind={kind} tmdbId={tmdbId} title={title} data={data} server={server} busy={busy} setBusy={setBusy} onDone={() => setStamp((n) => n + 1)} onUndo={undo} />}
         {data && tab !== 'style' && (
           <>
             {data.inJellyfin && (
@@ -154,7 +164,7 @@ function ArtworkDialog({ kind, tmdbId, title, onClose }: { kind: ArtKind; tmdbId
 // the art picked below, a picture of their own, or the best without words;
 // with their own words if they like), and for a show its season posters and
 // title cards.
-function StyleTab({ kind, tmdbId, title, data, busy, setBusy, onDone, onUndo }: { kind: ArtKind; tmdbId: number; title: string; data: ArtTitle; busy: string; setBusy: (b: string) => void; onDone: () => void; onUndo: (id: number) => void }) {
+function StyleTab({ kind, tmdbId, title, data, server, busy, setBusy, onDone, onUndo }: { kind: ArtKind; tmdbId: number; title: string; data: ArtTitle; server: ArtServer; busy: string; setBusy: (b: string) => void; onDone: () => void; onUndo: (id: number) => void }) {
   const toast = useToast()
   const confirm = useConfirm()
   const [base, setBase] = useState('') // '' = the best without words
@@ -199,7 +209,7 @@ function StyleTab({ kind, tmdbId, title, data, busy, setBusy, onDone, onUndo }: 
     if (!(await confirm({ title: head, body, confirmLabel: t('Go ahead') }))) return
     setBusy(PUT[what])
     try {
-      const r = await artApi.titleStyle({ kind, tmdbId, what: PUT[what], url: one ? base || undefined : what === 'season' ? base || undefined : undefined, words: one ? words || undefined : undefined })
+      const r = await artApi.titleStyle({ kind, tmdbId, what: PUT[what], url: one ? base || undefined : what === 'season' ? base || undefined : undefined, words: one ? words || undefined : undefined, server: server || undefined })
       toast.success(r.background ? t('Making them; they’re on Re-Posterr’s page under Changed lately when done.') : t('Your media server has it.'))
       onDone()
     } catch (e) {

@@ -64,7 +64,7 @@ export const HOME_TOPICS: TopicDef[] = [
   {
     id: 'home-reposterr',
     title: 'Re-Posterr',
-    summary: 'The posters, backgrounds and logos Jellyfin shows: Usherr’s picks from TMDB and fanart.tv, posters made in your own style (season posters, title cards, backgrounds, overlays, a style per library, your own picture and words), TheTVDB and Posterizarr, asking first, choosing by hand, putting one back, and when it looks.',
+    summary: 'The posters, backgrounds and logos Jellyfin and Plex show: Usherr’s picks from TMDB and fanart.tv, posters made in your own style (season posters, title cards, backgrounds, overlays, a style per library, your own picture and words), TheTVDB and Posterizarr, asking first, choosing by hand, putting one back, and when it looks.',
     group: HOME_GROUP,
     sources: [{ file: 'home/re-posterr.md' }],
   },

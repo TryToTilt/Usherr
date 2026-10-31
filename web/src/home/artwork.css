@@ -80,3 +80,5 @@
 .art-lib { margin: 6px 0; align-items: end; }
 .art-lib .psm-field { min-width: 240px; }
 .art-own-words { flex: 1 1 260px; }
+/* Usherr: which media server a picture goes to */
+.art-servers { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }

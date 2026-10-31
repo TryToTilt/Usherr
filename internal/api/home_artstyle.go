@@ -208,7 +208,9 @@ type artStyles struct {
 	Season   artStyle `json:"season"`
 	Card     artStyle `json:"card"`
 	Backdrop artStyle `json:"backdrop"`
-	// A library's own poster style, by its name in Jellyfin.
+	// A library's own poster style, by its name in Jellyfin (or "Plex:
+	// <name>" for one of Plex's), or a media server's for all its libraries
+	// ("Jellyfin", "Plex").
 	Libraries map[string]artStyle `json:"libraries,omitempty"`
 }
 
@@ -369,6 +371,15 @@ func (st artStyles) forLibrary(lib string) artStyle {
 		return ls
 	}
 	return st.Poster
+}
+
+// forCopy is the poster style of one copy of a title: its library's own,
+// else its media server's, else the house style.
+func (st artStyles) forCopy(server, lib string) artStyle {
+	if ls, ok := st.Libraries[lib]; ok && lib != "" {
+		return ls
+	}
+	return st.forLibrary(server)
 }
 
 // print is the fingerprint of every poster style (the house's and the
@@ -999,7 +1010,7 @@ var errArtPaused = errors.New("paused while someone watches on Jellyfin; it carr
 // title cards. What it replaces is kept first, as for any change; pictures
 // already made (a change that was paused) aren't made again.
 func (s *Server) artApplyStyled(ctx context.Context, srv mediaservers.Server, c artChange) error {
-	if c.JFIDs == "" {
+	if len(artIDsFor(c.JFIDs, c.Server)) == 0 {
 		return errors.New("the media server doesn't have this title (yet)")
 	}
 	styles, _ := s.artStylesNow()
@@ -1021,10 +1032,10 @@ func (s *Server) artApplyStyled(ctx context.Context, srv mediaservers.Server, c 
 			w, h = artCardW, artCardH
 		}
 		made := map[string]image.Image{}
-		for _, id := range strings.Split(c.JFIDs, ",") {
+		for _, id := range artIDsFor(c.JFIDs, c.Server) {
 			st := styles.of(c.Type)
 			if c.Type == "poster" && len(styles.Libraries) > 0 {
-				st = styles.forLibrary(jfLibraryOf(ctx, srv, id))
+				st = styles.forCopy(artServerName(id), s.artLibraryOf(ctx, srv, id))
 			}
 			cex := ex
 			if st.byRes() {
@@ -1052,7 +1063,7 @@ func (s *Server) artApplyStyled(ctx context.Context, srv mediaservers.Server, c 
 			return err
 		}
 		made := map[int]image.Image{}
-		for _, sid := range strings.Split(c.JFIDs, ",") {
+		for _, sid := range artIDsFor(c.JFIDs, c.Server) {
 			if _, plex := parseArtPlex(sid); plex {
 				continue // season posters are Jellyfin's for now
 			}
@@ -1073,7 +1084,7 @@ func (s *Server) artApplyStyled(ctx context.Context, srv mediaservers.Server, c 
 	case "cards":
 		st := styles.Card
 		stills := map[int]map[int]metadata.EpisodeInfo{}
-		for _, sid := range strings.Split(c.JFIDs, ",") {
+		for _, sid := range artIDsFor(c.JFIDs, c.Server) {
 			if _, plex := parseArtPlex(sid); plex {
 				continue // title cards are Jellyfin's for now
 			}
@@ -1166,6 +1177,7 @@ func (s *Server) handleArtStyles(w http.ResponseWriter, r *http.Request) {
 		libs = jfLibraries(ctx, srv)
 		cancel()
 	}
+	libs = append(libs, s.artPlexLibraryNames(r.Context())...) // Usherr: Plex's too, and each server as a whole
 	writeJSON(w, http.StatusOK, map[string]any{"styles": st, "on": on, "fonts": artFonts, "defaults": artDefaultStyles(), "libraries": libs, "overlays": s.artOverlayNames()})
 }
 
@@ -1395,9 +1407,10 @@ func (s *Server) handleArtTitleStyle(w http.ResponseWriter, r *http.Request) {
 		What   string `json:"what"`
 		URL    string `json:"url"`
 		Words  string `json:"words"`
+		Server string `json:"server"` // "" every media server, "jellyfin" or "plex"
 	}
 	if err := decodeJSON(r, &b); err != nil || artStyleFor[b.What] == "" || b.TMDBID <= 0 || (b.Kind != "movie" && b.Kind != "tv" && b.Kind != "collection") ||
-		(b.What == "seasons" || b.What == "cards") && b.Kind != "tv" || len([]rune(b.Words)) > 80 {
+		(b.What == "seasons" || b.What == "cards") && b.Kind != "tv" || len([]rune(b.Words)) > 80 || !artServerKey(b.Server) {
 		writeError(w, http.StatusBadRequest, "That request couldn't be read.")
 		return
 	}
@@ -1414,8 +1427,8 @@ func (s *Server) handleArtTitleStyle(w http.ResponseWriter, r *http.Request) {
 	styles, _ := s.artStylesNow()
 	now := time.Now().UnixMilli()
 	_, _ = s.db.ExecContext(r.Context(), `UPDATE art_changes SET state = 'skipped', done_ms = ? WHERE kind = ? AND tmdb_id = ? AND type = ? AND state = 'waiting'`, now, b.Kind, b.TMDBID, b.What)
-	res, err := s.db.ExecContext(r.Context(), `INSERT INTO art_changes (kind, tmdb_id, title, type, source, url, why, by_hand, style, words, created_ms) VALUES (?, ?, ?, ?, 'usherr', ?, 'chosen', 1, ?, ?, ?)`,
-		b.Kind, b.TMDBID, title, b.What, b.URL, styles.printOf(b.What), strings.TrimSpace(b.Words), now)
+	res, err := s.db.ExecContext(r.Context(), `INSERT INTO art_changes (kind, tmdb_id, title, type, source, url, why, by_hand, style, words, created_ms, server) VALUES (?, ?, ?, ?, 'usherr', ?, 'chosen', 1, ?, ?, ?, ?)`,
+		b.Kind, b.TMDBID, title, b.What, b.URL, styles.printOf(b.What), strings.TrimSpace(b.Words), now, b.Server)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "The choice couldn't be saved.")
 		return

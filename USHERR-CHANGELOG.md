@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.31.0] - 2026-10-31
+
+### Added
+
+- **Re-Posterr: the same pictures on both servers, or different ones**: with Jellyfin and Plex both, pictures go to both by default. *Different pictures for each media server* lets a picture chosen by hand go to Jellyfin, Plex or both, and gives Your style a style for each server as a whole and for each of Plex's libraries (a copy takes its library's style, else its server's, else the house style).
+
 ## [2.30.0] - 2026-10-31
 
 ### Added

@@ -1365,7 +1365,7 @@ function PreshowCard({ inWizard }: { inWizard: boolean }) {
   )
 }
 
-// Usherr: Re-Posterr, the posters, backgrounds and logos Jellyfin shows
+// Usherr: Re-Posterr, the posters, backgrounds and logos Jellyfin and Plex show
 // (ArtworkSettings.tsx). Asks first unless told otherwise; fanart.tv's key
 // is optional.
 function ReposterrCard({ inWizard }: { inWizard: boolean }) {

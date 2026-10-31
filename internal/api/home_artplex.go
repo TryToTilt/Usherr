@@ -160,3 +160,94 @@ func (s *Server) artAnyonePlaying(ctx context.Context, srv mediaservers.Server) 
 	}
 	return false
 }
+
+// artServerKey says whether a change may be for that server: "" (every
+// one), "jellyfin" or "plex".
+func artServerKey(k string) bool { return k == "" || k == "jellyfin" || k == "plex" }
+
+// artServerOf is which server a copy is on: "plex" or "jellyfin".
+func artServerOf(id string) string {
+	if _, ok := parseArtPlex(id); ok {
+		return "plex"
+	}
+	return "jellyfin"
+}
+
+// artServerName is a copy's server as the styles name it.
+func artServerName(id string) string {
+	if artServerOf(id) == "plex" {
+		return "Plex"
+	}
+	return "Jellyfin"
+}
+
+// artIDsFor are a title's copies on the server ("" every one).
+func artIDsFor(jfIDs, server string) []string {
+	var out []string
+	for _, id := range strings.Split(jfIDs, ",") {
+		if id != "" && (server == "" || artServerOf(id) == server) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+// artServersOf are the servers a title is on, for the picker.
+func artServersOf(jfIDs string) []string {
+	out := []string{}
+	for _, k := range []string{"jellyfin", "plex"} {
+		if len(artIDsFor(jfIDs, k)) > 0 {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
+// artLibraryOf is a copy's library as the styles name it: Jellyfin's by its
+// name, Plex's as "Plex: <name>".
+func (s *Server) artLibraryOf(ctx context.Context, srv mediaservers.Server, id string) string {
+	ref, ok := parseArtPlex(id)
+	if !ok {
+		return jfLibraryOf(ctx, srv, id)
+	}
+	ps, ok := s.artPlexServer(ref.server)
+	if !ok {
+		return ""
+	}
+	libs, err := s.mediaClient.PlexLibraries(ctx, ps)
+	if err != nil {
+		return ""
+	}
+	for _, l := range libs {
+		if l.ID == ref.section {
+			return "Plex: " + l.Title
+		}
+	}
+	return ""
+}
+
+// artPlexLibraryNames are the style designer's Plex entries: Plex as a
+// whole, Jellyfin as a whole (when both are there), and each Plex library.
+func (s *Server) artPlexLibraryNames(ctx context.Context) []string {
+	servers := s.plexServers()
+	if len(servers) == 0 {
+		return nil
+	}
+	var out []string
+	if _, jf := s.jellyfinServer(); jf {
+		out = append(out, "Jellyfin")
+	}
+	out = append(out, "Plex")
+	for _, ps := range servers {
+		libs, err := s.mediaClient.PlexLibraries(ctx, ps)
+		if err != nil {
+			continue
+		}
+		for _, l := range libs {
+			if l.Type == "movie" || l.Type == "show" {
+				out = append(out, "Plex: "+l.Title)
+			}
+		}
+	}
+	return out
+}

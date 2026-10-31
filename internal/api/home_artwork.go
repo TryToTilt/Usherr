@@ -55,6 +55,7 @@ const (
 	keyArtTo       = "home.art.to"        // the hour it stops (7)
 	keyArtMinFree  = "home.art.minFreeGB" // stop when Jellyfin's metadata disk has less (20)
 	keyArtFolder   = "home.art.folder"    // where replaced pictures are kept
+	keyArtPerSrv   = "home.art.perServer" // "1": pictures can differ from one media server to the other
 
 	artPause      = 3 * time.Second // between titles in a pass
 	artPerRun     = 900             // titles looked at in one hour's run at most
@@ -88,6 +89,9 @@ type artSettings struct {
 	TVDBSet     bool   `json:"tvdbKeySet"`
 	Posterizarr string `json:"posterizarr"`
 	PzOwns      bool   `json:"posterizarrOwns"`
+	// Usherr: with Jellyfin and Plex both, a picture chosen by hand can go to
+	// one of them (else every picture goes to both).
+	PerServer bool `json:"perServer"`
 }
 
 func (s *Server) artSettingsNow() artSettings {
@@ -105,7 +109,7 @@ func (s *Server) artSettingsNow() artSettings {
 	}
 	return artSettings{On: get(keyArtOn) != "0", Mode: mode, FanartSet: get(keyArtFanart) != "", Textless: get(keyArtTextless) != "0",
 		From: num(keyArtFrom, 1, 0, 23), To: num(keyArtTo, 7, 0, 23), MinFreeGB: num(keyArtMinFree, 20, 1, 1000), Folder: get(keyArtFolder),
-		TVDBSet: get(keyArtTVDB) != "", Posterizarr: get(keyArtPosterizarr), PzOwns: get(keyArtPzOwns) == "1"}
+		TVDBSet: get(keyArtTVDB) != "", Posterizarr: get(keyArtPosterizarr), PzOwns: get(keyArtPzOwns) == "1", PerServer: get(keyArtPerSrv) == "1"}
 }
 
 // artDir is where replaced pictures are kept: the setting, else
@@ -695,11 +699,13 @@ type artChange struct {
 	Done    int64  `json:"doneMs,omitempty"`
 	JFIDs   string `json:"-"`
 	Backups string `json:"-"`
+	// Usherr: the media server it's for: "" every one, "jellyfin" or "plex".
+	Server string `json:"server,omitempty"`
 	// The Jellyfin item to show the current picture of (the first copy).
 	Current string `json:"current,omitempty"`
 }
 
-const artChangeCols = `c.id, c.kind, c.tmdb_id, c.title, c.type, c.source, c.url, c.preview, c.width, c.height, c.lang, c.why, c.state, c.error, c.by_hand, c.style, c.words, c.created_ms, c.done_ms, COALESCE(t.jf_ids, ''), c.backups`
+const artChangeCols = `c.id, c.kind, c.tmdb_id, c.title, c.type, c.source, c.url, c.preview, c.width, c.height, c.lang, c.why, c.state, c.error, c.by_hand, c.style, c.words, c.created_ms, c.done_ms, COALESCE(t.jf_ids, ''), c.backups, c.server`
 
 func (s *Server) artChanges(ctx context.Context, where string, args ...any) ([]artChange, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT `+artChangeCols+` FROM art_changes c LEFT JOIN art_titles t ON t.kind = c.kind AND t.tmdb_id = c.tmdb_id `+where, args...)
@@ -711,11 +717,11 @@ func (s *Server) artChanges(ctx context.Context, where string, args ...any) ([]a
 	for rows.Next() {
 		var c artChange
 		var byHand int
-		if err := rows.Scan(&c.ID, &c.Kind, &c.TMDBID, &c.Title, &c.Type, &c.Source, &c.URL, &c.Preview, &c.Width, &c.Height, &c.Lang, &c.Why, &c.State, &c.Error, &byHand, &c.Style, &c.Words, &c.Created, &c.Done, &c.JFIDs, &c.Backups); err != nil {
+		if err := rows.Scan(&c.ID, &c.Kind, &c.TMDBID, &c.Title, &c.Type, &c.Source, &c.URL, &c.Preview, &c.Width, &c.Height, &c.Lang, &c.Why, &c.State, &c.Error, &byHand, &c.Style, &c.Words, &c.Created, &c.Done, &c.JFIDs, &c.Backups, &c.Server); err != nil {
 			continue
 		}
 		c.ByHand = byHand == 1
-		if ids := strings.Split(c.JFIDs, ","); ids[0] != "" {
+		if ids := artIDsFor(c.JFIDs, c.Server); len(ids) > 0 {
 			c.Current = ids[0]
 		}
 		out = append(out, c)
@@ -729,8 +735,8 @@ func (s *Server) artApply(ctx context.Context, srv mediaservers.Server, c artCha
 	if c.Style != "" || c.Type == "seasons" || c.Type == "cards" {
 		return s.artApplyStyled(ctx, srv, c)
 	}
-	ids := strings.Split(c.JFIDs, ",")
-	if c.JFIDs == "" {
+	ids := artIDsFor(c.JFIDs, c.Server)
+	if len(ids) == 0 {
 		return errors.New("the media server doesn't have this title (yet)")
 	}
 	data, mime, err := artFetch(ctx, c.URL, c.Type)
@@ -1129,7 +1135,7 @@ func (s *Server) artMake(ctx context.Context, srv mediaservers.Server, id int64)
 	}
 	// An earlier change of the same picture is superseded (its backups stay
 	// with it, so the oldest picture can still come back from there).
-	_, _ = s.db.ExecContext(ctx, `UPDATE art_changes SET by_hand = 0 WHERE kind = ? AND tmdb_id = ? AND type = ? AND id != ? AND state = 'done'`, c.Kind, c.TMDBID, c.Type, id)
+	_, _ = s.db.ExecContext(ctx, `UPDATE art_changes SET by_hand = 0 WHERE kind = ? AND tmdb_id = ? AND type = ? AND id != ? AND state = 'done' AND (server = ? OR ? = '')`, c.Kind, c.TMDBID, c.Type, id, c.Server, c.Server)
 	if c.Why == "missing" || c.Why == "chosen" {
 		_, _ = s.db.ExecContext(ctx, `UPDATE art_titles SET missing = TRIM(REPLACE(','||missing||',', ','||?||',', ','), ',') WHERE kind = ? AND tmdb_id = ?`, c.Type, c.Kind, c.TMDBID)
 	}
@@ -1210,7 +1216,7 @@ func (s *Server) handlePutArtSettings(w http.ResponseWriter, r *http.Request) {
 		return "0"
 	}
 	for k, v := range map[string]string{keyArtOn: bit(b.On), keyArtMode: b.Mode, keyArtTextless: bit(b.Textless), keyArtFrom: strconv.Itoa(b.From), keyArtTo: strconv.Itoa(b.To),
-		keyArtMinFree: strconv.Itoa(b.MinFreeGB), keyArtFolder: strings.TrimSpace(b.Folder), keyArtPosterizarr: strings.TrimSpace(b.Posterizarr), keyArtPzOwns: bit(b.PzOwns)} {
+		keyArtMinFree: strconv.Itoa(b.MinFreeGB), keyArtFolder: strings.TrimSpace(b.Folder), keyArtPosterizarr: strings.TrimSpace(b.Posterizarr), keyArtPzOwns: bit(b.PzOwns), keyArtPerSrv: bit(b.PerServer)} {
 		if err := s.Settings.Set(k, v, false); err != nil {
 			writeError(w, http.StatusInternalServerError, "The settings couldn't be saved.")
 			return
@@ -1449,7 +1455,8 @@ func (s *Server) handleArtTitle(w http.ResponseWriter, r *http.Request) {
 	if history == nil {
 		history = []artChange{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"candidates": cands, "current": current, "inJellyfin": jf != "", "copies": len(strings.Split(jf, ",")) * btoi(jf != ""), "chosen": chosen, "changes": history})
+	writeJSON(w, http.StatusOK, map[string]any{"candidates": cands, "current": current, "inJellyfin": jf != "", "copies": len(strings.Split(jf, ",")) * btoi(jf != ""), "chosen": chosen, "changes": history,
+		"servers": artServersOf(jf), "perServer": s.artSettingsNow().PerServer})
 }
 
 func btoi(b bool) int {
@@ -1467,8 +1474,9 @@ func (s *Server) handleArtChoose(w http.ResponseWriter, r *http.Request) {
 		TMDBID int    `json:"tmdbId"`
 		Type   string `json:"type"`
 		URL    string `json:"url"`
+		Server string `json:"server"` // "" every media server, "jellyfin" or "plex"
 	}
-	if err := decodeJSON(r, &b); err != nil || jfImageType[b.Type] == "" || b.TMDBID <= 0 || (b.Kind != "movie" && b.Kind != "tv" && b.Kind != "collection") {
+	if err := decodeJSON(r, &b); err != nil || jfImageType[b.Type] == "" || b.TMDBID <= 0 || (b.Kind != "movie" && b.Kind != "tv" && b.Kind != "collection") || !artServerKey(b.Server) {
 		writeError(w, http.StatusBadRequest, "That request couldn't be read.")
 		return
 	}
@@ -1504,8 +1512,8 @@ func (s *Server) handleArtChoose(w http.ResponseWriter, r *http.Request) {
 	}
 	// A waiting proposal for the same picture gives way.
 	_, _ = s.db.ExecContext(ctx, `UPDATE art_changes SET state = 'skipped', done_ms = ? WHERE kind = ? AND tmdb_id = ? AND type = ? AND state = 'waiting'`, time.Now().UnixMilli(), b.Kind, b.TMDBID, b.Type)
-	res, err := s.db.ExecContext(ctx, `INSERT INTO art_changes (kind, tmdb_id, title, type, source, url, preview, width, height, lang, why, by_hand, created_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'chosen', 1, ?)`,
-		b.Kind, b.TMDBID, title, b.Type, pick.Source, pick.URL, pick.Preview, pick.Width, pick.Height, pick.Lang, time.Now().UnixMilli())
+	res, err := s.db.ExecContext(ctx, `INSERT INTO art_changes (kind, tmdb_id, title, type, source, url, preview, width, height, lang, why, by_hand, created_ms, server) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'chosen', 1, ?, ?)`,
+		b.Kind, b.TMDBID, title, b.Type, pick.Source, pick.URL, pick.Preview, pick.Width, pick.Height, pick.Lang, time.Now().UnixMilli(), b.Server)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "The choice couldn't be saved.")
 		return

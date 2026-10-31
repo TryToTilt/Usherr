@@ -169,6 +169,12 @@ export default function ArtworkSettings() {
 
       <section className="card">
         <h2>{t('How it works')}</h2>
+        <Switch
+          checked={!!set.perServer}
+          onChange={(perServer) => save({ perServer })}
+          label={t('Different pictures for each media server')}
+          description={t('With Jellyfin and Plex both. Off: the same pictures go to both. On: a picture chosen by hand can go to one of them, and in Your style each server (or one of its libraries) can have its own poster style.')}
+        />
         <Switch checked={set.on} onChange={(on) => save({ on })} label={t('Look every night')} description={t('A title every few seconds, between the hours below, stopping when someone starts watching.')} />
         <div className="psm-settings">
           <label className="psm-field field">

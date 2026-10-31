@@ -16,6 +16,18 @@ so logos (and, for now, styled season posters and title cards) are
 Jellyfin's. Undoing a picture on a Plex title that had none before leaves the
 new one in Plex.
 
+**The same pictures on both, or different ones.** With Jellyfin and Plex
+both, every picture goes to both by default. Turn on **Different pictures
+for each media server** (on the Re-Posterr page) and:
+
+- **Choosing by hand**, a title's artwork picker asks **Both servers**,
+  **Jellyfin** or **Plex**: the picture goes only where you say, and the
+  other server keeps its own.
+- **Your style**: the library list also has **Jellyfin: every library**,
+  **Plex: every library** and each of Plex's libraries (*Plex: Movies*), so
+  each server (or one of its libraries) can have its own poster style. A
+  copy takes its library's style, else its server's, else the house style.
+
 ## What it picks
 
 For each title, Usherr looks at every picture TMDB has (and fanart.tv, with a

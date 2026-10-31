@@ -64,6 +64,13 @@ const LAYOUTS: { id: string; label: string; tip: string; make: (title: ArtLayer)
   },
 ]
 
+// libName names a style's library: a media server as a whole reads as such.
+function libName(l: string) {
+  if (l === 'Plex') return t('Plex: every library')
+  if (l === 'Jellyfin') return t('Jellyfin: every library')
+  return l
+}
+
 export default function ArtStyleDesigner() {
   const toast = useToast()
   const confirm = useConfirm()
@@ -257,7 +264,7 @@ export default function ArtStyleDesigner() {
               <option value="">{t('Every library (the house style)')}</option>
               {all.libraries.map((l) => (
                 <option key={l} value={l}>
-                  {draft.libraries?.[l] ? t('{lib} (its own style)', { lib: l }) : l}
+                  {draft.libraries?.[l] ? t('{lib} (its own style)', { lib: libName(l) }) : libName(l)}
                 </option>
               ))}
             </select>
