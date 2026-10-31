@@ -5,6 +5,7 @@ import { completeCollection } from './collection'
 import { comicArcs, comicReview, comicWeek, readComic, setupComics } from './comics'
 import { askAi, completeLibrary, discover, followPerson, getShow, upcoming } from './discover'
 import { diary, familyMember, phone, roulette, stack, streamOrKeep, tonight, vote } from './everyday'
+import { followTeam, makeChannel, marquee, marqueeRemote, playOnTv, watchLiveTv } from './night'
 import { setUpPreshow } from './preshow'
 import { ebookToAudiobook } from './readtome'
 import { bookShowtime } from './showtime'
@@ -23,6 +24,11 @@ export const WALKS: Walkthrough[] = [
   diary,
   bookShowtime,
   setUpPreshow,
+  marquee,
+  marqueeRemote,
+  watchLiveTv,
+  makeChannel,
+  followTeam,
   readComic,
   comicArcs,
   comicWeek,
@@ -33,6 +39,7 @@ export const WALKS: Walkthrough[] = [
   completeLibrary,
   familyMember,
   phone,
+  playOnTv,
 ]
 
 export function walkById(id: string): Walkthrough | undefined {

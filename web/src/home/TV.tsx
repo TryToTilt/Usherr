@@ -160,7 +160,7 @@ export default function TV() {
           {onAir && <MultiviewButton channels={onAir.channels.map((c) => c.channel)} />} {/* Usherr */}
         </div>
         {admin && (
-          <div className="tv-actions">
+          <div className="tv-actions" data-walk="tv-actions">
             <button className="btn-with-icon" onClick={addToJellyfin} title={t("Show these channels, with their guide, in Jellyfin's Live TV")}>
               <Icon name="tv" size={16} /> {t('Add to Jellyfin')}
             </button>
@@ -168,7 +168,7 @@ export default function TV() {
             <PacksButton onPick={setEditing} />
             <AIBuildButton onPick={setEditing} />
             <RealTVButton folder={guide?.channels.map((c) => c.channel.rules?.filler?.folder).find(Boolean)} onMade={load} />
-            <button className="primary btn-with-icon" onClick={() => setEditing('new')}>
+            <button className="primary btn-with-icon" data-walk="tv-new" onClick={() => setEditing('new')}>
               <Icon name="plus" size={16} /> {t('New channel')}
             </button>
           </div>

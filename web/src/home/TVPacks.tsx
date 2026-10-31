@@ -35,7 +35,7 @@ export function PacksButton({ onPick }: { onPick: (d: Draft) => void }) {
   const box = useRef<HTMLDivElement>(null)
   return (
     <>
-      <button type="button" className="btn-with-icon" onClick={() => setOpen(true)} title={t('Ready-made channels that fill themselves from your library')}>
+      <button type="button" className="btn-with-icon" data-walk="tv-packs" onClick={() => setOpen(true)} title={t('Ready-made channels that fill themselves from your library')}>
         <Icon name="grid" size={16} /> {t('Channel packs')}
       </button>
       {open &&
@@ -95,7 +95,7 @@ export function AIBuildButton({ onPick }: { onPick: (d: Draft) => void }) {
   }
   return (
     <>
-      <button type="button" className="btn-with-icon" onClick={() => setOpen(true)}>
+      <button type="button" className="btn-with-icon" data-walk="tv-ai" onClick={() => setOpen(true)}>
         <Icon name="sparkles" size={16} /> {t('Build with AI')}
       </button>
       {open &&

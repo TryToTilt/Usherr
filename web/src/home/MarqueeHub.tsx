@@ -34,7 +34,7 @@ export default function MarqueeHub() {
       <div className="page-header">
         <h1>{t('Marquee')}</h1>
       </div>
-      <section className="card mqh-head">
+      <section className="card mqh-head" data-walk="mq-head">
         <p>{t('A lobby display for a tablet or a screen next to the TV: what’s playing, new and coming films, trailers, Live TV, your own slides and a pre-show, in the look you choose. Open {address} on the screen, full-screen; it shows up under Screens by itself.', { address })}</p>
         <div className="mqh-actions">
           <a className="btn-sm btn-with-icon" href="/marquee" target="_blank" rel="noreferrer">
@@ -48,7 +48,7 @@ export default function MarqueeHub() {
           </Link>
         </div>
       </section>
-      <nav className="seg mqh-tabs" aria-label={t('Marquee')}>
+      <nav className="seg mqh-tabs" data-walk="mq-tabs" aria-label={t('Marquee')}>
         {TABS.map((x) => (
           <button key={x.key} className={tab === x.key ? 'active' : ''} aria-current={tab === x.key ? 'page' : undefined} onClick={() => setParams(x.key === 'screens' ? {} : { tab: x.key }, { replace: true })}>
             <Icon name={x.icon} size={15} /> {x.label}

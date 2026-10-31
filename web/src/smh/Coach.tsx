@@ -50,6 +50,9 @@ function useBox(id: string | undefined): { el: HTMLElement | null; box: DOMRect 
         opened = true
         folded.querySelector<HTMLElement>('.cbar-pull')?.click()
       }
+      // A settings card folded to its title row is unfolded.
+      const card = raw?.closest('[data-folded]')
+      if (card) (card.firstElementChild as HTMLElement | null)?.click()
       // Something in the side menu (your stack) opens the menu, and keeps it
       // open while the step is about it (it slides away when left alone).
       const menu = raw?.closest('#main-menu')
@@ -143,11 +146,13 @@ export default function Coach({ run }: { run: SmhRun }) {
 
   // go: Usherr opens the page itself, unless the person taps the link.
   const goTo = step?.kind === 'go' ? (typeof step.to === 'function' ? step.to(ctx) : step.to) : null
+  // A page with a ?tab= in its address is matched with it.
+  const here = location.pathname + (goTo?.includes('?') ? location.search : '')
   useEffect(() => {
-    if (goTo && (run.watch || !(step?.kind === 'go' && step.via)) && location.pathname !== goTo) navigate(goTo)
+    if (goTo && (run.watch || !(step?.kind === 'go' && step.via)) && here !== goTo) navigate(goTo)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goTo, run.i])
-  const arrived = goTo != null && location.pathname === goTo
+  const arrived = goTo != null && here === goTo
 
   // point: wait for a tap on it, a page, or something to show up or go away.
   useEffect(() => {

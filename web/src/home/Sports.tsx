@@ -50,7 +50,7 @@ function useShowScores(): [boolean, (v: boolean) => void] {
 
 function ScoresSwitch({ on, set }: { on: boolean; set: (v: boolean) => void }) {
   return (
-    <label className="sp-scores">
+    <label className="sp-scores" data-walk="sp-scores">
       <input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} /> {t('Show scores')}
     </label>
   )
@@ -136,7 +136,7 @@ function GameDays({ games, canGet, canStream, showLeague, onGot }: { games: Spor
       {days.map((d) => (
         <section key={d.key}>
           <h3>{d.label}</h3>
-          <ul className="sp-games">
+          <ul className="sp-games" data-walk="sp-games">
             {d.games.map((g) => (
               <GameRow key={g.id} g={g} canGet={canGet} canStream={canStream} showLeague={showLeague} scores={scores} onGot={onGot} />
             ))}
@@ -193,7 +193,7 @@ function SearchResults({ q, canManage, canGet, onChange }: { q: string; canManag
       {res.leagues.length > 0 && (
         <section className="card">
           <h2>{t('Leagues')}</h2>
-          <ul className="sp-list">
+          <ul className="sp-list" data-walk="sp-results">
             {(all ? res.leagues : res.leagues.slice(0, FIRST)).map((l) => (
               <li key={l.externalId}>
                 <Badge src={l.badge} alt={l.name} />
@@ -227,7 +227,7 @@ function SearchResults({ q, canManage, canGet, onChange }: { q: string; canManag
       {res.teams.length > 0 && (
         <section className="card">
           <h2>{t('Teams')}</h2>
-          <ul className="sp-list">
+          <ul className="sp-list" data-walk="sp-results">
             {(all ? res.teams : res.teams.slice(0, FIRST)).map((tm) => (
               <li key={tm.externalId}>
                 <Badge src={tm.badge} alt={tm.name} />
@@ -379,7 +379,7 @@ export default function SportsPage() {
         <h1>
           {t('Sports')} <HelpLink topic="home-sports" />
         </h1>
-        <form className="sp-search" onSubmit={submit} role="search">
+        <form className="sp-search" data-walk="sp-search" onSubmit={submit} role="search">
           <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t('Find a league or team…')} aria-label={t('Find a league or team')} />
           <button type="submit" className="btn-sm">
             <Icon name="search" />

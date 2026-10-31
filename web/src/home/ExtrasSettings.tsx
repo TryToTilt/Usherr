@@ -723,7 +723,7 @@ function PlayOnTVCard({ x, save, act }: { x: Extras; save: Save; act: Act }) {
           : t("adb, which this Mediarium image doesn't include.")
       }
     >
-      <div className="grid-form">
+      <div className="grid-form" data-walk="tv-pair-form">
         <label>
           {t("The TV's address")}
           <input value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="192.168.1.50" autoComplete="off" spellCheck={false} />
@@ -736,7 +736,7 @@ function PlayOnTVCard({ x, save, act }: { x: Extras; save: Save; act: Act }) {
           <button className="primary" disabled={addr.trim() === p.address && name.trim() === p.name} onClick={() => void save({ tvAddress: addr, tvName: name }, t('TV saved.'))}>
             {t('Save')}
           </button>
-          <button disabled={!p.address || !p.adb} onClick={() => void act('POST', '/api/home/extras/tv-pair')}>
+          <button data-walk="tv-pair" disabled={!p.address || !p.adb} onClick={() => void act('POST', '/api/home/extras/tv-pair')}>
             {t('Pair')}
           </button>
           {p.keyMade && p.address && <TestButton label={t('Test it')} run={test('tv')} />}

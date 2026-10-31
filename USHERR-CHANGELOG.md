@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-10-31
+
+### Added
+
+- **Show Me How**, movie night and TV: make a Marquee screen (a code to scan on the tablet), steer it from your phone, watch Live TV, make a Live TV channel (channel packs, Build with AI or your own), follow a sports team (it says when Sports isn't set up), and set up Play on TV. The coach card now unfolds a folded settings card, and a page's tab in its address (?tab=) counts as being on it.
+
 ## [2.13.0] - 2026-10-31
 
 ### Added
