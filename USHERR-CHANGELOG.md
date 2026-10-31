@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.21.0] - 2026-10-31
+
+### Added
+
+- **Show Me How in the setup wizard**: every step of first-run setup has a *Show me how: this step* card, open the first time, saying what the step is, what to do (getting the free TMDB key, where Jellyfin's API key is, what the folder boxes mean) and, for the real choices, a decision card with the good and bad sides and rough costs (start small or switch everything on, free or paid indexers, an unlimited or block Usenet plan, 1080p or 4K) and whether it can be changed later. The last step points to Show me how and *Something not right?* for what comes next.
+
 ## [2.20.0] - 2026-10-31
 
 ### Added

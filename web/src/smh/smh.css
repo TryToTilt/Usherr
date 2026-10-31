@@ -126,3 +126,11 @@
 .doc-optional summary { cursor: pointer; color: var(--text-dim); margin-bottom: 8px; }
 .doc-foot { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; }
 .doc-foot .spacer { flex: 1; }
+
+/* Show Me How in the setup wizard */
+.wiz-help { margin: 4px 0 12px; padding: 10px 14px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); font-size: 0.92rem; }
+.wiz-help summary { cursor: pointer; display: flex; align-items: center; gap: 6px; color: var(--accent); font-weight: 600; }
+.wiz-help p { margin: 8px 0; color: var(--text-dim); line-height: 1.5; }
+.wiz-help ol { margin: 6px 0 10px; padding-left: 20px; color: var(--text); }
+.wiz-help ol li { margin: 4px 0; }
+.finish-smh { display: flex; gap: 8px; align-items: baseline; max-width: 560px; margin: 10px auto; text-align: left; color: var(--text-dim); }

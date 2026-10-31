@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import { api, type IndexerConfig, type MediaServer, type QualityProfile, type Settings as SettingsData, type UsenetServer } from '../api'
 import { useAuth } from '../AuthContext'
 import { titleFor } from '../documentTitle'
+import WizardHelp from '../smh/WizardHelp' // Usherr: Show Me How on each step
 import BrandMark from '../components/BrandMark'
 import LogoGlyph from '../components/LogoGlyph'
 import Icon from '../components/Icon'
@@ -448,6 +449,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
               ))}
             </select>
           </div>
+          <WizardHelp step="admin" />
           <p className="wizard-lead">{t('This becomes the owner account.')}</p>
           <div className="form-cols admin-cols">
             {codeRequired && (
@@ -515,6 +517,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
       {step === S.types && (
         <div className="card grid-form">
           <h2>{t('What do you want to manage?')}</h2>
+          <WizardHelp step="types" />
           <p className="wizard-lead">{t('Pick what you want to manage. The next steps only ask about these.')}</p>
           <SetupMediaTypes chosen={chosen} onToggle={toggleType} lastOneHint={lastOneHint} />
           <div className="wizard-nav">
@@ -528,6 +531,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
       {step === S.paths && (
         <div className="card grid-form">
           <h2>{t('Library paths')}</h2>
+          <WizardHelp step="paths" />
           <p className="wizard-lead">{t('The boxes show the folders your compose file maps, so most people can just press Continue. These are paths inside the container.')}</p>
           <SetupPaths
             chosen={chosen}
@@ -552,6 +556,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
         <div className="wizard-services">
           <div className="card">
             <h2>{t('Connect your services')}</h2>
+            <WizardHelp step="services" />
             {video ? (
               <p className="wizard-lead">
                 {t("A few free services provide movie details, lists and subtitles. They're built in, so there's nothing to set up. If a shared limit is ever hit, the dashboard tells you and you can add your own free key in Settings.")}
@@ -614,6 +619,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
       {step === S.sources && (
         <div className="card grid-form">
           <h2>{t('Add your indexers')}</h2>
+          <WizardHelp step="sources" />
           <p className="wizard-lead">{t('Indexers are the sites Mediarium searches for downloads. Add at least one: choose Usenet or torrent, pick the indexer, paste its API key and click Add.')}</p>
           <div className="wizard-indexers">
             <IndexerForm onAdded={loadIndexers} />
@@ -677,6 +683,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
       {step === S.usenet && (
         <div className="card grid-form">
           <h2>{t('Add your Usenet provider')}</h2>
+          <WizardHelp step="usenet" />
           <p className="wizard-lead">{t('Mediarium downloads by itself, so all it needs is the news-server login from your Usenet provider. Skip this if you only use torrents.')}</p>
           <div className="wizard-indexers">
             <UsenetServerForm
@@ -751,6 +758,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
           {video ? (
             <>
               <h2>{t('What quality do you want?')}</h2>
+              <WizardHelp step="quality" />
               <p className="wizard-lead">
                 {tx('Pick the quality for {what} you add. {recommended} suits most people. Upgrades and your own profiles are under Settings > Library > Quality.', {
                   what: qualityFor,
@@ -815,6 +823,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
       {step === S.server && (
         <div className="card grid-form">
           <h2>{t('Connect your media server')}</h2>
+          <WizardHelp step="server" />
           <p className="wizard-lead">
             {t('Optional. Connect Plex, Jellyfin or Emby to get "Watch in" links and have new files show up there on their own. Or do it later under Settings > Connections > Media servers.')}
           </p>
@@ -839,6 +848,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
       {step === S.extras && (
         <div className="card grid-form wizard-extras">
           <h2>{t('Extras')}</h2>
+          <WizardHelp step="extras" />
           <p className="wizard-lead">
             {t('All optional, and each can wait. Set up the ones you want now, or later under Settings > Extras. Live TV, playing on a TV, comics, news, Sports and Read-to-Me are there too, and Settings > General > Setup checklist shows what is ready.')}{' '}
             <HelpLink topic="home-setup" />
@@ -871,6 +881,9 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
             <p>{t("Your account is ready, but Mediarium can't find or download anything yet. Here's what's left, or do it later from the dashboard.")}</p>
           )}
           {gaps !== null && gaps.length > 0 && <SetupGaps gaps={gaps} onGo={(to) => void finish(to)} />}
+          <p className="finish-smh">
+            <Icon name="compass" size={16} /> {t('Not sure what to do next? Show me how, in the top bar, walks you through anything, step by step: bringing in the library you have, adding the family, Usherr on your phone. Something not right? It checks Usherr for you too.')}
+          </p>
           <div className="finish-points">
             <span>
               <Icon name="search" size={16} /> {t('Find it')}
