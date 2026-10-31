@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.18.0] - 2026-10-31
+
+### Added
+
+- **Tips** from Show Me How: now and then (at most once a day, never in the first two minutes, during a walkthrough or while something plays), a small card suggests something worth trying, and only when it's true for you: voting when you haven't lately, a showtime on a weekend with nothing booked, Roulette in the evening, reading comics panel by panel on a phone, completing a film series you have part of (administrators), and your stack when it's waiting. **Show me how** starts the walkthrough; **Not now** waits a week; **Don't remind me** is for good. *Tips now and then* in the Show me how menu turns them all off.
+
 ## [2.17.0] - 2026-10-31
 
 ### Added

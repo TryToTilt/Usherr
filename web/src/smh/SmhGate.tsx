@@ -1,6 +1,6 @@
 // Usherr: Show Me How's place in the app: the top bar's button, and the menu
 // and coach card, which load only when they're used.
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useAuth } from '../AuthContext'
 import Icon from '../components/Icon'
 import { t } from '../i18n'
@@ -9,15 +9,26 @@ import './smh.css'
 
 const Coach = lazy(() => import('./Coach'))
 const SmhMenu = lazy(() => import('./SmhMenu'))
+const NudgeCard = lazy(() => import('./NudgeCard'))
+
+// Tips wait a couple of minutes after the app opens, so they never greet you.
+const NUDGE_AFTER = 2 * 60_000
 
 export default function SmhGate() {
   const { user } = useAuth()
   const { run, menuOpen } = useSmh()
   useEffect(() => smhUser(user?.id ?? null), [user])
+  const [nudges, setNudges] = useState(false)
+  useEffect(() => {
+    if (!user) return
+    const id = window.setTimeout(() => setNudges(true), NUDGE_AFTER)
+    return () => window.clearTimeout(id)
+  }, [user])
   return (
     <Suspense fallback={null}>
       {run && !run.paused && <Coach run={run} />}
       {menuOpen && <SmhMenu />}
+      {nudges && <NudgeCard />}
     </Suspense>
   )
 }

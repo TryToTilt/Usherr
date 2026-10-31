@@ -10,6 +10,8 @@ import { t } from '../i18n'
 import { useComicsOn } from '../home/libraryKinds'
 import { useModules } from '../ModulesContext'
 import { useFocusTrap } from '../useFocusTrap'
+import Switch from '../components/Switch'
+import { nudgeState, saveNudgeState } from './nudges'
 import { closeSmhMenu, setSmhRun, smhDoneList, startSmh, stopSmh, useSmh } from './engine'
 import { GROUPS, WALKS, walkById } from './walks'
 import './smh.css'
@@ -32,6 +34,12 @@ export default function SmhMenu() {
     return words.every((x) => hay.includes(x))
   })
   const left = run?.paused ? walkById(run.id) : undefined
+  const [tips, setTips] = useState(() => (user ? !nudgeState(user.id).off : true))
+  const switchTips = (on: boolean) => {
+    if (!user) return
+    saveNudgeState(user.id, { ...nudgeState(user.id), off: !on })
+    setTips(on)
+  }
 
   return createPortal(
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && closeSmhMenu()}>
@@ -68,6 +76,9 @@ export default function SmhMenu() {
           )}
           <input type="search" className="smh-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('I want to…')} aria-label={t('Search what you want to do')} autoFocus />
           {list.length === 0 && <p className="hint">{t('Nothing matches yet. Try other words.')}</p>}
+          <div className="smh-tips">
+            <Switch checked={tips} onChange={switchTips} label={t('Tips now and then')} description={t('Now and then, at most once a day, a small tip suggests something worth trying, like voting or booking a showtime.')} />
+          </div>
           {GROUPS.map((g) => {
             const here = list.filter((w) => w.group === g.id)
             if (!here.length) return null
