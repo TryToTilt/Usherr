@@ -1,6 +1,7 @@
 import { BRAND, USAGE_STATS } from '../brand' // Usherr
 import TourGate from '../home/tourGate' // home fork
 import SmhGate, { SmhButton } from '../smh/SmhGate' // Usherr: Show Me How
+import { MENU_HIDE_EVENT, menuHideSeconds } from './menuHide' // Usherr: how soon the menu slides away
 import { useMoreBelow } from './useMoreBelow'
 import { usePauseWhileScrolling } from './usePauseWhileScrolling'
 import { MiniPlayer, MusicPlayerProvider } from './MusicPlayer'
@@ -107,8 +108,8 @@ function keepSpot(key: string, y: number) {
   }
 }
 
-// Usherr: how long the open menu waits, with no mouse movement over it, before it slides away (wider screens).
-const MENU_IDLE_MS = 8000
+// Usherr: a moment to reach the menu after opening it, before "right away" can close it.
+const MENU_GRACE_MS = 1500
 
 export default function AppShell() {
   return (
@@ -224,33 +225,43 @@ function Shell() {
     if (window.matchMedia('(max-width: 900px)').matches) setMenuOpen(false)
   }, [location.pathname, location.search])
   // Usherr: on a wider screen the open menu sits over the page without
-  // dimming it, and slides away on its own once the mouse has not moved over
-  // it for a while (or with the hamburger, or Escape).
+  // dimming it. It stays while the mouse is over it, and slides away the
+  // chosen time after the mouse leaves (Settings, General: right away to 10
+  // seconds), or with the hamburger, or Escape.
+  const [hideS, setHideS] = useState(menuHideSeconds)
+  useEffect(() => {
+    const read = () => setHideS(menuHideSeconds())
+    window.addEventListener(MENU_HIDE_EVENT, read)
+    return () => window.removeEventListener(MENU_HIDE_EVENT, read)
+  }, [])
   useEffect(() => {
     if (!menuOpen || window.matchMedia('(max-width: 900px)').matches) return
     const nav = navRef.current
     if (!nav) return
     let timer = 0
-    const arm = () => {
+    const arm = (ms: number) => {
       window.clearTimeout(timer)
-      timer = window.setTimeout(() => setMenuOpen(false), MENU_IDLE_MS)
+      timer = window.setTimeout(() => setMenuOpen(false), ms)
     }
+    const stay = () => window.clearTimeout(timer)
+    const leave = () => arm(hideS * 1000)
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setMenuOpen(false)
     }
-    arm()
-    nav.addEventListener('pointermove', arm)
-    nav.addEventListener('wheel', arm, { passive: true })
-    nav.addEventListener('keydown', arm)
+    // Opened from the hamburger, the mouse isn't on the menu yet.
+    if (!nav.matches(':hover')) arm(Math.max(hideS * 1000, MENU_GRACE_MS))
+    nav.addEventListener('pointerenter', stay)
+    nav.addEventListener('pointerleave', leave)
+    nav.addEventListener('focusin', stay)
     document.addEventListener('keydown', onKey)
     return () => {
       window.clearTimeout(timer)
-      nav.removeEventListener('pointermove', arm)
-      nav.removeEventListener('wheel', arm)
-      nav.removeEventListener('keydown', arm)
+      nav.removeEventListener('pointerenter', stay)
+      nav.removeEventListener('pointerleave', leave)
+      nav.removeEventListener('focusin', stay)
       document.removeEventListener('keydown', onKey)
     }
-  }, [menuOpen])
+  }, [menuOpen, hideS])
 
   // On a phone the search is an icon that opens a bar over the header.
   const [searchOpen, setSearchOpen] = useState(false)

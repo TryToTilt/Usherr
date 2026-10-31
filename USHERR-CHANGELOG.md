@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.22.0] - 2026-10-31
+
+### Added
+
+- **How soon the menu slides away** is yours to choose: Settings, General, next to the colours, from right away to 10 seconds (3 to start with), kept in each browser. On a wider screen the open menu now stays while the mouse is over it and slides away that long after the mouse leaves (it used to close after 8 seconds without movement, even with the mouse on it).
+
 ## [2.21.0] - 2026-10-31
 
 ### Added

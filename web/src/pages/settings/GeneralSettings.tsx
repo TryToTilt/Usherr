@@ -9,6 +9,7 @@ import PublicAddress from '../../components/PublicAddress'
 import PaletteChoice from '../../components/PaletteChoice' // Usherr
 import BaseChoice from '../../components/BaseChoice' // Usherr
 import LookChoice from '../../neu/LookChoice' // Usherr Neu
+import MenuHideChoice from '../../components/MenuHideChoice' // Usherr: how soon the menu slides away
 import ThemeToggle from '../../components/ThemeToggle'
 import { PushCard } from '../../components/UpdateCards'
 import { LANGUAGES, chooseLanguage, currentLanguage, locale, t, type Lang } from '../../i18n'
@@ -63,6 +64,7 @@ function LookCard() {
       <PaletteChoice />
       <BaseChoice />
       <LookChoice />
+      <MenuHideChoice />
     </fieldset>
   )
 }
