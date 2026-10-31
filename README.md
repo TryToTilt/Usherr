@@ -47,6 +47,8 @@ It is built on **[Mediarium](https://github.com/rdborg/Mediarium) by rdborg**, a
 
 ## Install
 
+**New to this? [Start here](https://trytotilt.github.io/Usherr/start/)**: six steps, on Windows, from nothing to Usherr and Jellyfin running, with what you'll see and how to fix it at each one. Nothing to download from that page except your own setup file.
+
 Usherr runs as one Docker container. Copy [docker/docker-compose.yml](docker/docker-compose.yml), change the lines marked `CHANGE`, and start it. In short:
 
 ```yaml

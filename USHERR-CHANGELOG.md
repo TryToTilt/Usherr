@@ -5,6 +5,10 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+### Added
+
+- A Start page (https://trytotilt.github.io/Usherr/start/): six steps on Windows from nothing to Usherr and Jellyfin running, each with what you'll see, how to tell it worked and the usual fixes. It writes your compose.yaml from a few answers, in the browser; nothing is sent anywhere.
+
 ## [2.10.0] - 2026-10-30
 
 Built on **Mediarium 3.9.0** (everything in Mediarium 3.8.1 to 3.9.0 is in, see [CHANGELOG.md](CHANGELOG.md)): release lists past 60 results, download speed and what is left per client in Activity, extra indexer categories, a VPN test, why a torrent failed, umlaut spellings in searches, and security updates.
