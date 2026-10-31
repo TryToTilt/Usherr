@@ -202,7 +202,7 @@ function Picker({ kind, itemId, onMoved, children }: { kind: 'movie' | 'series';
         </label>
       )}
       {folders.length > 1 && (
-        <label>
+        <label data-walk="title-keepin">
           <span className="has-tip">
             {t('Keep it in')}
             <InfoTip text={t('The library folder this title is kept in. When you change it, you choose whether its files move too.')} />

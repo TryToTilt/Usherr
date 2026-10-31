@@ -118,7 +118,7 @@ export default function TitleTags({ kind, id }: { kind: 'movie' | 'tv'; id: numb
   if (tags === null) return null
   const lower = new Set(tags.map((t) => t.toLowerCase()))
   return (
-    <div className="title-tags">
+    <div className="title-tags" data-walk="title-tags">
       <span className="title-tags-label" title={t('Your own words to sort and filter your library. They also show up as collections on Plex, Jellyfin and Emby.')}>
         {t('Tags')}
       </span>

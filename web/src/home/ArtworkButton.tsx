@@ -21,7 +21,7 @@ export default function ArtworkButton({ kind, tmdbId, title }: { kind: ArtKind; 
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button type="button" className="btn-with-icon" onClick={() => setOpen(true)} title={t('Pick the poster, background and logo Jellyfin shows for this title')}>
+      <button type="button" className="btn-with-icon" data-walk="title-art" onClick={() => setOpen(true)} title={t('Pick the poster, background and logo Jellyfin shows for this title')}>
         <Icon name="image" size={16} /> Re-Posterr
       </button>
       {open && <ArtworkDialog kind={kind} tmdbId={tmdbId} title={title} onClose={() => setOpen(false)} />}
@@ -89,7 +89,7 @@ function ArtworkDialog({ kind, tmdbId, title, onClose }: { kind: ArtKind; tmdbId
 
   return createPortal(
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <div ref={box} tabIndex={-1} className="modal art-dialog" role="dialog" aria-modal="true" aria-label="Re-Posterr">
+      <div ref={box} tabIndex={-1} className="modal art-dialog" data-walk="art-dialog" role="dialog" aria-modal="true" aria-label="Re-Posterr">
         <div className="art-head">
           <h2>{t('Re-Posterr: {title}', { title })}</h2>
           <button type="button" className="icon-btn" onClick={onClose} aria-label={t('Close')} title={t('Close')} disabled={!!busy}>

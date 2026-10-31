@@ -385,7 +385,7 @@ function MoviePage() {
                 <InfoTip text={t('For a movie you moved to a lower quality profile, 4K to 1080p say. Looks for a smaller release the profile accepts, downloads it, and only then removes the big file.')} />
               )}
               {can(me, 'releases') && (
-                <button className="btn-with-icon" onClick={chooseRelease} disabled={searching}>
+                <button className="btn-with-icon" data-walk="title-choose" onClick={chooseRelease} disabled={searching}>
                   <Icon name="list" size={16} /> {searching ? t('Loading…') : t('Choose a release')}
                 </button>
               )}
@@ -507,7 +507,7 @@ function MoviePage() {
       {movie.libraryId && <CopiesCard kind="movie" id={movie.libraryId} admin={admin} />}
 
       {movie.libraryId && (
-        <section className="card" style={{ marginBottom: 24 }}>
+        <section className="card" data-walk="title-log" style={{ marginBottom: 24 }}>
           <h2>{t('What happened')}</h2>
           <TitleEvents kind="movie" id={movie.libraryId} />
         </section>
@@ -521,7 +521,7 @@ function MoviePage() {
               <FilesPanel kind="movie" id={movie.libraryId} />
             </section>
             {subtitlesOn && (
-              <section className="card">
+              <section className="card" data-walk="title-subs">
                 <h2>{t('Subtitles')}</h2>
                 <SubtitlesPanel kind="movie" id={movie.libraryId} />
               </section>

@@ -301,7 +301,7 @@ export default function ImportLibrary() {
               <Link to={`/import?kind=${kind}&batch=${active?.batches.find((b) => b.running && b.kind === kind)?.id}`}>{t('See how it is going')}</Link>
             </p>
           )}
-          <button className="primary btn-with-icon" onClick={start} disabled={starting || !!scanning || runningHere}>
+          <button className="primary btn-with-icon" data-walk="import-scan" onClick={start} disabled={starting || !!scanning || runningHere}>
             {starting ? t('Starting…') : t('Scan folder')}
           </button>
           </div>

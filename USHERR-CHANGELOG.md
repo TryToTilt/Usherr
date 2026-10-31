@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.16.0] - 2026-10-31
+
+### Added
+
+- **Show Me How**, looking after the library: swap a film for a better copy, get subtitles, move a film to another folder, make a Kids shelf (tags as Jellyfin collections), why didn't my download work (Activity, a title's What happened, Wanted), bring in the films and shows you already have, and restyle a poster (Re-Posterr). Walkthroughs about a film you have search your library first, and say so when a film isn't in it, when subtitles are off, or when there's only one library folder.
+
 ## [2.15.0] - 2026-10-31
 
 ### Added

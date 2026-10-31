@@ -174,7 +174,7 @@ function FailureTips({ q, link }: { q: QueueItem; link?: string | null }) {
   const help = failureHelp(q.error, q.protocol)
   if (!help) return null
   return (
-    <details className="qhelp">
+    <details className="qhelp" data-walk="queue-why">
       <summary>{t('Why did this happen, and what can I do?')}</summary>
       <p>{help.why}</p>
       <ul>
