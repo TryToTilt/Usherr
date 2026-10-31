@@ -10,7 +10,9 @@ export default function SystemSettings() {
   return (
     <div className="settings-stack">
       <ServerStatsCard />
-      <UpdatesCard /> {/* home fork: updates live on System, not the Dashboard */}
+      <div data-walk="updates-card">
+        <UpdatesCard /> {/* home fork: updates live on System, not the Dashboard */}
+      </div>
       <RestartCard />
       <CleanupCard />
     </div>

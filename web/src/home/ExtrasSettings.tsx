@@ -247,7 +247,7 @@ export function AddonCard() {
       needs={error || undefined}
     >
       {info && (
-        <div className="grid-form">
+        <div className="grid-form" data-walk="addon-form">
           <label>
             {t('The address your devices use for Usherr')}
             <input style={{ width: '100%' }} value={base} onChange={(e) => setBase(e.target.value)} onBlur={() => load(base.trim())} placeholder="http://192.168.1.20:8264" spellCheck={false} />

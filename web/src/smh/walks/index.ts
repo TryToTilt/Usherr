@@ -8,8 +8,10 @@ import { diary, familyMember, phone, roulette, stack, streamOrKeep, tonight, vot
 import { betterCopy, importLibrary, moveTitle, restylePosters, subtitles, tags, whyFailed } from './library'
 import { getBook, importMusic, listenAudiobook, makePlaylist, playMusic, readEbook } from './listen'
 import { followTeam, makeChannel, marquee, marqueeRemote, playOnTv, watchLiveTv } from './night'
+import { kidsRequests, notices, stremioAddon } from './people'
 import { setUpPreshow } from './preshow'
 import { ebookToAudiobook } from './readtome'
+import { backups, indexer, mediaTypes, migrate, quality, tvTime, usenetProvider, vpn } from './setup'
 import { bookShowtime } from './showtime'
 
 export const WALKS: Walkthrough[] = [
@@ -53,8 +55,19 @@ export const WALKS: Walkthrough[] = [
   importMusic,
   importLibrary,
   familyMember,
+  kidsRequests,
   phone,
+  stremioAddon,
+  notices,
   playOnTv,
+  mediaTypes,
+  usenetProvider,
+  indexer,
+  quality,
+  tvTime,
+  vpn,
+  backups,
+  migrate,
 ]
 
 export function walkById(id: string): Walkthrough | undefined {

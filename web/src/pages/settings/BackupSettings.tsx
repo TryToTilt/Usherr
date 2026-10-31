@@ -84,7 +84,9 @@ export default function BackupSettings() {
 
   return (
     <div className="settings-stack">
-      <BackupCard />
+      <div data-walk="backup-card">
+        <BackupCard />
+      </div>
       <CloudBackupCard />
 
       <fieldset className="group alerts">

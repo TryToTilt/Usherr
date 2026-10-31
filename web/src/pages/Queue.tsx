@@ -852,7 +852,7 @@ export default function Queue() {
           <button aria-pressed={tab === 'history'} className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>
             {t('History')} {completed.length > 0 && <small>({completed.length})</small>}
           </button>
-          <button aria-pressed={tab === 'requests'} className={tab === 'requests' ? 'active' : ''} onClick={() => setTab('requests')}>
+          <button aria-pressed={tab === 'requests'} data-walk="queue-requests" className={tab === 'requests' ? 'active' : ''} onClick={() => setTab('requests')}>
             {t('Requests')} {pendingRequests > 0 && <small>({pendingRequests})</small>}
           </button>
           {(admin || reportsOn || openReports > 0) && (

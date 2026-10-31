@@ -143,7 +143,7 @@ export function UsenetSettings() {
   const torrentOnly = settings?.defaultSources === 'torrent'
   return (
     <div className="settings-stack">
-      <fieldset className={`group usenet span-all${torrentOnly ? ' section-off' : ''}`}>
+      <fieldset className={`group usenet span-all${torrentOnly ? ' section-off' : ''}`} data-walk="usenet-section">
         <legend>
           <Icon name="server" size={14} /> Usenet (NZB)
         </legend>

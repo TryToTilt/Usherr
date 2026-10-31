@@ -60,7 +60,7 @@ export default function SchedulesSettings() {
     <div className="sched-page">
       <QuietCard view={view} onChange={(p, msg) => run(p, msg)} />
 
-      <section className="card">
+      <section className="card" data-walk="schedules-card">
         <h2>
           <Icon name="calendar" size={16} /> {t('Schedules')}
         </h2>

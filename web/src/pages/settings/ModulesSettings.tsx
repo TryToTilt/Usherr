@@ -94,7 +94,7 @@ export default function ModulesSettings() {
       <p className="module-intro">
         {tx('Pick the kinds of media you want. A switched-off one leaves the menu, and {nothing}.', { nothing: <strong>{t('nothing is deleted')}</strong> })}
       </p>
-      <div className="module-grid">
+      <div className="module-grid" data-walk="modules-grid">
         {MODULES.map((m) => {
           const st = modules[m.key]
           const soon = !st.available

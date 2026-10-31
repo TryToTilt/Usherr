@@ -397,7 +397,7 @@ function VPNSection() {
         )}
       </section>
 
-      <section className="card grid-form span-all">
+      <section className="card grid-form span-all" data-walk="vpn-add">
         <h2><TipLabel help="downloads#add-a-connection">{t('Add a VPN connection')}</TipLabel></h2>
         <label>
           <TipLabel text={t('Pick yours for step-by-step help getting its WireGuard file. If your provider is not listed, choose Not listed and paste the file.')} learnMore="downloads#providers-and-where-to-get-the-file">{t('Provider')}</TipLabel>

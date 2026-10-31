@@ -112,7 +112,7 @@ export default function IndexerSettings() {
         {tx('{indexers} are the sites Mediarium searches for downloads. Sign up on one, then add its address and API key here.', { indexers: <strong>{t('Indexers')}</strong> })}
       </p>
       <div className="indexer-cols span-all">
-      <fieldset className="group usenet indexer-add">
+      <fieldset className="group usenet indexer-add" data-walk="indexer-add">
         <legend>
           <Icon name="plus" size={14} /> {t('Add an indexer')}
         </legend>

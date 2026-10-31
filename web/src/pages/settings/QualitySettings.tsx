@@ -183,7 +183,9 @@ export default function QualitySettings() {
   )
   return (
     <div className="settings-stack">
-      <QualityProfilesSection rev={profilesRev} onChanged={() => setFormatsRev((n) => n + 1)} advanced={advanced.value} />
+      <div data-walk="quality-profiles">
+        <QualityProfilesSection rev={profilesRev} onChanged={() => setFormatsRev((n) => n + 1)} advanced={advanced.value} />
+      </div>
       {advanced.value && <CustomFormatsSection rev={formatsRev} onChanged={() => setProfilesRev((n) => n + 1)} />}
       <LanguageSection />
       <SizeLimitsCard />

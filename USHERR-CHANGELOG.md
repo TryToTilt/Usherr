@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.17.0] - 2026-10-31
+
+### Added
+
+- **Show Me How**, people and setup: let the kids ask instead of add (requests), Usherr in Stremio or Nuvio, get notices on your phone (ntfy); and for administrators, choose what Usherr handles, add a Usenet provider, add an indexer (or bring them from Prowlarr), choose the quality (1080p or 4K, and what each costs in space), keep the TV smooth while downloading (schedules), set up a VPN for torrents, backups and updates, and move over from Radarr, Sonarr or Prowlarr. The first four lead into each other, so a new administrator is walked through the basics in order.
+
 ## [2.16.0] - 2026-10-31
 
 ### Added

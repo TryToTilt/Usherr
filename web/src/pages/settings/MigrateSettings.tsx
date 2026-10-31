@@ -235,7 +235,7 @@ export default function MigrateSettings() {
       </p>
 
       {/* 1. Connect */}
-      <fieldset className="group folders span-all">
+      <fieldset className="group folders span-all" data-walk="migrate-connect">
         <legend>
           <Icon name="key" size={14} /> <TipLabel help="adding#moving-from-radarr-sonarr-and-other-apps">{t('1. Connect your current apps')}</TipLabel>
         </legend>

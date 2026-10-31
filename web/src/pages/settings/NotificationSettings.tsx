@@ -672,7 +672,7 @@ export default function NotificationSettings() {
         )}
       </fieldset>
 
-      <fieldset className="group alerts span-all">
+      <fieldset className="group alerts span-all" data-walk="notif-add">
         <legend>
           <Icon name="plus" size={14} /> {t('Add a notification')}
         </legend>
