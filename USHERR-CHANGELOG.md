@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.26.2] - 2026-10-31
+
+### Fixed
+
+- **The same NZB is fetched from an indexer once**: Prowlarr hands out a new link for the same release at every search, and Usherr remembered NZBs by link, so streaming (Live TV, Stream now, the Stremio and Nuvio add-on, the virtual drive) fetched the same NZB again each time. Indexers such as NZBFinder count those repeats and close accounts that keep doing it. Usherr now remembers each release's NZB by the release itself (indexer, name and size), also when a release is found broken, and parts of Usherr asking for the same release at once share one fetch.
+
 ## [2.26.1] - 2026-10-31
 
 ### Fixed

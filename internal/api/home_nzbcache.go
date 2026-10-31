@@ -8,15 +8,19 @@ package api
 // whose articles are gone is passed over for a day without being fetched.
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rdborg/mediarium/internal/indexers"
 )
 
 const (
@@ -45,13 +49,53 @@ func nzbKey(link string) string {
 	return hex.EncodeToString(sum[:16])
 }
 
+// releaseKey names a release itself, whatever link it came with: its
+// indexer, name and exact size. Prowlarr hands out a new link for the same
+// release at every search, so a link alone let the same NZB be fetched again
+// and again (NZBFinder counts those, and warned). "" for a result without a
+// name or size.
+func releaseKey(r indexers.Result) string {
+	if strings.TrimSpace(r.Title) == "" || r.SizeBytes <= 0 {
+		return ""
+	}
+	return "release|" + strings.ToLower(strings.TrimSpace(r.IndexerName)) + "|" + strings.ToLower(strings.TrimSpace(r.Title)) + "|" + strconv.FormatInt(r.SizeBytes, 10)
+}
+
+// nzbFetching makes the parts of Usherr asking for the same release at once
+// (a channel and the player, the drive) wait for one fetch.
+var nzbFetching sync.Map // release key -> *sync.Mutex
+
+// fetchReleaseOnce is a search result's NZB: kept from earlier (by the
+// release, or by its link), or fetched once and kept.
+func (s *Server) fetchReleaseOnce(ctx context.Context, r indexers.Result) ([]byte, error) {
+	key := releaseKey(r)
+	if key == "" {
+		return s.fetchRelease(ctx, r.DownloadURL)
+	}
+	mu, _ := nzbFetching.LoadOrStore(key, &sync.Mutex{})
+	mu.(*sync.Mutex).Lock()
+	defer mu.(*sync.Mutex).Unlock()
+	if b, ok := s.cachedNZBKey(key); ok {
+		return b, nil
+	}
+	b, err := s.fetchRelease(ctx, r.DownloadURL)
+	if err == nil {
+		s.keepNZBKey(key, b)
+	}
+	return b, err
+}
+
 // cachedNZB is the NZB kept for a link, if it is there and recent.
-func (s *Server) cachedNZB(link string) ([]byte, bool) {
+func (s *Server) cachedNZB(link string) ([]byte, bool) { return s.cachedNZBKey(link) }
+
+// cachedNZBKey is the NZB kept under a key (a link or a release), if it is
+// there and recent.
+func (s *Server) cachedNZBKey(key string) ([]byte, bool) {
 	dir := s.nzbCacheDir()
 	if dir == "" {
 		return nil, false
 	}
-	p := filepath.Join(dir, nzbKey(link)+".nzb")
+	p := filepath.Join(dir, nzbKey(key)+".nzb")
 	fi, err := os.Stat(p)
 	if err != nil || time.Since(fi.ModTime()) > nzbKeep {
 		return nil, false
@@ -61,9 +105,12 @@ func (s *Server) cachedNZB(link string) ([]byte, bool) {
 }
 
 // keepNZB saves an NZB fetched for a link (only what looks like one).
-func (s *Server) keepNZB(link string, data []byte) {
+func (s *Server) keepNZB(link string, data []byte) { s.keepNZBKey(link, data) }
+
+// keepNZBKey saves an NZB under a key: a link, or a release.
+func (s *Server) keepNZBKey(link string, data []byte) {
 	dir := s.nzbCacheDir()
-	if dir == "" || len(data) == 0 || notAnNZB(data, link) != nil {
+	if dir == "" || link == "" || len(data) == 0 || notAnNZB(data, link) != nil {
 		return
 	}
 	nzbCacheMu.Lock()
@@ -121,9 +168,12 @@ func pruneNZBCache(dir string) {
 }
 
 // markNZBBad remembers that a release's articles are gone (a day).
-func (s *Server) markNZBBad(link string) {
+func (s *Server) markNZBBad(link string) { s.markNZBBadKey(link) }
+
+// markNZBBadKey is markNZBBad under a key: a link, or a release.
+func (s *Server) markNZBBadKey(link string) {
 	dir := s.nzbCacheDir()
-	if dir == "" {
+	if dir == "" || link == "" {
 		return
 	}
 	nzbCacheMu.Lock()
@@ -134,9 +184,12 @@ func (s *Server) markNZBBad(link string) {
 }
 
 // nzbBad says whether a release was found broken in the last day.
-func (s *Server) nzbBad(link string) bool {
+func (s *Server) nzbBad(link string) bool { return s.nzbBadKey(link) }
+
+// nzbBadKey is nzbBad under a key: a link, or a release.
+func (s *Server) nzbBadKey(link string) bool {
 	dir := s.nzbCacheDir()
-	if dir == "" {
+	if dir == "" || link == "" {
 		return false
 	}
 	fi, err := os.Stat(filepath.Join(dir, nzbKey(link)+".bad"))

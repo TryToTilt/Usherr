@@ -423,10 +423,11 @@ func (s *Server) ustreamOpen(ctx context.Context, servers []download.ClientConfi
 // ustreamFetch fetches a release's NZB, checks its articles are there and
 // opens the video in it: the NZB and the video, without a session.
 func (s *Server) ustreamFetch(ctx context.Context, servers []download.ClientConfig, r indexers.Result) ([]byte, *download.StreamFile, error) {
-	if s.nzbBad(r.DownloadURL) { // its articles were gone today: not fetched again
+	key := releaseKey(r)
+	if s.nzbBad(r.DownloadURL) || s.nzbBadKey(key) { // its articles were gone today: not fetched again
 		return nil, nil, fmt.Errorf("articles missing (found earlier today)")
 	}
-	data, err := s.fetchRelease(ctx, r.DownloadURL)
+	data, err := s.fetchReleaseOnce(ctx, r)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -439,12 +440,16 @@ func (s *Server) ustreamFetch(ctx context.Context, servers []download.ClientConf
 	}
 	if res := download.Precheck(ctx, servers, nzb, download.PrecheckOptions{Timeout: 20 * time.Second}); res.Hopeless() {
 		s.markNZBBad(r.DownloadURL)
+		s.markNZBBadKey(key)
 		return nil, nil, fmt.Errorf("articles missing: %s", res.Summary())
 	}
 	octx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	f, err := download.OpenStream(octx, servers, nzb)
 	if err != nil {
+		if errors.Is(err, download.ErrArticleMissing) {
+			s.markNZBBadKey(key)
+		}
 		return nil, nil, err
 	}
 	return data, f, nil
