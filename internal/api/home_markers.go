@@ -4,7 +4,8 @@ package api
 // intro" button and an early "Up next" at the credits. Two sources, both
 // cheap: the file's own chapters when they are named so ("Intro",
 // "Opening", "OP", "Credits", "Ending", "ED"), and Jellyfin's media segments
-// (found by its Intro Skipper plugin) for a library file it knows. Times are
+// (found by its Intro Skipper plugin) for a library file it knows, or Plex's
+// markers (Plex Pass finds them) for a film or episode it has. Times are
 // seconds into the file. Remembered per file or stream.
 
 import (
@@ -18,13 +19,15 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rdborg/mediarium/internal/mediaservers"
 )
 
 type playMarkers struct {
 	IntroStart   float64 `json:"introStart,omitempty"`
 	IntroEnd     float64 `json:"introEnd,omitempty"` // 0: no intro known
 	CreditsStart float64 `json:"creditsStart,omitempty"`
-	Source       string  `json:"source,omitempty"` // "chapters" or "jellyfin"
+	Source       string  `json:"source,omitempty"` // "chapters", "jellyfin" or "plex"
 }
 
 var (
@@ -141,7 +144,66 @@ func (s *Server) handlePlayMarkers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, playMarkers{})
 		return
 	}
-	writeJSON(w, http.StatusOK, s.markersFor(r.Context(), file, true))
+	m := s.markersFor(r.Context(), file, true)
+	if m.Source == "" {
+		if pm := s.plexMarkers(r.Context(), kind, id); pm.Source != "" {
+			markersCache.Store(file, pm)
+			m = pm
+		}
+	}
+	writeJSON(w, http.StatusOK, m)
+}
+
+// plexMarkers asks Plex for a library film's or episode's intro and
+// credits, finding it there by its TMDB id (and, for an episode, its place).
+func (s *Server) plexMarkers(ctx context.Context, kind string, id int64) playMarkers {
+	servers := s.plexServers()
+	if len(servers) == 0 || s.mediaFinder == nil {
+		return playMarkers{}
+	}
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	tmdb, season, episode := 0, 0, 0
+	media := mediaservers.MediaMovie
+	switch kind {
+	case "movie":
+		m, err := s.MovieRepo.Get(id)
+		if err != nil {
+			return playMarkers{}
+		}
+		tmdb = m.TMDBID
+	case "episode":
+		ep, err := s.MovieRepo.GetEpisodeByID(id)
+		if err != nil {
+			return playMarkers{}
+		}
+		sr, err := s.MovieRepo.GetSeries(ep.SeriesID)
+		if err != nil {
+			return playMarkers{}
+		}
+		tmdb, season, episode, media = sr.TMDBID, ep.Season, ep.Episode, mediaservers.MediaTV
+	}
+	if tmdb <= 0 {
+		return playMarkers{}
+	}
+	for _, srv := range servers {
+		item, ok := s.mediaFinder.Item(ctx, srv, media, tmdb)
+		if !ok {
+			continue
+		}
+		key := item.ID
+		if kind == "episode" {
+			if key, ok = s.mediaClient.PlexEpisodeKey(ctx, srv, item.ID, season, episode); !ok {
+				continue
+			}
+		}
+		mk, err := s.mediaClient.PlexMarkers(ctx, srv, key)
+		if err != nil || (mk.IntroEnd == 0 && mk.CreditsStart == 0) {
+			continue
+		}
+		return playMarkers{IntroStart: mk.IntroStart, IntroEnd: mk.IntroEnd, CreditsStart: mk.CreditsStart, Source: "plex"}
+	}
+	return playMarkers{}
 }
 
 // GET /api/stream/{id}/markers: a stream's intro and credits, from its

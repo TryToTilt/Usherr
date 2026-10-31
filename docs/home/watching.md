@@ -31,9 +31,13 @@
   have aired are offered; Live TV keeps to its own schedule.
 - **Skip intro**: while an intro plays, a button jumps past it. Usherr knows
   where intros (and credits) are from the file's own chapters when they're
-  named so (Intro, Opening, OP, Credits, Ending, ED), or from Jellyfin, when
-  its *Intro Skipper* plugin has found them. When the credits are known,
-  *Up next* comes up as they start. Without either, there's no button.
+  named so (Intro, Opening, OP, Credits, Ending, ED), from Jellyfin, when
+  its *Intro Skipper* plugin has found them, or from Plex's own intro and
+  credits markers (Plex finds them with Plex Pass: *Settings → Library →
+  Generate intro video markers* and *credits video markers*; leave them off
+  for the virtual drive's Stream libraries, where finding them would read
+  whole films from Usenet). When the credits are known, *Up next* comes up
+  as they start. Without any of these, there's no button.
 - **Pick up where you left off**: movies, episodes, NSFW videos, streams and
   sports games open where you stopped, and comics at the page, on any device
   (it's kept on the server for each person). The player says

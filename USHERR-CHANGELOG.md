@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.29.0] - 2026-10-31
+
+### Added
+
+- **Skip intro and Up next from Plex**: for a film or episode in Plex, the player takes the intro and credits from Plex's own markers (Plex finds them with Plex Pass), as it does from Jellyfin's Intro Skipper.
+
 ## [2.28.0] - 2026-10-31
 
 ### Added
