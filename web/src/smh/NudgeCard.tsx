@@ -21,10 +21,10 @@ const playing = () => [...document.querySelectorAll('video, audio')].some((m) =>
 
 export default function NudgeCard() {
   const { user } = useAuth()
-  const { run, menuOpen } = useSmh()
+  const { run, menuOpen, doctorOpen } = useSmh()
   const location = useLocation()
   const [nudge, setNudge] = useState<Nudge | null>(null)
-  const busy = !!run || menuOpen || BUSY_PAGES.some((p) => location.pathname.startsWith(p))
+  const busy = !!run || menuOpen || doctorOpen || BUSY_PAGES.some((p) => location.pathname.startsWith(p))
 
   useEffect(() => {
     if (!user || nudge || busy) return

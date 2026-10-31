@@ -100,3 +100,29 @@
 .smh-suggest-label { display: inline-flex; align-items: center; gap: 5px; font-size: 0.82rem; color: var(--accent); font-weight: 600; }
 .smh-suggest-chip { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 .topbar .omni-header .smh-suggest { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 60; margin: 0; padding: 8px 10px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4); }
+
+/* the Doctor */
+.smh-doctor { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 12px; margin: 8px 0 4px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border)); background: color-mix(in srgb, var(--warning) 8%, var(--surface-2)); color: var(--text); font: inherit; cursor: pointer; }
+.smh-doctor > svg:first-child { color: var(--warning); flex: none; }
+.smh-doctor span { flex: 1; display: grid; gap: 2px; }
+.smh-doctor small { color: var(--text-dim); }
+.doc-sum { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 1.05rem; margin: 0 0 10px; }
+.doc-sum.ok { color: var(--success); }
+.doc-sum.bad { color: var(--warning); }
+.doc-parts { list-style: none; margin: 0 0 12px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px; }
+.doc-parts li { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px; background: var(--surface-2); font-size: 0.9rem; }
+.doc-parts li.ok svg { color: var(--success); }
+.doc-parts li.warn svg { color: var(--warning); }
+.doc-parts li.bad svg { color: var(--danger); }
+.doc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.doc-item { display: flex; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); }
+.doc-item > svg { flex: none; margin-top: 3px; }
+.doc-item.level-error > svg { color: var(--danger); }
+.doc-item.level-warn > svg { color: var(--warning); }
+.doc-item.level-info > svg { color: var(--info); }
+.doc-item p { margin: 3px 0 6px; color: var(--text-dim); font-size: 0.9rem; }
+.doc-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.doc-optional { margin-top: 12px; }
+.doc-optional summary { cursor: pointer; color: var(--text-dim); margin-bottom: 8px; }
+.doc-foot { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; }
+.doc-foot .spacer { flex: 1; }

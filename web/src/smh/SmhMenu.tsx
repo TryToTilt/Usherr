@@ -12,7 +12,7 @@ import { useModules } from '../ModulesContext'
 import { useFocusTrap } from '../useFocusTrap'
 import Switch from '../components/Switch'
 import { nudgeState, saveNudgeState } from './nudges'
-import { closeSmhMenu, setSmhRun, smhDoneList, startSmh, stopSmh, useSmh } from './engine'
+import { closeSmhMenu, openDoctor, setSmhRun, smhDoneList, startSmh, stopSmh, useSmh } from './engine'
 import { GROUPS, WALKS, walkById } from './walks'
 import './smh.css'
 
@@ -74,6 +74,14 @@ export default function SmhMenu() {
               </button>
             </div>
           )}
+          <button type="button" className="smh-doctor" onClick={openDoctor}>
+            <Icon name="shield" size={18} />
+            <span>
+              <b>{t('Something not right?')}</b>
+              <small>{t('Usherr checks itself and says what to fix, in plain words.')}</small>
+            </span>
+            <Icon name="chevron-right" size={16} />
+          </button>
           <input type="search" className="smh-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('I want to…')} aria-label={t('Search what you want to do')} autoFocus />
           {list.length === 0 && <p className="hint">{t('Nothing matches yet. Try other words.')}</p>}
           <div className="smh-tips">

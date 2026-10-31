@@ -21,6 +21,7 @@ let who: number | string | null = null
 let run: SmhRun | null = null
 const listeners = new Set<() => void>()
 let menuOpen = false
+let doctorOpen = false
 
 // Keys and passwords typed into a walkthrough stay in memory only, never in
 // the browser's storage; they are gone when the walkthrough ends or the page
@@ -70,6 +71,7 @@ export function setSmhRun(next: SmhRun | null) {
 // startSmh begins a walkthrough. Simple starts in "Watch me do it".
 export function startSmh(id: string, mode: SmhMode) {
   menuOpen = false
+  doctorOpen = false
   setSmhRun({ id, mode, i: 0, answers: {}, watch: mode === 'simple' })
 }
 
@@ -103,6 +105,18 @@ export function openSmhMenu() {
   emit()
 }
 
+// The Doctor ("Something not right?").
+export function openDoctor() {
+  menuOpen = false
+  doctorOpen = true
+  emit()
+}
+
+export function closeDoctor() {
+  doctorOpen = false
+  emit()
+}
+
 export function closeSmhMenu() {
   menuOpen = false
   emit()
@@ -113,8 +127,9 @@ const subscribe = (f: () => void) => {
   return () => listeners.delete(f)
 }
 
-export function useSmh(): { run: SmhRun | null; menuOpen: boolean } {
+export function useSmh(): { run: SmhRun | null; menuOpen: boolean; doctorOpen: boolean } {
   const r = useSyncExternalStore(subscribe, () => run)
   const m = useSyncExternalStore(subscribe, () => menuOpen)
-  return { run: r, menuOpen: m }
+  const d = useSyncExternalStore(subscribe, () => doctorOpen)
+  return { run: r, menuOpen: m, doctorOpen: d }
 }

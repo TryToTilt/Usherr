@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.20.0] - 2026-10-31
+
+### Added
+
+- **Something not right?** (the Doctor), at the top of the Show me how menu, and offered by the Ask bar when you type that something isn't working: Usherr runs its own checks and shows every part it looked at with a tick or a warning (Usherr itself, film details, Usenet, indexers, VPN, folders and disk space, recent downloads, subtitles, lists), then each problem in plain words with what stops working, a button to fix it and, where there is one, the walkthrough that helps. For administrators; anyone else is pointed to Why didn't my download work and to telling an administrator.
+
 ## [2.19.0] - 2026-10-31
 
 ### Added

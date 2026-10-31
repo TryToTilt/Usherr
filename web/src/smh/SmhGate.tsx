@@ -10,13 +10,14 @@ import './smh.css'
 const Coach = lazy(() => import('./Coach'))
 const SmhMenu = lazy(() => import('./SmhMenu'))
 const NudgeCard = lazy(() => import('./NudgeCard'))
+const Doctor = lazy(() => import('./Doctor'))
 
 // Tips wait a couple of minutes after the app opens, so they never greet you.
 const NUDGE_AFTER = 2 * 60_000
 
 export default function SmhGate() {
   const { user } = useAuth()
-  const { run, menuOpen } = useSmh()
+  const { run, menuOpen, doctorOpen } = useSmh()
   useEffect(() => smhUser(user?.id ?? null), [user])
   const [nudges, setNudges] = useState(false)
   useEffect(() => {
@@ -28,6 +29,7 @@ export default function SmhGate() {
     <Suspense fallback={null}>
       {run && !run.paused && <Coach run={run} />}
       {menuOpen && <SmhMenu />}
+      {doctorOpen && <Doctor />}
       {nudges && <NudgeCard />}
     </Suspense>
   )

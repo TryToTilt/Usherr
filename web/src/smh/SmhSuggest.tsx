@@ -9,7 +9,7 @@ import Icon from '../components/Icon'
 import { useComicsOn } from '../home/libraryKinds'
 import { t } from '../i18n'
 import { useModules } from '../ModulesContext'
-import { startSmh } from './engine'
+import { openDoctor, startSmh } from './engine'
 import type { Walkthrough } from './types'
 
 const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -66,6 +66,19 @@ export default function SmhSuggest({ q }: { q: string }) {
   useEffect(() => {
     if (worth && !walks) void import('./walks').then((m) => setWalks(m.WALKS))
   }, [worth, walks])
+  // "Something's not working": the Doctor.
+  const trouble = /(not working|doesn'?t work|isn'?t working|broken|wrong|problem|error|stuck|fix)/.test(text)
+  if (trouble && admin)
+    return (
+      <div className="smh-suggest" role="group" aria-label={t('Show me how')}>
+        <span className="smh-suggest-label">
+          <Icon name="shield" size={14} /> {t('Something not right?')}
+        </span>
+        <button type="button" className="room-chip smh-suggest-chip" onClick={openDoctor}>
+          {t('Check Usherr')}
+        </button>
+      </div>
+    )
   if (!walks || !worth || qw.length === 0) return null
   // The Ask bar's own walkthrough isn't suggested in the Ask bar.
   const can = (w: Walkthrough) => w.id !== 'ask-ai' && (!w.admin || admin) && (!w.needs || (w.needs === 'comics' ? comicsOn : modules.on(w.needs)))
