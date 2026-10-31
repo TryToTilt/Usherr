@@ -1,12 +1,20 @@
 # Re-Posterr
 
 Re-Posterr is Usherr's artwork picker. It picks the poster, background and logo for each film, show and
-collection in Jellyfin, from TMDB and fanart.tv, and puts them on Jellyfin's
-titles, so a film looks the same in every Jellyfin app, on the Marquee and in
-Usherr. Only pictures change, never a file, and every change can be put back.
+collection in Jellyfin or Plex, from TMDB and fanart.tv, and puts them on the
+server's titles, so a film looks the same in every Jellyfin or Plex app, on the
+Marquee and in Usherr. Only pictures change, never a file, and every change can
+be put back.
 
 It's on **Settings → Re-Posterr** (`/settings/re-posterr`), for
-administrators. It needs Jellyfin (Settings → Media servers) and a TMDB key.
+administrators. It needs Jellyfin or Plex (Settings → Media servers) and a
+TMDB key. With both, a title's pictures go to both.
+
+**With Plex**: posters and backgrounds go to Plex and are locked there, so
+Plex's own metadata refresh doesn't swap them back. Plex doesn't keep logos,
+so logos (and, for now, styled season posters and title cards) are
+Jellyfin's. Undoing a picture on a Plex title that had none before leaves the
+new one in Plex.
 
 ## What it picks
 
@@ -134,7 +142,7 @@ that had none, the picture is taken off again.
 - **Every night**, between the hours you choose (1 AM to 7 AM by default), a
   title every few seconds, the ones not looked at for longest first. It stops
   for the day at the end of the hours and carries on the next night.
-- **Never while someone is watching**: it checks Jellyfin before it starts
+- **Never while someone is watching**: it checks Jellyfin and Plex before it starts
   and every few titles, and waits when something is playing.
 - **Not when Jellyfin's disk is low**: Jellyfin keeps the pictures in its
   metadata folder. When that disk has less free than **Keep free on

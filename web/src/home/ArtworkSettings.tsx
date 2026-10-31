@@ -1,5 +1,5 @@
 // Usherr: Re-Posterr (Settings → Re-Posterr, /settings/re-posterr): what Usherr would change on
-// Jellyfin's titles, to approve or skip (the side by side), what it changed
+// the media server's titles (Jellyfin's or Plex's), to approve or skip (the side by side), what it changed
 // (to put back), and how it works: ask first, fill in only or on its own; at
 // night, when nobody is watching; fanart.tv's key.
 import { useCallback, useEffect, useState } from 'react'
@@ -69,23 +69,23 @@ export default function ArtworkSettings() {
       </div>
 
       <section className="card">
-        <p>{t('Re-Posterr picks the poster, background and logo for each film, show and collection in Jellyfin, from TMDB and fanart.tv: your language first, backgrounds without words, the best liked, big enough. Or it makes them in your style (below). Only pictures change, never a file, and every change can be put back.')}</p>
-        {!all.jellyfin && <p className="art-warn">{t('Connect Jellyfin first (Settings → Media servers).')}</p>}
+        <p>{t('Re-Posterr picks the poster, background and logo for each film, show and collection in Jellyfin or Plex, from TMDB and fanart.tv: your language first, backgrounds without words, the best liked, big enough. Or it makes them in your style (below). Only pictures change, never a file, and every change can be put back.')}</p>
+        {!all.jellyfin && <p className="art-warn">{t('Connect Jellyfin or Plex first (Settings → Media servers).')}</p>}
         {!all.tmdb && <p className="art-warn">{t('A TMDB key is needed (Settings → Metadata).')}</p>}
         <div className="art-counts">
-          <span title={t('Films, shows and collections in Jellyfin with a TMDB id; a film in two libraries counts once')}>
+          <span title={t('Films, shows and collections in your media server with a TMDB id; a film in two libraries counts once')}>
             <strong>{c.titles}</strong> {t('titles')}
           </span>
           <span title={t('Looked at for artwork so far')}>
             <strong>{c.looked}</strong> {t('looked at')}
           </span>
-          <span title={t('Titles with no poster in Jellyfin')}>
+          <span title={t('Titles with no poster in your media server')}>
             <strong>{c.missingPoster}</strong> {t('without a poster')}
           </span>
-          <span title={t('Titles with no background in Jellyfin')}>
+          <span title={t('Titles with no background in your media server')}>
             <strong>{c.missingBackdrop}</strong> {t('without a background')}
           </span>
-          <span title={t('Titles with no logo in Jellyfin')}>
+          <span title={t('Titles with no logo in Jellyfin (Plex doesn’t keep logos)')}>
             <strong>{c.missingLogo}</strong> {t('without a logo')}
           </span>
         </div>
@@ -111,9 +111,9 @@ export default function ArtworkSettings() {
               <button
                 type="button"
                 className="btn-sm primary"
-                title={t('Sends every waiting picture to Jellyfin, a picture a second; each can be put back')}
+                title={t('Sends every waiting picture to your media server, a picture a second; each can be put back')}
                 onClick={async () => {
-                  if (await confirm({ title: t('Use all {n}?', { n: c.waiting }), body: t('Every waiting picture goes to Jellyfin, a picture a second. The pictures they replace are kept, so each can be put back.'), confirmLabel: t('Use all') })) void act(() => artApi.apply({ all: true }), t('Sending them to Jellyfin.'))
+                  if (await confirm({ title: t('Use all {n}?', { n: c.waiting }), body: t('Every waiting picture goes to your media server, a picture a second. The pictures they replace are kept, so each can be put back.'), confirmLabel: t('Use all') })) void act(() => artApi.apply({ all: true }), t('Sending them to your media server.'))
                 }}
               >
                 {t('Use all {n}', { n: c.waiting })}
@@ -124,7 +124,7 @@ export default function ArtworkSettings() {
             </div>
           )}
         </div>
-        <p className="hint">{set.mode === 'ask' ? t('Usherr’s picks, beside what Jellyfin has now. Nothing changes until you say so.') : t('With Usherr putting pictures on by itself, only what it can’t decide waits here.')}</p>
+        <p className="hint">{set.mode === 'ask' ? t('Usherr’s picks, beside what your media server has now. Nothing changes until you say so.') : t('With Usherr putting pictures on by itself, only what it can’t decide waits here.')}</p>
         {waiting.length === 0 ? (
           <p className="psm-none">{t('Nothing waiting.')}</p>
         ) : (
@@ -153,10 +153,10 @@ export default function ArtworkSettings() {
                   </span>
                 </div>
                 <div className="psm-actions">
-                  <button type="button" className="btn-sm primary" title={t('Sends it to Jellyfin; the one there now is kept')} onClick={() => void act(() => artApi.apply({ ids: [w.id] }), t('Sent to Jellyfin.'))}>
+                  <button type="button" className="btn-sm primary" title={t('Sends it to your media server; the one there now is kept')} onClick={() => void act(() => artApi.apply({ ids: [w.id] }), t('Sent to your media server.'))}>
                     {t('Use it')}
                   </button>
-                  <button type="button" className="btn-sm" title={t('Keep what Jellyfin has; it isn’t proposed again')} onClick={() => void act(() => artApi.skip({ ids: [w.id] }))}>
+                  <button type="button" className="btn-sm" title={t('Keep what your media server has; it isn’t proposed again')} onClick={() => void act(() => artApi.skip({ ids: [w.id] }))}>
                     {t('Skip')}
                   </button>
                 </div>
@@ -169,7 +169,7 @@ export default function ArtworkSettings() {
 
       <section className="card">
         <h2>{t('How it works')}</h2>
-        <Switch checked={set.on} onChange={(on) => save({ on })} label={t('Look every night')} description={t('A title every few seconds, between the hours below, stopping when someone starts watching on Jellyfin.')} />
+        <Switch checked={set.on} onChange={(on) => save({ on })} label={t('Look every night')} description={t('A title every few seconds, between the hours below, stopping when someone starts watching.')} />
         <div className="psm-settings">
           <label className="psm-field field">
             <span>{t('What it does')}</span>
@@ -324,7 +324,7 @@ export default function ArtworkSettings() {
                     {ART_LABEL[d.type]} · {WHY[d.why]} · {d.doneMs ? new Date(d.doneMs).toLocaleDateString() : ''}
                   </span>
                 </div>
-                <button type="button" className="btn-sm" title={t('Puts back the picture Jellyfin had before')} onClick={() => void act(() => artApi.undo(d.id), t('The old picture is back.'))}>
+                <button type="button" className="btn-sm" title={t('Puts back the picture your media server had before')} onClick={() => void act(() => artApi.undo(d.id), t('The old picture is back.'))}>
                   {t('Put the old one back')}
                 </button>
               </li>

@@ -930,6 +930,9 @@ func jfChildren(ctx context.Context, srv mediaservers.Server, seriesID, typ stri
 // jfLibraryOf is the name of the Jellyfin library the item is in ("" when
 // Jellyfin doesn't say).
 func jfLibraryOf(ctx context.Context, srv mediaservers.Server, id string) string {
+	if _, plex := parseArtPlex(id); plex {
+		return "" // Usherr: a Plex copy takes the main style
+	}
 	var anc []struct{ Name, Type string }
 	if jfJSON(ctx, srv, http.MethodGet, "/Items/"+url.PathEscape(id)+"/Ancestors", nil, &anc) != nil {
 		return ""
@@ -944,6 +947,9 @@ func jfLibraryOf(ctx context.Context, srv mediaservers.Server, id string) string
 
 // jfResolution is the copy's picture size: 4k, 1080, 720 or sd ("" unknown).
 func jfResolution(ctx context.Context, srv mediaservers.Server, id string) string {
+	if _, plex := parseArtPlex(id); plex {
+		return "" // Usherr: not asked of Plex
+	}
 	var page struct {
 		Items []struct {
 			MediaStreams []struct {
@@ -994,7 +1000,7 @@ var errArtPaused = errors.New("paused while someone watches on Jellyfin; it carr
 // already made (a change that was paused) aren't made again.
 func (s *Server) artApplyStyled(ctx context.Context, srv mediaservers.Server, c artChange) error {
 	if c.JFIDs == "" {
-		return errors.New("Jellyfin doesn't have this title (yet)")
+		return errors.New("the media server doesn't have this title (yet)")
 	}
 	styles, _ := s.artStylesNow()
 	ex := artExtras{dir: s.artDir()}
@@ -1047,6 +1053,9 @@ func (s *Server) artApplyStyled(ctx context.Context, srv mediaservers.Server, c 
 		}
 		made := map[int]image.Image{}
 		for _, sid := range strings.Split(c.JFIDs, ",") {
+			if _, plex := parseArtPlex(sid); plex {
+				continue // season posters are Jellyfin's for now
+			}
 			seasons, err := jfChildren(ctx, srv, sid, "Season")
 			if err != nil {
 				return err
@@ -1065,6 +1074,9 @@ func (s *Server) artApplyStyled(ctx context.Context, srv mediaservers.Server, c 
 		st := styles.Card
 		stills := map[int]map[int]metadata.EpisodeInfo{}
 		for _, sid := range strings.Split(c.JFIDs, ",") {
+			if _, plex := parseArtPlex(sid); plex {
+				continue // title cards are Jellyfin's for now
+			}
 			eps, err := jfChildren(ctx, srv, sid, "Episode")
 			if err != nil {
 				return err
@@ -1107,7 +1119,7 @@ func (s *Server) artApplyStyled(ctx context.Context, srv mediaservers.Server, c 
 			continue // made before the pause
 		}
 		if !c.ByHand && made > 0 && made%artEveryPlaying == 0 {
-			if playing, err := s.mediaClient.NowPlaying(ctx, srv); err == nil && len(playing) > 0 {
+			if s.artAnyonePlaying(ctx, srv) {
 				return errArtPaused
 			}
 		}
@@ -1125,7 +1137,7 @@ func (s *Server) artApplyStyled(ctx context.Context, srv mediaservers.Server, c 
 		if err := s.artKeep(ctx, srv, j.id, imgType, backups); err != nil {
 			return err
 		}
-		if err := jfSetImage(ctx, srv, j.id, imgType, data, "image/jpeg"); err != nil {
+		if err := s.artSetImage(ctx, srv, j.id, imgType, data, "image/jpeg"); err != nil {
 			return err
 		}
 		backups["+"+j.id] = "1"
@@ -1389,14 +1401,14 @@ func (s *Server) handleArtTitleStyle(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "That request couldn't be read.")
 		return
 	}
-	srv, ok := s.jellyfinServer()
+	srv, ok := s.artServer()
 	if !ok {
 		writeError(w, http.StatusConflict, connectServerFirst)
 		return
 	}
 	var title, jf string
 	if s.db.QueryRowContext(r.Context(), `SELECT title, jf_ids FROM art_titles WHERE kind = ? AND tmdb_id = ?`, b.Kind, b.TMDBID).Scan(&title, &jf) != nil || jf == "" {
-		writeError(w, http.StatusConflict, "Jellyfin doesn't have this title yet.")
+		writeError(w, http.StatusConflict, "Your media server doesn't have this title yet.")
 		return
 	}
 	styles, _ := s.artStylesNow()

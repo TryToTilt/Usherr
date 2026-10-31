@@ -731,7 +731,7 @@ func (s *Server) artApply(ctx context.Context, srv mediaservers.Server, c artCha
 	}
 	ids := strings.Split(c.JFIDs, ",")
 	if c.JFIDs == "" {
-		return errors.New("Jellyfin doesn't have this title (yet)")
+		return errors.New("the media server doesn't have this title (yet)")
 	}
 	data, mime, err := artFetch(ctx, c.URL, c.Type)
 	if err != nil {
@@ -744,7 +744,7 @@ func (s *Server) artApply(ctx context.Context, srv mediaservers.Server, c artCha
 			s.artSaveBackups(ctx, c.ID, backups)
 			return err
 		}
-		if err := jfSetImage(ctx, srv, id, c.Type, data, mime); err != nil {
+		if err := s.artSetImage(ctx, srv, id, c.Type, data, mime); err != nil {
 			s.artSaveBackups(ctx, c.ID, backups)
 			return err
 		}
@@ -762,7 +762,7 @@ func (s *Server) artKeep(ctx context.Context, srv mediaservers.Server, id, typ s
 	if _, kept := backups[id]; kept {
 		return nil
 	}
-	old, oldMime, err := jfGetImage(ctx, srv, id, typ, 0)
+	old, oldMime, err := s.artGetImage(ctx, srv, id, typ, 0)
 	if err != nil {
 		return nil // as before: Jellyfin didn't say; the picture still goes on
 	}
@@ -814,6 +814,9 @@ func (s *Server) artUndo(ctx context.Context, srv mediaservers.Server, c artChan
 			continue // a note that the picture was made
 		}
 		if name == "" {
+			if _, plex := parseArtPlex(id); plex {
+				continue // Plex keeps the picture; the title had none before
+			}
 			resp, err := jfRequest(ctx, srv, http.MethodDelete, "/Items/"+url.PathEscape(id)+"/Images/"+jfImageType[typ]+"/0", nil)
 			if err != nil {
 				return err
@@ -829,7 +832,7 @@ func (s *Server) artUndo(ctx context.Context, srv mediaservers.Server, c artChan
 		if strings.HasSuffix(name, ".png") {
 			mime = "image/png"
 		}
-		if err := jfSetImage(ctx, srv, id, typ, data, mime); err != nil {
+		if err := s.artSetImage(ctx, srv, id, typ, data, mime); err != nil {
 			return err
 		}
 	}
@@ -884,9 +887,9 @@ func (s *Server) artPass(ctx context.Context, n int, now bool) {
 		return
 	}
 	defer artState.busy.Unlock()
-	srv, ok := s.jellyfinServer()
+	srv, ok := s.artServer() // Usherr: Jellyfin, or a Plex (home_artplex.go)
 	if !ok || !s.TMDB().HasAPIKey() {
-		artSetStatus(func(a *artStatus) { a.Note = "Jellyfin and a TMDB key are needed." })
+		artSetStatus(func(a *artStatus) { a.Note = "Jellyfin or Plex, and a TMDB key, are needed." })
 		return
 	}
 	set := s.artSettingsNow()
@@ -898,11 +901,11 @@ func (s *Server) artPass(ctx context.Context, n int, now bool) {
 		note(msg)
 		return
 	}
-	if playing, err := s.mediaClient.NowPlaying(ctx, srv); err == nil && len(playing) > 0 {
-		note("Waiting: someone is watching on Jellyfin.")
+	if s.artAnyonePlaying(ctx, srv) {
+		note("Waiting: someone is watching.")
 		return
 	}
-	items, err := s.artJFItems(ctx, srv, true)
+	items, err := s.artItems(ctx, srv, true)
 	if err != nil {
 		note(err.Error())
 		return
@@ -944,8 +947,8 @@ func (s *Server) artPass(ctx context.Context, n int, now bool) {
 				return
 			}
 			if i%20 == 0 {
-				if playing, err := s.mediaClient.NowPlaying(ctx, srv); err == nil && len(playing) > 0 {
-					note("Paused: someone started watching on Jellyfin.")
+				if s.artAnyonePlaying(ctx, srv) {
+					note("Paused: someone started watching.")
 					return
 				}
 				if msg := s.artCanWrite(ctx, srv, set); msg != "" && set.Mode != "ask" {
@@ -963,12 +966,15 @@ func (s *Server) artPass(ctx context.Context, n int, now bool) {
 		artSetStatus(func(a *artStatus) { a.Looked++; a.Proposed += proposed; a.Applied += applied })
 	}
 	if len(todo) == 0 {
-		note("Nothing to look at: Jellyfin has no films or shows with a TMDB id.")
+		note("Nothing to look at: the media server has no films or shows with a TMDB id.")
 	}
 }
 
 // artCanWrite says why pictures can't go to Jellyfin now ("" when they can).
 func (s *Server) artCanWrite(ctx context.Context, srv mediaservers.Server, set artSettings) string {
+	if !artHasJF(srv) {
+		return "" // Plex doesn't say; its pictures are small next to its library
+	}
 	free := jfFreeGB(ctx, srv)
 	artSetStatus(func(a *artStatus) { a.FreeGB = free })
 	if free < 0 {
@@ -1002,7 +1008,7 @@ func (s *Server) artLookAt(ctx context.Context, srv mediaservers.Server, set art
 			continue
 		}
 		if small && typ != "logo" {
-			w := jfImageWidth(ctx, srv, ids[0], typ)
+			w := s.artImageWidth(ctx, srv, ids[0], typ)
 			limit := artSmallPosterW
 			if typ == "backdrop" {
 				limit = artSmallBackdropW
@@ -1024,7 +1030,7 @@ func (s *Server) artLookAt(ctx context.Context, srv mediaservers.Server, set art
 			continue
 		}
 		best := list[0]
-		if why[typ] == "small" && best.Width > 0 && best.Width <= jfImageWidth(ctx, srv, ids[0], typ) {
+		if why[typ] == "small" && best.Width > 0 && best.Width <= s.artImageWidth(ctx, srv, ids[0], typ) {
 			continue // nothing bigger
 		}
 		res, err := s.db.ExecContext(ctx, `INSERT INTO art_changes (kind, tmdb_id, title, type, source, url, preview, width, height, lang, why, created_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1134,13 +1140,13 @@ func (s *Server) artMake(ctx context.Context, srv mediaservers.Server, id int64)
 // its art is ready before the night.
 func (s *Server) artForFilm(tmdbID int) {
 	set := s.artSettingsNow()
-	srv, ok := s.jellyfinServer()
+	srv, ok := s.artServer()
 	if !set.On || !ok || tmdbID <= 0 {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	items, err := s.artJFItems(ctx, srv, false)
+	items, err := s.artItems(ctx, srv, false)
 	if err != nil || s.artSync(ctx, items) != nil {
 		return
 	}
@@ -1176,7 +1182,7 @@ func (s *Server) handleArt(w http.ResponseWriter, r *http.Request) {
 		_ = s.db.QueryRowContext(ctx, q).Scan(&n)
 		counts[k] = n
 	}
-	_, jf := s.jellyfinServer()
+	_, jf := s.artServer() // Jellyfin or Plex
 	writeJSON(w, http.StatusOK, map[string]any{"settings": s.artSettingsNow(), "status": artStatusNow(), "counts": counts, "jellyfin": jf, "tmdb": s.TMDB().HasAPIKey(), "folder": s.artDir()})
 }
 
@@ -1257,7 +1263,7 @@ func (s *Server) handleArtTestFanart(w http.ResponseWriter, r *http.Request) {
 // POST /api/home/art/look (admin): a pass now (as at night; it still stops
 // when someone starts watching).
 func (s *Server) handleArtLook(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.jellyfinServer(); !ok {
+	if _, ok := s.artServer(); !ok {
 		writeError(w, http.StatusConflict, connectServerFirst)
 		return
 	}
@@ -1298,7 +1304,7 @@ func (s *Server) handleArtApply(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	srv, okJF := s.jellyfinServer()
+	srv, okJF := s.artServer()
 	if !okJF {
 		writeError(w, http.StatusConflict, connectServerFirst)
 		return
@@ -1371,7 +1377,7 @@ func (s *Server) handleArtUndo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "That change isn't there, or wasn't made.")
 		return
 	}
-	srv, ok := s.jellyfinServer()
+	srv, ok := s.artServer()
 	if !ok {
 		writeError(w, http.StatusConflict, connectServerFirst)
 		return
@@ -1400,7 +1406,7 @@ func (s *Server) handleArtTitle(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 40*time.Second)
 	defer cancel()
-	srv, ok := s.jellyfinServer()
+	srv, ok := s.artServer()
 	var jf string
 	tvdb := 0
 	// The titles the nightly look keeps say which Jellyfin items are this
@@ -1410,7 +1416,7 @@ func (s *Server) handleArtTitle(w http.ResponseWriter, r *http.Request) {
 	}
 	if ok {
 		if look(); jf == "" {
-			if items, err := s.artJFItems(ctx, srv, false); err == nil {
+			if items, err := s.artItems(ctx, srv, false); err == nil {
 				_ = s.artSync(ctx, items)
 			}
 			look()
@@ -1466,7 +1472,7 @@ func (s *Server) handleArtChoose(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "That request couldn't be read.")
 		return
 	}
-	srv, ok := s.jellyfinServer()
+	srv, ok := s.artServer()
 	if !ok {
 		writeError(w, http.StatusConflict, connectServerFirst)
 		return
@@ -1586,12 +1592,12 @@ func (s *Server) handleArtCurrent(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	srv, ok := s.jellyfinServer()
+	srv, ok := s.artServer()
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	data, mime, err := jfGetImage(r.Context(), srv, item, typ, 500)
+	data, mime, err := s.artGetImage(r.Context(), srv, item, typ, 500)
 	if err != nil || len(data) == 0 {
 		http.NotFound(w, r)
 		return

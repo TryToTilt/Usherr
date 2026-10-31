@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.30.0] - 2026-10-31
+
+### Added
+
+- **Re-Posterr with Plex**: Re-Posterr picks and makes posters and backgrounds for Plex's films and shows too, in a Plex-only household or beside Jellyfin. Pictures are uploaded to Plex and locked, so Plex's own refresh keeps them; the one replaced is kept first and comes back on undo. It waits while someone watches on Plex as on Jellyfin. Logos, season posters and title cards stay Jellyfin's (Plex doesn't keep logos).
+
 ## [2.29.0] - 2026-10-31
 
 ### Added
