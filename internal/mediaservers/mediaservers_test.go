@@ -227,6 +227,38 @@ func TestPlexRefreshFolders(t *testing.T) {
 	}
 }
 
+// The virtual drive's folders are given as Plex sees them: the path mapping
+// is not applied, and a folder in no library scans nothing (never a whole
+// library, which would read the drive end to end).
+func TestPlexRefreshServerFolders(t *testing.T) {
+	plex := newFakePlex(t, "tok")
+	plex.sections = []Library{
+		{ID: "1", Title: "Movies", Type: "movie", Locations: []string{`D:\Movies`}},
+		{ID: "4", Title: "Movies-Stream", Type: "movie", Locations: []string{`U:\Movies`}},
+	}
+	c := NewClient("test")
+	s := plex.server()
+	s.PathMap = []PathMapping{{From: "/data/movies", To: `D:\Movies`}}
+	done, err := c.RefreshServerFolders(context.Background(), s, MediaMovie, []string{`U:\Movies\Nobody 2 (2025) [tmdbid-1]`})
+	if err != nil || len(done) != 1 {
+		t.Fatalf("done = %v, err = %v", done, err)
+	}
+	plex.mu.Lock()
+	got := append([]string(nil), plex.refreshes...)
+	plex.refreshes = nil
+	plex.mu.Unlock()
+	if len(got) != 1 || got[0] != `4 U:\Movies\Nobody 2 (2025) [tmdbid-1]` {
+		t.Fatalf("refreshes = %q", got)
+	}
+	done, err = c.RefreshServerFolders(context.Background(), s, MediaMovie, []string{`V:\Movies\Elsewhere (2020) [tmdbid-2]`})
+	plex.mu.Lock()
+	got = append([]string(nil), plex.refreshes...)
+	plex.mu.Unlock()
+	if err != nil || len(done) != 0 || len(got) != 0 {
+		t.Fatalf("a folder in no library: done = %v, refreshes = %q, err = %v", done, got, err)
+	}
+}
+
 func TestEmbyRefreshFolders(t *testing.T) {
 	c := NewClient("test")
 	for _, kind := range []Kind{KindJellyfin, KindEmby} {

@@ -346,6 +346,22 @@ func (c *Client) RefreshFolders(ctx context.Context, s Server, kind MediaKind, f
 	return nil, userErr(nil, "Unknown server type %q.", s.Kind)
 }
 
+// RefreshServerFolders asks the server to scan folders given as the server
+// itself sees them (no path mapping), and only those inside one of its
+// libraries: never a whole-library scan. For folders outside Mediarium's own
+// disks, such as Usherr's virtual drive mounted on the server's computer.
+func (c *Client) RefreshServerFolders(ctx context.Context, s Server, kind MediaKind, folders []string) ([]string, error) {
+	if s.Kind != KindPlex && s.Kind != KindJellyfin && s.Kind != KindEmby {
+		return nil, nil
+	}
+	s.PathMap = nil
+	folders = c.foldersInLibraries(ctx, s, folders)
+	if len(folders) == 0 {
+		return nil, nil
+	}
+	return c.RefreshFolders(ctx, s, kind, folders)
+}
+
 // foldersInLibraries keeps the folders that are inside one of the server's
 // libraries (as the server sees them).
 func (c *Client) foldersInLibraries(ctx context.Context, s Server, folders []string) []string {

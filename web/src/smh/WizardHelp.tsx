@@ -101,11 +101,20 @@ function help(step: WizardStep): Help {
       }
     case 'server':
       return {
-        what: t('Connecting Jellyfin lets Usherr tell it when something new arrives (so it shows up at once), show Play in Jellyfin buttons, and keep your Diary from what you watch.'),
+        what: t('Connecting your media server lets Usherr tell it when something new arrives (so it shows up at once), show Watch in buttons, and keep your Diary from what you watch.'),
         steps: [
-          t('The address: http://jellyfin:8096 if Jellyfin is in the same setup file as Usherr; otherwise this computer’s address, such as http://192.168.1.50:8096.'),
-          t('The key: in Jellyfin, Dashboard, API Keys, press + and name it Usherr. Paste it here.'),
+          t('Jellyfin: the address is http://jellyfin:8096 if Jellyfin is in the same setup file as Usherr, otherwise this computer’s address (http://192.168.1.50:8096). The key: Jellyfin, Dashboard, API Keys, +.'),
+          t('Plex: the address (http://192.168.1.50:32400) and your Plex token.'),
         ],
+        card: {
+          title: t('Jellyfin or Plex, for your streams'),
+          options: [
+            { name: t('Jellyfin'), good: t('Plays streamed films and shows straight from the Streams library: nothing else to install.') },
+            { name: t('Plex'), good: t('Works for everything you download. For streamed titles, Usherr switches on its virtual drive: a drive of ordinary video files that Plex reads.'), bad: t('The drive needs rclone and WinFsp (free) on the Plex computer; Show me how, Set up Plex with the virtual drive, walks you through it after setup.') },
+          ],
+          recommend: t('Whichever you already use. Both can run side by side.'),
+          later: t('Add, change or remove media servers any time; the drive has its own switch.'),
+        },
         later: t('Settings, Media servers.'),
       }
     case 'extras':

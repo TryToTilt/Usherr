@@ -302,6 +302,7 @@ footer { color: var(--muted); font-size: 0.85rem; text-align: center; margin-top
       <div class="hint">Usherr finds and organises your films and shows; Jellyfin plays them everywhere.</div>
       <label class="choice"><input type="radio" name="jf" value="docker" checked> <b>Set up Jellyfin for me</b><span class="rec">Recommended</span><span>Jellyfin goes in the same setup file and starts with Usherr.</span></label>
       <label class="choice"><input type="radio" name="jf" value="have"> <b>I already have Jellyfin</b><span>Leave it out. Usherr connects to yours when it opens.</span></label>
+      <label class="choice"><input type="radio" name="jf" value="plex"> <b>I use Plex</b><span>Leave Jellyfin out. Usherr works with Plex too; for streamed films and shows it serves a virtual drive that Plex reads, which you set up from inside Usherr (it needs rclone and WinFsp, both free).</span></label>
       <div class="card" id="jf-card">
         <div class="ct">Jellyfin in Docker, or installed on Windows?</div>
         <table>
@@ -404,6 +405,7 @@ footer { color: var(--muted); font-size: 0.85rem; text-align: center; margin-top
 
 <div class="finale" id="finale" hidden>
   <h2>You're in. Usherr takes it from here.</h2>
+  <p id="plex-next" hidden><b>Using Plex?</b> In Usherr, open <b>Show me how</b> and pick <b>Set up Plex with the virtual drive</b>: it connects Plex and puts your streamed titles on a drive Plex reads.</p>
   <p>From now on, Usherr shows you how to do everything: setting up, finding things to watch, all of it. Look for <b>Show Me How</b>.</p>
   <a class="btn big" id="open2" href="http://localhost:8264" target="_blank" rel="noopener">Open Usherr ↗</a>
   <p style="margin-top:14px"><a href="../guide/">Every feature, step by step: Show me how</a></p>
@@ -569,7 +571,7 @@ footer { color: var(--muted); font-size: 0.85rem; text-align: center; margin-top
     L.push('volumes:');
     L.push('  downloads:');
     const text = L.join('\n') + '\n';
-    state.yaml = text; state.home = home.show; state.port = port; state.jf = jf;
+    state.yaml = text; state.home = home.show; state.port = port; state.jf = jf; state.player = document.querySelector('input[name=jf]:checked').value;
     markDone(3, false);
     showFile();
     openStep(4);
@@ -623,6 +625,7 @@ footer { color: var(--muted); font-size: 0.85rem; text-align: center; margin-top
     $('progText').textContent = n === 6 ? 'All 6 steps done' : `${n} of 6 steps done`;
     $('progBar').style.width = (n / 6) * 100 + '%';
     $('finale').hidden = n < 6;
+    $('plex-next').hidden = state.player !== 'plex';
   }
   document.querySelectorAll('[data-done]').forEach((b) => b.addEventListener('click', () => markDone(+b.dataset.done)));
   steps.forEach((s) => s.addEventListener('toggle', () => { if (s.open) { state.open = +s.dataset.step; save(); } }));

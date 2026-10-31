@@ -509,6 +509,7 @@ func (s *Server) streamedSourceFor(ctx context.Context, id int64, quality string
 	streamedPlaysMu.Lock()
 	streamedPlays[key] = p
 	streamedPlaysMu.Unlock()
+	s.driveRememberPlay(id, p.target) // Usherr: the virtual drive keeps a release that plays
 	return p, nil
 }
 

@@ -447,7 +447,8 @@ func (s *Server) Routes() http.Handler {
 	s.koboRoutes(root)
 	// The Stremio and Nuvio add-on signs in with the key in its address (home_addon.go).
 	s.addonRoutes(root)
-	s.preshowRoutes(root) // Usherr: the Jellyfin app's pre-show (the NeXroll Intros plugin)
+	s.preshowRoutes(root)       // Usherr: the Jellyfin app's pre-show (the NeXroll Intros plugin)
+	s.registerDriveRoutes(root) // Usherr: the virtual drive (WebDAV) for Plex, with its own sign-in (home_drive_dav.go)
 	root.HandleFunc("GET /robots.txt", robotsTxt)
 	root.Handle("/", frontendHandlerBase(s.cfg.URLBase))
 	return withBodyDeadline(s.harden(withURLBase(s.cfg.URLBase, root)))
@@ -599,18 +600,21 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/home/art/title/choose", s.handleArtChoose)
 	admin.HandleFunc("GET /api/home/art/current/{item}/{type}", s.handleArtCurrent)
 	admin.HandleFunc("GET /api/home/art/preview", s.handleArtPreview)
-	admin.HandleFunc("GET /api/home/art/styles", s.handleArtStyles)                     // Usherr: Re-Posterr's own posters
-	admin.HandleFunc("PUT /api/home/art/styles", s.handlePutArtStyles)                  // Usherr
-	admin.HandleFunc("POST /api/home/art/styles/preview", s.handleArtStylePreview)      // Usherr
-	admin.HandleFunc("GET /api/home/art/samples", s.handleArtSamples)                   // Usherr
-	admin.HandleFunc("GET /api/home/art/changes/{id}/look", s.handleArtChangeLook)      // Usherr
-	admin.HandleFunc("POST /api/home/art/title/style", s.handleArtTitleStyle)           // Usherr
-	admin.HandleFunc("POST /api/home/art/overlays", s.handleArtOverlayAdd)              // Usherr: Re-Posterr's overlays, own pictures, TheTVDB, Posterizarr
-	admin.HandleFunc("GET /api/home/art/overlays/{name}", s.handleArtOverlayGet)        // Usherr
-	admin.HandleFunc("DELETE /api/home/art/overlays/{name}", s.handleArtOverlayDelete)  // Usherr
-	admin.HandleFunc("POST /api/home/art/upload", s.handleArtUpload)                    // Usherr
-	admin.HandleFunc("GET /api/home/art/uploads/{name}", s.handleArtUploadGet)          // Usherr
-	admin.HandleFunc("POST /api/home/art/test-tvdb", s.handleArtTestTVDB)               // Usherr
+	admin.HandleFunc("GET /api/home/art/styles", s.handleArtStyles)                    // Usherr: Re-Posterr's own posters
+	admin.HandleFunc("PUT /api/home/art/styles", s.handlePutArtStyles)                 // Usherr
+	admin.HandleFunc("POST /api/home/art/styles/preview", s.handleArtStylePreview)     // Usherr
+	admin.HandleFunc("GET /api/home/art/samples", s.handleArtSamples)                  // Usherr
+	admin.HandleFunc("GET /api/home/art/changes/{id}/look", s.handleArtChangeLook)     // Usherr
+	admin.HandleFunc("POST /api/home/art/title/style", s.handleArtTitleStyle)          // Usherr
+	admin.HandleFunc("POST /api/home/art/overlays", s.handleArtOverlayAdd)             // Usherr: Re-Posterr's overlays, own pictures, TheTVDB, Posterizarr
+	admin.HandleFunc("GET /api/home/art/overlays/{name}", s.handleArtOverlayGet)       // Usherr
+	admin.HandleFunc("DELETE /api/home/art/overlays/{name}", s.handleArtOverlayDelete) // Usherr
+	admin.HandleFunc("POST /api/home/art/upload", s.handleArtUpload)                   // Usherr
+	admin.HandleFunc("GET /api/home/art/uploads/{name}", s.handleArtUploadGet)         // Usherr
+	admin.HandleFunc("POST /api/home/art/test-tvdb", s.handleArtTestTVDB)              // Usherr
+	admin.HandleFunc("GET /api/home/drive", s.handleDrive)                             // Usherr: the virtual drive, for Plex
+	admin.HandleFunc("PUT /api/home/drive", s.handlePutDrive)
+	admin.HandleFunc("POST /api/home/drive/prepare", s.handleDrivePrepare)
 	admin.HandleFunc("POST /api/home/art/test-posterizarr", s.handleArtTestPosterizarr) // Usherr
 	member.HandleFunc("GET /api/home/art/poster/{id}", s.handleArtPoster)               // Usherr: Re-Posterr's posters on Usherr's pages
 	admin.HandleFunc("PUT /api/home/preshow/jellyfin", s.handlePutPreshowJF)

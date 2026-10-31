@@ -531,3 +531,16 @@ a.score-chip:hover { border-color: var(--accent, #2dd4bf); }
 /* a long label (Russian "Недавно добавленные") shortens with "…" on a phone instead of pushing the page wider */
 .shelves-bar .dropdown { min-width: 0; max-width: 100%; }
 .shelves-bar .dropdown-btn { max-width: 100%; }
+
+/* Usherr: the virtual drive card (DriveCard.tsx) */
+.drive-stat { margin: 10px 0; }
+.drive-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0; }
+.drive-h { margin: 16px 0 6px; font-size: 1rem; }
+.drive-steps { margin: 0 0 8px; padding-left: 20px; display: grid; gap: 8px; }
+.drive-line { display: flex; gap: 6px; align-items: flex-start; margin-top: 4px; }
+.drive-line code { flex: 1; min-width: 0; padding: 6px 8px; border-radius: 6px; background: var(--surface-2); font-size: 0.8rem; word-break: break-all; }
+.drive-rc { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.drive-rc input { flex: 1; min-width: 180px; max-width: 360px; font-family: var(--font-mono, monospace); }
+.drive-check { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
+.drive-check input { flex: none; width: auto; margin: 4px 0 0; }
+.drive-sub { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 6px; }

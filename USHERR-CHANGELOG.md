@@ -5,6 +5,51 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.25.0] - 2026-10-31
+
+### Added
+
+- **Virtual drive: Plex has new titles within minutes**: when a film or episode comes onto the drive, Usherr asks Plex (and any media server with a library on the drive) to look at just that title's folder, instead of waiting for Plex's next scan. It never starts a whole-library scan, which would read the drive end to end. *Where Plex sees the drive* on the card (`U:` to start with) says where it is mounted; a Windows letter there also goes into the mount commands.
+
+### Fixed
+
+- **Plex sign-in**: a server you just added now shows *Added* in the list instead of a second *Add* button.
+- **Virtual drive card**: the optional sign-in box lines up with its text.
+
+## [2.24.4] - 2026-10-31
+
+### Added
+
+- **Virtual drive, mount at sign-in (optional)**: the drive card can give you `usherr-drive.cmd` for your Windows Startup folder, which mounts the drive each time you sign in once Usherr answers, with a clear warning that it installs a startup item. A *Where rclone is* box puts rclone's full path into every command, for when rclone isn't on the PATH. The Plex walkthrough asks whether you want it.
+
+### Fixed
+
+- **Virtual drive, Plex advice**: the settings to change are Plex's server-wide ones (Settings → Library and Scheduled Tasks), including untick *Empty trash automatically*, so a moment without the drive doesn't empty its titles; intro and credits detection needs Plex Pass.
+
+## [2.24.3] - 2026-10-31
+
+### Fixed
+
+- **Virtual drive**: Movies, TV and Anime are always on the drive, even before their first film or episode is ready, so Plex can be given all three straight away.
+
+## [2.24.2] - 2026-10-31
+
+### Fixed
+
+- **Virtual drive**: its address (/dav/) answered with Usherr's web page instead of the drive, so rclone couldn't open it.
+
+## [2.24.1] - 2026-10-31
+
+### Fixed
+
+- **Virtual drive**: it no longer spends a search on a film from a later year, which isn't out yet (it already skipped episodes that haven't aired).
+
+## [2.24.0] - 2026-10-31
+
+### Added
+
+- **Virtual drive (for Plex)**: Plex can't play the Streams library's pointer files, so Usherr now also serves streamed films and shows as a read-only drive of ordinary video files (WebDAV), played straight from Usenet, which rclone mounts on the computer that runs Plex (with WinFsp on Windows; both free, installed by you from their own sites). It's on by itself when Plex is the media server. A file is on the drive once its release is known: anything played is kept at once, the rest are looked for a few a day within a daily number of searches, never in a burst. The drive has its own read-only sign-in. Settings → Extras → Virtual drive has the exact rclone commands; Show me how has *Set up Plex with the virtual drive*; the setup wizard and the Start page ask Jellyfin or Plex; *Something not right?* checks the drive.
+
 ## [2.23.0] - 2026-10-31
 
 ### Added

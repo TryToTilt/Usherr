@@ -159,6 +159,7 @@ export function PlexSignIn({ onAdded }: { onAdded: () => void }) {
     try {
       await api.plexPinAdd(pin.pinId, s.machineIdentifier)
       toast.success(t('{name} added. New downloads will show up in {server} on their own.', { name: s.name, server: 'Plex' }))
+      setServers((list) => list?.map((x) => (x.machineIdentifier === s.machineIdentifier ? { ...x, alreadyAdded: true } : x)) ?? list)
       onAdded()
     } catch (e) {
       toast.error(errText(e))

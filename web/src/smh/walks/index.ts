@@ -9,6 +9,7 @@ import { betterCopy, importLibrary, moveTitle, restylePosters, subtitles, tags, 
 import { getBook, importMusic, listenAudiobook, makePlaylist, playMusic, readEbook } from './listen'
 import { addArtist, connectJellyfin, downloadClients, importLists, naming } from './more'
 import { followTeam, makeChannel, marquee, marqueeRemote, playOnTv, watchLiveTv } from './night'
+import { plexDrive } from './plex'
 import { kidsRequests, notices, stremioAddon } from './people'
 import { setUpPreshow } from './preshow'
 import { ebookToAudiobook } from './readtome'
@@ -71,6 +72,7 @@ export const WALKS: Walkthrough[] = [
   backups,
   migrate,
   connectJellyfin,
+  plexDrive,
   downloadClients,
   naming,
   importLists,

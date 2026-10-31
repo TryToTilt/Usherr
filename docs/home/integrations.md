@@ -144,6 +144,73 @@ later download plays from disk instead.
 
 ![The Streamed library card](images/extras-streamed.png)
 
+## Virtual drive (for Plex)
+
+**Optional, for Plex.** Plex can't play the Streams library's pointer files.
+The virtual drive puts the same streamed films and shows on a drive of
+ordinary video files that Plex (or Jellyfin) reads like any folder; a file is
+played straight from Usenet, only the part being watched. Usherr serves the
+drive (WebDAV, read only); **rclone** mounts it on the computer that runs
+Plex, with **WinFsp** on Windows. Both are free and come from their own
+websites: Usherr doesn't install anything on your computer.
+
+- **It's on by itself** when Plex is your media server and Jellyfin and Emby
+  aren't. Otherwise switch it on in **Settings → Extras → Virtual drive (for
+  Plex)**.
+- **What's on the drive.** A drive needs each file's size before it's played,
+  so a streamed film or episode appears once Usherr knows its release. Anything
+  someone plays (in Usherr, Jellyfin or the add-on) is kept at once, at no
+  cost; the rest are looked for one at a time, a few a day (**Searches a day**,
+  30 to start with, never more than one every ten minutes), so your indexers'
+  daily limits are never spent in one go. **Get one ready now** looks for one
+  more straight away. A release that disappears from Usenet leaves the drive
+  until another is found.
+- **Its own sign-in.** The drive has its own user (`usherr`) and password,
+  shown on the card. It only opens the drive, and only to read; it is never a
+  person's account. **New password** makes another (then run rclone's setup
+  command again).
+- **Mount it** (the card has the exact commands, with your address and password
+  filled in):
+  1. Install [WinFsp](https://winfsp.dev/rel/) and [rclone](https://rclone.org/downloads/)
+     (on Linux, rclone alone).
+  2. Tell rclone about the drive, once:
+     `rclone config create usherr webdav url=http://<Usherr's address>:8264/dav/ vendor=other user=usherr pass=<the drive's password> --obscure`
+  3. Mount it, on Windows as drive U: (any free letter):
+     `rclone mount usherr: U: --read-only --vfs-cache-mode off --dir-cache-time 1m --network-mode`
+     If rclone isn't on your PATH, put the full path to `rclone.exe` in the
+     card's **Where rclone is** box: the commands use it.
+  4. **Optional, Windows: mount it at sign-in.** Tick the box under the
+     commands to download `usherr-drive.cmd`, then move it into your Startup
+     folder (Windows+R, `shell:startup`). **This installs a startup item**: it
+     runs every time you sign in, waits until Usherr answers, then mounts the
+     drive with its window hidden. It holds no password (rclone keeps it).
+     Delete the file from that folder to stop it.
+  5. In Plex, add `U:\Movies` to a Movies library and `U:\TV` (and `U:\Anime`)
+     to a TV library.
+- **Keep Plex light.** These are Plex settings for the whole server. In
+  **Settings → Library**, set video preview thumbnails, chapter thumbnails
+  and voice activity data to *never*: each would read whole films from
+  Usenet. Turn on **Scan my library periodically** (Windows doesn't tell
+  Plex about new files on the drive), and untick **Empty trash automatically
+  after every scan**, so a moment without the drive (its window closed,
+  Usherr restarting) doesn't empty its titles from Plex. In **Scheduled
+  Tasks**, untick **Perform extensive media analysis during maintenance**.
+  Intro and credits detection is only offered with Plex Pass.
+- **Plex has new titles within minutes.** When a title comes onto the drive,
+  Usherr asks each connected media server with a library on the drive to look
+  at just that title's folder (never a whole library). For that it needs to
+  know where the drive is mounted on the Plex computer: **Where Plex sees the
+  drive** on the card, `U:` to start with (or a folder such as `/mnt/usherr`
+  on Linux). A Windows letter there is also the one the commands mount.
+- **Check:** the card counts the films and episodes ready, and says when
+  something last read the drive. **Something not right?** in Show me how warns
+  when nothing has read it for two days.
+
+**Show me how → Set up Plex with the virtual drive** walks you through all of
+this. WinFsp is Windows File System Proxy, copyright Bill Zissimopoulos
+([github.com/winfsp/winfsp](https://github.com/winfsp/winfsp)); rclone is by
+Nick Craig-Wood and its contributors ([rclone.org](https://rclone.org)).
+
 ## Live TV
 
 **Optional.** Scheduled channels made from your library, from streams, from

@@ -371,6 +371,27 @@ func (s *Server) collectHealth() []healthItem {
 			"See what failed", "/queue")
 	}
 
+	// Usherr: the virtual drive (home_drive.go), when it's on.
+	if s.driveOn() {
+		if s.mediariumAddress(keyHomeAddress) == "" {
+			addHealth("drive-no-address", "warn", "The virtual drive has no address",
+				"rclone needs Usherr's address on your network to mount the drive. Set it in the first card of Extras.",
+				"Set the address", "/settings/extras")
+		}
+		if last := driveLastRead.Load(); last == 0 || time.Since(time.UnixMilli(last)) > 48*time.Hour {
+			addHealth("drive-not-read", "info", "Nothing has read the virtual drive lately",
+				"If Plex should be using it, rclone may not be running: the drive needs to be mounted on the computer that runs Plex.",
+				"See the drive", "/settings/extras#virtual-drive")
+		}
+		var dead int
+		_ = s.db.QueryRow(`SELECT COUNT(*) FROM streamed_files WHERE health = 'dead'`).Scan(&dead)
+		if dead > 0 {
+			addHealth("drive-dead", "info", fmt.Sprintf("%d streamed files are waiting for a new release", dead),
+				"Their releases disappeared from Usenet, so they're off the virtual drive until the drive's search finds new ones, a few a day.",
+				"See the drive", "/settings/extras#virtual-drive")
+		}
+	}
+
 	items = append(items, s.mediaServerHealth()...)
 
 	sort.SliceStable(items, func(i, j int) bool { return healthRank[items[i].Level] < healthRank[items[j].Level] })

@@ -407,6 +407,9 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/discover/season` | any account | GET /api/home/discover/season: the season's rail now ({"key": ""} when none). |
 | GET | `/api/home/discover/watched-seeds` | any account | GET /api/home/discover/watched-seeds?kind=&who=: the titles the rail is built from, most recent first ("Because you watched The Bear, Severance…"). |
 | GET | `/api/home/discover/why` | any account | GET /api/home/discover/why?kind=&who=: for each "Because you watched" suggestion, the watched titles that led to it (up to two). |
+| GET | `/api/home/drive` | admin | GET /api/home/drive (administrators): the drive's state, address and sign-in. |
+| PUT | `/api/home/drive` | admin | PUT /api/home/drive {"on","budget","where","newPassword"}. |
+| POST | `/api/home/drive/prepare` | admin | POST /api/home/drive/prepare: get one more title ready now (it counts against the day's searches). |
 | GET | `/api/home/extras` | admin | GET /api/home/extras |
 | PUT | `/api/home/extras` | admin | PUT /api/home/extras: only what is sent changes. |
 | POST | `/api/home/extras/test/{what}` | admin | POST /api/home/extras/test/{what}: address, streaming or tv. |
@@ -1354,4 +1357,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-944 routes.
+947 routes.

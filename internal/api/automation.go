@@ -107,6 +107,7 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		// media-info reads the video, audio and subtitle tracks of the library's files, a few minutes at a time.
 		automation.Job{Name: "media-info", Interval: mediaInfoInterval, Run: s.heavy(s.mediaInfoJob)},
 		automation.Job{Name: "subtitle-sweep", Interval: subtitleSweepInterval, Run: s.heavy(s.subtitleSweepJob)},
+		automation.Job{Name: "drive-prep", Interval: driveEvery, Run: s.driveJob}, // Usherr: the virtual drive, one title at a time within the day's budget
 	)
 	// The first minute belongs to the pages: the loops start once the app has
 	// had time to answer its first requests, and then one after the other, so

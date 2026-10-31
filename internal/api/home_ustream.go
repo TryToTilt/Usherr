@@ -35,6 +35,7 @@ import (
 type ustreamSession struct {
 	file    *download.StreamFile
 	release string
+	nzb     []byte // the release's NZB, kept so a working release can be remembered (the virtual drive)
 	last    time.Time
 }
 
@@ -407,36 +408,46 @@ func (s *Server) ustreamEpisode(ctx context.Context, show string, season, episod
 // ustreamOpen fetches a release's NZB, checks its articles are there and
 // opens the video in it.
 func (s *Server) ustreamOpen(ctx context.Context, servers []download.ClientConfig, r indexers.Result) (string, error) {
-	if s.nzbBad(r.DownloadURL) { // its articles were gone today: not fetched again
-		return "", fmt.Errorf("articles missing (found earlier today)")
-	}
-	data, err := s.fetchRelease(ctx, r.DownloadURL)
-	if err != nil {
-		return "", err
-	}
-	if err := notAnNZB(data, r.DownloadURL); err != nil {
-		return "", err
-	}
-	nzb, err := download.ParseNZB(data)
-	if err != nil {
-		return "", err
-	}
-	if res := download.Precheck(ctx, servers, nzb, download.PrecheckOptions{Timeout: 20 * time.Second}); res.Hopeless() {
-		s.markNZBBad(r.DownloadURL)
-		return "", fmt.Errorf("articles missing: %s", res.Summary())
-	}
-	octx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
-	f, err := download.OpenStream(octx, servers, nzb)
+	data, f, err := s.ustreamFetch(ctx, servers, r)
 	if err != nil {
 		return "", err
 	}
 	token := randomID("us_")
 	ustreamMu.Lock()
-	ustreamSessions[token] = &ustreamSession{file: f, release: r.Title, last: time.Now()}
+	ustreamSessions[token] = &ustreamSession{file: f, release: r.Title, nzb: data, last: time.Now()}
 	ustreamMu.Unlock()
 	slog.Info("ustream: opened", "release", r.Title, "file", f.Name, "size", strconv.FormatInt(f.Size>>20, 10)+" MB")
 	return s.ustreamURL(token, f.Name), nil
+}
+
+// ustreamFetch fetches a release's NZB, checks its articles are there and
+// opens the video in it: the NZB and the video, without a session.
+func (s *Server) ustreamFetch(ctx context.Context, servers []download.ClientConfig, r indexers.Result) ([]byte, *download.StreamFile, error) {
+	if s.nzbBad(r.DownloadURL) { // its articles were gone today: not fetched again
+		return nil, nil, fmt.Errorf("articles missing (found earlier today)")
+	}
+	data, err := s.fetchRelease(ctx, r.DownloadURL)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := notAnNZB(data, r.DownloadURL); err != nil {
+		return nil, nil, err
+	}
+	nzb, err := download.ParseNZB(data)
+	if err != nil {
+		return nil, nil, err
+	}
+	if res := download.Precheck(ctx, servers, nzb, download.PrecheckOptions{Timeout: 20 * time.Second}); res.Hopeless() {
+		s.markNZBBad(r.DownloadURL)
+		return nil, nil, fmt.Errorf("articles missing: %s", res.Summary())
+	}
+	octx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	f, err := download.OpenStream(octx, servers, nzb)
+	if err != nil {
+		return nil, nil, err
+	}
+	return data, f, nil
 }
 
 // tvStreamOwn finds a streamed episode with Usherr's own engine: by its air

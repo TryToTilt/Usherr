@@ -27,6 +27,7 @@ const PARTS: { key: string; label: () => string; has: (id: string) => boolean }[
   { key: 'downloads', label: () => t('Downloads lately'), has: (id) => id === 'recent-failures' },
   { key: 'subtitles', label: () => t('Subtitles'), has: (id) => id.includes('subtitles') },
   { key: 'lists', label: () => t('Lists and tracking'), has: (id) => /^(trakt|simkl)/.test(id) },
+  { key: 'drive', label: () => t('Virtual drive (Plex)'), has: (id) => id.startsWith('drive-') },
 ]
 
 // The walkthrough that helps with a problem, when there is one.
@@ -36,6 +37,7 @@ function walkFor(id: string): string | null {
   if (/^(no-vpn|vpn-down|vpn-required)/.test(id)) return 'vpn'
   if (id === 'recent-failures') return 'why-failed'
   if (id.includes('subtitles')) return 'subtitles'
+  if (id.startsWith('drive-')) return 'plex-drive'
   return null
 }
 
