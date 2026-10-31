@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.28.0] - 2026-10-31
+
+### Added
+
+- **Virtual drive: Usherr adds its libraries to Plex**: with Plex connected, *Add them to Plex for me* on the drive card makes Movies-Stream, TV-Stream and Anime-Stream in Plex, with Plex's own settings for films and shows. A drive folder already in one of your libraries is left as it is.
+
 ## [2.27.3] - 2026-10-31
 
 ### Fixed

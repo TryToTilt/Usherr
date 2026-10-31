@@ -27,6 +27,11 @@ interface DriveStatus {
   usedToday: number
   lastRead?: number
   where: string
+  plexOn: boolean
+}
+
+interface PlexLibrariesResult {
+  servers: { server: string; added: string[]; already: string[]; error?: string }[]
 }
 
 async function call<T>(method: string, body?: unknown, path = '/api/home/drive'): Promise<T> {
@@ -103,6 +108,8 @@ export default function DriveCard() {
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
   const [auto, setAuto] = useState(false)
+  const [libsBusy, setLibsBusy] = useState(false)
+  const [libsNote, setLibsNote] = useState('')
   const [rc, setRc] = useState(() => {
     try {
       return localStorage.getItem(RCLONE_KEY) || 'rclone'
@@ -147,6 +154,27 @@ export default function DriveCard() {
   // The drive letter the commands mount it as follows where Plex sees it.
   const letter = /^[A-Za-z]:$/.test(st.where) ? st.where.toUpperCase() : 'U:'
   const cmd = mountCommands(st, exe, letter)
+  // Usherr makes the drive's libraries in Plex (those it doesn't have yet).
+  const addToPlex = () => {
+    setLibsBusy(true)
+    setLibsNote('')
+    call<PlexLibrariesResult>('POST', undefined, '/api/home/drive/plex')
+      .then((r) =>
+        setLibsNote(
+          r.servers
+            .map((x) =>
+              x.error
+                ? t('{server}: {error}', { server: x.server, error: x.error })
+                : x.added.length
+                  ? t('{server}: added {list}. Plex is reading them now.', { server: x.server, list: x.added.join(', ') })
+                  : t('{server} already has them.', { server: x.server }),
+            )
+            .join(' '),
+        ),
+      )
+      .catch((e: Error) => setLibsNote(e.message))
+      .finally(() => setLibsBusy(false))
+  }
   const state = st.on ? (st.ready > 0 ? 'ready' : 'setup') : 'off'
   return (
     <section id="virtual-drive" className={`card service-card ${state === 'ready' ? 'is-included' : 'is-optional'}`} data-walk="drive-card">
@@ -240,7 +268,18 @@ export default function DriveCard() {
                 </>
               )}
             </li>
-            <li>{t('In Plex, add {letter}\\Movies to a Movies library and {letter}\\TV (and {letter}\\Anime) to a TV library.', { letter })}</li>
+            <li data-walk="drive-plex-libraries">
+              {t('In Plex, add {letter}\\Movies to a Movies library and {letter}\\TV (and {letter}\\Anime) to a TV library.', { letter })}
+              {st.plexOn && (
+                <div className="drive-row">
+                  <button type="button" className="btn-sm primary" disabled={libsBusy} onClick={addToPlex}>
+                    <Icon name="server" size={14} /> {libsBusy ? t('Adding…') : t('Add them to Plex for me')}
+                  </button>
+                  <InfoTip text={t('Usherr makes Movies-Stream, TV-Stream and Anime-Stream in Plex, with Plex’s own settings for films and shows. A folder already in one of your libraries is left as it is. Mount the drive first, so Plex can see the folders.')} />
+                </div>
+              )}
+              {libsNote && <p className="hint">{libsNote}</p>}
+            </li>
           </ol>
           <p className="hint" data-walk="drive-plex-tip">
             <Icon name="info" size={13} /> {t('In Plex, Settings, Library: set video preview thumbnails, chapter thumbnails and voice activity data to never, scan periodically (Windows doesn’t tell Plex about new files on the drive), and untick Empty trash automatically, so a moment without the drive doesn’t empty its titles. In Scheduled Tasks, untick extensive media analysis. Each of these would read whole films from Usenet. Show me how, Set up Plex with the virtual drive, walks you through it.')}

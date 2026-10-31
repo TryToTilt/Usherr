@@ -192,7 +192,10 @@ websites: Usherr doesn't install anything on your computer.
      runs every time you sign in, waits until Usherr answers, then mounts the
      drive with its window hidden. It holds no password (rclone keeps it).
      Delete the file from that folder to stop it.
-  5. In Plex, add `U:\Movies` to a Movies library and `U:\TV` (and `U:\Anime`)
+  5. With Plex connected to Usherr (**Settings → Media servers**), press **Add
+     them to Plex for me** on the card: Usherr makes **Movies-Stream**,
+     **TV-Stream** and **Anime-Stream** (a folder already in one of your
+     libraries is left as it is). Or, by hand: in Plex, add `U:\Movies` to a Movies library and `U:\TV` (and `U:\Anime`)
      to a TV library.
 - **Keep Plex light.** These are Plex settings for the whole server. In
   **Settings → Library**, set video preview thumbnails, chapter thumbnails

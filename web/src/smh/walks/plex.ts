@@ -82,7 +82,7 @@ export const plexDrive: Walkthrough = {
     {
       kind: 'say',
       title: t('Add it to Plex, the light way'),
-      text: t('In Plex, add U:\\Movies to a Movies library and U:\\TV and U:\\Anime to a TV library. In Plex, Settings, Library: set video preview thumbnails, chapter thumbnails and voice activity data to never, scan periodically (Windows doesn’t tell Plex about new files on the drive), and untick Empty trash automatically, so a moment without the drive doesn’t empty its titles. In Scheduled Tasks, untick extensive media analysis. Each of these would read whole films from Usenet.'),
+      text: t('With Plex connected to Usherr (Settings, Media servers), press Add them to Plex for me on the card: Usherr makes Movies-Stream, TV-Stream and Anime-Stream. Or add U:\\Movies to a Movies library and U:\\TV and U:\\Anime to a TV library yourself. In Plex, Settings, Library: set video preview thumbnails, chapter thumbnails and voice activity data to never, scan periodically, and untick Empty trash automatically. In Scheduled Tasks, untick extensive media analysis. Each of these would read whole films from Usenet.'),
     },
     {
       kind: 'done',

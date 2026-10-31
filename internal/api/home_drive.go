@@ -449,6 +449,7 @@ type driveStatus struct {
 	UsedToday int    `json:"usedToday"`
 	LastRead  int64  `json:"lastRead,omitempty"` // ms: the last time anything read the drive
 	Where     string `json:"where"`              // where the media server's computer has it mounted
+	PlexOn    bool   `json:"plexOn"`             // a Plex server is connected
 }
 
 func (s *Server) driveStatus(ctx context.Context) driveStatus {
@@ -466,6 +467,7 @@ func (s *Server) driveStatus(ctx context.Context) driveStatus {
 		COALESCE(SUM(health = 'dead'), 0) FROM streamed_files`).Scan(&st.Ready, &st.Waiting, &st.Dead)
 	st.LastRead = driveLastRead.Load()
 	st.Where = s.driveWhere()
+	st.PlexOn = len(s.plexServers()) > 0
 	return st
 }
 
@@ -555,4 +557,58 @@ func (s *Server) handleDrivePrepare(w http.ResponseWriter, r *http.Request) {
 		out["error"] = err.Error()
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// driveLibraries are the libraries the drive's folders go into in Plex.
+var driveLibraries = []struct{ name, kind, folder string }{
+	{"Movies-Stream", "movie", "/Movies"},
+	{"TV-Stream", "show", "/TV"},
+	{"Anime-Stream", "show", "/Anime"},
+}
+
+// POST /api/home/drive/plex: adds the drive's libraries to each connected
+// Plex server that doesn't have them yet (a folder already in a library of
+// the right kind counts as there), so nobody has to make them by hand.
+func (s *Server) handleDrivePlexLibraries(w http.ResponseWriter, r *http.Request) {
+	if !s.driveOn() {
+		writeError(w, http.StatusConflict, "The virtual drive is off (Settings, Extras, Virtual drive).")
+		return
+	}
+	servers := s.plexServers()
+	if len(servers) == 0 {
+		writeError(w, http.StatusConflict, "Connect Plex first, under Settings, Media servers.")
+		return
+	}
+	type result struct {
+		Server  string   `json:"server"`
+		Added   []string `json:"added"`
+		Already []string `json:"already"`
+		Error   string   `json:"error,omitempty"`
+	}
+	where := s.driveWhere()
+	var out []result
+	for _, srv := range servers {
+		res := result{Server: srv.Name, Added: []string{}, Already: []string{}}
+		libs, err := s.mediaClient.PlexLibraries(r.Context(), srv)
+		plexAnswered(srv.ID, err)
+		if err != nil {
+			res.Error = err.Error()
+			out = append(out, res)
+			continue
+		}
+		for _, l := range driveLibraries {
+			folder := driveServerFolder(where, l.folder)
+			if have, ok := mediaservers.PlexLibraryFor(libs, l.kind, folder); ok {
+				res.Already = append(res.Already, have.Title)
+				continue
+			}
+			if err := s.mediaClient.PlexAddLibrary(r.Context(), srv, l.name, l.kind, []string{folder}); err != nil {
+				res.Error = err.Error()
+				break
+			}
+			res.Added = append(res.Added, l.name)
+		}
+		out = append(out, res)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"servers": out})
 }

@@ -409,6 +409,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/discover/why` | any account | GET /api/home/discover/why?kind=&who=: for each "Because you watched" suggestion, the watched titles that led to it (up to two). |
 | GET | `/api/home/drive` | admin | GET /api/home/drive (administrators): the drive's state, address and sign-in. |
 | PUT | `/api/home/drive` | admin | PUT /api/home/drive {"on","budget","where","newPassword"}. |
+| POST | `/api/home/drive/plex` | admin | POST /api/home/drive/plex: adds the drive's libraries to each connected Plex server that doesn't have them yet (a folder already in a library of the right ki... |
 | POST | `/api/home/drive/prepare` | admin | POST /api/home/drive/prepare: get one more title ready now (it counts against the day's searches). |
 | POST | `/api/home/drive/title/{id}` | admin | POST /api/home/drive/title/{id}: put a streamed title on the drive right away (the film, or a show's newest season), within today's searches. |
 | GET | `/api/home/extras` | admin | GET /api/home/extras |
@@ -1358,4 +1359,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-948 routes.
+949 routes.

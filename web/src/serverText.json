@@ -305,6 +305,7 @@
  "Connect Jellyfin or Emby under Settings > Connections > Media servers first.",
  "Connect Jellyfin or Emby under Settings > Connections > Media servers to play files this browser can't decode.",
  "Connect Jellyfin under Settings > Connections > Media servers first.",
+ "Connect Plex first, under Settings, Media servers.",
  "Connect Simkl",
  "Connect at least one app to import from (Radarr, Sonarr, Prowlarr, SABnzbd, NZBGet, Jackett, NZBHydra, Overseerr, Ombi, Bazarr, Medusa or SickChill).",
  "Connect your ListenBrainz account first.",
