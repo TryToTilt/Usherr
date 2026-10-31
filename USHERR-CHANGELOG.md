@@ -5,8 +5,11 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-10-31
+
 ### Added
 
+- **Show Me How**: a button in the top bar opens a menu of things you can do, grouped (Watch, Movie night, Listen, Read, My library, Setup) with a search. Each one walks you through it on the real screens, in **Simple** (a few questions, then Usherr presses the buttons for you while you watch; **Let me do it** hands over) or **Advanced** (every option, explained). A coach card lights up each button and never blocks the page; choices come with a decision card (the options, their good and bad sides, what we recommend, and whether you can change it later), and keys are tested as you paste them. A walkthrough can be paused and carried on later. The first ones: book a showtime, set up a pre-show, read a comic (panels or page turn), read a story arc in order, this week's new comics, the comics Review tab, set up comics, turn an ebook into an audiobook, and complete a film series.
 - A Start page (https://trytotilt.github.io/Usherr/start/): six steps on Windows from nothing to Usherr and Jellyfin running, each with what you'll see, how to tell it worked and the usual fixes. It writes your compose.yaml from a few answers, in the browser; nothing is sent anywhere.
 
 ## [2.10.0] - 2026-10-30

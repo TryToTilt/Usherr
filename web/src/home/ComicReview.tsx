@@ -52,7 +52,7 @@ export default function ComicReviewList({ onCount }: { onCount?: (n: number) => 
       {error && <p className="error-text">{error}</p>}
       {groups.size === 0 && <p className="hint">{t('Nothing to review.')}</p>}
       {[...groups.values()].map((rs) => (
-        <section key={rs[0].issueId} className="card cx-review-issue">
+        <section key={rs[0].issueId} className="card cx-review-issue" data-walk="cx-review-issue">
           <h3>
             <Link to={`/comics/${rs[0].seriesId}`}>{rs[0].series}</Link> #{rs[0].number}
             {rs[0].issueTitle && <span className="hint"> · {rs[0].issueTitle}</span>}
@@ -67,7 +67,7 @@ export default function ComicReviewList({ onCount }: { onCount?: (n: number) => 
                     {r.indexer} · {size(r.sizeBytes)} {r.notes?.length ? `· ${r.notes.join(' · ')}` : ''}
                   </span>
                 </div>
-                <div className="cx-review-actions">
+                <div className="cx-review-actions" data-walk="cx-review-actions">
                   <button className="btn-sm primary" disabled={busy === r.id} onClick={() => act(r, true)}>
                     <Icon name="download" size={14} /> {t('Get')}
                   </button>

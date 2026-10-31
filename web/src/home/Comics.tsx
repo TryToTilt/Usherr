@@ -104,22 +104,22 @@ export default function Comics() {
         <LibraryTabs current="comics" />
         <HelpLink topic="home-watching#comics" />
         <div className="seg cx-subtabs" role="tablist" aria-label={t('Comics')}>
-          <button role="tab" aria-selected={tab === 'library'} className={tab === 'library' ? 'active' : ''} onClick={() => setTab('library')} disabled={!enabled}>
+          <button role="tab" data-walk="cx-tab-library" aria-selected={tab === 'library'} className={tab === 'library' ? 'active' : ''} onClick={() => setTab('library')} disabled={!enabled}>
             {t('Library')}
           </button>
-          <button role="tab" aria-selected={tab === 'week'} className={tab === 'week' ? 'active' : ''} onClick={() => setTab('week')} disabled={!enabled || (admin && !settings?.keySet)}>
+          <button role="tab" data-walk="cx-tab-week" aria-selected={tab === 'week'} className={tab === 'week' ? 'active' : ''} onClick={() => setTab('week')} disabled={!enabled || (admin && !settings?.keySet)}>
             {t('This week')}
           </button>
-          <button role="tab" aria-selected={tab === 'arcs'} className={tab === 'arcs' ? 'active' : ''} onClick={() => setTab('arcs')} disabled={!enabled || (admin && !settings?.keySet)}>
+          <button role="tab" data-walk="cx-tab-arcs" aria-selected={tab === 'arcs'} className={tab === 'arcs' ? 'active' : ''} onClick={() => setTab('arcs')} disabled={!enabled || (admin && !settings?.keySet)}>
             {t('Story arcs')}
           </button>
           {(admin || can(user, 'comics')) && ( // home fork: or the comics switch
-            <button role="tab" aria-selected={tab === 'add'} className={tab === 'add' ? 'active' : ''} onClick={() => setTab('add')} disabled={!enabled || (admin && !settings?.keySet)}>
+            <button role="tab" data-walk="cx-tab-add" aria-selected={tab === 'add'} className={tab === 'add' ? 'active' : ''} onClick={() => setTab('add')} disabled={!enabled || (admin && !settings?.keySet)}>
               {t('Add')}
             </button>
           )}
           {admin && (
-            <button role="tab" aria-selected={tab === 'review'} className={tab === 'review' ? 'active' : ''} onClick={() => setTab('review')} disabled={!enabled}>
+            <button role="tab" data-walk="cx-tab-review" aria-selected={tab === 'review'} className={tab === 'review' ? 'active' : ''} onClick={() => setTab('review')} disabled={!enabled}>
               {t('Review')}{reviewCount > 0 ? ` (${reviewCount})` : ''}
             </button>
           )}
@@ -129,7 +129,7 @@ export default function Comics() {
             </button>
           )}
         </div>
-        {tab === 'library' && enabled && <input type="search" value={libText} onChange={(e) => setLibText(e.target.value)} placeholder={t('Find a series or publisher')} aria-label={t('Find a series')} />}
+        {tab === 'library' && enabled && <input type="search" data-walk="cx-lib-search" value={libText} onChange={(e) => setLibText(e.target.value)} placeholder={t('Find a series or publisher')} aria-label={t('Find a series')} />}
       </div>
       </PullDrawer>
       {tab === 'library' && enabled && <ComicLibrary text={libText} onAdd={admin || can(user, 'comics') ? () => setTab('add') : undefined} />}
@@ -596,7 +596,7 @@ export function ComicSeriesPage() {
               <td className="cx-row-actions">
                 {i.status === 'downloaded' && (
                   <>
-                    <button className="btn-sm primary" onClick={() => setReading(i)} aria-label={t('Read issue {n}', { n: i.number })}>
+                    <button className="btn-sm primary" data-walk="cx-read" onClick={() => setReading(i)} aria-label={t('Read issue {n}', { n: i.number })}>
                       <Icon name="book" size={14} /> {t('Read')}
                     </button>
                     <a className="btn-sm" href={comicsApi.fileUrl(i.id)} target="_blank" rel="noreferrer" aria-label={t('Download issue {n}', { n: i.number })}>
@@ -884,8 +884,8 @@ export function ComicReader({ issue, onClose }: { issue: ComicIssue; onClose: ()
   }, [go, onClose])
 
   return createPortal(
-    <div className="cx-reader" role="dialog" aria-label={info?.title ?? t('Comic reader')}>
-      <div className="cx-reader-bar">
+    <div className="cx-reader" data-walk="cx-reader" role="dialog" aria-label={info?.title ?? t('Comic reader')}>
+      <div className="cx-reader-bar" data-walk="cx-reader-bar">
         <button className="btn-sm" onClick={onClose} aria-label={t('Close the reader')}>
           <Icon name="x" size={16} />
         </button>
@@ -900,12 +900,13 @@ export function ComicReader({ issue, onClose }: { issue: ComicIssue; onClose: ()
           </button>
         )}
         {view !== 'panels' && (
-          <button className="btn-sm" onClick={() => switchView()} title={view === 'flip' ? t('Show one page at a time, with fit to width') : t('Turn pages like a paper comic')}>
+          <button className="btn-sm" data-walk="cx-view-toggle" onClick={() => switchView()} title={view === 'flip' ? t('Show one page at a time, with fit to width') : t('Turn pages like a paper comic')}>
             {view === 'flip' ? t('Slide') : t('Page turn')}
           </button>
         )}
         <button
           className={`btn-sm${view === 'panels' ? ' primary' : ''}`}
+          data-walk="cx-view-panels"
           onClick={() => switchView(view === 'panels' ? 'flip' : 'panels')}
           title={view === 'panels' ? t('Back to whole pages') : t('Read panel by panel (guided view)')}
           aria-pressed={view === 'panels'}

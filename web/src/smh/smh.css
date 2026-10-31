@@ -1,0 +1,83 @@
+/* Usherr: Show Me How. The top bar button, the coach card, the spotlight, decision cards and the menu. */
+
+/* the top bar's button */
+.topbar .top-smh { position: relative; display: inline-flex; align-items: center; gap: 7px; width: auto; height: 40px; padding: 0 14px 0 11px; border-radius: 12px; flex: none; font: inherit; font-size: 0.88rem; font-weight: 700; white-space: nowrap; background: var(--accent-subtle); color: var(--text); }
+:root[data-look='neu'] .topbar button.top-smh { border-radius: 12px; }
+.top-smh-dot { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
+@media (max-width: 760px) { .topbar .top-smh { width: 40px; padding: 0; justify-content: center; } .top-smh-label { display: none; } }
+
+/* the spotlight: a ring round what a step is about; the page stays clickable */
+.smh-spot { position: fixed; z-index: 2090; border-radius: 12px; pointer-events: none; box-shadow: 0 0 0 3px var(--accent), 0 0 0 9999px rgba(5, 7, 14, 0.38), 0 0 26px color-mix(in srgb, var(--accent) 55%, transparent); transition: left .25s ease, top .25s ease, width .25s ease, height .25s ease; }
+.smh-spot.acting { animation: smh-press 1.1s ease-in-out; }
+@keyframes smh-press { 0%, 100% { box-shadow: 0 0 0 3px var(--accent), 0 0 0 9999px rgba(5, 7, 14, 0.38); } 50% { box-shadow: 0 0 0 7px var(--accent), 0 0 0 9999px rgba(5, 7, 14, 0.38), 0 0 40px var(--accent); } }
+
+/* the coach card */
+.smh-coach { position: fixed; z-index: 2100; right: 20px; width: min(380px, calc(100vw - 32px)); max-height: min(70vh, 640px); overflow-y: auto; display: grid; gap: 8px; padding: 14px 16px 12px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5); border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.smh-coach.smh-bottom { bottom: 20px; }
+.smh-coach.smh-top { top: 76px; }
+@media (max-width: 640px) {
+  .smh-coach { left: 8px; right: 8px; width: auto; max-height: 52vh; }
+  .smh-coach.smh-bottom { bottom: calc(8px + env(safe-area-inset-bottom)); }
+  .smh-coach.smh-top { top: 64px; }
+}
+.smh-head { display: flex; align-items: center; gap: 7px; font-size: 0.8rem; color: var(--text-dim); }
+.smh-walk { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--accent); }
+.smh-count { font-family: var(--font-mono); color: var(--text-faint); }
+.smh-x { width: 28px; height: 28px; }
+.smh-bar { height: 3px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.smh-bar i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.smh-coach h2 { margin: 2px 0 0; font-size: 1.12rem; }
+.smh-text { margin: 0; color: var(--text-dim); line-height: 1.5; }
+.smh-note { margin: 0; font-size: 0.88rem; color: var(--warning); }
+.smh-note.bad { color: var(--danger); }
+.smh-busy { margin: 0; font-size: 0.88rem; color: var(--text-dim); font-style: italic; }
+.smh-short { margin: 0; font-size: 0.88rem; padding: 8px 10px; border-radius: 8px; background: var(--accent-subtle); }
+.smh-nav { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.smh-nav .spacer { flex: 1; }
+.smh-watch { font-size: 0.85rem; }
+@media (prefers-reduced-motion: reduce) { .smh-spot, .smh-bar i { transition: none; } .smh-spot.acting { animation: none; } }
+
+/* questions */
+.smh-ask { display: grid; gap: 8px; }
+.smh-ask input[type='search'], .smh-input input { width: 100%; }
+.smh-choices { display: grid; gap: 6px; }
+.smh-choice { display: grid; gap: 2px; text-align: left; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; font: inherit; }
+.smh-choice:hover, .smh-choice:focus-visible { border-color: var(--accent); }
+.smh-choice.rec { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.smh-choice small { color: var(--text-dim); }
+.smh-rec { justify-self: start; font-size: 0.72rem; padding: 0 7px; border-radius: 99px; background: var(--accent-subtle); color: var(--accent); }
+.smh-found { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); }
+.smh-found button { display: grid; gap: 4px; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 0.78rem; text-align: left; cursor: pointer; }
+.smh-found img, .smh-noimg { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 6px; background: var(--surface-2); display: block; }
+.smh-found button:hover img, .smh-found button:focus-visible img { outline: 2px solid var(--accent); outline-offset: 2px; }
+.smh-input { display: grid; gap: 6px; }
+.smh-test { margin: 0; font-size: 0.88rem; }
+.smh-test.ok { color: var(--success); }
+.smh-test.bad { color: var(--danger); }
+
+/* decision cards */
+.smh-card { border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 10px; padding: 10px 12px; background: color-mix(in srgb, var(--accent) 6%, var(--surface)); font-size: 0.86rem; }
+.smh-card-title { font-weight: 700; margin-bottom: 6px; }
+.smh-card dl { margin: 0; display: grid; gap: 8px; }
+.smh-opt dt { font-weight: 600; }
+.smh-opt dd { margin: 2px 0 0; display: grid; gap: 2px; color: var(--text-dim); }
+.smh-opt .good::before { content: '+ '; color: var(--success); font-weight: 700; }
+.smh-opt .bad::before { content: '− '; color: var(--danger); font-weight: 700; }
+.smh-opt .cost { color: var(--text-faint); }
+.smh-card-rec, .smh-card-later { margin: 8px 0 0; display: flex; gap: 6px; align-items: baseline; }
+.smh-card-rec { color: var(--accent); }
+.smh-card-later { color: var(--success); }
+
+/* the menu */
+.smh-menu h2 { display: flex; align-items: center; gap: 8px; }
+.smh-search { width: 100%; margin: 6px 0 4px; font-size: 1rem; }
+.smh-resume { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; background: var(--accent-subtle); margin: 8px 0; }
+.smh-resume span { flex: 1; min-width: 180px; }
+.smh-group h3 { margin: 18px 0 6px; font-size: 0.78rem; letter-spacing: 1px; text-transform: uppercase; color: var(--text-faint); }
+.smh-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; margin: 6px 0; background: var(--surface-2); }
+.smh-item > svg { flex: none; color: var(--accent); }
+.smh-item-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.smh-item-text small { color: var(--text-dim); }
+.smh-did { color: var(--success); font-size: 0.85rem; }
+.smh-item-go { display: flex; gap: 6px; flex: none; }
+@media (max-width: 560px) { .smh-item { flex-wrap: wrap; } .smh-item-go { width: 100%; justify-content: flex-end; } }

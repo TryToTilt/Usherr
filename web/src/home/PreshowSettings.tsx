@@ -417,7 +417,7 @@ export default function PreshowSettings() {
           <li>{t('Clips and trailers take turns, so the same ones don’t come round every night.')}</li>
         </ul>
         <div className="psm-actions">
-          <button type="button" className="primary btn-with-icon" onClick={() => sample(all.activeTheme)} title={t('Plays tonight’s theme here, without a film')}>
+          <button type="button" className="primary btn-with-icon" data-walk="psm-sample" onClick={() => sample(all.activeTheme)} title={t('Plays tonight’s theme here, without a film')}>
             <Icon name="play" size={16} /> {t('Watch a sample')}
           </button>
           <span className="hint">
@@ -425,6 +425,7 @@ export default function PreshowSettings() {
             {all.holidayNow ? ` · ${t('{name} season', { name: all.holidayNow })}` : ''}
           </span>
         </div>
+        <div data-walk="psm-before">
         <Switch
           checked={before}
           onChange={(on) => {
@@ -434,13 +435,14 @@ export default function PreshowSettings() {
           label={t('Also before any film I play in this browser')}
           description={t('Not just a Showtime: pressing Play on a film starts with its pre-show. Skip it any time. A film picked up part-way starts without one.')}
         />
+        </div>
       </section>
 
       <PreshowJellyfin themes={all.themes} />
 
       <PreshowTrailers />
 
-      <section className="card">
+      <section className="card" data-walk="psm-themes">
         <h2>{t('Themes')}</h2>
         <p className="hint">{t('A theme is the pre-show, piece by piece. A Showtime can pick its own; otherwise the schedule below decides, then the default.')}</p>
         <ul className="psm-themes">
@@ -502,7 +504,7 @@ export default function PreshowSettings() {
         )}
       </section>
 
-      <section className="card">
+      <section className="card" data-walk="psm-schedule">
         <h2>{t('When each theme plays')}</h2>
         <p className="hint">{t('Without a schedule, the default theme plays. A holiday beats dates, dates beat days of the week.')}</p>
         {all.schedules.length > 0 && (
@@ -525,7 +527,7 @@ export default function PreshowSettings() {
         <ScheduleForm all={all} onSaved={() => load()} />
       </section>
 
-      <section className="card">
+      <section className="card" data-walk="psm-clips">
         <h2>{t('Clips')}</h2>
         <p className="hint">
           {t('Your own videos: bumpers, sound logos, intermissions, holiday clips. Each category is a folder in {folder}; files you put there show up by themselves.', { folder: all.settings.folder })}
@@ -544,7 +546,7 @@ export default function PreshowSettings() {
             ))}
           </datalist>
           <input ref={file} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" multiple hidden onChange={(e) => void upload(e.target.files)} />
-          <button type="button" className="btn-sm btn-with-icon" disabled={busy} onClick={() => file.current?.click()} title={t('MP4 plays everywhere; several at once is fine')}>
+          <button type="button" className="btn-sm btn-with-icon" data-walk="psm-upload" disabled={busy} onClick={() => file.current?.click()} title={t('MP4 plays everywhere; several at once is fine')}>
             <Icon name="plus" size={14} /> {busy ? t('Uploading…') : t('Upload clips')}
           </button>
           <button type="button" className="btn-sm btn-with-icon" onClick={() => load(true)} title={t('Picks up files copied into the clips folder now (it also looks by itself)')}>
@@ -605,7 +607,7 @@ export default function PreshowSettings() {
       <section className="card">
         <h2>{t('Settings')}</h2>
         <div className="psm-settings">
-          <label className="psm-field">
+          <label className="psm-field" data-walk="psm-theater">
             <span>{t('Your theater’s name')}</span>
             <input type="text" defaultValue={all.settings.theater} maxLength={60} placeholder={t('the theater')} onBlur={(e) => e.target.value !== all.settings.theater && void saveSettings({ theater: e.target.value })} />
             <small className="hint">{t('On the welcome card: “Welcome to …”.')}</small>

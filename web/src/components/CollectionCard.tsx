@@ -41,7 +41,7 @@ export default function CollectionCard({ collection, admin, onChanged }: { colle
 
   const missing = info.parts.filter((p) => !p.libraryId)
   return (
-    <section className="card collection-card" style={{ marginBottom: 24 }}>
+    <section className="card collection-card" data-walk="collection-card" style={{ marginBottom: 24 }}>
       <div className="rail-head">
         <h2>{info.name}</h2>
         <span>{t('{n} of {total} in your library', { n: info.inLibrary, total: info.parts.length })}</span>
@@ -65,7 +65,7 @@ export default function CollectionCard({ collection, admin, onChanged }: { colle
         <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
           {missing.length > 0 && !open && (
             <div>
-              <button className="primary btn-with-icon" onClick={() => setOpen(true)}>
+              <button className="primary btn-with-icon" data-walk="collection-add" onClick={() => setOpen(true)}>
                 <Icon name="plus" size={16} /> {t('Add the whole collection')}
               </button>
               <span className="field-hint" style={{ marginLeft: 12 }}>
@@ -170,10 +170,10 @@ function AddAll({ info, missing, onClose, onDone }: { info: CollectionInfo; miss
   }
 
   return (
-    <div className="notice" style={{ display: 'grid', gap: 12 }}>
+    <div className="notice" data-walk="collection-form" style={{ display: 'grid', gap: 12 }}>
       <strong>{plural(missing, 'Add the one film that is missing', 'Add the {n} films that are missing', { n: missing })}</strong>
       <div className="grid-form">
-        <label>
+        <label data-walk="collection-profile">
           {t('Quality profile')}
           <select value={profileId} onChange={(e) => setProfileId(Number(e.target.value))} disabled={busy}>
             <option value={0}>{defaultProfile ? t('Default ({name})', { name: defaultProfile.name }) : t('Default')}</option>
@@ -196,7 +196,7 @@ function AddAll({ info, missing, onClose, onDone }: { info: CollectionInfo; miss
             </select>
           </label>
         )}
-        <label>
+        <label data-walk="collection-monitor">
           {t('Monitoring')}
           <select value={monitored ? 'yes' : 'no'} onChange={(e) => setMonitored(e.target.value === 'yes')} disabled={busy}>
             <option value="yes">{t('Monitored: search for them and download them')}</option>
@@ -205,10 +205,12 @@ function AddAll({ info, missing, onClose, onDone }: { info: CollectionInfo; miss
         </label>
       </div>
       <Switch checked={searchNow && monitored} onChange={setSearchNow} disabled={busy || !monitored} label={t('Start searching right away')} description={t('Films that are not out yet wait until they are.')} />
+      <div data-walk="collection-follow">
       <Switch checked={follow} onChange={setFollow} disabled={busy} label={t('Also add new films in this collection')} description={t('Films that join the collection later are added with these choices.')} />
+      </div>
       {error && <p className="error-text">{error}</p>}
       <div style={{ display: 'flex', gap: 8 }}>
-        <button className="primary" onClick={() => void submit()} disabled={busy}>
+        <button className="primary" data-walk="collection-go" onClick={() => void submit()} disabled={busy}>
           {busy ? t('Adding…') : plural(missing, 'Add the film', 'Add {n} films', { n: missing })}
         </button>
         <button onClick={onClose} disabled={busy}>

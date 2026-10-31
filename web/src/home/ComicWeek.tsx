@@ -133,7 +133,7 @@ export default function ComicWeekView({ admin }: { admin: boolean }) {
   const isThisWeek = from === mondayOf('')
   return (
     <div className="cx-week">
-      <div className="cx-week-nav">
+      <div className="cx-week-nav" data-walk="cx-week-nav">
         <button className="btn-sm" onClick={() => setDate(addDays(from, -7))} aria-label={t('Week before')}>
           ‹
         </button>
@@ -147,12 +147,12 @@ export default function ComicWeekView({ admin }: { admin: boolean }) {
           </button>
         )}
         <input className="cx-week-find" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('Find a series')} />
-        <label className="cx-check">
+        <label className="cx-check" data-walk="cx-week-mine">
           <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> {t('Only my series')}
         </label>
       </div>
       {publishers.length > 1 && (
-        <select className="disc-who cx-week-pub" value={pubs[0] ?? ''} onChange={(e) => choosePub(e.target.value)} aria-label={t('Publishers')}>
+        <select className="disc-who cx-week-pub" data-walk="cx-week-pub" value={pubs[0] ?? ''} onChange={(e) => choosePub(e.target.value)} aria-label={t('Publishers')}>
           <option value="">{t('All publishers')}</option>
           {publishers.map((p) => (
             <option key={p} value={p}>
@@ -220,7 +220,7 @@ export default function ComicWeekView({ admin }: { admin: boolean }) {
           </small>
         </div>
         {canPull && i.status !== 'downloaded' && !i.wanted && (
-          <button className="btn-sm primary" disabled={busy === i.cvId} onClick={() => pull(i)} title={i.seriesId ? t('Get this issue') : t('Follow the series and get this issue')}>
+          <button className="btn-sm primary" data-walk="cx-week-pull" disabled={busy === i.cvId} onClick={() => pull(i)} title={i.seriesId ? t('Get this issue') : t('Follow the series and get this issue')}>
             <Icon name="plus" size={13} /> {busy === i.cvId ? t('Pulling…') : t('Pull')}
           </button>
         )}

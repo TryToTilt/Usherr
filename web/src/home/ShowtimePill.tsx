@@ -74,7 +74,7 @@ export function ShowtimePill() {
   const { stage, word, time, label } = showtimeStage(next, now)
   const tip = next ? `${next.title} · ${whenLabel(next.atMs)}. ${t('Opens the Showtime screen.')}` : t('The Showtime screen: book a film for a time, with a pre-show first.')
   return (
-    <button type="button" className={`icon-btn top-showtime st-${stage}`} onClick={() => nav('/showtime')} title={tip} aria-label={`${label}. ${tip}`}>
+    <button type="button" data-walk="showtime-pill" className={`icon-btn top-showtime st-${stage}`} onClick={() => nav('/showtime')} title={tip} aria-label={`${label}. ${tip}`}>
       <Icon name={stage === 'on' ? 'play' : 'clock'} size={18} />
       <span className="top-showtime-label">
         <span className="top-showtime-word">{word}</span>

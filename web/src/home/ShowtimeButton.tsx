@@ -122,12 +122,12 @@ export function ShowtimeDialog({ film, onClose }: { film: ShowtimeFilm; onClose:
           {prev ? (
             <p className="hint">{t('Starts {when}, ten minutes after {title} ends.', { when: whenLabel(startMs), title: prev.title })}</p>
           ) : (
-            <label>
+            <label data-walk="showtime-when">
               {t('Date and time')}
               <input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
             </label>
           )}
-          <label>
+          <label data-walk="showtime-preshow">
             {t('Pre-show first')}
             <select value={preshow} onChange={(e) => setPreshow(Number(e.target.value))}>
               <option value={0}>{t('None')}</option>
@@ -139,7 +139,7 @@ export function ShowtimeDialog({ film, onClose }: { film: ShowtimeFilm; onClose:
             </select>
           </label>
           {preshow > 0 && themes.length > 0 && (
-            <label>
+            <label data-walk="showtime-theme">
               {t('Pre-show theme')}
               <select value={theme} onChange={(e) => setTheme(Number(e.target.value))}>
                 <option value={0}>{t('Tonight’s (by the schedule)')}</option>
@@ -151,7 +151,7 @@ export function ShowtimeDialog({ film, onClose }: { film: ShowtimeFilm; onClose:
               </select>
             </label>
           )}
-          <label>
+          <label data-walk="showtime-playon">
             {t('The film plays')}
             <select value={playOn} onChange={(e) => setPlayOn(e.target.value as PlayOn)}>
               <option value="here">{PLAY_ON_LABEL.here()}</option>
@@ -174,7 +174,7 @@ export function ShowtimeDialog({ film, onClose }: { film: ShowtimeFilm; onClose:
           <button className="btn-sm" onClick={onClose}>
             {t('Cancel')}
           </button>
-          <button className="primary btn-with-icon" disabled={busy || !Number.isFinite(startMs)} onClick={() => void book()}>
+          <button className="primary btn-with-icon" data-walk="showtime-book" disabled={busy || !Number.isFinite(startMs)} onClick={() => void book()}>
             <Icon name="calendar" size={16} /> {t('Book it')}
           </button>
         </div>

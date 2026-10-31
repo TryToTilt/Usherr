@@ -58,6 +58,7 @@ export function ComicArcList({ admin }: { admin: boolean }) {
       {admin && (
         <form
           className="cx-arc-find"
+          data-walk="cx-arc-find"
           onSubmit={(e) => {
             e.preventDefault()
             if (q.trim().length > 1) search()
@@ -71,7 +72,7 @@ export function ComicArcList({ admin }: { admin: boolean }) {
       )}
       {error && <p className="error-text">{error}</p>}
       {found && (
-        <ul className="cx-arc-grid">
+        <ul className="cx-arc-grid" data-walk="cx-arc-results">
           {found.length === 0 && <p className="hint">{t('ComicVine has no story arc by that name.')}</p>}
           {found.map((a) => (
             <li key={a.cvId} className="card">
@@ -99,7 +100,7 @@ export function ComicArcList({ admin }: { admin: boolean }) {
       )}
       {!found && arcs && arcs.length === 0 && <p className="hint">{admin ? t('No story arcs yet. Find one above.') : t('No story arcs yet.')}</p>}
       {!found && arcs && arcs.length > 0 && (
-        <ul className="cx-arc-grid">
+        <ul className="cx-arc-grid" data-walk="cx-arc-mine">
           {arcs.map((a) => (
             <li key={a.id} className="card">
               <Link to={`/comics/arc/${a.id}`} className="cx-arc-link">
@@ -181,7 +182,7 @@ export function ComicArcPage() {
           {arc.description && <p className="cx-arc-desc">{arc.description}</p>}
           <div className="cx-arc-actions">
             {nextToRead && (
-              <button className="btn-sm primary" onClick={() => read(nextToRead)}>
+              <button className="btn-sm primary" data-walk="cx-arc-start" onClick={() => read(nextToRead)}>
                 <Icon name="book" size={14} /> {issues.some((m) => m.status === 'downloaded' && readDone(m.issueId!)) ? t('Continue reading') : t('Start reading')}
               </button>
             )}
@@ -211,7 +212,7 @@ export function ComicArcPage() {
       </section>
       {note && <p className="notice notice-info cx-note">{note}</p>}
       {error && <p className="error-text">{error}</p>}
-      <ol className="cx-arc-issues">
+      <ol className="cx-arc-issues" data-walk="cx-arc-order">
         {issues.map((m) => (
           <li key={m.position} className={m.status === 'downloaded' ? 'have' : ''}>
             <span className="cx-arc-pos">{m.position}</span>

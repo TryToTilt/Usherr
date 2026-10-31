@@ -1,5 +1,6 @@
 import { BRAND, USAGE_STATS } from '../brand' // Usherr
 import TourGate from '../home/tourGate' // home fork
+import SmhGate, { SmhButton } from '../smh/SmhGate' // Usherr: Show Me How
 import { useMoreBelow } from './useMoreBelow'
 import { usePauseWhileScrolling } from './usePauseWhileScrolling'
 import { MiniPlayer, MusicPlayerProvider } from './MusicPlayer'
@@ -114,6 +115,7 @@ export default function AppShell() {
     <MusicPlayerProvider>
       <Shell />
       <TourGate /> {/* home fork: the first-visit tour */}
+      <SmhGate /> {/* Usherr: Show Me How's menu and coach card */}
     </MusicPlayerProvider>
   )
 }
@@ -674,6 +676,7 @@ function Shell() {
             </button>
           </div>
           <RouletteButton iconOnly className="icon-btn top-dice" /> {/* Usherr: Roulette */}
+          <SmhButton /> {/* Usherr: Show Me How */}
           <ShowtimePill /> {/* Usherr: Showtime, counting down, from any page */}
           <TonightButton /> {/* Usherr: what to watch tonight */}
           <button type="button" className="icon-btn search-toggle" onClick={() => setSearchOpen(true)} aria-label={t('Search')}>

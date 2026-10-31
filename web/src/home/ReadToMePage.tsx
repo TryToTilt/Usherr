@@ -131,7 +131,7 @@ function BookPicker() {
   const readable = useMemo(() => (books ?? []).filter((b) => b.ebook?.status === 'downloaded' && b.ebook?.format === 'epub'), [books])
   const shown = q.trim() ? readable.filter((b) => `${b.title} ${b.author}`.toLowerCase().includes(q.trim().toLowerCase())) : readable
   return (
-    <section className="rp-st rp-c-book cur" aria-labelledby="rp-pick-h">
+    <section className="rp-st rp-c-book cur" data-walk="rtm-pick" aria-labelledby="rp-pick-h">
       <div className="rp-st-head">
         <span className="rp-n">1</span>
         <h2 id="rp-pick-h">{t('Pick a book')}</h2>
@@ -185,7 +185,7 @@ interface StationProps {
 function Station({ id, n, title, hint, optional, summary, open, state, onToggle, onNext, nextLabel, children }: StationProps) {
   const [why, setWhy] = useState(false)
   return (
-    <section id={`rp-${id}`} className={`rp-st rp-c-${id} ${state}`.trim()} aria-labelledby={`rp-${id}-h`}>
+    <section id={`rp-${id}`} data-walk={`rtm-${id}`} className={`rp-st rp-c-${id} ${state}`.trim()} aria-labelledby={`rp-${id}-h`}>
       <div className="rp-st-head">
         <span className="rp-n" aria-hidden="true">
           {n}
@@ -605,7 +605,7 @@ function Maker({ bookId, guideDefault }: { bookId: number; guideDefault: boolean
   return (
     <div className="rp-maker">
       <div className="rp-controls">
-        <div className="seg" role="radiogroup" aria-label={t('How much to show')}>
+        <div className="seg" data-walk="rtm-mode" role="radiogroup" aria-label={t('How much to show')}>
           <button type="button" role="radio" aria-checked={simple} className={simple ? 'active' : ''} onClick={() => setSimpleOn(true)}>
             {t('Simple')}
           </button>
@@ -614,7 +614,7 @@ function Maker({ bookId, guideDefault }: { bookId: number; guideDefault: boolean
           </button>
         </div>
         <InfoTip text={t('Simple shows the three steps that matter: the book, the narrator and making it, with sensible settings for the rest. Full shows all six.')} />
-        <button type="button" className={`rp-guide${guide ? ' on' : ''}`} role="switch" aria-checked={guide} onClick={() => setGuideOn(!guide)}>
+        <button type="button" data-walk="rtm-guide" className={`rp-guide${guide ? ' on' : ''}`} role="switch" aria-checked={guide} onClick={() => setGuideOn(!guide)}>
           <span className="rp-track" aria-hidden="true">
             <span />
           </span>
@@ -1004,11 +1004,11 @@ function Maker({ bookId, guideDefault }: { bookId: number; guideDefault: boolean
           {!simple && <span className="rp-chip rp-c-sound">{speedText}</span>}
           {active && <span className="rp-chip rp-c-make">{t('Being made: {n}%', { n: percent })}</span>}
           <span className="spacer" />
-          <button type="button" className="btn-with-icon" onClick={preview} disabled={!voice || previewing}>
+          <button type="button" className="btn-with-icon" data-walk="rtm-hear" onClick={preview} disabled={!voice || previewing}>
             <Icon name="play" size={16} /> {previewing ? (waking ? t('Starting Chatterbox…') : t('Making a sample…')) : t('Hear a sample')}
           </button>
           {canStart && (
-            <button type="button" className="primary btn-with-icon" onClick={make} disabled={!voice || making}>
+            <button type="button" className="primary btn-with-icon" data-walk="rtm-make" onClick={make} disabled={!voice || making}>
               <Icon name={madeOne ? 'refresh' : 'headphones'} size={16} /> {making ? t('Starting…') : madeOne ? t('Remake the audiobook') : t('Make the audiobook')}
             </button>
           )}
