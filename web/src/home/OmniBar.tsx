@@ -18,6 +18,7 @@ import { t } from '../i18n'
 import { useOwned } from '../useOwned'
 import { BookAIButtons, BookList } from './AIBooks'
 import { SkipGuide, WhatsItLike } from './AIGuides'
+import SmhSuggest from '../smh/SmhSuggest' // Usherr: Show Me How, from the bar
 import { MoreLikeArtist } from './AIMusic'
 import { askAI, ScrollText, useAIOn } from './aiShared'
 import CatchUp, { ComicCatchUpDialog } from './CatchUp'
@@ -184,6 +185,7 @@ export default function OmniBar({ page, header }: { page: OmniPage; header?: boo
             {t('Search')}
           </button>
         </div>
+        <SmhSuggest q={q} />
       </div>
     )
   }
@@ -218,6 +220,7 @@ export default function OmniBar({ page, header }: { page: OmniPage; header?: boo
           {busy ? t('Thinking…') : t('Ask')}
         </button>
       </form>
+      {!reply && !busy && <SmhSuggest q={q} />}
       {!reply && !busy && !error && !header && (
         <div className="omni-examples">
           {examples(page).map((ex) => (

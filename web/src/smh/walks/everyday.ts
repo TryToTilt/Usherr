@@ -305,10 +305,10 @@ export const familyMember: Walkthrough = {
   id: 'family-member',
   group: 'people',
   admin: true,
-  title: t('Add a family member'),
+  title: t('Add a family member, kids too'),
   blurb: t('Their own account, with their own taste, stack and diary, and only the rights you give them.'),
   icon: 'user',
-  words: 'account user family member kid child add person login role permissions request',
+  words: 'account user family member kid kids child children son daughter partner add person login role permissions request',
   simple: [
     {
       kind: 'go',
@@ -377,8 +377,8 @@ export const familyMember: Walkthrough = {
     {
       kind: 'done',
       title: t('Tell them how to sign in'),
-      text: t('Give them the username and password. Usherr on your phone, in Show me how, gets them set up on theirs.'),
-      then: { id: 'phone', label: t('Usherr on a phone') },
+      text: t('Give them the username and password. Watch on your phone, in Show me how, gets them set up on theirs.'),
+      then: { id: 'phone', label: t('Watch on your phone') },
     },
   ],
 }
@@ -391,7 +391,7 @@ const local = () => /^(localhost|127\.|\[::1\])/.test(window.location.hostname)
 export const phone: Walkthrough = {
   id: 'phone',
   group: 'people',
-  title: t('Usherr on your phone'),
+  title: t('Watch on your phone (Usherr as an app)'),
   blurb: t('Open Usherr on a phone and keep it on the home screen, like an app.'),
   icon: 'monitor',
   words: 'phone mobile app iphone android home screen install tailscale away',

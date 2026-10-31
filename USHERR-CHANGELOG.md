@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-10-31
+
+### Added
+
+- **Show Me How from the Ask bar**: type a question like "how do I turn a book into an audiobook", "I want to read a comic" or "set up the VPN", and the matching walkthrough is offered right under the bar, one tap away. Plain word matching, no AI, and it stays quiet when you're asking for a film ("a 90s heist movie"). Two walkthroughs got clearer names: *Add a family member, kids too* and *Watch on your phone (Usherr as an app)*.
+
 ## [2.18.0] - 2026-10-31
 
 ### Added
