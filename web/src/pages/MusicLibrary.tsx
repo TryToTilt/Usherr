@@ -318,7 +318,7 @@ export default function MusicLibrary({
             <button className="btn-with-icon toolbar-playlists" onClick={() => navigate('/music/playlists')} aria-label={t('Playlists')} title={t('Playlists')}>
               <Icon name="list" size={16} /> <span className="cbar-add-label">{t('Playlists')}</span>
             </button>
-            <button className="primary btn-with-icon toolbar-add" onClick={() => navigate('/discover?kind=music')} aria-label={t('Add new')}>
+            <button className="primary btn-with-icon toolbar-add" data-walk="music-add" onClick={() => navigate('/discover?kind=music')} aria-label={t('Add new')}>
               <Icon name="plus" size={16} /> <span className="cbar-add-label">{t('Add new')}</span>
             </button>
           </>

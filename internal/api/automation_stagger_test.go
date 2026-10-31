@@ -18,8 +18,9 @@ func TestAutomationJobsStartOneAfterTheOther(t *testing.T) {
 	}
 
 	// Usherr: these jobs keep their own first delay (showtimes must be on time
-	// soon after a restart) and take no slot in the line.
-	own := map[string]bool{"showtimes": true, "read-to-me": true, "tv-warm": true, "sports-sync": true}
+	// soon after a restart; artwork and trailers wait until things are quiet)
+	// and take no slot in the line.
+	own := map[string]bool{"showtimes": true, "read-to-me": true, "tv-warm": true, "sports-sync": true, "artwork": true, "preshow-trailers": true}
 	delay := map[string]time.Duration{}
 	seen := map[time.Duration]string{}
 	slot := 0

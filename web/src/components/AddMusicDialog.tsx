@@ -134,7 +134,7 @@ function AddMusicForm({ target, onClose, onAdded }: { target: AddMusicTarget; on
 
   return createPortal(
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <div ref={box} tabIndex={-1} className="modal" role="dialog" aria-modal="true" aria-label={t('Add {name}', { name: artistName })}>
+      <div ref={box} tabIndex={-1} className="modal" data-walk="music-add-dialog" role="dialog" aria-modal="true" aria-label={t('Add {name}', { name: artistName })}>
         <div className="modal-head">
           <div className="modal-cover">
             {item ? <Cover src={item.coverUrl} /> : <MusicFallback />}

@@ -5,6 +5,20 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.23.0] - 2026-10-31
+
+### Added
+
+- **The last Show Me How walkthroughs**: get music by an artist, follow a list from Trakt, IMDb or Letterboxd, choose how files are named, download clients, and connect Jellyfin (58 in all).
+- **The Show Me How website** (https://trytotilt.github.io/Usherr/guide/): a page for every walkthrough, made from the walkthroughs themselves, linked from the Start page and the README.
+- **Show Me How checks itself**: before every build, each button a walkthrough points at must still exist, or the build stops and says which; and a browser test starts every walkthrough.
+
+### Fixed
+
+- A search on The Pirate Bay that finds nothing no longer shows a fake release called "No results returned" that looked like it could be got. Such placeholder rows are left out for every indexer.
+- On a phone, opening the menu puts the keyboard on its first item, not on its close button.
+- The tests on GitHub pass again: formatting, two static-check warnings, the job start order with Usherr's own jobs, the list of routes members may use (the restyled posters), the third-party notices, and the browser tests updated for Usherr's menu. The guide no longer says the Streams library needs StreamNZB (Usherr's own streaming engine is enough).
+
 ## [2.22.0] - 2026-10-31
 
 ### Added

@@ -581,7 +581,7 @@ export default function MediaServerSettings() {
   useLive(reload, 30000)
 
   return (
-    <div className="settings-stack">
+    <div className="settings-stack" data-walk="servers-page">
       <p className="span-all" style={{ color: 'var(--text-dim)', margin: 0 }}>
         {tx('Connect the app you watch with. After every download Mediarium tells it to look at the new folder, so movies and episodes appear there within a minute, and title pages here get a {button} (or Jellyfin, Emby) button.', {
           button: <strong>{t('Watch in {name}', { name: 'Plex' })}</strong>,

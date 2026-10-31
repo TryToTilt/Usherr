@@ -57,7 +57,7 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "download-line", Interval: downloadLineCheck, Run: func(context.Context) { s.kickDownloads() }},
 		automation.Job{Name: "rss-sync", Interval: s.releaseCheckInterval(), IntervalFunc: s.releaseCheckInterval, Run: s.heavy(s.rssSync)},
 		automation.Job{Name: "hunt", Interval: s.huntInterval(), IntervalFunc: s.huntInterval, Run: s.heavy(s.hunt)},
-		automation.Job{Name: "delayed-grabs", Interval: time.Minute, Run: s.delayedGrabsJob},          // searches again when a held release has waited long enough
+		automation.Job{Name: "delayed-grabs", Interval: time.Minute, Run: s.delayedGrabsJob},                                // searches again when a held release has waited long enough
 		automation.Job{Name: "tv-reminders", Interval: time.Minute, Run: s.tvRemindJob},                                     // Usherr: Live TV reminders
 		automation.Job{Name: "showtimes", Interval: 15 * time.Second, InitialDelay: 5 * time.Second, Run: s.showtimeJob},    // Usherr: the pre-show and the film on time (soon after a restart, not the usual minute)
 		automation.Job{Name: "read-to-me", Interval: time.Hour, InitialDelay: 20 * time.Second, Run: s.readToMeJob},         // Usherr: audiobooks left to make from before a restart
@@ -65,9 +65,9 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		// Usherr: coming-soon trailers fetched ahead, and rotated out.
 		automation.Job{Name: "artwork", Interval: time.Hour, InitialDelay: 10 * time.Minute, Run: s.heavy(s.artJob)}, // Usherr: artwork picked at night, when nobody is watching
 		automation.Job{Name: "preshow-trailers", Interval: 4 * time.Hour, InitialDelay: 5 * time.Minute, Run: s.heavy(s.trailersJob)},
-		automation.Job{Name: "sports-sync", Interval: 6 * time.Hour, InitialDelay: 3 * time.Minute, Run: s.sportsSyncJob},   // Usherr: Sports' schedules and scores (Usherr's own engine)
-		automation.Job{Name: "real-tv-refresh", Interval: 20 * time.Minute, Run: s.realTVRefreshJob},                        // Usherr: Real TV's day before, each night
-		automation.Job{Name: "music-import-wait", Interval: musicWaitJobTick, Run: s.retryMusicWaits}, // tries the imports that were waiting for MusicBrainz
+		automation.Job{Name: "sports-sync", Interval: 6 * time.Hour, InitialDelay: 3 * time.Minute, Run: s.sportsSyncJob}, // Usherr: Sports' schedules and scores (Usherr's own engine)
+		automation.Job{Name: "real-tv-refresh", Interval: 20 * time.Minute, Run: s.realTVRefreshJob},                      // Usherr: Real TV's day before, each night
+		automation.Job{Name: "music-import-wait", Interval: musicWaitJobTick, Run: s.retryMusicWaits},                     // tries the imports that were waiting for MusicBrainz
 		automation.Job{Name: "speed-limit", Interval: speedCheck, Run: s.speedJob},
 		automation.Job{Name: "quiet-hours", Interval: speedCheck, Run: s.quietHoursJob},
 		automation.Job{Name: "cleanup", Interval: cleanupCheckInterval, Run: s.cleanupJob},
@@ -83,10 +83,10 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "trash-formats", Interval: time.Hour, Run: s.heavy(s.trashFormatsJob)},        // does nothing until switched on; reads the guides once a day
 		automation.Job{Name: "genre-backfill", Interval: genreBackfillInterval, Run: s.heavy(s.backfillGenres)},
 		automation.Job{Name: "country-backfill", Interval: countryBackfillInterval, Run: s.heavy(s.backfillCountries)},
-		automation.Job{Name: "collections", Interval: collectionsInterval, Run: s.heavy(s.collectionsJob)},  // finds the collection of each movie; adds new films of followed collections
-		automation.Job{Name: "title-names", Interval: titleNamesInterval, Run: s.heavy(s.titleNamesJob)},    // picks the other titles of each movie and show, when a language besides English is wanted
-		automation.Job{Name: "calendar-art", Interval: artworkEvery, Run: s.heavy(s.artworkJob)},            // fetches the backdrops and logos of what is on the calendar
-		automation.Job{Name: "release-dates", Interval: releaseDatesEvery, Run: s.heavy(s.releaseDatesJob)}, // reads the digital release dates of the movies on the calendar
+		automation.Job{Name: "collections", Interval: collectionsInterval, Run: s.heavy(s.collectionsJob)},       // finds the collection of each movie; adds new films of followed collections
+		automation.Job{Name: "title-names", Interval: titleNamesInterval, Run: s.heavy(s.titleNamesJob)},         // picks the other titles of each movie and show, when a language besides English is wanted
+		automation.Job{Name: "calendar-art", Interval: artworkEvery, Run: s.heavy(s.artworkJob)},                 // fetches the backdrops and logos of what is on the calendar
+		automation.Job{Name: "release-dates", Interval: releaseDatesEvery, Run: s.heavy(s.releaseDatesJob)},      // reads the digital release dates of the movies on the calendar
 		automation.Job{Name: "home-schedules", Interval: scheduleWaitPoll, Run: s.scheduleJob},                   // home fork: schedules
 		automation.Job{Name: "nsfw-find-warm", Interval: 5 * time.Hour, Run: s.heavy(s.warmDiscoverJob)},         // home fork: Find tab
 		automation.Job{Name: "weekly-digest", Interval: 30 * time.Minute, Run: s.whatsNewJob},                    // home fork: Sunday "what's new", by title

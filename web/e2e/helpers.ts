@@ -25,10 +25,16 @@ export async function expectNoErrors(errors: string[]) {
 // and the guide's landing page lists its topics as cards instead of a side list.
 export const narrow = (page: Page) => (page.viewportSize()?.width ?? 1280) <= 900
 
-// Opens the menu drawer; on a wide screen the menu is already there.
+// The menu's own button (the menu's close button shares its class).
+export const menuButton = (page: Page) => page.locator('.menu-button[aria-controls="main-menu"]:not(.menu-close)')
+
+// Opens the menu. Usherr: it's closed until opened on every screen, and on a
+// wide one it slides away once the mouse leaves it, so the mouse rests on it.
 export async function openNav(page: Page) {
-  if (!narrow(page)) return
-  const button = page.locator('.menu-button')
+  const button = menuButton(page)
   await expect(button).toBeVisible()
-  if ((await button.getAttribute('aria-expanded')) === 'false') await button.click()
+  if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click()
+  const nav = page.locator('#main-menu')
+  await expect(nav).toHaveClass(/open/)
+  if (!narrow(page)) await nav.hover()
 }

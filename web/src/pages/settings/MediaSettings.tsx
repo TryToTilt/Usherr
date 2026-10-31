@@ -437,7 +437,7 @@ export function NamingSettings() {
   const [keepNames, setKeepNames] = useState(false)
   const onSettings = useCallback((s: SettingsData) => setKeepNames(s.keepOriginalNames === true), [])
   return (
-    <div className="settings-stack">
+    <div className="settings-stack" data-walk="naming-page">
       <LibrarySection part="naming" onSettings={onSettings} />
       <MetadataFilesCard />
       <RenameCard keepOriginalNames={keepNames} />

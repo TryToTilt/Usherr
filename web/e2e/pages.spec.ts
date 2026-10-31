@@ -99,9 +99,9 @@ test('the Library entry lists its kinds, and each one opens the Library on that 
   if (!narrow(page)) await expect(page).toHaveURL(/\/library/)
   const movies = nav.getByRole('link', { name: 'Movies', exact: true })
   const shows = nav.getByRole('link', { name: 'TV shows', exact: true })
-  await expect(movies).toBeHidden()
-  await page.locator('#sn-head-library').click()
+  // Inside the Library its kinds unfold by themselves; elsewhere the head unfolds them.
   await openNav(page)
+  if (!(await movies.isVisible())) await page.locator('#sn-head-library').click()
   await expect(movies).toBeVisible()
   await shows.click()
   await expect(page).toHaveURL(/\/library\?kind=tv$/)

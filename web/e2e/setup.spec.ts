@@ -25,7 +25,8 @@ test('first run: setup wizard to the dashboard', async ({ page }) => {
   await page.getByLabel(/^I have read this and accept responsibility for how I use (Mediarium|Usherr)\.$/).check()
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
 
-  const nav = page.getByRole('navigation', { name: 'Main' })
+  // Usherr: the menu stays closed until it's opened, so the app is known by its menu button.
+  const nav = page.locator('.menu-button[aria-controls="main-menu"]:not(.menu-close)')
   const next = page.getByRole('button', { name: /^(Continue anyway|Skip for now|Continue|Finish|Go to the dashboard|Open (?:Mediarium|Usherr)|Start using (?:Mediarium|Usherr))/ }).first()
   for (let step = 0; step < 15; step++) {
     await Promise.race([nav.waitFor({ timeout: 15_000 }), next.waitFor({ timeout: 15_000 })]).catch(() => undefined)

@@ -16,7 +16,7 @@ export default function ListsSettings() {
   }, [])
   useEffect(load, [load])
   return (
-    <div className="settings-stack">
+    <div className="settings-stack" data-walk="lists-page">
       <ImportLists />
       {s && <ServiceKeyCard service="trakt" {...TRAKT_COPY} builtIn={!!s.traktClientIdBuiltIn} configured={s.hasTraktClientId} onSaved={load} allowOverride usingOwnKey={!!s.traktUsingOwnKey} />}
       {s && (

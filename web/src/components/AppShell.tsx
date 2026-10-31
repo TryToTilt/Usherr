@@ -373,7 +373,8 @@ function Shell() {
     const nav = navRef.current
     if (!nav || !window.matchMedia('(max-width: 900px)').matches) return
     const items = () => [...nav.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled])')].filter((el) => el.getClientRects().length > 0)
-    items()[0]?.focus({ preventScroll: true })
+    // The first menu item, not the menu's own close button.
+    ;(items().find((el) => el.matches('a[href]')) ?? items()[0])?.focus({ preventScroll: true })
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setMenuOpen(false)

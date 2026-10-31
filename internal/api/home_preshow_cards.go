@@ -353,7 +353,6 @@ func (s *Server) preshowCardArgs(ctx context.Context, c preshowCardSpec, work st
 		if c.Poster != "" && preshowFetchImage(ctx, c.Poster, filepath.Join(work, "poster.jpg")) {
 			args = append(args, "-loop", "1", "-t", dur, "-i", filepath.Join(work, "poster.jpg"))
 			in := "[" + strconv.Itoa(inputs) + ":v]"
-			inputs++
 			chain = append(chain, in+"scale=-2:760,format=rgba,fade=t=in:st=0.2:d=0.9:alpha=1[ps]")
 			n := next()
 			chain = append(chain, cur+"[ps]overlay=x=230:y=160:shortest=1"+n)
@@ -409,7 +408,6 @@ func (s *Server) preshowCardArgs(ctx context.Context, c preshowCardSpec, work st
 		if c.Poster != "" && preshowFetchImage(ctx, c.Poster, filepath.Join(work, "poster.jpg")) {
 			args = append(args, "-loop", "1", "-t", dur, "-i", filepath.Join(work, "poster.jpg"))
 			in := "[" + strconv.Itoa(inputs) + ":v]"
-			inputs++
 			chain = append(chain, in+"scale=-2:760,format=rgba,fade=t=in:st=0.1:d=0.7:alpha=1[ps]")
 			n := next()
 			chain = append(chain, cur+"[ps]overlay=x=230:y=160:shortest=1"+n)
@@ -442,7 +440,6 @@ func (s *Server) preshowCardArgs(ctx context.Context, c preshowCardSpec, work st
 		}
 		args = append(args, "-loop", "1", "-t", dur, "-i", png)
 		in := "[" + strconv.Itoa(inputs) + ":v]"
-		inputs++
 		chain = append(chain, in+"scale=600:600:flags=neighbor,format=rgba,fade=t=in:st=0.3:d=0.6:alpha=1[qr]")
 		n := next()
 		chain = append(chain, cur+"[qr]overlay=x=230:y=240:shortest=1"+n)

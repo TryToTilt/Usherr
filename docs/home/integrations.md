@@ -127,7 +127,7 @@ Live TV channels.
 
 ## Streamed library
 
-**Optional, needs StreamNZB, the address above and Jellyfin.** Titles you
+**Optional, needs a streaming engine (Usherr's own is enough, see above) and Jellyfin.** Titles you
 stream instead of download show in the Library next to the ones on disk, and in
 Jellyfin as small pointer files that start the stream when played. A title you
 later download plays from disk instead.
@@ -140,7 +140,7 @@ later download plays from disk instead.
      under Media servers already covers it.
   4. **Put streamed titles into Jellyfin's libraries**.
 - **Check:** a streamed title shows in the Library marked **Streams** (not on
-  disk: plays through StreamNZB), and in Jellyfin.
+  disk: plays through the streaming engine), and in Jellyfin.
 
 ![The Streamed library card](images/extras-streamed.png)
 

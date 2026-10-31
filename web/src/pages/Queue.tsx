@@ -845,7 +845,7 @@ export default function Queue() {
             {t('Queue')} <small>({needsAttention})</small>
           </button>
           {admin && (
-            <button aria-pressed={tab === 'clients'} className={tab === 'clients' ? 'active' : ''} onClick={() => setTab('clients')} title={t('The built-in Usenet downloader and torrent client, and any download client or debrid account you connected')}>
+            <button data-walk="queue-clients" aria-pressed={tab === 'clients'} className={tab === 'clients' ? 'active' : ''} onClick={() => setTab('clients')} title={t('The built-in Usenet downloader and torrent client, and any download client or debrid account you connected')}>
               {t('Download clients')}
             </button>
           )}

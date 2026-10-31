@@ -262,6 +262,7 @@ func SearchAll(ctx context.Context, instances []Instance, query string, categori
 					inst.Tracker.CountRequest(inst.ID, client.ExtraRequests)
 				}
 			}
+			results = dropPlaceholders(results)
 			for j := range results {
 				results[j].Protocol = inst.Protocol
 				if results[j].Torrent {
@@ -290,6 +291,28 @@ func SearchAll(ctx context.Context, instances []Instance, query string, categori
 		}
 	}
 	return outcomes
+}
+
+// dropPlaceholders leaves out the rows some sites send back when they found
+// nothing: The Pirate Bay answers an empty search with one release titled
+// "No results returned", no size and an all-zero hash. Shown, it looked like a
+// release that could be got.
+func dropPlaceholders(results []Result) []Result {
+	out := results[:0]
+	for _, r := range results {
+		if !isPlaceholder(r) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+func isPlaceholder(r Result) bool {
+	switch strings.ToLower(strings.TrimSpace(r.Title)) {
+	case "no results returned", "no results found", "no results":
+		return r.SizeBytes == 0 || (r.InfoHash != "" && strings.Trim(r.InfoHash, "0") == "")
+	}
+	return false
 }
 
 // noteSearchProblem puts an indexer that failed in the problem log: it

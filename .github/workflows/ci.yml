@@ -38,7 +38,7 @@ jobs:
       - name: Vet
         run: go vet ./...
       - name: Test
-        run: go test $(go list ./... | grep -v torrentclient)
+        run: go test -timeout 30m $(go list ./... | grep -v torrentclient)
       - name: Reference docs are up to date
         run: go run ./tools/docgen -check
       - name: The list of server sentences is up to date

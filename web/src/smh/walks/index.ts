@@ -7,6 +7,7 @@ import { askAi, completeLibrary, discover, followPerson, getShow, upcoming } fro
 import { diary, familyMember, phone, roulette, stack, streamOrKeep, tonight, vote } from './everyday'
 import { betterCopy, importLibrary, moveTitle, restylePosters, subtitles, tags, whyFailed } from './library'
 import { getBook, importMusic, listenAudiobook, makePlaylist, playMusic, readEbook } from './listen'
+import { addArtist, connectJellyfin, downloadClients, importLists, naming } from './more'
 import { followTeam, makeChannel, marquee, marqueeRemote, playOnTv, watchLiveTv } from './night'
 import { kidsRequests, notices, stremioAddon } from './people'
 import { setUpPreshow } from './preshow'
@@ -34,6 +35,7 @@ export const WALKS: Walkthrough[] = [
   makeChannel,
   followTeam,
   playMusic,
+  addArtist,
   makePlaylist,
   listenAudiobook,
   getBook,
@@ -68,6 +70,10 @@ export const WALKS: Walkthrough[] = [
   vpn,
   backups,
   migrate,
+  connectJellyfin,
+  downloadClients,
+  naming,
+  importLists,
 ]
 
 export function walkById(id: string): Walkthrough | undefined {
