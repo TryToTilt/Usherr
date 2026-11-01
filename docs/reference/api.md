@@ -1258,6 +1258,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/tvfeed/{key}/hdhr/discover.json` | **public** |  |
 | GET | `/api/tvfeed/{key}/hdhr/lineup.json` | **public** |  |
 | GET | `/api/tvfeed/{key}/hdhr/lineup_status.json` | **public** |  |
+| GET | `/api/tvfeed/{key}/plex.xml` | **public** | GET /api/tvfeed/{key}/xmltv.xml: three days of guide. |
 | GET | `/api/tvfeed/{key}/stream/{file}` | **public** | GET /api/tvfeed/{key}/stream/{n}.ts |
 | GET | `/api/tvfeed/{key}/xmltv.xml` | **public** | GET /api/tvfeed/{key}/xmltv.xml: three days of guide. |
 
@@ -1362,4 +1363,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-952 routes.
+953 routes.

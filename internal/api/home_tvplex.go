@@ -58,7 +58,7 @@ func (s *Server) handleTVPlex(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "That couldn't be saved.")
 		return
 	}
-	xmltv := base + "/api/tvfeed/" + s.tvFeedKey() + "/xmltv.xml"
+	xmltv := base + "/api/tvfeed/" + s.tvFeedKey() + "/plex.xml" // channels named as the tuner names them
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
 	var msgs []string
@@ -80,21 +80,34 @@ func (s *Server) tvPlexAdd(ctx context.Context, srv mediaservers.Server, base, x
 	if err != nil {
 		return "", err
 	}
+	lineup := mediaservers.PlexXMLTVLineup(xmltv, "Usherr TV")
+	device := ""
 	for _, d := range dvrs {
 		for _, dev := range d.Devices {
-			if strings.TrimRight(dev.URI, "/") == base {
+			if strings.TrimRight(dev.URI, "/") != base {
+				continue
+			}
+			if d.Lineup == lineup {
 				if err := s.mediaClient.PlexReloadGuide(ctx, srv, d.Key); err != nil {
 					return "", err
 				}
 				return srv.Name + " has Usherr TV already: its guide is being read again.", nil
 			}
+			// Usherr's DVR with another guide (an earlier one): made again
+			// with this one, on the same tuner.
+			if err := s.mediaClient.PlexDeleteDVR(ctx, srv, d.Key); err != nil {
+				return "", err
+			}
+			device = dev.UUID
 		}
 	}
-	device, err := s.mediaClient.PlexAddTuner(ctx, srv, base)
-	if err != nil {
-		return "", err
+	if device == "" {
+		var err error
+		if device, err = s.mediaClient.PlexAddTuner(ctx, srv, base); err != nil {
+			return "", err
+		}
 	}
-	key, err := s.mediaClient.PlexAddDVR(ctx, srv, device, mediaservers.PlexXMLTVLineup(xmltv, "Usherr TV"))
+	key, err := s.mediaClient.PlexAddDVR(ctx, srv, device, lineup)
 	if err != nil {
 		return "", err
 	}

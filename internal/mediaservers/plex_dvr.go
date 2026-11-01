@@ -107,3 +107,11 @@ func (c *Client) PlexReloadGuide(ctx context.Context, s Server, dvrKey string) e
 	}
 	return nil
 }
+
+// PlexDeleteDVR removes a DVR (its tuner stays known to Plex).
+func (c *Client) PlexDeleteDVR(ctx context.Context, s Server, dvrKey string) error {
+	if err := c.do(ctx, s, http.MethodDelete, "/livetv/dvrs/"+url.PathEscape(strings.TrimPrefix(dvrKey, "/livetv/dvrs/")), nil, nil, nil); err != nil {
+		return explain(s, err)
+	}
+	return nil
+}

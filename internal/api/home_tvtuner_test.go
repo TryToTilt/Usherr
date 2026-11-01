@@ -18,7 +18,7 @@ func TestTVM3UAndXMLTV(t *testing.T) {
 	}
 	start := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
 	progs := map[int64][]tv.Program{1: {{ChannelID: 1, Start: start, End: start.Add(26 * time.Minute), Kind: "episode", Title: "The Jetsons", Subtitle: "S01E01 · Rosey the Robot"}}}
-	b, err := xml.Marshal(tvXMLTV(chans, progs))
+	b, err := xml.Marshal(tvXMLTV(chans, progs, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,5 +83,19 @@ func TestStreamedPointerPath(t *testing.T) {
 	}
 	if got := streamedPointerPath("series", false, "Born to be Wild (2025)", 2025, 230936, 1, 2); got != "TV/Born to be Wild (2025) [tmdbid-230936]/Season 01/Born to be Wild (2025) S01E02.strm" {
 		t.Errorf("year in title: %s", got)
+	}
+}
+
+// Plex's guide names each channel by its number, as the tuner's lineup
+// does, so Plex can match them.
+func TestXMLTVForPlex(t *testing.T) {
+	chans := []tv.Channel{{ID: 1, Number: 7, Name: "Sitcoms", Enabled: true}}
+	progs := map[int64][]tv.Program{1: {{Title: "Frasier", Start: time.Now(), End: time.Now().Add(30 * time.Minute)}}}
+	b, err := xml.Marshal(tvXMLTV(chans, progs, true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out := string(b); !strings.Contains(out, `<channel id="7">`) || !strings.Contains(out, `channel="7"`) || strings.Contains(out, "mediarium.7") {
+		t.Errorf("Plex's guide: %s", out)
 	}
 }

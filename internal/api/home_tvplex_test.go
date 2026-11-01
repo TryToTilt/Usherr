@@ -31,8 +31,11 @@ func (f *fakeDVRPlex) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		send(map[string]any{"Device": []map[string]any{{"uuid": "device://tv.plex.grabbers.hdhomerun/ABCD1234"}}})
 	case r.Method == http.MethodPost && r.URL.Path == "/livetv/dvrs":
 		f.calls = append(f.calls, "dvr "+q.Get("device")+" "+q.Get("lineup"))
-		f.dvrs = append(f.dvrs, map[string]any{"key": "7", "Device": []map[string]any{{"uuid": q.Get("device"), "uri": "http://192.168.1.20:8264"}}})
+		f.dvrs = append(f.dvrs, map[string]any{"key": "7", "lineup": q.Get("lineup"), "Device": []map[string]any{{"uuid": q.Get("device"), "uri": "http://192.168.1.20:8264"}}})
 		send(map[string]any{"Dvr": []map[string]any{{"key": "7"}}})
+	case r.Method == http.MethodDelete && r.URL.Path == "/livetv/dvrs/7":
+		f.calls = append(f.calls, "delete 7")
+		f.dvrs = nil
 	case r.Method == http.MethodPost && r.URL.Path == "/livetv/dvrs/7/reloadGuide":
 		f.calls = append(f.calls, "guide 7")
 	default:
@@ -78,7 +81,7 @@ func TestTVAddToPlex(t *testing.T) {
 	key := s.tvFeedKey()
 	want := []string{
 		"tuner http://192.168.1.20:8264",
-		"dvr device://tv.plex.grabbers.hdhomerun/ABCD1234 lineup://tv.plex.providers.epg.xmltv/http://192.168.1.20:8264/api/tvfeed/" + key + "/xmltv.xml#Usherr TV",
+		"dvr device://tv.plex.grabbers.hdhomerun/ABCD1234 lineup://tv.plex.providers.epg.xmltv/http://192.168.1.20:8264/api/tvfeed/" + key + "/plex.xml#Usherr TV",
 		"guide 7",
 	}
 	if strings.Join(f.calls, "\n") != strings.Join(want, "\n") {
@@ -91,5 +94,14 @@ func TestTVAddToPlex(t *testing.T) {
 	f.calls = nil
 	if body := press(); !strings.Contains(body, "already") || strings.Join(f.calls, ",") != "guide 7" {
 		t.Fatalf("pressed again: %v %s", f.calls, body)
+	}
+
+	// A DVR of Usherr's tuner made with an earlier guide: made again with
+	// this one, on the same tuner (no second tuner).
+	f.dvrs[0]["lineup"] = "lineup://tv.plex.providers.epg.xmltv/http://192.168.1.20:8264/api/tvfeed/" + key + "/xmltv.xml#Usherr TV"
+	f.calls = nil
+	press()
+	if got := strings.Join(f.calls, ","); got != "delete 7,dvr device://tv.plex.grabbers.hdhomerun/ABCD1234 "+want[1][len("dvr device://tv.plex.grabbers.hdhomerun/ABCD1234 "):]+",guide 7" {
+		t.Fatalf("an earlier guide: %s", got)
 	}
 }

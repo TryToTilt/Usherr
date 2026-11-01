@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.33.1] - 2026-10-31
+
+### Fixed
+
+- **Live TV in Plex: the guide matches the channels**: Plex matches its guide to its tuner's channels by their id, and Usherr's guide named them as Jellyfin does, so Plex enabled none and had no airings. Plex now gets a guide of its own (plex.xml) naming each channel by its number, as the tuner does; Add to Plex, pressed again, makes Usherr's DVR again with it on the same tuner.
+
 ## [2.33.0] - 2026-10-31
 
 ### Added

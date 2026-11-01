@@ -77,6 +77,7 @@ func tvFeedBase(r *http.Request) string {
 func (s *Server) registerTVFeedRoutes(public *http.ServeMux) {
 	public.HandleFunc("GET /api/tvfeed/{key}/channels.m3u", s.handleTVM3U)
 	public.HandleFunc("GET /api/tvfeed/{key}/xmltv.xml", s.handleTVXMLTV)
+	public.HandleFunc("GET /api/tvfeed/{key}/plex.xml", s.handleTVXMLTV) // Usherr: the guide as Plex matches it
 	public.HandleFunc("GET /api/tvfeed/{key}/stream/{file}", s.handleTVStream)
 }
 
@@ -173,16 +174,22 @@ func (s *Server) handleTVXMLTV(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.WriteString(w, xml.Header)
 	enc := xml.NewEncoder(w)
 	enc.Indent("", " ")
-	_ = enc.Encode(tvXMLTV(s.feedChannels(chans, tvFeedBase(r), r.PathValue("key")), progs))
+	// Usherr: Plex matches the guide's channels to its tuner's by id, so its
+	// guide (plex.xml) names each channel by its number, as the tuner does.
+	plex := strings.HasSuffix(r.URL.Path, "/plex.xml")
+	_ = enc.Encode(tvXMLTV(s.feedChannels(chans, tvFeedBase(r), r.PathValue("key")), progs, plex))
 }
 
-func tvXMLTV(chans []tv.Channel, progs map[int64][]tv.Program) xmltvDoc {
+func tvXMLTV(chans []tv.Channel, progs map[int64][]tv.Program, plex bool) xmltvDoc {
 	doc := xmltvDoc{Generator: "Mediarium TV"}
 	for _, c := range chans {
 		if !c.Enabled {
 			continue
 		}
 		id := fmt.Sprintf("mediarium.%d", c.Number)
+		if plex {
+			id = strconv.Itoa(c.Number)
+		}
 		xc := xmltvChannel{ID: id, Name: c.Name, Number: strconv.Itoa(c.Number)}
 		if c.LogoURL != "" {
 			xc.IconSrc = &struct {
