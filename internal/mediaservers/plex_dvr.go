@@ -29,6 +29,7 @@ type PlexDVR struct {
 type PlexTuner struct {
 	UUID string
 	URI  string
+	On   int // its channels switched on in the DVR
 }
 
 // plexLiveDoc reads Plex's Live TV answers, JSON or XML.
@@ -38,8 +39,11 @@ type plexLiveDoc struct {
 		Key    string `xml:"key,attr" json:"key"`
 		Lineup string `xml:"lineup,attr" json:"lineup"`
 		Device []struct {
-			UUID string `xml:"uuid,attr" json:"uuid"`
-			URI  string `xml:"uri,attr" json:"uri"`
+			UUID           string `xml:"uuid,attr" json:"uuid"`
+			URI            string `xml:"uri,attr" json:"uri"`
+			ChannelMapping []struct {
+				Enabled string `xml:"enabled,attr" json:"enabled"`
+			} `xml:"ChannelMapping" json:"ChannelMapping"`
 		} `xml:"Device" json:"Device"`
 	} `xml:"Dvr" json:"Dvr"`
 	Device []struct {
@@ -107,7 +111,13 @@ func (c *Client) PlexDVRs(ctx context.Context, s Server) ([]PlexDVR, error) {
 	for _, d := range doc.Dvr {
 		dvr := PlexDVR{Key: d.Key, Lineup: d.Lineup}
 		for _, dev := range d.Device {
-			dvr.Devices = append(dvr.Devices, PlexTuner{UUID: dev.UUID, URI: dev.URI})
+			t := PlexTuner{UUID: dev.UUID, URI: dev.URI}
+			for _, m := range dev.ChannelMapping {
+				if m.Enabled == "1" || m.Enabled == "true" {
+					t.On++
+				}
+			}
+			dvr.Devices = append(dvr.Devices, t)
 		}
 		out = append(out, dvr)
 	}

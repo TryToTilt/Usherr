@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.33.6] - 2026-10-31
+
+### Fixed
+
+- **Add to Plex, pressed again**: with Usherr's channels on in Plex already, it only has Plex read the guide again, instead of sending the channel map again (which Plex can take minutes over).
+
 ## [2.33.5] - 2026-10-31
 
 ### Fixed

@@ -89,9 +89,12 @@ func (s *Server) tvPlexAdd(ctx context.Context, srv mediaservers.Server, base, x
 				continue
 			}
 			if d.Lineup == lineup {
-				n, err := s.tvPlexChannels(ctx, srv, dev.UUID, lineup)
-				if err != nil {
-					return "", err
+				n := dev.On
+				if n == 0 { // switched on already: the map isn't sent again
+					var err error
+					if n, err = s.tvPlexChannels(ctx, srv, dev.UUID, lineup); err != nil {
+						return "", err
+					}
 				}
 				if err := s.mediaClient.PlexReloadGuide(ctx, srv, d.Key); err != nil {
 					return "", fmt.Errorf("having Plex read the guide: %w", err)
