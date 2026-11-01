@@ -126,6 +126,7 @@ export default function ExtrasSettings({ only }: { only?: string[] } = {}) {
   return (
     <div className="settings-stack">
       {show('server') && <MediaServerCard x={x} />}
+      {show('convert') && <ConvertCard />}
       {show('address') && <AddressCard x={x} save={save} />}
       {show('streaming') && <StreamingEngineCard />}
       {show('streaming') && <StreamingCard x={x} save={save} />}
@@ -163,7 +164,7 @@ function MediaServerCard({ x }: { x: Extras }) {
       blurb={
         <>
           {t("The player, Live TV in your media server's app and the streamed library work with Jellyfin (recommended) or Emby.")}{' '}
-          {x.server.plex && t("Plex is connected too: it gets new files as usual, but streamed titles and Live TV stay inside Mediarium, because Plex can't read them.")}
+          {x.server.plex && t('Plex is connected too: it gets new files as usual, streamed titles through the virtual drive, and Live TV with Add to Plex.')}
         </>
       }
       needs={tx('a Jellyfin or Emby server, connected under {link}. Add the folder mapping there too if it sees your folders under other names.', {
@@ -175,6 +176,61 @@ function MediaServerCard({ x }: { x: Extras }) {
           {tx('Using {name} ({kind}).', { name: <strong>{x.server.name}</strong>, kind: x.server.kind === 'emby' ? 'Emby' : 'Jellyfin' })}
         </p>
       )}
+    </Card>
+  )
+}
+
+// Usherr: who converts a file the browser can't play as it is, for Usherr's
+// own player. Whichever is chosen hands on to the next when it can't (the
+// file isn't in its library, another sound track, it doesn't answer), and
+// Usherr itself is always last.
+interface ConvertInfo {
+  with: '' | 'jellyfin' | 'plex' | 'usherr'
+  jellyfin: string
+  plex: string
+}
+
+function ConvertCard() {
+  const toast = useToast()
+  const [c, setC] = useState<ConvertInfo | null>(null)
+  useEffect(() => {
+    call<ConvertInfo>('GET', '/api/home/convert')
+      .then(setC)
+      .catch(() => undefined)
+  }, [])
+  if (!c) return null
+  const choose = (v: ConvertInfo['with']) =>
+    call<ConvertInfo>('PUT', '/api/home/convert', { with: v })
+      .then((d) => {
+        setC(d)
+        toast.success(t('Saved.'))
+      })
+      .catch((e: Error) => toast.error(e.message))
+  const options: { v: ConvertInfo['with']; name: string; what: string; off?: boolean }[] = [
+    { v: '', name: t('Whichever is connected'), what: t('Jellyfin or Emby first, then Plex, then Usherr.') },
+    { v: 'jellyfin', name: 'Jellyfin', what: c.jellyfin ? t('{name}, on its graphics card with HDR tone mapping.', { name: c.jellyfin }) : t('not connected'), off: !c.jellyfin },
+    { v: 'plex', name: 'Plex', what: c.plex ? t('{name}, on its graphics card with Plex Pass and hardware acceleration on in Plex (Settings, Transcoder).', { name: c.plex }) : t('not connected'), off: !c.plex },
+    { v: 'usherr', name: 'Usherr', what: t('itself, on the processor: always works, but a 4K picture is slow and hard on the computer.') },
+  ]
+  return (
+    <Card
+      id="convert"
+      title={t('Converting for the player')}
+      guide="plex"
+      state={c.jellyfin || c.plex ? 'ready' : 'off'}
+      blurb={t('When this browser can’t play a file from your library as it is (HEVC, HDR, Dolby or DTS sound), Usherr’s player gets a converted copy. Choose who makes it first: if it can’t, the next one in line does.')}
+    >
+      <div className="grid-form" data-walk="convert-with">
+        {options.map((o) => (
+          <label key={o.v || 'auto'} style={row}>
+            <input type="radio" name="convert-with" checked={c.with === o.v} disabled={o.off && c.with !== o.v} onChange={() => void choose(o.v)} />
+            <span>
+              <strong>{o.name}</strong> <span className="hint">{o.what}</span>
+            </span>
+          </label>
+        ))}
+        <p style={small}>{t('Only what the browser can’t play is converted: a 4K picture stays 4K. Another sound track than the first, or a burned-in subtitle, is always converted by Jellyfin or Usherr. The player says who converted it.')}</p>
+      </div>
     </Card>
   )
 }

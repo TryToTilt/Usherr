@@ -37,6 +37,8 @@ func (s *Server) registerExtrasRoutes(admin routeGroup) {
 	admin.HandleFunc("PUT /api/home/extras", s.handlePutExtras)
 	admin.HandleFunc("GET /api/home/streaming", s.handleGetStreamingEngine) // Usherr: the streaming engine
 	admin.HandleFunc("PUT /api/home/streaming", s.handlePutStreamingEngine)
+	admin.HandleFunc("GET /api/home/convert", s.handleGetConvert) // Usherr: who converts for the player
+	admin.HandleFunc("PUT /api/home/convert", s.handlePutConvert)
 	admin.HandleFunc("POST /api/home/streaming/import/preview", s.handleSNZBImportPreview) // Usherr: from StreamNZB
 	admin.HandleFunc("POST /api/home/streaming/import", s.handleSNZBImport)
 	admin.HandleFunc("POST /api/home/extras/test/{what}", s.handleTestExtra)

@@ -23,6 +23,22 @@
   Only a picture the browser can't show at all
   (an old XviD, or HDR on a screen without it) is converted, at its own
   size. A smaller picture only comes from a quality you pick.
+- **Who converts a file from your library.** To start with, Usherr asks, in
+  order (**Settings → Extras → Converting for the player** puts Plex first,
+  or Usherr itself; whichever can't hands on to the next):
+  1. **Jellyfin or Emby**, when one is connected: on its graphics card, with
+     HDR tone mapping.
+  2. **Plex**, when it has the file: on its graphics card with Plex Pass and
+     *Use hardware acceleration when available* ticked in Plex (**Settings →
+     Transcoder**); without them, on Plex's processor. Plex's dashboard shows
+     *Transcode (hw)* while it does. Another sound track than the first, or a
+     picture subtitle burned in, is left to Usherr.
+  3. **Usherr itself**, with ffmpeg on the processor: it always works, but a
+     4K picture is slow and hard on the computer.
+
+  Usherr passes the stream on, so the browser never talks to Jellyfin or Plex
+  and never sees their keys. The player says who converted it, and closing
+  it stops the conversion.
 - **Up next**: near the end of an episode (its last 15 seconds, or when it
   ends) a card offers the next one and plays it after a 10-second countdown:
   your file when you have it, otherwise a stream at this device's quality.

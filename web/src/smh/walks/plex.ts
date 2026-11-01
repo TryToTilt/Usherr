@@ -11,7 +11,7 @@ export const plexDrive: Walkthrough = {
   title: t('Set up Plex with the virtual drive'),
   blurb: t('Streamed films and shows in Plex: Usherr serves them as a drive of ordinary video files, and rclone puts it on your computer.'),
   icon: 'server',
-  words: 'plex virtual drive webdav rclone winfsp mount streams streamed library now right away put on drive season unavailable address router reservation nas',
+  words: 'plex virtual drive webdav rclone winfsp mount streams streamed library now right away put on drive season unavailable address router reservation nas convert transcode hardware gpu',
   simple: [
     {
       kind: 'ask',
@@ -114,6 +114,11 @@ export const plexDrive: Walkthrough = {
       kind: 'say',
       title: t('Add it to Plex, the light way'),
       text: t('With Plex connected to Usherr (Settings, Media servers), press Add them to Plex for me on the card: Usherr makes Movies-Stream, TV-Stream and Anime-Stream. Or add U:\\Movies to a Movies library and U:\\TV and U:\\Anime to a TV library yourself. In Plex, Settings, Library: set video preview thumbnails, chapter thumbnails and voice activity data to never, scan periodically, and untick Empty trash automatically. In Scheduled Tasks, untick extensive media analysis. Each of these would read whole films from Usenet.'),
+    },
+    {
+      kind: 'say',
+      title: t('Plex converts for Usherr’s player too'),
+      text: t('When a browser can’t play a file as it is (HEVC, HDR, Dolby or DTS sound) and no Jellyfin converts it, Plex does, before Usherr’s own slower conversion. With Plex Pass, tick Use hardware acceleration when available in Plex (Settings, Transcoder) and it uses the graphics card: Plex’s dashboard then shows Transcode (hw). With Jellyfin connected too, Settings, Extras, Converting for the player chooses which goes first.'),
     },
     {
       kind: 'done',

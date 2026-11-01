@@ -394,6 +394,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/cinema` | any account | GET /api/home/cinema: the films in cinemas now, for the "In theaters now" row, with the household's cinema settings the links need. |
 | GET | `/api/home/cinema/settings` | admin | GET /api/home/cinema/settings (admin). |
 | PUT | `/api/home/cinema/settings` | admin | PUT /api/home/cinema/settings {on, region, zip, theatre, amcKey} (admin): only what's sent changes; an empty amcKey removes the key. |
+| GET | `/api/home/convert` | admin | GET /api/home/convert (administrators): who converts for the player. |
+| PUT | `/api/home/convert` | admin | PUT /api/home/convert {"with": "" \| "jellyfin" \| "plex" \| "usherr"}. |
 | GET | `/api/home/diary` | any account | GET /api/home/diary?year=&kind=: your Diary, newest first, and the years it covers. |
 | POST | `/api/home/diary` | any account | POST /api/home/diary {kind, tmdbId, watchedOn, stars, note, rewatch}: log something by hand. |
 | GET | `/api/home/diary/import` | any account | GET /api/home/diary/import: how the latest import is getting on. |
@@ -1363,4 +1365,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-953 routes.
+955 routes.

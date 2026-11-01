@@ -259,10 +259,14 @@ func (s *Server) findJellyfinItem(ctx context.Context, srv mediaservers.Server, 
 
 type hlsSession struct {
 	token, itemID, master, deviceID, playSession string
+	plexProfile                                  string // Usherr: a Plex stream's profile (home_transcode_plex.go)
 	userID                                       int64
 	srv                                          mediaservers.Server
 	expires                                      time.Time
 }
+
+// plex is whether Plex converts this stream, rather than Jellyfin or Emby.
+func (sess *hlsSession) plex() bool { return sess.srv.Kind == mediaservers.KindPlex }
 
 var hlsSessions sync.Map // token -> *hlsSession
 
@@ -383,89 +387,133 @@ func (s *Server) handlePlayPrepare(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"mode": "direct", "url": direct, "note": note, "audio": audio})
 	}
-	srv, ok := s.jellyfinServer()
-	if !ok {
-		directAnswer("Connect Jellyfin or Emby under Settings > Connections > Media servers to play files this browser can't decode.")
-		return
-	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	itemID, err := s.findJellyfinItem(ctx, srv, file)
-	if err != nil {
-		directAnswer(err.Error())
-		return
+	// Usherr: Plex converts too (on its graphics card with Plex Pass). It
+	// isn't asked for another sound track or a burned-in subtitle: those go
+	// on to the next in line. next is the next converter in line.
+	plexThen := func(next func(string)) {
+		psrv, ok := s.plexServerForPlay()
+		if !ok || req.Kind == "video" || !firstAudio || burn >= 0 {
+			next("Plex isn't connected, or doesn't convert this one.")
+			return
+		}
+		sess, err := s.preparePlex(ctx, psrv, req.Kind, file, req.Caps, !req.Force, requestUserID(r))
+		if err != nil {
+			slog.Info("play: Plex didn't convert", "file", filepath.Base(file), "why", err)
+			next(err.Error())
+			return
+		}
+		slog.Info("play: converted by Plex", "file", filepath.Base(file), "server", psrv.Name)
+		hlsSessions.Store(sess.token, sess)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"mode": "hls", "url": "/api/play/hls/" + sess.token + "/master.m3u8", "session": sess.token,
+			"converter": "plex", "audio": audio,
+		})
 	}
-	var info struct {
-		PlaySessionID string `json:"PlaySessionId"`
-		MediaSources  []struct {
-			ID                string   `json:"Id"`
-			SupportsDirect    bool     `json:"SupportsDirectPlay"`
-			TranscodingURL    string   `json:"TranscodingUrl"`
-			TranscodeReasons  []string `json:"TranscodeReasons"`
-			TranscodingSubPro string   `json:"TranscodingSubProtocol"`
-		} `json:"MediaSources"`
+	// Jellyfin (or Emby) converts on its graphics card, with tone mapping.
+	jellyfinThen := func(next func(string)) {
+		srv, ok := s.jellyfinServer()
+		if !ok {
+			next("Connect Jellyfin, Emby or Plex under Settings > Connections > Media servers to play files this browser can't decode.")
+			return
+		}
+		itemID, err := s.findJellyfinItem(ctx, srv, file)
+		if err != nil {
+			next(err.Error())
+			return
+		}
+		var info struct {
+			PlaySessionID string `json:"PlaySessionId"`
+			MediaSources  []struct {
+				ID                string   `json:"Id"`
+				SupportsDirect    bool     `json:"SupportsDirectPlay"`
+				TranscodingURL    string   `json:"TranscodingUrl"`
+				TranscodeReasons  []string `json:"TranscodeReasons"`
+				TranscodingSubPro string   `json:"TranscodingSubProtocol"`
+			} `json:"MediaSources"`
+		}
+		profile := req.Caps.deviceProfile()
+		if burn >= 0 {
+			// A picture subtitle can only be burned into the picture.
+			profile["SubtitleProfiles"] = []map[string]any{{"Format": "pgssub", "Method": "Encode"}, {"Format": "dvdsub", "Method": "Encode"}, {"Format": "dvbsub", "Method": "Encode"}, {"Format": "vtt", "Method": "External"}, {"Format": "srt", "Method": "External"}}
+		}
+		body := map[string]any{
+			"DeviceProfile": profile, "MaxStreamingBitrate": maxStreamingBitrate,
+			// Usherr: the file was checked above and doesn't play as it is. Only
+			// what the browser can't play is converted: a picture it shows (H.264,
+			// or HEVC and AV1 where it plays them) is copied, so often only the
+			// sound is converted, and a sound it plays is copied too.
+			"EnableDirectPlay": false, "EnableDirectStream": false, "EnableTranscoding": true,
+			"AllowVideoStreamCopy": burn < 0, "AllowAudioStreamCopy": true, "AutoOpenLiveStream": false,
+		}
+		if audio >= 0 {
+			body["AudioStreamIndex"] = audio
+		}
+		if burn >= 0 {
+			body["SubtitleStreamIndex"] = burn
+		}
+		if err := jfJSON(ctx, srv, http.MethodPost, "/Items/"+url.PathEscape(itemID)+"/PlaybackInfo", body, &info); err != nil {
+			next(err.Error())
+			return
+		}
+		if len(info.MediaSources) == 0 {
+			next(serverLabel(srv) + " has no playable version of this file.")
+			return
+		}
+		src := info.MediaSources[0]
+		if src.TranscodingURL == "" {
+			next(serverLabel(srv) + " offered no converted version.")
+			return
+		}
+		u, err := url.Parse(src.TranscodingURL)
+		if err != nil {
+			next(serverLabel(srv) + "'s conversion address couldn't be read.")
+			return
+		}
+		q := u.Query()
+		q.Del("api_key")
+		q.Del("ApiKey")
+		sess := &hlsSession{
+			token: newToken(), itemID: itemID, deviceID: q.Get("DeviceId"), playSession: info.PlaySessionID,
+			userID: requestUserID(r), srv: srv, expires: time.Now().Add(8 * time.Hour),
+		}
+		if sess.playSession == "" {
+			sess.playSession = q.Get("PlaySessionId")
+		}
+		if audio >= 0 && q.Get("AudioStreamIndex") == "" {
+			q.Set("AudioStreamIndex", strconv.Itoa(audio))
+		}
+		if burn >= 0 && q.Get("SubtitleStreamIndex") == "" {
+			q.Set("SubtitleStreamIndex", strconv.Itoa(burn))
+			q.Set("SubtitleMethod", "Encode")
+		}
+		sess.master = u.Path + "?" + q.Encode()
+		hlsSessions.Store(sess.token, sess)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"mode": "hls", "url": "/api/play/hls/" + sess.token + "/master.m3u8", "session": sess.token,
+			"reasons": src.TranscodeReasons, "audio": audio,
+		})
 	}
-	profile := req.Caps.deviceProfile()
-	if burn >= 0 {
-		// A picture subtitle can only be burned into the picture.
-		profile["SubtitleProfiles"] = []map[string]any{{"Format": "pgssub", "Method": "Encode"}, {"Format": "dvdsub", "Method": "Encode"}, {"Format": "dvbsub", "Method": "Encode"}, {"Format": "vtt", "Method": "External"}, {"Format": "srt", "Method": "External"}}
+	// The converters in the order the household chose (Settings, Extras,
+	// Converting for the player), each handing on to the next when it can't;
+	// Usherr's own ffmpeg is always last.
+	var try func(i int, note string)
+	try = func(i int, note string) {
+		order := s.convertOrder()
+		if i >= len(order) {
+			directAnswer(note)
+			return
+		}
+		next := func(n string) { try(i+1, n) }
+		switch order[i] {
+		case convertPlex:
+			plexThen(next)
+		default:
+			jellyfinThen(next)
+		}
 	}
-	body := map[string]any{
-		"DeviceProfile": profile, "MaxStreamingBitrate": maxStreamingBitrate,
-		// Usherr: the file was checked above and doesn't play as it is. Only
-		// what the browser can't play is converted: a picture it shows (H.264,
-		// or HEVC and AV1 where it plays them) is copied, so often only the
-		// sound is converted, and a sound it plays is copied too.
-		"EnableDirectPlay": false, "EnableDirectStream": false, "EnableTranscoding": true,
-		"AllowVideoStreamCopy": burn < 0, "AllowAudioStreamCopy": true, "AutoOpenLiveStream": false,
-	}
-	if audio >= 0 {
-		body["AudioStreamIndex"] = audio
-	}
-	if burn >= 0 {
-		body["SubtitleStreamIndex"] = burn
-	}
-	if err := jfJSON(ctx, srv, http.MethodPost, "/Items/"+url.PathEscape(itemID)+"/PlaybackInfo", body, &info); err != nil {
-		directAnswer(err.Error())
-		return
-	}
-	if len(info.MediaSources) == 0 {
-		directAnswer(serverLabel(srv) + " has no playable version of this file.")
-		return
-	}
-	src := info.MediaSources[0]
-	if src.TranscodingURL == "" {
-		directAnswer(serverLabel(srv) + " offered no converted version.")
-		return
-	}
-	u, err := url.Parse(src.TranscodingURL)
-	if err != nil {
-		directAnswer(serverLabel(srv) + "'s conversion address couldn't be read.")
-		return
-	}
-	q := u.Query()
-	q.Del("api_key")
-	q.Del("ApiKey")
-	sess := &hlsSession{
-		token: newToken(), itemID: itemID, deviceID: q.Get("DeviceId"), playSession: info.PlaySessionID,
-		userID: requestUserID(r), srv: srv, expires: time.Now().Add(8 * time.Hour),
-	}
-	if sess.playSession == "" {
-		sess.playSession = q.Get("PlaySessionId")
-	}
-	if audio >= 0 && q.Get("AudioStreamIndex") == "" {
-		q.Set("AudioStreamIndex", strconv.Itoa(audio))
-	}
-	if burn >= 0 && q.Get("SubtitleStreamIndex") == "" {
-		q.Set("SubtitleStreamIndex", strconv.Itoa(burn))
-		q.Set("SubtitleMethod", "Encode")
-	}
-	sess.master = u.Path + "?" + q.Encode()
-	hlsSessions.Store(sess.token, sess)
-	writeJSON(w, http.StatusOK, map[string]any{
-		"mode": "hls", "url": "/api/play/hls/" + sess.token + "/master.m3u8", "session": sess.token,
-		"reasons": src.TranscodeReasons, "audio": audio,
-	})
+	try(0, "Converted by Usherr, as chosen under Settings, Extras.")
 }
 
 var hlsRest = regexp.MustCompile(`^[A-Za-z0-9_.\-/]+$`)
@@ -506,7 +554,20 @@ func (s *Server) handlePlayHLS(w http.ResponseWriter, r *http.Request) {
 	if rest == "master.m3u8" {
 		target = sess.master
 	}
-	resp, err := jfRequest(r.Context(), sess.srv, http.MethodGet, target, nil)
+	var (
+		resp *http.Response
+		err  error
+	)
+	if sess.plex() {
+		pt, ok := plexTarget(sess, rest, r.URL.Query())
+		if !ok {
+			writeError(w, http.StatusBadRequest, "Bad stream address.")
+			return
+		}
+		resp, err = plexRequest(r.Context(), sess.srv, http.MethodGet, pt, sess.plexProfile)
+	} else {
+		resp, err = jfRequest(r.Context(), sess.srv, http.MethodGet, target, nil)
+	}
 	if err != nil {
 		writeError(w, http.StatusBadGateway, serverLabel(sess.srv)+" didn't answer.")
 		return
@@ -527,6 +588,9 @@ func (s *Server) handlePlayHLS(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		body = stripPlaylistKeys(body)
+		if sess.plex() {
+			body = plexPlaylistPaths(body, sess.token)
+		}
 		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 		w.WriteHeader(resp.StatusCode)
 		_, _ = w.Write(body)
@@ -536,7 +600,7 @@ func (s *Server) handlePlayHLS(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, resp.Body)
 }
 
-var playlistKey = regexp.MustCompile(`(?i)([?&])(api_key|apikey|X-Emby-Token)=[^&\s"]*&?`)
+var playlistKey = regexp.MustCompile(`(?i)([?&])(api_key|apikey|X-Emby-Token|X-Plex-Token)=[^&\s"]*&?`)
 
 // stripPlaylistKeys removes media-server keys from the links in a playlist.
 func stripPlaylistKeys(b []byte) []byte {
@@ -553,6 +617,11 @@ func (s *Server) handleStopHLS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hlsSessions.Delete(sess.token)
+	if sess.plex() {
+		stopPlex(sess)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	q := url.Values{"DeviceId": {sess.deviceID}, "PlaySessionId": {sess.playSession}}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

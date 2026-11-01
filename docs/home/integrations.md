@@ -64,6 +64,26 @@ the player, Live TV and the streamed library work through.
 
 ![The Jellyfin or Emby card in Settings → Extras](images/extras-jellyfin.png)
 
+## Plex
+
+**Optional.** Usherr works with Plex beside Jellyfin, or instead of it: your
+Diary and taste from Plex's history, the Marquee's *Now showing*, intro and
+credits markers, Re-Posterr, the pre-show as Plex's pre-roll, Live TV in
+Plex's guide, and streamed titles through the [virtual drive](#virtual-drive-for-plex).
+
+- **Put it in:** **Settings → Connections → Media servers → Sign in with
+  Plex**. For a Plex on the same computer as Docker, Usherr uses
+  `http://host.docker.internal:32400`.
+- **Converting for Usherr's player.** When a browser can't play a file as it
+  is and no Jellyfin or Emby converts it, Plex does, before Usherr's own
+  (slower) conversion. On the graphics card it needs Plex Pass and, in Plex,
+  **Settings → Transcoder → Use hardware acceleration when available**;
+  Plex's dashboard then shows *Transcode (hw)*. Plex only converts a file
+  it has in a library. With Jellyfin connected too, **Settings → Extras →
+  Converting for the player** chooses who goes first: whichever is connected
+  (Jellyfin or Emby, then Plex), Jellyfin, Plex, or Usherr itself. Whichever
+  can't convert a file hands on to the next, and Usherr is always last.
+
 ## Usherr's address on your network
 
 **Optional, needed for Live TV, the streamed library, the Stremio and Nuvio

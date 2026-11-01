@@ -5,6 +5,21 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.35.0] - 2026-11-01
+
+### Added
+
+- **Plex converts for Usherr's player**: when a browser can't play a file from your library as it is (HEVC, HDR, Dolby, DTS or TrueHD sound) and no Jellyfin or Emby converts it, Plex does, before Usherr's own conversion on the processor. With Plex Pass and *Use hardware acceleration when available* ticked in Plex, it uses the graphics card (Plex's dashboard shows *Transcode (hw)*). Usherr passes Plex's stream on, so the browser never sees Plex or its token, and closing the player stops it. The player says who converted it. Another sound track than the first, or a burned-in picture subtitle, is still converted by Jellyfin or Usherr.
+- **Converting for the player: choose who goes first** (Settings, Extras): whichever is connected (Jellyfin or Emby, then Plex), Jellyfin, Plex, or Usherr itself. Whichever can't convert a file hands on to the next, and Usherr is always last.
+
+### Changed
+
+- The *Jellyfin or Emby* card no longer says Plex can't get streamed titles or Live TV: it gets them through the virtual drive and Add to Plex.
+
+### Fixed
+
+- **Live TV in Plex, every channel on Unknown Airing**: the guide says what to do when it lasts (restart Plex, which reads the guide again).
+
 ## [2.34.0] - 2026-10-31
 
 ### Added

@@ -408,7 +408,7 @@ function browserCaps() {
   }
 }
 
-type Plan = { mode: 'direct' | 'hls'; url: string; session?: string; note?: string; reasons?: string[]; converted?: boolean; audio?: number; shift?: number }
+type Plan = { mode: 'direct' | 'hls'; url: string; session?: string; note?: string; reasons?: string[]; converted?: boolean; audio?: number; shift?: number; converter?: 'plex' }
 // Usherr: asking again: from where it got to, converted, with a sound track or a burned-in subtitle.
 type Redo = { at: number; force?: boolean; audio?: number; burn?: number }
 
@@ -1004,7 +1004,7 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
     }
   }, [req, redo])
 
-  const note = req.live ? undefined : plan?.mode === 'hls' ? t('Converted by Jellyfin for this browser') : req.stream ? browserTrouble(req.stream) || plan?.note : plan?.note
+  const note = req.live ? undefined : plan?.mode === 'hls' ? (plan.converter === 'plex' ? t('Converted by Plex for this browser') : t('Converted by Jellyfin for this browser')) : req.stream ? browserTrouble(req.stream) || plan?.note : plan?.note
   const [kept, setKept] = useState(false)
   const [copied, setCopied] = useState(false)
   const [tvName, setTvName] = useState('')

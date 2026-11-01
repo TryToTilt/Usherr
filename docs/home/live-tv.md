@@ -196,7 +196,11 @@ keep them to yourself):
   your network*).
 - **Plex's guide says *Unknown Airing***: a Plex page opened while the guide
   was still being read keeps the early empty rows. Reload the page (F5), or
-  close and open Live TV again.
+  close and open Live TV again. If every channel still says it after a few
+  minutes, Plex may have got stuck while switching the channels on: restart
+  Plex (or the PC). Plex reads the guide again when it starts, which can
+  take a few minutes with many channels. Then reload the page. Pressing
+  **Add to Plex** again after that only has Plex read the guide again.
 - **Channels stop after a restart**: if the server got a new address on your
   network, the tuner and guide addresses Plex and Jellyfin were given no
   longer answer. Reserve the server's address in your router (see
