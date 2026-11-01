@@ -9,6 +9,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -78,7 +79,7 @@ func (s *Server) handleTVPlex(w http.ResponseWriter, r *http.Request) {
 func (s *Server) tvPlexAdd(ctx context.Context, srv mediaservers.Server, base, xmltv string) (string, error) {
 	dvrs, err := s.mediaClient.PlexDVRs(ctx, srv)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("reading Plex's DVRs: %w", err)
 	}
 	lineup := mediaservers.PlexXMLTVLineup(xmltv, "Usherr TV")
 	device := ""
@@ -89,14 +90,14 @@ func (s *Server) tvPlexAdd(ctx context.Context, srv mediaservers.Server, base, x
 			}
 			if d.Lineup == lineup {
 				if err := s.mediaClient.PlexReloadGuide(ctx, srv, d.Key); err != nil {
-					return "", err
+					return "", fmt.Errorf("having Plex read the guide: %w", err)
 				}
 				return srv.Name + " has Usherr TV already: its guide is being read again.", nil
 			}
 			// Usherr's DVR with another guide (an earlier one): made again
 			// with this one, on the same tuner.
 			if err := s.mediaClient.PlexDeleteDVR(ctx, srv, d.Key); err != nil {
-				return "", err
+				return "", fmt.Errorf("replacing Usherr's DVR: %w", err)
 			}
 			device = dev.UUID
 		}
@@ -104,12 +105,23 @@ func (s *Server) tvPlexAdd(ctx context.Context, srv mediaservers.Server, base, x
 	if device == "" {
 		var err error
 		if device, err = s.mediaClient.PlexAddTuner(ctx, srv, base); err != nil {
-			return "", err
+			return "", fmt.Errorf("adding the tuner: %w", err)
 		}
 	}
 	key, err := s.mediaClient.PlexAddDVR(ctx, srv, device, lineup)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("making the DVR: %w", err)
+	}
+	if key == "" { // Plex didn't say: the DVR on Usherr's tuner
+		if list, err := s.mediaClient.PlexDVRs(ctx, srv); err == nil {
+			for _, d := range list {
+				for _, dev := range d.Devices {
+					if dev.UUID == device {
+						key = d.Key
+					}
+				}
+			}
+		}
 	}
 	if key != "" {
 		_ = s.mediaClient.PlexReloadGuide(ctx, srv, key)

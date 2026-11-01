@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.33.2] - 2026-10-31
+
+### Fixed
+
+- **Add to Plex**: Plex answers some Live TV calls in XML, or with nothing, which Usherr took for something that isn't Plex. Both are read now (the new DVR is looked up when Plex doesn't say it), and an error says which step it came from.
+
 ## [2.33.1] - 2026-10-31
 
 ### Fixed

@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"html"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,14 +27,26 @@ func (f *fakeDVRPlex) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/livetv/dvrs":
-		send(map[string]any{"Dvr": f.dvrs})
+		// In XML, as Plex may answer.
+		w.Header().Set("Content-Type", "application/xml")
+		var b strings.Builder
+		b.WriteString(`<MediaContainer size="1">`)
+		for _, d := range f.dvrs {
+			fmt.Fprintf(&b, `<Dvr key="%s" lineup="%s">`, d["key"], html.EscapeString(fmt.Sprint(d["lineup"])))
+			for _, dev := range d["Device"].([]map[string]any) {
+				fmt.Fprintf(&b, `<Device uuid="%s" uri="%s"/>`, dev["uuid"], dev["uri"])
+			}
+			b.WriteString(`</Dvr>`)
+		}
+		b.WriteString(`</MediaContainer>`)
+		_, _ = w.Write([]byte(b.String()))
 	case r.Method == http.MethodPost && r.URL.Path == "/media/grabbers/devices":
 		f.calls = append(f.calls, "tuner "+q.Get("uri"))
 		send(map[string]any{"Device": []map[string]any{{"uuid": "device://tv.plex.grabbers.hdhomerun/ABCD1234"}}})
 	case r.Method == http.MethodPost && r.URL.Path == "/livetv/dvrs":
 		f.calls = append(f.calls, "dvr "+q.Get("device")+" "+q.Get("lineup"))
 		f.dvrs = append(f.dvrs, map[string]any{"key": "7", "lineup": q.Get("lineup"), "Device": []map[string]any{{"uuid": q.Get("device"), "uri": "http://192.168.1.20:8264"}}})
-		send(map[string]any{"Dvr": []map[string]any{{"key": "7"}}})
+		// Nothing back: Usherr looks the DVR up.
 	case r.Method == http.MethodDelete && r.URL.Path == "/livetv/dvrs/7":
 		f.calls = append(f.calls, "delete 7")
 		f.dvrs = nil
