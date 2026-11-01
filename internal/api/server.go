@@ -448,8 +448,9 @@ func (s *Server) Routes() http.Handler {
 	s.koboRoutes(root)
 	// The Stremio and Nuvio add-on signs in with the key in its address (home_addon.go).
 	s.addonRoutes(root)
-	s.preshowRoutes(root)       // Usherr: the Jellyfin app's pre-show (the NeXroll Intros plugin)
-	s.registerDriveRoutes(root) // Usherr: the virtual drive (WebDAV) for Plex, with its own sign-in (home_drive_dav.go)
+	s.preshowRoutes(root)        // Usherr: the Jellyfin app's pre-show (the NeXroll Intros plugin)
+	s.registerTVPlexRoutes(root) // Usherr: Live TV as a tuner at the root, for Plex (home_tvplex.go)
+	s.registerDriveRoutes(root)  // Usherr: the virtual drive (WebDAV) for Plex, with its own sign-in (home_drive_dav.go)
 	root.HandleFunc("GET /robots.txt", robotsTxt)
 	root.Handle("/", frontendHandlerBase(s.cfg.URLBase))
 	return withBodyDeadline(s.harden(withURLBase(s.cfg.URLBase, root)))

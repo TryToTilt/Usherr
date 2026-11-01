@@ -60,6 +60,7 @@ func (s *Server) registerTVChannelRoutes(play, admin routeGroup) {
 	admin.HandleFunc("GET /api/tv/channels/{id}/logo-ideas", s.handleTVLogoIdeas)
 	admin.HandleFunc("GET /api/tv/tuner", s.handleTVTunerInfo)
 	admin.HandleFunc("POST /api/tv/jellyfin", s.handleTVJellyfin)
+	admin.HandleFunc("POST /api/tv/plex", s.handleTVPlex) // Usherr: Live TV in Plex (home_tvplex.go)
 }
 
 // tvJob keeps every channel scheduled tv.Horizon ahead and forgets old

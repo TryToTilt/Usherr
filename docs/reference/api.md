@@ -1237,6 +1237,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/tv/channels/{id}/rebuild` | admin |  |
 | GET | `/api/tv/guide` | signed in |  |
 | POST | `/api/tv/jellyfin` | admin | POST /api/tv/jellyfin: add Mediarium TV to Jellyfin's Live TV (a tuner and a guide), once, and refresh Jellyfin's guide. |
+| POST | `/api/tv/plex` | admin | POST /api/tv/plex (admin): Usherr's channels and guide in Plex's Live TV. |
 | POST | `/api/tv/remind` | signed in | POST /api/tv/remind {channelId, start} toggles a reminder; GET lists yours. |
 | GET | `/api/tv/reminders` | signed in |  |
 | POST | `/api/tv/replay` | admin | POST /api/tv/replay {zip, date, networks, check}: start building; GET /api/tv/replay/{id}: how far it got, and the plan when done. |
@@ -1361,4 +1362,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-951 routes.
+952 routes.

@@ -133,6 +133,13 @@ live channels, or rebuilt from a real network's day (**Real TV**).
 - Change channel like a cable box (↑ ↓, a number, Backspace for the last
   one), or watch four at once in **Multiview**.
 - The same channels show in Jellyfin, Plex and IPTV apps such as TiviMate.
+  **Add to Jellyfin** and **Add to Plex** (on the Live TV page) set each up by
+  itself. For Plex (its Live TV & DVR needs Plex Pass), Usherr answers as an
+  HDHomeRun tuner at its own address, and Plex gets a DVR of it with Usherr's
+  guide; the channels appear in Plex's Live TV once it has read the guide (a
+  few minutes). Pressed again, it has Plex read the guide again. A channel
+  relayed from a live stream (HLS) isn't a tuner's kind of channel, so it
+  stays out of Plex.
 
 See [Live TV](live-tv.md) for everything: making channels, packs, the AI
 builder, scheduling like a network, Real TV and the other apps.

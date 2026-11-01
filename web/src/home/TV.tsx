@@ -111,6 +111,13 @@ export default function TV() {
       .then((r) => setJfNote(r.message))
       .catch((e: Error) => setJfNote(e.message))
   }
+  // Usherr: Live TV in Plex (home_tvplex.go): the tuner, the DVR and the guide.
+  const addToPlex = () => {
+    setJfNote(t('Adding Usherr TV to Plex…'))
+    call<{ message: string }>('POST', '/plex')
+      .then((r) => setJfNote(r.message))
+      .catch((e: Error) => setJfNote(e.message))
+  }
 
   const load = useCallback(() => {
     call<Guide>('GET', '/guide?hours=27&back=3') // Usherr: 3 hours back, for catch-up
@@ -163,6 +170,9 @@ export default function TV() {
           <div className="tv-actions" data-walk="tv-actions">
             <button className="btn-with-icon" onClick={addToJellyfin} title={t("Show these channels, with their guide, in Jellyfin's Live TV")}>
               <Icon name="tv" size={16} /> {t('Add to Jellyfin')}
+            </button>
+            <button className="btn-with-icon" onClick={addToPlex} data-walk="tv-add-plex" title={t("Show these channels, with their guide, in Plex's Live TV (Plex Pass)")}>
+              <Icon name="tv" size={16} /> {t('Add to Plex')}
             </button>
             <OtherAppsButton />
             <PacksButton onPick={setEditing} />

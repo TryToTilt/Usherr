@@ -39,7 +39,11 @@ func (s *Server) handleHDHRDiscover(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	base := s.hdhrBase(r) + "/hdhr"
+	s.hdhrDiscover(w, s.hdhrBase(r)+"/hdhr")
+}
+
+// hdhrDiscover answers discover.json for a tuner at base.
+func (s *Server) hdhrDiscover(w http.ResponseWriter, base string) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"FriendlyName": "Usherr TV", "Manufacturer": "Usherr", "ModelNumber": "HDTC-2US", "FirmwareName": "hdhomeruntc_atsc",
 		"FirmwareVersion": "20240101", "DeviceID": s.hdhrID(), "DeviceAuth": "usherr", "TunerCount": maxTVStreams,
@@ -60,12 +64,19 @@ func (s *Server) handleHDHRLineup(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	s.hdhrLineup(w, s.hdhrBase(r))
+}
+
+// hdhrLineup answers lineup.json, each channel's stream under feed (its
+// feed address). A channel relayed from a live HLS stream isn't a tuner's
+// MPEG-TS, so it's left out.
+func (s *Server) hdhrLineup(w http.ResponseWriter, feed string) {
 	chans, err := s.tvRepo().Channels()
 	if err != nil {
 		http.Error(w, "unavailable", http.StatusInternalServerError)
 		return
 	}
-	base := s.hdhrBase(r)
+	base := feed
 	type entry struct {
 		GuideNumber string `json:"GuideNumber"`
 		GuideName   string `json:"GuideName"`
@@ -73,7 +84,7 @@ func (s *Server) handleHDHRLineup(w http.ResponseWriter, r *http.Request) {
 	}
 	out := []entry{}
 	for _, c := range chans {
-		if !c.Enabled {
+		if !c.Enabled || c.Kind == "live" {
 			continue
 		}
 		out = append(out, entry{GuideNumber: fmt.Sprint(c.Number), GuideName: c.Name, URL: fmt.Sprintf("%s/stream/%d.ts", base, c.Number)})

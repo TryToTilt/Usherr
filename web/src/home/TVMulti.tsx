@@ -114,7 +114,7 @@ export function OtherAppsButton() {
             <OtherAppsDialog box={box} onClose={() => setOpen(false)}>
               {row(t('Channel list (M3U)'), links?.m3u, t('For IPTV apps such as TiviMate (on the Shield), IPTV Smarters or VLC: add a playlist with this address.'))}
               {row(t('Guide (XMLTV)'), links?.xmltv, t('The guide for the same apps (in TiviMate: EPG sources), and for Plex below.'))}
-              {row(t('Tuner for Plex'), links?.hdhr, t('In Plex: Settings, Live TV & DVR, Set up Plex DVR, “Don’t see your HDHomeRun device? Enter its network address manually”, then this address. Give Plex the guide address above when it asks for one.'))}
+              {row(t('Tuner for Plex'), links?.hdhr, t('Add to Plex, on the Live TV page, sets Plex up by itself. By hand: in Plex, Settings, Live TV & DVR, Set up Plex DVR, “Don’t see your HDHomeRun device? Enter its network address manually”, then this address. Give Plex the guide address above when it asks for one.'))}
               <p className="hint">{t('The addresses carry a private key: share them only with apps you use. Jellyfin needs none of this: use Add to Jellyfin.')}</p>
             </OtherAppsDialog>
           </div>,

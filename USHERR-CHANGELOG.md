@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.33.0] - 2026-10-31
+
+### Added
+
+- **Live TV in Plex, set up by itself**: *Add to Plex* on the Live TV page (beside Add to Jellyfin) adds Usherr to Plex's Live TV & DVR (Plex Pass): Usherr answers as an HDHomeRun tuner at its own address, Plex makes a DVR of it with Usherr's guide and reads it. The tuner's addresses answer only once it's been pressed. Channels relayed from a live HLS stream stay out of Plex's lineup.
+
 ## [2.32.0] - 2026-10-31
 
 ### Added

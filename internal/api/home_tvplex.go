@@ -1,0 +1,105 @@
+package api
+
+// Usherr: Live TV in Plex. "Add to Plex" (beside "Add to Jellyfin") sets
+// Plex's Live TV & DVR up itself: Usherr answers as an HDHomeRun tuner at
+// the root of its address (where Plex looks for one: /discover.json,
+// /lineup.json), Plex adds it, makes a DVR of it with Usherr's XMLTV guide
+// and loads the guide. The root addresses answer only once Add to Plex has
+// been pressed (keyTVPlexOn); the streams they list carry the feed's key.
+
+import (
+	"context"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/rdborg/mediarium/internal/mediaservers"
+)
+
+const keyTVPlexOn = "home.tv.plex" // "1": the tuner answers at the root, for Plex
+
+func (s *Server) tvPlexOn() bool { v, _ := s.Settings.Get(keyTVPlexOn); return v == "1" }
+
+func (s *Server) registerTVPlexRoutes(root *http.ServeMux) {
+	gate := func(h func(w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			if !s.tvPlexOn() {
+				http.NotFound(w, r)
+				return
+			}
+			h(w, r)
+		}
+	}
+	root.HandleFunc("GET /discover.json", gate(func(w http.ResponseWriter, r *http.Request) {
+		s.hdhrDiscover(w, strings.TrimRight(tvFeedBase(r), "/"))
+	}))
+	root.HandleFunc("GET /lineup.json", gate(func(w http.ResponseWriter, r *http.Request) {
+		s.hdhrLineup(w, strings.TrimRight(tvFeedBase(r), "/")+"/api/tvfeed/"+s.tvFeedKey())
+	}))
+	root.HandleFunc("GET /lineup_status.json", gate(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"ScanInProgress": 0, "ScanPossible": 1, "Source": "Cable", "SourceList": []string{"Cable"}})
+	}))
+	root.HandleFunc("POST /lineup.post", gate(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
+}
+
+// POST /api/tv/plex (admin): Usherr's channels and guide in Plex's Live TV.
+func (s *Server) handleTVPlex(w http.ResponseWriter, r *http.Request) {
+	servers := s.plexServers()
+	if len(servers) == 0 {
+		writeError(w, http.StatusPreconditionFailed, "Connect Plex first, under Settings, Media servers.")
+		return
+	}
+	base := strings.TrimRight(s.feedAddress(r), "/")
+	if base == "" {
+		writeError(w, http.StatusPreconditionFailed, "Set Usherr's address on your network under Settings > Extras first, so Plex can reach it.")
+		return
+	}
+	if err := s.Settings.Set(keyTVPlexOn, "1", false); err != nil {
+		writeError(w, http.StatusInternalServerError, "That couldn't be saved.")
+		return
+	}
+	xmltv := base + "/api/tvfeed/" + s.tvFeedKey() + "/xmltv.xml"
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
+	defer cancel()
+	var msgs []string
+	for _, srv := range servers {
+		msg, err := s.tvPlexAdd(ctx, srv, base, xmltv)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, srv.Name+": "+err.Error()+" In Plex, Live TV & DVR needs Plex Pass.")
+			return
+		}
+		msgs = append(msgs, msg)
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"message": strings.Join(msgs, " ")})
+}
+
+// tvPlexAdd sets one Plex up (or, when it has Usherr's tuner already, has
+// it read the guide again).
+func (s *Server) tvPlexAdd(ctx context.Context, srv mediaservers.Server, base, xmltv string) (string, error) {
+	dvrs, err := s.mediaClient.PlexDVRs(ctx, srv)
+	if err != nil {
+		return "", err
+	}
+	for _, d := range dvrs {
+		for _, dev := range d.Devices {
+			if strings.TrimRight(dev.URI, "/") == base {
+				if err := s.mediaClient.PlexReloadGuide(ctx, srv, d.Key); err != nil {
+					return "", err
+				}
+				return srv.Name + " has Usherr TV already: its guide is being read again.", nil
+			}
+		}
+	}
+	device, err := s.mediaClient.PlexAddTuner(ctx, srv, base)
+	if err != nil {
+		return "", err
+	}
+	key, err := s.mediaClient.PlexAddDVR(ctx, srv, device, mediaservers.PlexXMLTVLineup(xmltv, "Usherr TV"))
+	if err != nil {
+		return "", err
+	}
+	if key != "" {
+		_ = s.mediaClient.PlexReloadGuide(ctx, srv, key)
+	}
+	return srv.Name + " has Usherr TV: the channels are in Live TV once Plex has read the guide (a few minutes).", nil
+}

@@ -1061,6 +1061,7 @@
  "Send {\"enabled\": true} or {\"enabled\": false}.",
  "Sent to an administrator. You'll see the answer under Activity > Requests.",
  "Sent to the download line.",
+ "Set Usherr's address on your network under Settings > Extras first, so Plex can reach it.",
  "Set a speed of at least 1 MB/s.",
  "Set at least 1 connection.",
  "Set at least one rule before switching cleanup on.",
