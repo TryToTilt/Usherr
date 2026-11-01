@@ -19,7 +19,6 @@
   "(set the address you open Mediarium at first)": "(indiquez d'abord l'adresse à laquelle vous ouvrez Mediarium)",
   "(shown in your greeting)": "(affiché dans votre message d'accueil)",
   "(so you can tell them apart)": "(pour les distinguer)",
-  "(used for email notifications)": "(pour les notifications par e-mail)",
   "(what they sign in with)": "(pour se connecter)",
   "(what you sign in with)": "(pour vous connecter)",
   "({n} title)": "({n} titre)",
@@ -456,7 +455,6 @@
   "Adding…": "Ajout…",
   "Address": "Adresse",
   "Address copied.": "Adresse copiée.",
-  "Address of Mediarium": "Adresse de Mediarium",
   "Address of the list": "Adresse de la liste",
   "Address or magnet link": "Adresse ou lien magnet",
   "Address you open in your browser (optional)": "Adresse que vous ouvrez dans le navigateur (facultatif)",
@@ -1555,7 +1553,6 @@
   "Email": "E-mail",
   "Email attribute": "Attribut de l'e-mail",
   "Email isn't set up on this server, so nothing is sent by email.": "L'e-mail n'est pas configuré sur ce serveur, donc rien n'est envoyé par e-mail.",
-  "Emails and push messages get an Open in Mediarium button that goes here, and passkeys and single sign-on need it. Leave it empty if you use none of those.": "Les e-mails et les notifications push ont un bouton Ouvrir dans Mediarium qui renvoie ici, et les clés d'accès et l'authentification unique en ont besoin. Laissez vide si vous n'utilisez rien de tout cela.",
   "Emptied the recycle bin: {0}, {1} freed": "Corbeille vidée : {0}, {1} libérés",
   "Emptied {0} from the recycle bin (older than {1} days) and freed {2}": "{0} supprimés de la corbeille (plus vieux que {1} jours) et {2} libérés",
   "Empty folder": "Dossier vide",
@@ -5431,7 +5428,6 @@
   "The address of the indexer's search service (its Newznab or Torznab link), usually found on your account or API page. It is not the home page.": "L'adresse du service de recherche de l'indexeur (son lien Newznab ou Torznab), généralement indiquée sur la page de votre compte ou de l'API. Ce n'est pas la page d'accueil.",
   "The address of your own server, for example http://192.168.1.10:3333. Inside Docker, 127.0.0.1 is the Mediarium container itself.": "L'adresse de votre propre serveur, par exemple http://192.168.1.10:3333. Dans Docker, 127.0.0.1 désigne le conteneur Mediarium lui-même.",
   "The address of {0} must start with {1} or {2} and not contain a name or password.": "L'adresse de {0} doit commencer par {1} ou {2} et ne pas contenir de nom ni de mot de passe.",
-  "The address you open Mediarium at": "L'adresse à laquelle vous ouvrez Mediarium",
   "The address you open Silo at in your browser (port 8090 unless you changed it), not its Jellyfin-compatible port. Inside Docker, use the server's IP address or container name, not localhost.": "L’adresse à laquelle vous ouvrez Silo dans le navigateur (port 8090 sauf si vous l’avez changé), pas son port compatible Jellyfin. Dans Docker, utilisez l’adresse IP du serveur ou le nom du conteneur, pas localhost.",
   "The address you open {server} at in your browser, including the port number.": "L'adresse à laquelle vous ouvrez {server} dans votre navigateur, numéro de port compris.",
   "The address your provider gives your side of the tunnel, like 10.2.0.2/32. It is the Address line in the [Interface] part.": "L'adresse que votre fournisseur attribue à votre côté du tunnel, par exemple 10.2.0.2/32. C'est la ligne Address de la partie [Interface].",
@@ -5582,7 +5578,6 @@
   "The four categories above are optional. Fill one in to keep that kind of download apart in the downloader. An empty one uses the main category.": "Les quatre catégories ci-dessus sont facultatives. Remplissez-en une pour garder ce type de téléchargement à part dans le téléchargeur. Une catégorie vide utilise la catégorie principale.",
   "The front cover of each album, saved once on your server.": "La pochette de chaque album, enregistrée une seule fois sur votre serveur.",
   "The full subtitle must be \"either\", \"normal\", \"sdh\" or \"none\".": "Le sous-titre complet doit être « either », « normal », « sdh » ou « none ».",
-  "The full web address people use to reach Mediarium, such as https://media.example.com. Messages link to it, and passkeys and single sign-on need it.": "L'adresse web complète que les gens utilisent pour accéder à Mediarium, par exemple https://media.example.com. Les messages y renvoient, et les clés d'accès et l'authentification unique en ont besoin.",
   "The guide could not be loaded.": "Impossible de charger le guide.",
   "The guide is in English for now. The rest of Mediarium stays in your language.": "Le guide est en anglais pour l'instant. Le reste de Mediarium reste dans votre langue.",
   "The heavy background work waits until {time}.": "Le gros du travail en arrière-plan attend jusqu’à {time}.",
@@ -7698,5 +7693,7 @@
   "Added up over everything in the list below": "Total de tout ce qui est dans la liste ci-dessous",
   "The total speed and what is left in each download client": "La vitesse totale et ce qui reste dans chaque client de téléchargement",
   "The service a subtitle came from, shown in Activity": "Le service d'où vient un sous-titre, affiché dans Activité",
-  "Searching titles with umlauts in both spellings": "Chercher les titres à trémas dans les deux graphies"
+  "Searching titles with umlauts in both spellings": "Chercher les titres à trémas dans les deux graphies",
+  "Address of Usherr": "Adresse de Usherr",
+  "The address you open Usherr at": "L'adresse à laquelle vous ouvrez Usherr"
 }

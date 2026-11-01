@@ -15,7 +15,7 @@ Notifications tell you when something happens: a download started or finished, a
 
 | Method | What it needs |
 |---|---|
-| Email | The outgoing (SMTP) server of your email account, a login if it needs one, a "from" and a "to" address. Gmail and Outlook need an app password. The **From name** box sets the name emails show as coming from (Mediarium unless you change it). Usherr: the first email notification that is switched on also sends password reset links, when reset by email is on (see [Accounts](accounts.md#forgot-your-password)); those go only to the account's own address, never to the "to" addresses. |
+| Email | The outgoing (SMTP) server of your email account, a login if it needs one, a "from" and a "to" address. Gmail and Outlook need an app password (Gmail: Google account, Security, App passwords; type it **without spaces**, though Google shows it in four groups). The **From name** box sets the name emails show as coming from (Usherr unless you change it). Usherr: the first email notification that is switched on also sends password reset links, when reset by email is on (see [Accounts](accounts.md#forgot-your-password)); those go only to the account's own address, never to the "to" addresses. |
 | ntfy | A topic name, nothing else. Free push messages to your phone; use your own ntfy server if you have one. |
 | Gotify | The address of your Gotify server and an application token. |
 | Pushover | Your user key and an application token from pushover.net. |

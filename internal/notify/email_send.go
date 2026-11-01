@@ -163,7 +163,7 @@ func smtpReason(err error) string {
 	case 535:
 		what = "wrong username or password"
 	case 534, 530:
-		what = "the server wants a different kind of sign-in (Gmail and Outlook need an app password)"
+		what = "the server wants a different kind of sign-in (Gmail and Outlook need an app password, typed without spaces)"
 	case 538:
 		what = "the server only allows sign-in over a secure connection"
 	case 454, 421, 450, 451, 452:

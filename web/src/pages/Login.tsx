@@ -247,7 +247,20 @@ export default function Login() {
               ) : (
                 <>
                   <p>{t('Type your username or email address, and Usherr emails you a link to set a new password.')}</p>
-                  <input value={who} onChange={(e) => setWho(e.target.value)} autoComplete="username" aria-label={t('Username or email address')} placeholder={t('Username or email address')} />
+                  <input
+                    value={who}
+                    onChange={(e) => setWho(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Enter sends the link, not the sign-in form around it.
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        void askForLink()
+                      }
+                    }}
+                    autoComplete="username"
+                    aria-label={t('Username or email address')}
+                    placeholder={t('Username or email address')}
+                  />
                   {forgotError && <p className="error-text">{forgotError}</p>}
                   <button type="button" disabled={forgotBusy} onClick={() => void askForLink()}>
                     {forgotBusy ? t('Sending…') : t('Email me a link')}

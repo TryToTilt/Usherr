@@ -49,3 +49,19 @@ func TestPreshowConvertArgs(t *testing.T) {
 		t.Error(trailerCopyName("movie-1.mp4"))
 	}
 }
+
+// A reset email names the address a request came from only when it says
+// something: Docker Desktop shows every device at home as 172.x.x.x.
+func TestResetAskedFrom(t *testing.T) {
+	for ip, want := range map[string]string{
+		"172.19.0.1":   "from a device on your home network",
+		"192.168.1.20": "from a device on your home network",
+		"127.0.0.1":    "from a device on your home network",
+		"100.101.1.2":  "from the address 100.101.1.2", // Tailscale
+		"bad":          "from an unknown address",
+	} {
+		if got := askedFrom(ip); got != want {
+			t.Errorf("askedFrom(%q) = %q, want %q", ip, got, want)
+		}
+	}
+}

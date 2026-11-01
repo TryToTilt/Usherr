@@ -79,7 +79,7 @@ function ProfileForm() {
           <FieldError v={v} name="username" />
         </label>
         <label>
-          {t('Email')} <small style={{ color: 'var(--text-dim)' }}>{t('(used for email notifications)')}</small>
+          <span data-walk="profile-email">{t('Email')}</span> <small style={{ color: 'var(--text-dim)' }}>{t('(for email notifications and password reset links)')}</small>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" {...v.bind('email', email, setEmail)} />
           <FieldError v={v} name="email" />
         </label>

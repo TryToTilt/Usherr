@@ -19,7 +19,6 @@
   "(set the address you open Mediarium at first)": "(сначала задайте адрес, по которому вы открываете Mediarium)",
   "(shown in your greeting)": "(показывается в приветствии)",
   "(so you can tell them apart)": "(чтобы их можно было различать)",
-  "(used for email notifications)": "(используется для уведомлений по электронной почте)",
   "(what they sign in with)": "(с ним они входят)",
   "(what you sign in with)": "(с ним вы входите)",
   "({n} title)": "({n} название)",
@@ -467,7 +466,6 @@
   "Adding…": "Добавление…",
   "Address": "Адрес",
   "Address copied.": "Адрес скопирован.",
-  "Address of Mediarium": "Адрес Mediarium",
   "Address of the list": "Адрес списка",
   "Address or magnet link": "Адрес или magnet-ссылка",
   "Address you open in your browser (optional)": "Адрес, который вы открываете в браузере (необязательно)",
@@ -1577,7 +1575,6 @@
   "Email": "Электронная почта",
   "Email attribute": "Атрибут электронной почты",
   "Email isn't set up on this server, so nothing is sent by email.": "Электронная почта на этом сервере не настроена, поэтому по почте ничего не отправляется.",
-  "Emails and push messages get an Open in Mediarium button that goes here, and passkeys and single sign-on need it. Leave it empty if you use none of those.": "Письма и push-сообщения получают кнопку «Открыть в Mediarium», которая ведёт сюда, а ещё он нужен для ключей доступа и единого входа. Оставьте пустым, если ничего из этого не используете.",
   "Emptied the recycle bin: {0}, {1} freed": "Корзина очищена: {0}, освобождено {1}",
   "Emptied {0} from the recycle bin (older than {1} days) and freed {2}": "Из корзины удалено {0} (старше {1} дн.), освобождено {2}",
   "Empty folder": "Пустая папка",
@@ -5504,7 +5501,6 @@
   "The address of the indexer's search service (its Newznab or Torznab link), usually found on your account or API page. It is not the home page.": "Адрес поискового сервиса индексатора (его ссылка Newznab или Torznab), обычно он есть на странице аккаунта или API. Это не главная страница.",
   "The address of your own server, for example http://192.168.1.10:3333. Inside Docker, 127.0.0.1 is the Mediarium container itself.": "Адрес вашего собственного сервера, например http://192.168.1.10:3333. Внутри Docker 127.0.0.1 — это сам контейнер Mediarium.",
   "The address of {0} must start with {1} or {2} and not contain a name or password.": "Адрес {0} должен начинаться с {1} или {2} и не содержать имени или пароля.",
-  "The address you open Mediarium at": "Адрес, по которому вы открываете Mediarium",
   "The address you open Silo at in your browser (port 8090 unless you changed it), not its Jellyfin-compatible port. Inside Docker, use the server's IP address or container name, not localhost.": "Адрес, по которому вы открываете Silo в браузере (порт 8090, если вы его не меняли), а не его порт, совместимый с Jellyfin. В Docker используйте IP-адрес сервера или имя контейнера, а не localhost.",
   "The address you open {server} at in your browser, including the port number.": "Адрес, по которому вы открываете {server} в браузере, вместе с номером порта.",
   "The address your provider gives your side of the tunnel, like 10.2.0.2/32. It is the Address line in the [Interface] part.": "Адрес, который провайдер выдаёт вашей стороне туннеля, например 10.2.0.2/32. Это строка Address в разделе [Interface].",
@@ -5659,7 +5655,6 @@
   "The four categories above are optional. Fill one in to keep that kind of download apart in the downloader. An empty one uses the main category.": "Четыре категории выше необязательны. Заполните одну, чтобы такие загрузки лежали в загрузчике отдельно. Пустая использует основную категорию.",
   "The front cover of each album, saved once on your server.": "Лицевая обложка каждого альбома, один раз сохранённая на вашем сервере.",
   "The full subtitle must be \"either\", \"normal\", \"sdh\" or \"none\".": "Значение для полных субтитров должно быть «either», «normal», «sdh» или «none».",
-  "The full web address people use to reach Mediarium, such as https://media.example.com. Messages link to it, and passkeys and single sign-on need it.": "Полный веб-адрес, по которому люди заходят в Mediarium, например https://media.example.com. Сообщения ссылаются на него, он нужен для ключей доступа и единого входа.",
   "The guide could not be loaded.": "Не удалось загрузить руководство.",
   "The guide is in English for now. The rest of Mediarium stays in your language.": "Пока руководство только на английском. Остальной Mediarium остаётся на вашем языке.",
   "The heavy background work waits until {time}.": "Тяжёлая фоновая работа ждёт до {time}.",
@@ -7908,5 +7903,7 @@
   "Added up over everything in the list below": "Сумма по всему, что в списке ниже",
   "The total speed and what is left in each download client": "Общая скорость и остаток в каждом клиенте загрузки",
   "The service a subtitle came from, shown in Activity": "Сервис, откуда пришли субтитры, в разделе «Активность»",
-  "Searching titles with umlauts in both spellings": "Поиск названий с умлаутами в обоих написаниях"
+  "Searching titles with umlauts in both spellings": "Поиск названий с умлаутами в обоих написаниях",
+  "Address of Usherr": "Адрес Usherr",
+  "The address you open Usherr at": "Адрес, по которому вы открываете Usherr"
 }

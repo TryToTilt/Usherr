@@ -19,7 +19,6 @@
   "(set the address you open Mediarium at first)": "(stel eerst het adres in waarop je Mediarium opent)",
   "(shown in your greeting)": "(wordt getoond in je begroeting)",
   "(so you can tell them apart)": "(zodat je ze uit elkaar kunt houden)",
-  "(used for email notifications)": "(gebruikt voor e-mailmeldingen)",
   "(what they sign in with)": "(waarmee ze inloggen)",
   "(what you sign in with)": "(waarmee je inlogt)",
   "({n} title)": "({n} titel)",
@@ -456,7 +455,6 @@
   "Adding…": "Toevoegen…",
   "Address": "Adres",
   "Address copied.": "Adres gekopieerd.",
-  "Address of Mediarium": "Adres van Mediarium",
   "Address of the list": "Adres van de lijst",
   "Address or magnet link": "Adres of magneetlink",
   "Address you open in your browser (optional)": "Adres dat je in je browser opent (optioneel)",
@@ -1555,7 +1553,6 @@
   "Email": "E-mail",
   "Email attribute": "Attribuut voor het e-mailadres",
   "Email isn't set up on this server, so nothing is sent by email.": "E-mail is op deze server niet ingesteld, dus er wordt niets per e-mail verstuurd.",
-  "Emails and push messages get an Open in Mediarium button that goes here, and passkeys and single sign-on need it. Leave it empty if you use none of those.": "E-mails en pushberichten krijgen een knop Openen in Mediarium die hiernaartoe gaat, en passkeys en single sign-on hebben het nodig. Laat het leeg als je niets daarvan gebruikt.",
   "Emptied the recycle bin: {0}, {1} freed": "Prullenbak geleegd: {0}, {1} vrijgemaakt",
   "Emptied {0} from the recycle bin (older than {1} days) and freed {2}": "{0} uit de prullenbak gehaald (ouder dan {1} dagen) en {2} vrijgemaakt",
   "Empty folder": "Lege map",
@@ -5431,7 +5428,6 @@
   "The address of the indexer's search service (its Newznab or Torznab link), usually found on your account or API page. It is not the home page.": "Het adres van de zoekdienst van de indexer (zijn Newznab- of Torznab-link), meestal te vinden op je account- of API-pagina. Het is niet de startpagina.",
   "The address of your own server, for example http://192.168.1.10:3333. Inside Docker, 127.0.0.1 is the Mediarium container itself.": "Het adres van je eigen server, bijvoorbeeld http://192.168.1.10:3333. In Docker is 127.0.0.1 de Mediarium-container zelf.",
   "The address of {0} must start with {1} or {2} and not contain a name or password.": "Het adres van {0} moet beginnen met {1} of {2} en mag geen naam of wachtwoord bevatten.",
-  "The address you open Mediarium at": "Het adres waarop je Mediarium opent",
   "The address you open Silo at in your browser (port 8090 unless you changed it), not its Jellyfin-compatible port. Inside Docker, use the server's IP address or container name, not localhost.": "Het adres waarmee je Silo in je browser opent (poort 8090, tenzij je die hebt gewijzigd), niet de Jellyfin-compatibele poort. Gebruik binnen Docker het IP-adres of de containernaam van de server, niet localhost.",
   "The address you open {server} at in your browser, including the port number.": "Het adres waarop je {server} in je browser opent, inclusief het poortnummer.",
   "The address your provider gives your side of the tunnel, like 10.2.0.2/32. It is the Address line in the [Interface] part.": "Het adres dat je provider aan jouw kant van de tunnel geeft, zoals 10.2.0.2/32. Het is de Address-regel in het [Interface]-deel.",
@@ -5582,7 +5578,6 @@
   "The four categories above are optional. Fill one in to keep that kind of download apart in the downloader. An empty one uses the main category.": "De vier categorieën hierboven zijn optioneel. Vul er een in om dat soort downloads in de downloader apart te houden. Een lege gebruikt de hoofdcategorie.",
   "The front cover of each album, saved once on your server.": "De voorkant van elk album, één keer opgeslagen op je server.",
   "The full subtitle must be \"either\", \"normal\", \"sdh\" or \"none\".": "De volledige ondertitel moet “either”, “normal”, “sdh” of “none” zijn.",
-  "The full web address people use to reach Mediarium, such as https://media.example.com. Messages link to it, and passkeys and single sign-on need it.": "Het volledige webadres waarmee mensen Mediarium bereiken, zoals https://media.example.com. Berichten linken ernaar, en passkeys en single sign-on hebben het nodig.",
   "The guide could not be loaded.": "De handleiding kon niet worden geladen.",
   "The guide is in English for now. The rest of Mediarium stays in your language.": "De gids is voorlopig in het Engels. De rest van Mediarium blijft in je eigen taal.",
   "The heavy background work waits until {time}.": "Het zware achtergrondwerk wacht tot {time}.",
@@ -7698,5 +7693,7 @@
   "Added up over everything in the list below": "Opgeteld over alles in de lijst hieronder",
   "The total speed and what is left in each download client": "De totale snelheid en wat er nog over is in elke downloadclient",
   "The service a subtitle came from, shown in Activity": "De dienst waar een ondertitel vandaan kwam, getoond in Activiteit",
-  "Searching titles with umlauts in both spellings": "Titels met umlauts in beide spellingen zoeken"
+  "Searching titles with umlauts in both spellings": "Titels met umlauts in beide spellingen zoeken",
+  "Address of Usherr": "Adres van Usherr",
+  "The address you open Usherr at": "Het adres waarop je Usherr opent"
 }

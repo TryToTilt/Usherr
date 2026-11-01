@@ -38,7 +38,7 @@ export default function PublicAddress() {
       const s = await api.putSettings({ publicUrl: v })
       setStored(s.publicUrl ?? '')
       setText(s.publicUrl ?? '')
-      toast.success(v ? t('Saved: messages now link to Mediarium.') : t('Saved: messages carry no link.'))
+      toast.success(v ? t('Saved: messages now link to Usherr.') : t('Saved: messages carry no link.'))
     } catch (e) {
       toast.error(t('Not saved: {error}', { error: e instanceof Error ? e.message : String(e) }))
       setText(stored)
@@ -48,12 +48,12 @@ export default function PublicAddress() {
   }
 
   return (
-    <fieldset className="group folders span-all">
+    <fieldset className="group folders span-all" data-walk="public-address">
       <legend>
-        <Icon name="external" size={14} /> {t('Address of Mediarium')}
+        <Icon name="external" size={14} /> {t('Address of Usherr')}
       </legend>
       <label className="field" htmlFor="public-address" style={{ display: 'grid', gap: 6, maxWidth: 480 }}>
-        <TipLabel text={t('The full web address people use to reach Mediarium, such as https://media.example.com. Messages link to it, and passkeys and single sign-on need it.')}>{t('The address you open Mediarium at')}</TipLabel>
+        <TipLabel text={t('The full web address people use to reach Usherr, such as https://media.example.com. Messages link to it, password reset emails start with it, and passkeys and single sign-on need it.')}>{t('The address you open Usherr at')}</TipLabel>
         <input
           id="public-address"
           value={text}
@@ -68,7 +68,7 @@ export default function PublicAddress() {
           aria-invalid={error ? true : undefined}
         />
       </label>
-      <small style={{ color: error ? 'var(--danger)' : 'var(--text-dim)' }}>{error ?? t('Emails and push messages get an Open in Mediarium button that goes here, and passkeys and single sign-on need it. Leave it empty if you use none of those.')}</small>
+      <small style={{ color: error ? 'var(--danger)' : 'var(--text-dim)' }}>{error ?? t('Emails and push messages get an Open in Usherr button that goes here, password reset links start with it, and passkeys and single sign-on need it. Leave it empty if you use none of those.')}</small>
     </fieldset>
   )
 }

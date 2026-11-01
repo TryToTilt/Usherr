@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -141,9 +142,9 @@ func (s *Server) sendResetEmail(mailer *notify.EmailSender, base string, u *auth
 	ev := notify.Event{
 		Type:  "account",
 		Title: "Set a new password",
-		Message: fmt.Sprintf("Someone asked to set a new password for your Usherr account %s, from the address %s.\n\n"+
+		Message: fmt.Sprintf("Someone asked to set a new password for your Usherr account %s, %s.\n\n"+
 			"To set a new password, open this link. It works once, for 30 minutes:\n%s\n\n"+
-			"If this wasn't you, ignore this email. Your password stays as it is.", u.Username, ip, link),
+			"If this wasn't you, ignore this email. Your password stays as it is.", u.Username, askedFrom(ip), link),
 		Timestamp: time.Now(),
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -153,6 +154,20 @@ func (s *Server) sendResetEmail(mailer *notify.EmailSender, base string, u *auth
 		return
 	}
 	slog.Info("auth: password reset email sent", "user", u.Username)
+}
+
+// askedFrom says where a reset request came from, for the email. An address
+// inside the home network says little (Docker Desktop shows every device at
+// home as its own address, 172.x.x.x), so it says that instead.
+func askedFrom(ip string) string {
+	a, err := netip.ParseAddr(ip)
+	if err != nil {
+		return "from an unknown address"
+	}
+	if a.IsPrivate() || a.IsLoopback() || a.IsLinkLocalUnicast() {
+		return "from a device on your home network"
+	}
+	return "from the address " + ip
 }
 
 // sendAccountMail sends an account email (tests replace it to read what's sent).

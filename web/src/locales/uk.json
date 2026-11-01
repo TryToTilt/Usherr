@@ -19,7 +19,6 @@
   "(set the address you open Mediarium at first)": "(спершу вкажіть адресу, за якою ви відкриваєте Mediarium)",
   "(shown in your greeting)": "(показується у вітанні)",
   "(so you can tell them apart)": "(щоб їх можна було розрізнити)",
-  "(used for email notifications)": "(використовується для сповіщень електронною поштою)",
   "(what they sign in with)": "(з чим вони входять)",
   "(what you sign in with)": "(з чим ви входите)",
   "({n} title)": "({n} назва)",
@@ -467,7 +466,6 @@
   "Adding…": "Додаємо…",
   "Address": "Адреса",
   "Address copied.": "Адресу скопійовано.",
-  "Address of Mediarium": "Адреса Mediarium",
   "Address of the list": "Адреса списку",
   "Address or magnet link": "Адреса або magnet-посилання",
   "Address you open in your browser (optional)": "Адреса, яку ви відкриваєте в браузері (необов’язково)",
@@ -1577,7 +1575,6 @@
   "Email": "Електронна пошта",
   "Email attribute": "Атрибут пошти",
   "Email isn't set up on this server, so nothing is sent by email.": "Електронну пошту на цьому сервері не налаштовано, тому нічого не надсилається поштою.",
-  "Emails and push messages get an Open in Mediarium button that goes here, and passkeys and single sign-on need it. Leave it empty if you use none of those.": "Листи та push-повідомлення отримують кнопку «Відкрити в Mediarium», яка веде сюди; вона також потрібна для ключів доступу та єдиного входу. Залиште порожнім, якщо нічим із цього не користуєтеся.",
   "Emptied the recycle bin: {0}, {1} freed": "Кошик очищено: {0}, звільнено {1}",
   "Emptied {0} from the recycle bin (older than {1} days) and freed {2}": "З кошика видалено {0} (старші за {1} дн.) і звільнено {2}",
   "Empty folder": "Порожня тека",
@@ -5504,7 +5501,6 @@
   "The address of the indexer's search service (its Newznab or Torznab link), usually found on your account or API page. It is not the home page.": "Адреса пошукового сервісу індексатора (його посилання Newznab або Torznab), зазвичай на сторінці облікового запису чи API. Це не головна сторінка.",
   "The address of your own server, for example http://192.168.1.10:3333. Inside Docker, 127.0.0.1 is the Mediarium container itself.": "Адреса вашого власного сервера, наприклад http://192.168.1.10:3333. Усередині Docker 127.0.0.1 — це сам контейнер Mediarium.",
   "The address of {0} must start with {1} or {2} and not contain a name or password.": "Адреса {0} має починатися з {1} або {2} і не містити імені чи пароля.",
-  "The address you open Mediarium at": "Адреса, за якою ви відкриваєте Mediarium",
   "The address you open Silo at in your browser (port 8090 unless you changed it), not its Jellyfin-compatible port. Inside Docker, use the server's IP address or container name, not localhost.": "Адреса, за якою ви відкриваєте Silo в браузері (порт 8090, якщо ви його не змінювали), а не його порт, сумісний із Jellyfin. У Docker використовуйте IP-адресу сервера або назву контейнера, а не localhost.",
   "The address you open {server} at in your browser, including the port number.": "Адреса, за якою ви відкриваєте {server} у браузері, разом з номером порту.",
   "The address your provider gives your side of the tunnel, like 10.2.0.2/32. It is the Address line in the [Interface] part.": "Адреса, яку провайдер дає вашому боку тунелю, наприклад 10.2.0.2/32. Це рядок Address у частині [Interface].",
@@ -5659,7 +5655,6 @@
   "The four categories above are optional. Fill one in to keep that kind of download apart in the downloader. An empty one uses the main category.": "Чотири категорії вище необов'язкові. Заповніть одну, щоб такі завантаження лежали в завантажувачі окремо. Порожня використовує основну категорію.",
   "The front cover of each album, saved once on your server.": "Лицьова обкладинка кожного альбому, один раз збережена на вашому сервері.",
   "The full subtitle must be \"either\", \"normal\", \"sdh\" or \"none\".": "Повні субтитри мають бути «either», «normal», «sdh» або «none».",
-  "The full web address people use to reach Mediarium, such as https://media.example.com. Messages link to it, and passkeys and single sign-on need it.": "Повна вебадреса, за якою люди відкривають Mediarium, наприклад https://media.example.com. Повідомлення посилаються на неї, вона потрібна для ключів доступу та єдиного входу.",
   "The guide could not be loaded.": "Не вдалося завантажити посібник.",
   "The guide is in English for now. The rest of Mediarium stays in your language.": "Поки що посібник англійською. Решта Mediarium залишається вашою мовою.",
   "The heavy background work waits until {time}.": "Важка фонова робота чекає до {time}.",
@@ -7908,5 +7903,7 @@
   "Added up over everything in the list below": "Сума за всім, що в списку нижче",
   "The total speed and what is left in each download client": "Загальна швидкість і залишок у кожному клієнті завантаження",
   "The service a subtitle came from, shown in Activity": "Сервіс, звідки прийшли субтитри, у розділі «Активність»",
-  "Searching titles with umlauts in both spellings": "Пошук назв з умлаутами в обох написаннях"
+  "Searching titles with umlauts in both spellings": "Пошук назв з умлаутами в обох написаннях",
+  "Address of Usherr": "Адреса Usherr",
+  "The address you open Usherr at": "Адреса, за якою ви відкриваєте Usherr"
 }

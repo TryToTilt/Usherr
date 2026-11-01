@@ -5,6 +5,19 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.36.2] - 2026-11-01
+
+### Changed
+
+- **Show me how, Let people reset a forgotten password** now walks the whole way: a Gmail app password, the email notification and its test, the address you open Usherr at, your account's email address, the switch, and a try.
+- **Gmail app passwords: type them without spaces.** Google shows one in four groups, but with the spaces Gmail refuses it; the Password help, the 534 explanation and the docs say so.
+- The address setting (Settings, General) and the email form's From name say Usherr instead of Mediarium.
+
+### Fixed
+
+- **Forgot password?**: pressing Enter in its box sent the link and also tried to sign in, showing "Enter your username." Enter now only sends the link.
+- **The reset email** said a request came "from the address 172.19.0.1" (Docker Desktop's own address for every device at home); it now says "from a device on your home network", and names the address only from outside it.
+
 ## [2.36.1] - 2026-11-01
 
 ### Added
