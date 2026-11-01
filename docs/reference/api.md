@@ -475,7 +475,9 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/home/preshow/clips` | admin | POST /api/home/preshow/clips (admin): a clip uploaded into a category's folder. |
 | DELETE | `/api/home/preshow/clips/{id}` | admin | DELETE /api/home/preshow/clips/{id} (admin): the file goes to the folder's .removed folder, from where it can be put back by hand. |
 | PUT | `/api/home/preshow/clips/{id}` | admin | PUT /api/home/preshow/clips/{id} (admin): its title, on or off, or another category (the file moves). |
+| GET | `/api/home/preshow/clips/{id}/convert` | any account | GET /api/home/preshow/{clips\|trailers}/{id}/convert?cv=&ca=: a clip or trailer converted here for the browser, as it plays. |
 | GET | `/api/home/preshow/clips/{id}/file` | any account | GET /api/home/preshow/clips/{id}/file: the clip, to play. |
+| POST | `/api/home/preshow/fit` | any account | POST /api/home/preshow/fit {"caps": {...}, "small": bool, "urls": [...]}: where this browser plays each clip and trailer of a plan. |
 | GET | `/api/home/preshow/jellyfin` | admin | GET /api/home/preshow/jellyfin (admin) |
 | PUT | `/api/home/preshow/jellyfin` | admin | PUT /api/home/preshow/jellyfin (admin): the address, films, episodes, theme. |
 | POST | `/api/home/preshow/jellyfin/key` | admin | POST /api/home/preshow/jellyfin/key (admin): a new key (the old stops working). |
@@ -498,6 +500,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/home/preshow/trailers/settings` | admin | PUT /api/home/preshow/trailers/settings (admin) |
 | DELETE | `/api/home/preshow/trailers/{id}` | admin | DELETE /api/home/preshow/trailers/{id} (admin): its file goes, and it isn't fetched again. |
 | PUT | `/api/home/preshow/trailers/{id}` | admin | PUT /api/home/preshow/trailers/{id} (admin): {keep}, or {again: true} to fetch it again. |
+| GET | `/api/home/preshow/trailers/{id}/convert` | any account | GET /api/home/preshow/{clips\|trailers}/{id}/convert?cv=&ca=: a clip or trailer converted here for the browser, as it plays. |
 | GET | `/api/home/preshow/trailers/{id}/file` | any account | GET /api/home/preshow/trailers/{id}/file: the downloaded trailer. |
 | GET | `/api/home/providers` | any account | GET /api/home/providers: the services of the country, with the ones you pay for. |
 | POST | `/api/home/quiet` | admin | POST /api/home/quiet {"minutes":120,"when":"now"\|"finish"} holds every heavy task for a while; {"minutes":0} ends it. |
@@ -1365,4 +1368,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-955 routes.
+958 routes.

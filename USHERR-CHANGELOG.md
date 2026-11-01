@@ -5,6 +5,16 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.36.0] - 2026-11-01
+
+### Added
+
+- **A 1080p H.264 copy of 4K trailers**: a downloaded trailer above 1080p (or not in H.264) also gets a 1080p H.264 copy beside it, for phones and laptops; trailers already downloaded get theirs a couple at a time.
+
+### Fixed
+
+- **The pre-show in a phone's browser**: it played in the Jellyfin app and on a PC, but a phone's Chrome skipped the clips and trailers it can't decode (a 4K VP9 trailer, a Dolby Vision clip in MKV with Atmos), since the browser got every file as it was. Now Usherr checks each clip and trailer against what the browser and screen play, as the film player does: it plays the file as it is, a trailer's 1080p copy, or a copy converted as it plays (1080p at most), and one that won't play is played converted instead of left out. A phone that won't start a clip with its sound by itself shows **Tap to start** instead of a black screen.
+
 ## [2.35.0] - 2026-11-01
 
 ### Added

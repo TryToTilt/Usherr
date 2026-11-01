@@ -126,7 +126,20 @@ both.
 Under **When they come and go**: how early and how late, the space limit,
 the quality (**4K, or the best each trailer has**, 1440p, 1080p or 720p) and
 the folder. A 4K trailer is about 200 MB, a 1080p one about 50 MB; many
-trailers only go up to 1080p.
+trailers only go up to 1080p. A trailer above 1080p (or not in H.264) also
+gets a 1080p H.264 copy beside it, about 50 MB, counted in the space limit:
+phones play that one (trailers fetched before 2.36 get theirs a couple at a
+time).
+
+**In a browser** (the Showtime screen, Usherr's player), each clip and
+trailer plays as the browser can: before the pre-show starts, Usherr checks
+every one against what this browser and screen play, the same check as the
+film player. One that plays as it is plays straight from the file; a 4K
+trailer on a phone or laptop plays its 1080p copy; anything else (a Dolby
+Vision clip in MKV with Atmos, say) is converted by Usherr as it plays, at
+1080p at most. A clip that still won't play is played converted rather than
+left out. If the phone won't start a clip with its sound by itself, the
+pre-show shows **Tap to start**.
 
 The trailers folder is `/data/trailers` when it is mapped into the container,
 otherwise `trailers` in Usherr's config folder. Put it on a disk with room,
@@ -209,6 +222,12 @@ other way round.
 - **Nothing plays in the Jellyfin app.** The steps under *In the Jellyfin
   app* say what's left; **Jellyfin last asked at …** shows the last request.
   Check that Cinema mode is on in that app.
+- **It plays in the Jellyfin app on a phone, but not in the phone's
+  browser.** Update to 2.36 or later: before that, the browser got every clip
+  and trailer as it was, and a phone's Chrome can't decode a 4K VP9 trailer or
+  a Dolby Vision clip, so they were skipped. Now they play from a copy made
+  for it. YouTube trailers (not downloaded) may still wait for a tap on a
+  phone: switch **Download coming-soon trailers** on.
 - **Trailers stay waiting.** They're fetched a few at a time every 4 hours;
   **Look now** starts a round. A trailer that fails three times stays
   *Not downloaded*; **Try again** tries once more.

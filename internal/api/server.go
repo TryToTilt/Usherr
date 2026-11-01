@@ -583,6 +583,10 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("PUT /api/home/preshow/clips/{id}", s.handlePutPreshowClip)
 	admin.HandleFunc("DELETE /api/home/preshow/clips/{id}", s.handleDeletePreshowClip)
 	member.HandleFunc("GET /api/home/preshow/trailers/{id}/file", s.handlePreshowTrailerFile)
+	// Usherr: what a browser plays of a pre-show, and copies converted for it (home_preshow_fit.go).
+	member.HandleFunc("POST /api/home/preshow/fit", s.handlePreshowFit)
+	member.HandleFunc("GET /api/home/preshow/clips/{id}/convert", s.handlePreshowConvert)
+	member.HandleFunc("GET /api/home/preshow/trailers/{id}/convert", s.handlePreshowConvert)
 	admin.HandleFunc("GET /api/home/preshow/trailers", s.handlePreshowTrailers)
 	admin.HandleFunc("PUT /api/home/preshow/trailers/settings", s.handlePutTrailerSettings)
 	admin.HandleFunc("POST /api/home/preshow/trailers/fetch", s.handleTrailersFetchNow)

@@ -162,6 +162,8 @@ export const preshowApi = {
     return call<PreshowPlan>('GET', `/plan?${q}`)
   },
   themeNames: () => call<{ themes: { id: number; name: string }[]; active: number }>('GET', '/themes'),
+  // Usherr: where this browser plays each clip and trailer (home_preshow_fit.go).
+  fit: (caps: Record<string, boolean>, small: boolean, urls: string[]) => call<{ fits: Record<string, { url: string; fallback?: string }> }>('POST', '/fit', { caps, small, urls }),
   saveSettings: (s: PreshowSettings) => call<PreshowSettings>('PUT', '/settings', s),
   saveTheme: (th: Omit<PreshowTheme, 'id'> & { id?: number }) => (th.id ? call<{ id: number }>('PUT', `/themes/${th.id}`, th) : call<{ id: number }>('POST', '/themes', th)),
   deleteTheme: (id: number) => call<void>('DELETE', `/themes/${id}`),

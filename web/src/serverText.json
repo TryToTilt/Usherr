@@ -1868,6 +1868,7 @@
  "This book's file isn't inside your ebooks folder.",
  "This build of Mediarium has no update key, so it can't install updates by itself.",
  "This can only be done from the Mediarium web page while you are signed in. It can't be done with an API key.",
+ "This clip couldn't be read.",
  "This comic couldn't be opened: {0}",
  "This comic has no such page.",
  "This couldn't be added to your library.",

@@ -9,6 +9,7 @@ import Icon from '../components/Icon'
 import { locale, t } from '../i18n'
 import { Piece, QR } from './MarqueeExtras'
 import { preshowApi, soonLine, type PreshowPlan, type PreshowStep } from './preshowApi'
+import { browserCaps } from './browserCaps' // Usherr: what this browser plays
 import './marquee.css'
 import './marqueeLook.css'
 import './marqueeExtras.css'
@@ -105,11 +106,54 @@ function Reel({ step }: { step: PreshowStep }) {
   )
 }
 
+// Usherr: where this browser plays each clip and trailer (home_preshow_fit.go):
+// the file itself, a trailer's 1080p copy, or a copy converted as it plays,
+// with a converted one to fall back on.
+type Fit = { url: string; fallback?: string }
+
+// A screen under 4K (a phone, most laptops) gets 4K clips at 1080p: a phone
+// often can't decode 4K at all.
+const smallScreen = () => Math.max(window.screen.width, window.screen.height) * (window.devicePixelRatio || 1) < 3000
+
+// A clip or trailer video. It starts with its sound; when the browser won't
+// without a tap (phones), it says Tap to start instead of staying black. One
+// that won't play is played converted, and only then left out.
+function PreshowVideo({ fit, onEnd }: { fit: Fit; onEnd: () => void }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  const [url, setUrl] = useState(fit.url)
+  const [tap, setTap] = useState(false)
+  const start = useCallback(() => {
+    const v = ref.current
+    if (!v) return
+    v.play().then(
+      () => setTap(false),
+      (e: unknown) => {
+        if (e instanceof DOMException && e.name === 'NotAllowedError') setTap(true)
+      },
+    )
+  }, [])
+  useEffect(start, [url, start])
+  const failed = () => {
+    if (fit.fallback && url !== fit.fallback) setUrl(fit.fallback)
+    else onEnd()
+  }
+  return (
+    <>
+      <video ref={ref} className="psr-clip" src={url} playsInline preload="auto" onEnded={onEnd} onError={failed} />
+      {tap && (
+        <button type="button" className="psr-tap primary" onClick={start}>
+          <Icon name="play" size={28} /> {t('Tap to start')}
+        </button>
+      )}
+    </>
+  )
+}
+
 // A coming-soon trailer kept by Usherr: a file, so it plays at once.
-function TrailerFile({ step, onEnd }: { step: PreshowStep; onEnd: () => void }) {
+function TrailerFile({ step, fit, onEnd }: { step: PreshowStep; fit: Fit; onEnd: () => void }) {
   return (
     <div className="psr-trailer">
-      <video className="psr-clip" src={step.url} autoPlay playsInline onEnded={onEnd} onError={onEnd} />
+      <PreshowVideo fit={fit} onEnd={onEnd} />
       <div className="psr-trailer-tag">
         <span>{t('Coming soon')}</span>
         <strong>{step.title}</strong>
@@ -176,8 +220,8 @@ function Trailer({ step, onEnd }: { step: PreshowStep; onEnd: () => void }) {
   )
 }
 
-function Clip({ step, onEnd }: { step: PreshowStep; onEnd: () => void }) {
-  return <video className="psr-clip" src={step.url} autoPlay playsInline onEnded={onEnd} onError={onEnd} />
+function Clip({ fit, onEnd }: { fit: Fit; onEnd: () => void }) {
+  return <PreshowVideo fit={fit} onEnd={onEnd} />
 }
 
 export default function PreshowRun({ plan, onDone }: { plan: PreshowPlan; onDone: () => void }) {
@@ -190,6 +234,28 @@ export default function PreshowRun({ plan, onDone }: { plan: PreshowPlan; onDone
   })
   const next = useCallback(() => setI((x) => x + 1), [])
   const step = plan.steps[i]
+  // Usherr: where this browser plays each clip and trailer, asked once
+  // before the first one; after 8 seconds without an answer, the files as
+  // they are (each still falls back to nothing worse than before).
+  const [fits, setFits] = useState<Record<string, Fit> | null>(null)
+  useEffect(() => {
+    const urls = plan.steps.map((s) => s.url).filter((u): u is string => !!u)
+    if (urls.length === 0) {
+      setFits({})
+      return
+    }
+    let live = true
+    const timer = window.setTimeout(() => live && setFits((f) => f ?? {}), 8000)
+    preshowApi
+      .fit(browserCaps(), smallScreen(), urls)
+      .then((r) => live && setFits(r.fits ?? {}))
+      .catch(() => live && setFits((f) => f ?? {}))
+    return () => {
+      live = false
+      window.clearTimeout(timer)
+    }
+  }, [plan])
+  const fitOf = (s: PreshowStep): Fit => fits?.[s.url ?? ''] ?? { url: s.url ?? '' }
   useEffect(() => {
     if (!step) {
       preshowApi.now(null)
@@ -237,8 +303,9 @@ export default function PreshowRun({ plan, onDone }: { plan: PreshowPlan; onDone
   }, [])
   if (!step) return null
   let body: React.ReactNode
-  if (step.kind === 'clip') body = <Clip key={i} step={step} onEnd={next} />
-  else if (step.kind === 'trailer') body = step.url ? <TrailerFile key={i} step={step} onEnd={next} /> : <Trailer key={i} step={step} onEnd={next} />
+  if (fits === null && step.url) body = <p className="psr-getting">{t('Getting the pre-show ready…')}</p>
+  else if (step.kind === 'clip') body = <Clip key={i} fit={fitOf(step)} onEnd={next} />
+  else if (step.kind === 'trailer') body = step.url ? <TrailerFile key={i} step={step} fit={fitOf(step)} onEnd={next} /> : <Trailer key={i} step={step} onEnd={next} />
   else if (step.card === 'welcome')
     body = (
       <Timed key={i} seconds={step.seconds} onEnd={next}>

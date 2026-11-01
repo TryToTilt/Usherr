@@ -295,6 +295,7 @@ func (s *Server) trailersJob(ctx context.Context) {
 		}
 		s.trailerFetch(ctx, set, t)
 	}
+	s.trailerBackfillCopies(ctx) // Usherr: home_preshow_fit.go
 	s.trailersTidy(ctx, set, now)
 }
 
@@ -330,6 +331,7 @@ func (s *Server) trailersTidy(ctx context.Context, set trailerSettings, now time
 func (s *Server) trailerDrop(ctx context.Context, t preshowTrailer, forget bool) {
 	if t.File != "" {
 		_ = os.Remove(filepath.Join(s.trailersDir(), t.File))
+		_ = os.Remove(s.preshowCopyPath(t)) // Usherr: its 1080p copy
 	}
 	if forget {
 		_, _ = s.db.ExecContext(ctx, `DELETE FROM preshow_trailers WHERE id = ?`, t.ID)
@@ -393,6 +395,12 @@ func (s *Server) trailerFetch(ctx context.Context, set trailerSettings, t presho
 	var size int64
 	if st != nil {
 		size = st.Size()
+	}
+	// Usherr: a 1080p H.264 copy beside a 4K or VP9 trailer, for phones
+	// (home_preshow_fit.go).
+	t.File = final
+	if trailerNeedsCopy(ctx, filepath.Join(dir, final)) {
+		size += s.trailerFetchCopy(ctx, t, key)
 	}
 	_, _ = s.db.ExecContext(ctx, `UPDATE preshow_trailers SET state = 'ready', youtube = ?, file = ?, size = ?, seconds = ?, error = '', fetched_ms = ? WHERE id = ?`,
 		key, final, size, secs, time.Now().UnixMilli(), t.ID)
@@ -511,6 +519,10 @@ func (s *Server) handlePreshowTrailerFile(w http.ResponseWriter, r *http.Request
 	t, ok := s.trailerByID(r.Context(), r.PathValue("id"))
 	if !ok || t.State != "ready" || t.File == "" {
 		http.NotFound(w, r)
+		return
+	}
+	if r.URL.Query().Get("copy") == "1" { // Usherr: the 1080p copy (home_preshow_fit.go)
+		s.serveVideoFile(w, r, s.preshowCopyPath(t))
 		return
 	}
 	s.serveVideoFile(w, r, filepath.Join(s.trailersDir(), filepath.Base(t.File)))

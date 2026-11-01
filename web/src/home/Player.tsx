@@ -18,6 +18,7 @@ import './player.css'
 import { locale, t } from '../i18n'
 import { TracksMenu, prefAudioLang, prefSubLang, pickSub, sameLang, type PlayTrack, type Tracks } from './playerTracks' // Usherr
 import { preshowApi, preshowBefore, type PlanAsk, type PreshowPlan } from './preshowApi' // Usherr
+import { browserCaps } from './browserCaps' // Usherr: what this browser decodes (the pre-show uses it too)
 
 const PreshowRun = lazy(() => import('./PreshowRun')) // Usherr: the pre-show before the film
 
@@ -381,32 +382,6 @@ export function ChannelPreview({ channelId, name, muted = true }: { channelId: n
   return <ChannelView key={channelId} channelId={channelId} name={name} onClose={() => undefined} inline muted={muted} />
 }
 
-// What this browser can decode, measured on this device.
-function browserCaps() {
-  const ms = typeof MediaSource !== 'undefined' ? MediaSource : null
-  const can = (type: string) => {
-    try {
-      return !!ms && ms.isTypeSupported(type)
-    } catch {
-      return false
-    }
-  }
-  const v = document.createElement('video')
-  const hdr = typeof window.matchMedia === 'function' && window.matchMedia('(dynamic-range: high)').matches
-  return {
-    hevc: can('video/mp4; codecs="hvc1.2.4.L153.B0"') || can('video/mp4; codecs="hev1.2.4.L153.B0"'),
-    av1: can('video/mp4; codecs="av01.0.12M.10"'),
-    vp9: can('video/webm; codecs="vp9"'),
-    dv: can('video/mp4; codecs="dvh1.05.06"') || can('video/mp4; codecs="dvhe.05.06"'),
-    hdr,
-    ac3: can('audio/mp4; codecs="ac-3"'),
-    eac3: can('audio/mp4; codecs="ec-3"'),
-    opus: can('audio/mp4; codecs="opus"'),
-    flac: can('audio/mp4; codecs="flac"'),
-    mkv: v.canPlayType('video/x-matroska') !== '',
-    nativeHls: v.canPlayType('application/vnd.apple.mpegurl') !== '',
-  }
-}
 
 type Plan = { mode: 'direct' | 'hls'; url: string; session?: string; note?: string; reasons?: string[]; converted?: boolean; audio?: number; shift?: number; converter?: 'plex' }
 // Usherr: asking again: from where it got to, converted, with a sound track or a burned-in subtitle.
