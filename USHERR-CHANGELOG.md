@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.33.5] - 2026-10-31
+
+### Fixed
+
+- **Add to Plex**: the guide's channels are read where Plex puts them (inside its lineup), so the tuner's channels can be matched and switched on.
+
 ## [2.33.4] - 2026-10-31
 
 ### Fixed

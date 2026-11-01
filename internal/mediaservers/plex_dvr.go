@@ -59,6 +59,15 @@ type plexLiveDoc struct {
 		VCN        string `xml:"channelVcn,attr" json:"channelVcn"`
 		Title      string `xml:"title,attr" json:"title"`
 	} `xml:"Channel" json:"Channel"`
+	// ... which Plex may give inside a Lineup.
+	Lineup []struct {
+		Channel []struct {
+			Identifier string `xml:"identifier,attr" json:"identifier"`
+			Key        string `xml:"key,attr" json:"key"`
+			VCN        string `xml:"channelVcn,attr" json:"channelVcn"`
+			Title      string `xml:"title,attr" json:"title"`
+		} `xml:"Channel" json:"Channel"`
+	} `xml:"Lineup" json:"Lineup"`
 }
 
 // plexLive makes a Live TV call and reads its answer, if it has one.
@@ -184,7 +193,11 @@ func (c *Client) PlexMapChannels(ctx context.Context, s Server, tunerKey, lineup
 	}
 	type gc struct{ vcn, key string }
 	byNumber := map[string]gc{}
-	for _, ch := range guide.Channel {
+	chans := guide.Channel
+	for _, l := range guide.Lineup {
+		chans = append(chans, l.Channel...)
+	}
+	for _, ch := range chans {
 		g := gc{ch.VCN, ch.Key}
 		if g.vcn == "" {
 			g.vcn = ch.Identifier
@@ -213,7 +226,15 @@ func (c *Client) PlexMapChannels(ctx context.Context, s Server, tunerKey, lineup
 		on = append(on, id)
 	}
 	if len(on) == 0 {
-		return 0, userErr(nil, "none of the tuner's %d channels matched the guide's %d", len(dev.DeviceChannel), len(guide.Channel))
+		// Say what Plex sent, so the answer's shape can be seen.
+		sample := ""
+		if raw, _, err := c.plexRaw(ctx, s, http.MethodGet, "/livetv/epg/lineupchannels", q, nil, ""); err == nil {
+			sample = strings.Join(strings.Fields(string(raw)), " ")
+			if len(sample) > 400 {
+				sample = sample[:400]
+			}
+		}
+		return 0, userErr(nil, "none of the tuner's %d channels matched the guide's %d (Plex sent: %s)", len(dev.DeviceChannel), len(chans), sample)
 	}
 	m.Set("channelsEnabled", strings.Join(on, ","))
 	if _, err := c.plexLive(ctx, s, http.MethodPut, "/media/grabbers/devices/"+url.PathEscape(tunerKey)+"/channelmap", m); err != nil {

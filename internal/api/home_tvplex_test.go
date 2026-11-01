@@ -52,7 +52,8 @@ func (f *fakeDVRPlex) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && r.URL.Path == "/media/grabbers/devices/1/channels":
 		send(map[string]any{"DeviceChannel": []map[string]any{{"identifier": "1", "name": "Sitcoms"}, {"identifier": "2", "name": "Cartoons"}, {"identifier": "9", "name": "Not in the guide"}}})
 	case r.Method == http.MethodGet && r.URL.Path == "/livetv/epg/lineupchannels":
-		send(map[string]any{"Channel": []map[string]any{{"identifier": "1", "channelVcn": "1", "key": "k1"}, {"identifier": "2", "channelVcn": "2", "key": "k2"}}})
+		// Inside a Lineup, as Plex gives them.
+		send(map[string]any{"Lineup": []map[string]any{{"Channel": []map[string]any{{"identifier": "1", "channelVcn": "1", "key": "k1"}, {"identifier": "2", "channelVcn": "2", "key": "k2"}}}}})
 	case r.Method == http.MethodPut && r.URL.Path == "/media/grabbers/devices/1/channelmap":
 		f.calls = append(f.calls, "map "+q.Get("channelsEnabled")+" "+q.Get("channelMapping[1]")+"/"+q.Get("channelMappingByKey[2]"))
 	case r.Method == http.MethodDelete && r.URL.Path == "/livetv/dvrs/7":
