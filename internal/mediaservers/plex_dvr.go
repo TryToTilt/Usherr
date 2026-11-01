@@ -44,7 +44,21 @@ type plexLiveDoc struct {
 	} `xml:"Dvr" json:"Dvr"`
 	Device []struct {
 		UUID string `xml:"uuid,attr" json:"uuid"`
+		Key  string `xml:"key,attr" json:"key"`
 	} `xml:"Device" json:"Device"`
+	// A tuner's channels (/media/grabbers/devices/{id}/channels).
+	DeviceChannel []struct {
+		Identifier string `xml:"identifier,attr" json:"identifier"`
+		Key        string `xml:"key,attr" json:"key"`
+		Name       string `xml:"name,attr" json:"name"`
+	} `xml:"DeviceChannel" json:"DeviceChannel"`
+	// A guide's channels (/livetv/epg/lineupchannels).
+	Channel []struct {
+		Identifier string `xml:"identifier,attr" json:"identifier"`
+		Key        string `xml:"key,attr" json:"key"`
+		VCN        string `xml:"channelVcn,attr" json:"channelVcn"`
+		Title      string `xml:"title,attr" json:"title"`
+	} `xml:"Channel" json:"Channel"`
 }
 
 // plexLive makes a Live TV call and reads its answer, if it has one.
@@ -137,4 +151,73 @@ func (c *Client) PlexReloadGuide(ctx context.Context, s Server, dvrKey string) e
 func (c *Client) PlexDeleteDVR(ctx context.Context, s Server, dvrKey string) error {
 	_, err := c.plexLive(ctx, s, http.MethodDelete, "/livetv/dvrs/"+url.PathEscape(strings.TrimPrefix(dvrKey, "/livetv/dvrs/")), nil)
 	return err
+}
+
+// PlexTunerKey is a tuner's own key (its number in /media/grabbers/devices),
+// from its id.
+func (c *Client) PlexTunerKey(ctx context.Context, s Server, uuid string) (string, error) {
+	doc, err := c.plexLive(ctx, s, http.MethodGet, "/media/grabbers/devices", nil)
+	if err != nil {
+		return "", err
+	}
+	for _, d := range doc.Device {
+		if d.UUID == uuid {
+			return strings.TrimPrefix(d.Key, "/media/grabbers/devices/"), nil
+		}
+	}
+	return "", userErr(nil, "Plex doesn't list the tuner %s.", uuid)
+}
+
+// PlexMapChannels links each of the tuner's channels to the guide's channel
+// of the same number and switches them on, as Plex's own setup does. It
+// says how many it switched on.
+func (c *Client) PlexMapChannels(ctx context.Context, s Server, tunerKey, lineup string) (int, error) {
+	dev, err := c.plexLive(ctx, s, http.MethodGet, "/media/grabbers/devices/"+url.PathEscape(tunerKey)+"/channels", nil)
+	if err != nil {
+		return 0, err
+	}
+	q := url.Values{}
+	q.Set("lineup", lineup)
+	guide, err := c.plexLive(ctx, s, http.MethodGet, "/livetv/epg/lineupchannels", q)
+	if err != nil {
+		return 0, err
+	}
+	type gc struct{ vcn, key string }
+	byNumber := map[string]gc{}
+	for _, ch := range guide.Channel {
+		g := gc{ch.VCN, ch.Key}
+		if g.vcn == "" {
+			g.vcn = ch.Identifier
+		}
+		for _, k := range []string{ch.VCN, ch.Identifier} {
+			if k != "" {
+				byNumber[k] = g
+			}
+		}
+	}
+	m := url.Values{}
+	var on []string
+	for _, ch := range dev.DeviceChannel {
+		id := ch.Identifier
+		if id == "" {
+			id = ch.Key
+		}
+		g, ok := byNumber[id]
+		if !ok || id == "" {
+			continue
+		}
+		m.Set("channelMapping["+id+"]", g.vcn)
+		if g.key != "" {
+			m.Set("channelMappingByKey["+id+"]", g.key)
+		}
+		on = append(on, id)
+	}
+	if len(on) == 0 {
+		return 0, userErr(nil, "none of the tuner's %d channels matched the guide's %d", len(dev.DeviceChannel), len(guide.Channel))
+	}
+	m.Set("channelsEnabled", strings.Join(on, ","))
+	if _, err := c.plexLive(ctx, s, http.MethodPut, "/media/grabbers/devices/"+url.PathEscape(tunerKey)+"/channelmap", m); err != nil {
+		return 0, err
+	}
+	return len(on), nil
 }

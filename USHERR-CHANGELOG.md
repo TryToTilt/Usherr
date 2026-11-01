@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.33.4] - 2026-10-31
+
+### Fixed
+
+- **Add to Plex switches the channels on**: Plex's own setup links each tuner channel to its guide channel and switches it on; Add to Plex didn't, so Plex had the channels but none on, and no airings. It does now, also when pressed again on a DVR made before.
+
 ## [2.33.3] - 2026-10-31
 
 ### Fixed

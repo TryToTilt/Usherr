@@ -47,6 +47,14 @@ func (f *fakeDVRPlex) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.calls = append(f.calls, "dvr "+q.Get("device")+" "+q.Get("lineup"))
 		f.dvrs = append(f.dvrs, map[string]any{"key": "7", "lineup": q.Get("lineup"), "Device": []map[string]any{{"uuid": q.Get("device"), "uri": "http://192.168.1.20:8264"}}})
 		// Nothing back: Usherr looks the DVR up.
+	case r.Method == http.MethodGet && r.URL.Path == "/media/grabbers/devices":
+		send(map[string]any{"Device": []map[string]any{{"key": "/media/grabbers/devices/1", "uuid": "device://tv.plex.grabbers.hdhomerun/ABCD1234"}}})
+	case r.Method == http.MethodGet && r.URL.Path == "/media/grabbers/devices/1/channels":
+		send(map[string]any{"DeviceChannel": []map[string]any{{"identifier": "1", "name": "Sitcoms"}, {"identifier": "2", "name": "Cartoons"}, {"identifier": "9", "name": "Not in the guide"}}})
+	case r.Method == http.MethodGet && r.URL.Path == "/livetv/epg/lineupchannels":
+		send(map[string]any{"Channel": []map[string]any{{"identifier": "1", "channelVcn": "1", "key": "k1"}, {"identifier": "2", "channelVcn": "2", "key": "k2"}}})
+	case r.Method == http.MethodPut && r.URL.Path == "/media/grabbers/devices/1/channelmap":
+		f.calls = append(f.calls, "map "+q.Get("channelsEnabled")+" "+q.Get("channelMapping[1]")+"/"+q.Get("channelMappingByKey[2]"))
 	case r.Method == http.MethodDelete && r.URL.Path == "/livetv/dvrs/7":
 		f.calls = append(f.calls, "delete 7")
 		f.dvrs = nil
@@ -96,6 +104,7 @@ func TestTVAddToPlex(t *testing.T) {
 	want := []string{
 		"tuner http://192.168.1.20:8264",
 		"dvr device://tv.plex.grabbers.hdhomerun/ABCD1234 lineup://tv.plex.providers.epg.xmltv/http://192.168.1.20:8264/api/tvfeed/" + key + "/plex.xml#Usherr TV",
+		"map 1,2 1/k2",
 		"guide 7",
 	}
 	if strings.Join(f.calls, "\n") != strings.Join(want, "\n") {
@@ -106,7 +115,7 @@ func TestTVAddToPlex(t *testing.T) {
 	}
 
 	f.calls = nil
-	if body := press(); !strings.Contains(body, "already") || strings.Join(f.calls, ",") != "guide 7" {
+	if body := press(); !strings.Contains(body, "already") || strings.Join(f.calls, ",") != "map 1,2 1/k2,guide 7" {
 		t.Fatalf("pressed again: %v %s", f.calls, body)
 	}
 
@@ -115,7 +124,7 @@ func TestTVAddToPlex(t *testing.T) {
 	f.dvrs[0]["lineup"] = "lineup://tv.plex.providers.epg.xmltv/http://192.168.1.20:8264/api/tvfeed/" + key + "/xmltv.xml#Usherr TV"
 	f.calls = nil
 	press()
-	if got := strings.Join(f.calls, ","); got != "delete 7,dvr device://tv.plex.grabbers.hdhomerun/ABCD1234 "+want[1][len("dvr device://tv.plex.grabbers.hdhomerun/ABCD1234 "):]+",guide 7" {
+	if got := strings.Join(f.calls, ","); got != "delete 7,dvr device://tv.plex.grabbers.hdhomerun/ABCD1234 "+want[1][len("dvr device://tv.plex.grabbers.hdhomerun/ABCD1234 "):]+",map 1,2 1/k2,guide 7" {
 		t.Fatalf("an earlier guide: %s", got)
 	}
 }

@@ -89,10 +89,14 @@ func (s *Server) tvPlexAdd(ctx context.Context, srv mediaservers.Server, base, x
 				continue
 			}
 			if d.Lineup == lineup {
+				n, err := s.tvPlexChannels(ctx, srv, dev.UUID, lineup)
+				if err != nil {
+					return "", err
+				}
 				if err := s.mediaClient.PlexReloadGuide(ctx, srv, d.Key); err != nil {
 					return "", fmt.Errorf("having Plex read the guide: %w", err)
 				}
-				return srv.Name + " has Usherr TV already: its guide is being read again.", nil
+				return fmt.Sprintf("%s has Usherr TV already: %d channels on, and the guide is being read again.", srv.Name, n), nil
 			}
 			// Usherr's DVR with another guide (an earlier one): made again
 			// with this one, on the same tuner.
@@ -123,8 +127,26 @@ func (s *Server) tvPlexAdd(ctx context.Context, srv mediaservers.Server, base, x
 			}
 		}
 	}
+	n, err := s.tvPlexChannels(ctx, srv, device, lineup)
+	if err != nil {
+		return "", err
+	}
 	if key != "" {
 		_ = s.mediaClient.PlexReloadGuide(ctx, srv, key)
 	}
-	return srv.Name + " has Usherr TV: the channels are in Live TV once Plex has read the guide (a few minutes).", nil
+	return fmt.Sprintf("%s has Usherr TV: %d channels on, in Live TV once Plex has read the guide (a few minutes).", srv.Name, n), nil
+}
+
+// tvPlexChannels switches the tuner's channels on, each linked to its
+// guide channel, as Plex's own setup does.
+func (s *Server) tvPlexChannels(ctx context.Context, srv mediaservers.Server, device, lineup string) (int, error) {
+	tuner, err := s.mediaClient.PlexTunerKey(ctx, srv, device)
+	if err != nil {
+		return 0, fmt.Errorf("finding the tuner: %w", err)
+	}
+	n, err := s.mediaClient.PlexMapChannels(ctx, srv, tuner, lineup)
+	if err != nil {
+		return 0, fmt.Errorf("switching the channels on: %w", err)
+	}
+	return n, nil
 }
