@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.32.0] - 2026-10-31
+
+### Added
+
+- **The pre-show in the Plex app**: Usherr puts a pre-show together for Plex every half hour (the theme's clips, the trailers downloaded, the cards; not the rating card, as Plex doesn't say which film is next), puts it in the virtual drive's Preshow folder and points Plex's pre-roll at it (Plex Pass). A pre-roll from NeXroll or set by hand is left alone. Like Jellyfin's, Plex's pre-show takes the same theme as everywhere or one of its own, so each server can have the same pre-show or a different one.
+
 ## [2.31.0] - 2026-10-31
 
 ### Added

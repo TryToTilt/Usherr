@@ -12,6 +12,7 @@ import { useToast } from '../components/Toast'
 import { useDocumentTitle } from '../documentTitle'
 import { t } from '../i18n'
 import PreshowJellyfin from './PreshowJellyfin'
+import PreshowPlex from './PreshowPlex'
 import PreshowTrailers from './PreshowTrailers'
 import { playWithPreshow } from './Player'
 import { CARD_LABEL, preshowApi, preshowBefore, setPreshowBefore, type PreshowAll, type PreshowBlock, type PreshowCard, type PreshowRule, type PreshowSchedule, type PreshowTheme, type PreshowWhen } from './preshowApi'
@@ -439,6 +440,7 @@ export default function PreshowSettings() {
       </section>
 
       <PreshowJellyfin themes={all.themes} />
+      <PreshowPlex themes={all.themes} />
 
       <PreshowTrailers />
 

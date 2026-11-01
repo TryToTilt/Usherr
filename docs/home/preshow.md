@@ -10,7 +10,9 @@ sound logo, a holiday bumper, an ad from the old days), the countdown and
 - before any film you play in Usherr's player, if you turn that on for your
   browser;
 - in the **Jellyfin app**, on every TV and phone, through the NeXroll Intros
-  plugin (see [In the Jellyfin app](#the-pre-show-in-the-jellyfin-app)).
+  plugin (see [In the Jellyfin app](#the-pre-show-in-the-jellyfin-app));
+- in the **Plex app**, through Plex's pre-roll (see
+  [In the Plex app](#the-pre-show-in-the-plex-app)).
 
 The Marquee follows along: it shows "Coming soon" with the trailer's poster,
 the rating, the countdown and the feature as each piece plays.
@@ -174,6 +176,30 @@ gives the plugin the new one when it can.
 The plugin's own request is `GET /plugin/intros?media_type=Movie&item_id=…`
 with the key in `X-Api-Key`; each piece comes from a signed
 `/plugin/stream/…` link.
+
+## The pre-show in the Plex app
+
+Plex plays the same videos before every film: its **pre-roll** (*Cinema
+Trailers pre-roll video*, a Plex Pass feature), a list of files on the
+Plex computer. **Settings → Movie night → Pre-show → In the Plex app**:
+
+- **Before films in Plex** puts a pre-show together for Plex every half hour,
+  so it keeps changing: the theme's clips, the trailers downloaded and the
+  cards. The **rating card** is left out: Plex doesn't say which film is next,
+  so a pre-show made for one film can't be.
+- The videos go in the virtual drive's **Preshow** folder (`U:\Preshow`), and
+  Usherr points Plex's pre-roll at them. The virtual drive has to be on and
+  mounted on the Plex computer ([Virtual drive](integrations.md#virtual-drive-for-plex)).
+- **A pre-roll of your own is safe**: Usherr sets Plex's pre-roll only when
+  it's empty or Usherr's own. One from NeXroll or set by hand is left as it
+  is (the card says so); clear it in Plex to use Usherr's. Switching the
+  pre-show off for Plex takes back only Usherr's.
+
+**The same pre-show on every server, or a different one.** Jellyfin and Plex
+each have a **Theme**: *The same as everywhere* (your schedules, then the
+default theme, as the Showtime screen plays), or a theme of their own, so
+Plex can play the holiday theme while Jellyfin keeps the cinema one, or the
+other way round.
 
 ## Troubleshooting
 

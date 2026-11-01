@@ -57,3 +57,38 @@ func PlexLibraryFor(libs []Library, kind, folder string) (Library, bool) {
 func (c *Client) PlexLibraries(ctx context.Context, s Server) ([]Library, error) {
 	return c.plexSections(ctx, s)
 }
+
+// PlexPref is one of the Plex server's settings (as Settings, Show
+// advanced has them), "" when it isn't set.
+func (c *Client) PlexPref(ctx context.Context, s Server, id string) (string, error) {
+	var doc struct {
+		MediaContainer struct {
+			Setting []struct {
+				ID    string `json:"id"`
+				Value any    `json:"value"`
+			} `json:"Setting"`
+		} `json:"MediaContainer"`
+	}
+	if err := c.do(ctx, s, http.MethodGet, "/:/prefs", nil, nil, &doc); err != nil {
+		return "", explain(s, err)
+	}
+	for _, st := range doc.MediaContainer.Setting {
+		if st.ID == id {
+			if v, ok := st.Value.(string); ok {
+				return v, nil
+			}
+			return "", nil
+		}
+	}
+	return "", userErr(nil, "Plex has no setting %q (an older Plex, or no Plex Pass).", id)
+}
+
+// PlexSetPref changes one of the Plex server's settings.
+func (c *Client) PlexSetPref(ctx context.Context, s Server, id, value string) error {
+	q := url.Values{}
+	q.Set(id, value)
+	if err := c.do(ctx, s, http.MethodPut, "/:/prefs", q, nil, nil); err != nil {
+		return explain(s, err)
+	}
+	return nil
+}

@@ -481,6 +481,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/home/preshow/jellyfin/setup` | admin | POST /api/home/preshow/jellyfin/setup (admin): the next step of setting it up: the repository and the plugin, then (after a restart) its settings. |
 | POST | `/api/home/preshow/now` | any account | POST /api/home/preshow/now: the player's pre-show is on this step (or over); the Marquee screens follow it. |
 | GET | `/api/home/preshow/plan` | any account | GET /api/home/preshow/plan?kind=movie&id=<library id>&tmdbId=&release=&showtime=<id>&theme=&budget=<seconds> The pre-show for a film, to play now. |
+| GET | `/api/home/preshow/plex` | admin | GET /api/home/preshow/plex (admin) |
+| PUT | `/api/home/preshow/plex` | admin | PUT /api/home/preshow/plex {on, themeId} (admin): saved, and the pre-show is put together again at once (in the background). |
 | POST | `/api/home/preshow/schedules` | admin | POST /api/home/preshow/schedules and PUT /api/home/preshow/schedules/{id} (admin). |
 | DELETE | `/api/home/preshow/schedules/{id}` | admin | DELETE /api/home/preshow/schedules/{id} (admin). |
 | PUT | `/api/home/preshow/schedules/{id}` | admin | POST /api/home/preshow/schedules and PUT /api/home/preshow/schedules/{id} (admin). |
@@ -1359,4 +1361,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-949 routes.
+951 routes.

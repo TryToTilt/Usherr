@@ -621,6 +621,8 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/home/art/test-posterizarr", s.handleArtTestPosterizarr) // Usherr
 	member.HandleFunc("GET /api/home/art/poster/{id}", s.handleArtPoster)               // Usherr: Re-Posterr's posters on Usherr's pages
 	admin.HandleFunc("PUT /api/home/preshow/jellyfin", s.handlePutPreshowJF)
+	admin.HandleFunc("GET /api/home/preshow/plex", s.handlePreshowPlex) // Usherr: the pre-show in Plex
+	admin.HandleFunc("PUT /api/home/preshow/plex", s.handlePutPreshowPlex)
 	admin.HandleFunc("POST /api/home/preshow/jellyfin/key", s.handlePreshowJFKey)
 	admin.HandleFunc("POST /api/home/preshow/jellyfin/setup", s.handlePreshowJFSetup)
 	admin.HandleFunc("POST /api/home/preshow/jellyfin/restart", s.handlePreshowJFRestart)

@@ -141,6 +141,19 @@ export type PreshowJF = {
   problem?: string
 }
 
+// Usherr: the pre-show in Plex (home_preshow_plex.go).
+export interface PreshowPlex {
+  on: boolean
+  themeId: number // 0: the same as everywhere
+  plex: boolean
+  drive: boolean
+  videos: number
+  theme: string
+  builtMs: number
+  note: string
+  where: string
+}
+
 export const preshowApi = {
   all: (scan = false) => call<PreshowAll>('GET', scan ? '?scan=1' : ''),
   plan: (a: PlanAsk) => {
@@ -173,6 +186,8 @@ export const preshowApi = {
   jellyfinKey: () => call<PreshowJF>('POST', '/jellyfin/key'),
   jellyfinSetup: () => call<PreshowJF>('POST', '/jellyfin/setup'),
   jellyfinRestart: () => call<void>('POST', '/jellyfin/restart'),
+  plex: () => call<PreshowPlex>('GET', '/plex'), // Usherr: the pre-show in Plex
+  savePlex: (p: Pick<PreshowPlex, 'on' | 'themeId'>) => call<PreshowPlex>('PUT', '/plex', p),
   // The Marquee screens follow the pre-show playing here.
   now: (step: PreshowStep | null, film?: PreshowFilm) =>
     void fetch('/api/home/preshow/now', {

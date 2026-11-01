@@ -75,6 +75,7 @@ type driveNode struct {
 	size   int64
 	mod    time.Time
 	fileID int64
+	local  string   // Usherr: a file on Usherr's own disk (the pre-show for Plex)
 	kids   []string // a folder's entries, sorted
 }
 
@@ -138,6 +139,10 @@ func (s *Server) driveTree(ctx context.Context) (driveTree, error) {
 			add(parent, &driveNode{dir: true, mod: n.mod})
 		}
 		tree[parent].kids = append(tree[parent].kids, path.Base(p))
+	}
+	// The pre-show for Plex (home_preshow_plex.go): Usherr's own files.
+	for _, lf := range drivePreshowFiles() {
+		add("/Preshow/"+lf.name, &driveNode{size: lf.size, mod: lf.mod, local: lf.path})
 	}
 	// The three top folders are always there, even empty, so Plex can be
 	// given them before their first film or episode is ready.
@@ -348,10 +353,16 @@ type driveFile struct {
 	n    *driveNode
 	tree driveTree
 	off  int64
-	read int // folder entries already listed
+	read int      // folder entries already listed
+	lf   *os.File // a local file, once opened
 }
 
-func (f *driveFile) Close() error              { return nil }
+func (f *driveFile) Close() error {
+	if f.lf != nil {
+		return f.lf.Close()
+	}
+	return nil
+}
 func (f *driveFile) Write([]byte) (int, error) { return 0, errDriveReadOnly }
 func (f *driveFile) Stat() (fs.FileInfo, error) {
 	return driveInfo{name: path.Base(f.name), n: f.n}, nil
@@ -405,6 +416,21 @@ func (f *driveFile) Read(p []byte) (int, error) {
 	if rest := f.n.size - f.off; int64(len(p)) > rest {
 		p = p[:rest]
 	}
+	if f.n.local != "" {
+		if f.lf == nil {
+			lf, err := os.Open(f.n.local)
+			if err != nil {
+				return 0, err
+			}
+			f.lf = lf
+		}
+		n, err := f.lf.ReadAt(p, f.off)
+		f.off += int64(n)
+		if errors.Is(err, io.EOF) && n > 0 {
+			err = nil
+		}
+		return n, err
+	}
 	ra, err := driveReader(f.s, f.ctx, f.n.fileID)
 	if err != nil {
 		return 0, err
@@ -418,4 +444,31 @@ func (f *driveFile) Read(p []byte) (int, error) {
 		err = nil
 	}
 	return n, err
+}
+
+// ---- Usherr's own files on the drive ----
+
+type driveLocal struct {
+	name, path string
+	size       int64
+	mod        time.Time
+}
+
+var drivePreshow struct {
+	sync.Mutex
+	files []driveLocal
+}
+
+// setDrivePreshow puts the pre-show's videos in the drive's Preshow folder.
+func setDrivePreshow(files []driveLocal) {
+	drivePreshow.Lock()
+	drivePreshow.files = files
+	drivePreshow.Unlock()
+	driveTreeChanged()
+}
+
+func drivePreshowFiles() []driveLocal {
+	drivePreshow.Lock()
+	defer drivePreshow.Unlock()
+	return append([]driveLocal(nil), drivePreshow.files...)
 }
