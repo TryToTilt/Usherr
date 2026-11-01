@@ -207,6 +207,8 @@ type signInMethodsPayload struct {
 	// AutoSignIn is the method the sign-in page sends visitors to by itself
 	// ("oidc"), or empty. It is only set while that method works.
 	AutoSignIn string `json:"autoSignIn,omitempty"`
+	// EmailReset: Forgot password? can email a link (Usherr, home_password_reset.go).
+	EmailReset bool `json:"emailReset"`
 }
 
 // autoSignInOIDC is the one value the automatic sign-in setting can hold besides off.
@@ -261,6 +263,7 @@ func (s *Server) handleSignInMethods(w http.ResponseWriter, r *http.Request) {
 		_, out.PasskeyHost = s.passkeyOrigin()
 	}
 	out.AutoSignIn = s.autoSignIn()
+	out.EmailReset = s.emailResetOn()
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -281,6 +284,10 @@ type signInSettings struct {
 	// empty; AutoSignInChoices are the ones that can be picked right now.
 	AutoSignIn        string             `json:"autoSignIn"`
 	AutoSignInChoices []autoSignInChoice `json:"autoSignInChoices"`
+	// Usherr: Forgot password? by email: the saved switch, and why it can't
+	// send now ("" when it can).
+	EmailReset        bool   `json:"emailReset"`
+	EmailResetProblem string `json:"emailResetProblem,omitempty"`
 }
 
 func (s *Server) sessionMethod(r *http.Request) string {
@@ -302,7 +309,10 @@ func (s *Server) signInSettings(r *http.Request) signInSettings {
 	if c, ok := s.oidcActive(); ok {
 		choices = append(choices, autoSignInChoice{ID: autoSignInOIDC, Name: c.Name})
 	}
+	emailReset, _ := s.Settings.GetBool(settings.KeyAuthEmailReset)
+	_, _, resetProblem := s.emailResetProblem()
 	return signInSettings{
+		EmailReset: emailReset, EmailResetProblem: resetProblem,
 		AutoSignIn: s.autoSignIn(), AutoSignInChoices: choices,
 		LocalSignIn: saved != "0", LocalEffective: s.localSignInOn(), Passkeys: pk, PasskeysAvailable: origin != "",
 		PublicURL: s.configuredPublicURL(), SSODisabledByEnv: s.cfg.DisableSSO, ExternalOn: s.externalSignIn(),
@@ -325,6 +335,7 @@ func (s *Server) handlePutSignIn(w http.ResponseWriter, r *http.Request) {
 		LocalSignIn *bool   `json:"localSignIn"`
 		Passkeys    *bool   `json:"passkeys"`
 		AutoSignIn  *string `json:"autoSignIn"`
+		EmailReset  *bool   `json:"emailReset"` // Usherr: Forgot password? by email
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "That request couldn't be read.")
@@ -351,6 +362,22 @@ func (s *Server) handlePutSignIn(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		slog.Warn("auth: passkeys switched", "on", *req.Passkeys, "by", actor)
+	}
+	if req.EmailReset != nil {
+		if _, _, problem := s.emailResetProblem(); *req.EmailReset && problem != "" {
+			writeError(w, http.StatusBadRequest, problem)
+			return
+		}
+		v := "0"
+		if *req.EmailReset {
+			v = "1"
+		}
+		if err := s.Settings.Set(settings.KeyAuthEmailReset, v, false); err != nil {
+			slog.Error("auth: could not save the email reset switch", "err", err)
+			writeError(w, http.StatusInternalServerError, "The setting couldn't be saved.")
+			return
+		}
+		slog.Warn("auth: password reset by email switched", "on", *req.EmailReset, "by", actor)
 	}
 	if req.AutoSignIn != nil {
 		_, oidcWorks := s.oidcActive()

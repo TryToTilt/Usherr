@@ -5,6 +5,16 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.36.1] - 2026-11-01
+
+### Added
+
+- **Forgot password? by email**: when an administrator switches it on (Settings, Account & Access, Ways to sign in), Forgot password? on the sign-in page emails a link to set a new password to the address on the account, administrators' too. It works once, for 30 minutes, and signs the account out everywhere; two-step sign-in still asks for its code. It goes through the mail server of your email notification, and the link starts with the address you open Usherr at, never one a request names. The reply never says whether an account exists, only a scrambled copy of each link is kept, requests are limited (about 5 from one address in 15 minutes, 3 emails an hour to one account), and every request and reset goes on Activity. The command line stays as the last resort. *Show me how* has *Let people reset a forgotten password*.
+
+### Fixed
+
+- **The pre-show before a streamed film in the browser**: with *Also before any film I play in this browser* on, a film from your library got its pre-show in Usherr’s player, but a streamed one (the Stream button, the Streamed page, the streamed libraries) went straight to the film. Now both get it. A film tried for under a minute starts from the beginning again, with its pre-show, instead of picking up those few seconds; and a Showtime’s streamed film doesn’t get a second pre-show.
+
 ## [2.36.0] - 2026-11-01
 
 ### Added

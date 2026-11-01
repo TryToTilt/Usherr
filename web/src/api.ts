@@ -3182,6 +3182,7 @@ export interface SignInMethods {
   passkeys: boolean
   passkeyHost?: string // passkeys only work on pages opened at this host
   autoSignIn?: 'oidc' // the sign-in page sends visitors to this method by itself
+  emailReset?: boolean // Usherr: Forgot password? can email a link to set a new password
 }
 
 // Settings > Account & Access > All accounts: the general sign-in switches.
@@ -3197,6 +3198,8 @@ export interface SignInSettings {
   sessionMethod: string
   autoSignIn: '' | 'oidc' // visitors are sent to this method by themselves
   autoSignInChoices: { id: 'oidc'; name: string }[] // the ones that can be picked now
+  emailReset: boolean // Usherr: Forgot password? by email, the saved switch
+  emailResetProblem?: string // why it can't send now
 }
 
 // Single sign-on with an OpenID Connect provider.
@@ -3478,7 +3481,11 @@ export const api = {
   createAPIKey: (name: string, readOnly = false) => post<APIKey>('/auth/api-keys', { name, readOnly }),
   signInMethods: () => get<SignInMethods>('/auth/methods'),
   getSignIn: () => get<SignInSettings>('/auth/sign-in'),
-  putSignIn: (data: { localSignIn?: boolean; passkeys?: boolean; autoSignIn?: '' | 'oidc' }) => put<SignInSettings>('/auth/sign-in', data),
+  putSignIn: (data: { localSignIn?: boolean; passkeys?: boolean; autoSignIn?: '' | 'oidc'; emailReset?: boolean }) => put<SignInSettings>('/auth/sign-in', data),
+  // Usherr: Forgot password? by email (no sign-in needed).
+  forgotPassword: (who: string) => post<{ message: string }>('/auth/forgot', { who }),
+  checkResetLink: (token: string) => get<{ username: string }>(`/auth/reset/${encodeURIComponent(token)}`),
+  resetPassword: (token: string, password: string) => post<{ message: string }>('/auth/reset', { token, password }),
   getOidc: () => get<OidcSettings>('/auth/oidc'),
   putOidc: (data: Partial<OidcSettings>) => put<OidcSettings>('/auth/oidc', data),
   testOidc: (data: Partial<OidcSettings>) => post<OidcTestResult>('/auth/oidc/test', data),

@@ -76,7 +76,7 @@ function clockOf(secs: number): string {
   return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
 }
 
-export type StreamExtras = Pick<Request, 'onNext' | 'tvTitle' | 'watchIn' | 'startAt' | 'about' | 'sport'>
+export type StreamExtras = Pick<Request, 'onNext' | 'tvTitle' | 'watchIn' | 'startAt' | 'about' | 'sport' | 'noPreshow'>
 
 let show: ((r: Request | null) => void) | null = null
 
@@ -133,10 +133,14 @@ export function PlayerHost() {
         .catch(() => null)
         .then((d: { position?: number } | null) => {
           if (n !== asked) return
-          const at = d?.position ?? 0
+          // A place under a minute in (a quick try) starts from the beginning.
+          const at = (d?.position ?? 0) >= 60 ? (d?.position ?? 0) : 0
           const go = at > 0 ? { ...r, startAt: at, resumedFrom: at } : r
-          // Usherr: a film from the start gets its pre-show first, when this browser asks for one.
-          if (r.kind === 'movie' && !r.noPreshow && at <= 0 && preshowBefore()) void playWithPreshow({ kind: 'movie', id: r.id }, () => n === asked && setReq(go))
+          // Usherr: a film from the start gets its pre-show first, when this browser asks for one:
+          // a library film, or a streamed one.
+          const streamed = r.about?.kind === 'movie' ? r.about.tmdbId : r.tvTitle?.kind === 'movie' ? r.tvTitle.tmdbId : 0
+          const film: PlanAsk | null = r.kind === 'movie' ? { kind: 'movie', id: r.id } : r.stream && streamed ? { tmdbId: streamed, release: r.stream.release } : null
+          if (film && !r.noPreshow && at <= 0 && preshowBefore()) void playWithPreshow(film, () => n === asked && setReq(go))
           else setReq(go)
         })
     }

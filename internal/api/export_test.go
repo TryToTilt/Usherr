@@ -96,6 +96,17 @@ func (s *Server) TestSetSimklBaseURL(clientID, baseURL string) {
 	s.simklMu.Unlock()
 }
 
+// CaptureAccountMail sends account emails (a password reset link) to got
+// instead of a mail server, until the test ends.
+func CaptureAccountMail(t interface{ Cleanup(func()) }, got chan<- [3]string) {
+	old := sendAccountMail
+	sendAccountMail = func(_ context.Context, _ *notify.EmailSender, to string, ev notify.Event) error {
+		got <- [3]string{to, ev.Title, ev.Message}
+		return nil
+	}
+	t.Cleanup(func() { sendAccountMail = old })
+}
+
 func (s *Server) TestSetTMDBBaseURL(apiKey, baseURL string) {
 	s.tmdbMu.Lock()
 	s.tmdb = metadata.NewWithBaseURL(apiKey, baseURL)

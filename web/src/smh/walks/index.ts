@@ -10,7 +10,7 @@ import { getBook, importMusic, listenAudiobook, makePlaylist, playMusic, readEbo
 import { addArtist, connectJellyfin, downloadClients, importLists, naming } from './more'
 import { followTeam, makeChannel, marquee, marqueeRemote, playOnTv, watchLiveTv } from './night'
 import { plexDrive } from './plex'
-import { kidsRequests, notices, stremioAddon } from './people'
+import { kidsRequests, notices, resetByEmail, stremioAddon } from './people'
 import { setUpPreshow } from './preshow'
 import { ebookToAudiobook } from './readtome'
 import { backups, indexer, mediaTypes, migrate, quality, tvTime, usenetProvider, vpn } from './setup'
@@ -62,6 +62,7 @@ export const WALKS: Walkthrough[] = [
   phone,
   stremioAddon,
   notices,
+  resetByEmail,
   playOnTv,
   mediaTypes,
   usenetProvider,

@@ -297,11 +297,22 @@ environment:
   - MEDIARIUM_DISABLE_SSO=1
 ```
 
+## Forgot your password?
+
+Usherr: there are three ways back in, in this order.
+
+1. **By email**, when an administrator has switched it on (**Settings > Account & Access > Ways to sign in > Reset a forgotten password by email**). Under **Forgot your password?** on the sign-in page, type your username or email address and press **Email me a link**. A link to set a new password goes to the email address on your account: it works once, for 30 minutes, and setting the password signs the account out everywhere (its sessions end, and apps signed in over MCP have to sign in again). If two-step sign-in is on, signing in still asks for its code.
+   - **What it needs:** an email notification switched on (**Settings > Notifications**; its mail server sends the link, only to the account's own address), and the address you open Usherr at (**Link in messages**, `server.public_url`). The link is made from that address, never from the address a request came in on, so nobody can have a reset email point at another site. Usherr stays on your home network and Tailscale, so the link opens on devices that can reach that address.
+   - **Who it works for:** accounts with a password here and an email address, administrators too. It does nothing for an account without an email address, a turned-off account, or one that signs in through single sign-on or the directory.
+   - **What it never does:** say whether an account exists (everyone gets the same reply), keep the link itself (only a scrambled copy), or send more than a few: about 5 requests from one address in 15 minutes, and 3 emails an hour to one account. Every request and every reset goes on Activity for administrators.
+2. **An administrator** sets a new password in **Settings > Account & Access > All accounts > Edit**.
+3. **The command line**, for the only administrator, below.
+
 ## A forgotten administrator password
 
-The sign-in page has a **Forgot your password?** line. There's no email reset. Another administrator can set a new password in **Settings > Account & Access > All accounts**, and the command below is for the only administrator.
+The sign-in page has a **Forgot your password?** line. With reset by email on (above), an administrator can use it like anyone. Otherwise another administrator can set a new password in **Settings > Account & Access > All accounts**, and the command below is for the only administrator.
 
-If the only admin has forgotten their password, reset it from the command line on the machine running Mediarium. There is deliberately no way to do this over the web.
+If the only admin has forgotten their password and can't get the email, reset it from the command line on the machine running Mediarium.
 
 In Docker (use your own PUID:PGID, so the database files keep the right owner):
 

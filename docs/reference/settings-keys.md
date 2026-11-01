@@ -9,6 +9,7 @@ The keys the app stores in its settings table. You normally change these from th
 | `apps.links` | JSON list of add-ons: other programs next to Mediarium with a link to each (name, address, how it opens) |
 | `audiobooks.path` | audiobooks library folder; falls back to the AUDIOBOOKS_DIR env default (/audiobooks) when unset |
 | `auth.auto_signin` | "oidc" sends visitors who are not signed in straight to the single sign-on provider from the sign-in page (add ?no-redirect=1 to the address to see the normal page); unset or empty leaves it off. Only a signed-in browser session can set it, and only while single sign-on works |
+| `auth.emailReset` | Usherr: "1" puts Forgot password? on the sign-in page, emailing a one-time link to set a new password; needs an email notification switched on and the public address (server.public_url). Unset or "0" leaves it off |
 | `auth.idle_days` | browser sessions not used for this many days (1 to 7) end and the person signs in again. Unset or "0" leaves it off. API keys, calendar feeds and e-reader passwords are not affected |
 | `auth.ldap` | encrypted; sign-in with a directory (LDAP or Active Directory) (JSON: enabled, server, bind account and password, filters, attribute names, account rules). Off unless enabled is true. Only a signed-in browser session can read or set it, not an API key. MEDIARIUM_DISABLE_SSO=1 overrides it |
 | `auth.local_signin` | "0" turns the username and password form off (only possible once an administrator has signed in with another method); anything else (including unset) leaves it on |

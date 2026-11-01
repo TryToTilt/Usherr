@@ -266,6 +266,9 @@ func (s *Service) UpdateAccount(id int64, upd AccountUpdate) (*Account, error) {
 			if err := revokeUserGrants(tx.Exec, id); err != nil {
 				return nil, err
 			}
+			if err := endResetLinks(tx.Exec, id); err != nil { // Usherr: reset.go
+				return nil, err
+			}
 		}
 	}
 	if upd.Password != nil {
@@ -289,6 +292,9 @@ func (s *Service) UpdateAccount(id int64, upd AccountUpdate) (*Account, error) {
 			}
 		}
 		if err := revokeUserGrants(tx.Exec, id); err != nil {
+			return nil, err
+		}
+		if err := endResetLinks(tx.Exec, id); err != nil { // Usherr: reset.go
 			return nil, err
 		}
 	}
@@ -328,6 +334,7 @@ func (s *Service) DeleteAccount(id int64) error {
 	}
 	for _, q := range []string{
 		`DELETE FROM sessions WHERE user_id = ?`,
+		`DELETE FROM password_resets WHERE user_id = ?`, // Usherr: reset.go
 		`DELETE FROM api_keys WHERE user_id = ?`,
 		`DELETE FROM user_identities WHERE user_id = ?`,
 		`DELETE FROM passkeys WHERE user_id = ?`,

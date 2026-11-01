@@ -158,6 +158,7 @@ type Server struct {
 	box      *crypto.Box       // the server key, for secrets kept outside the settings (two-step sign-in)
 	twoStep  twoStepChallenges // sign-ins waiting for their app code (two_step.go)
 	ssoS     ssoState          // single sign-on, directory sign-in and passkeys (signin_methods.go)
+	resetS   resetState        // Usherr: Forgot password? limits (home_password_reset.go)
 
 	torrents torrentRegistry // live torrent clients, so the on/off switch can stop them
 	irc      ircLibrary      // the titles IRC announcements are matched against (irc_announce_decide.go)
@@ -409,6 +410,10 @@ func (s *Server) Routes() http.Handler {
 	public.HandleFunc("POST /api/auth/login", s.handleLogin)
 	public.HandleFunc("POST /api/auth/login/code", s.handleLoginCode)
 	public.HandleFunc("POST /api/auth/logout", s.handleLogout)
+	// Usherr: Forgot password? by email (home_password_reset.go); 404 while it's off.
+	public.HandleFunc("POST /api/auth/forgot", s.handleForgotPassword)
+	public.HandleFunc("GET /api/auth/reset/{token}", s.handleResetCheck)
+	public.HandleFunc("POST /api/auth/reset", s.handleResetPassword)
 	// Other ways to sign in (signin_methods.go): what the sign-in page offers, single sign-on and passkeys.
 	public.HandleFunc("GET /api/auth/methods", s.handleSignInMethods)
 	public.HandleFunc("GET /api/auth/oidc/start", s.handleOIDCStart)

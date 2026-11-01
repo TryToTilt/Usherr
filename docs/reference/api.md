@@ -39,6 +39,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/auth/ereader/kobo/resync` | any account | POST /api/auth/ereader/kobo/resync: forgets what was sent to the Kobo, so the next sync sends every book again. |
 | DELETE | `/api/auth/ereader/opds` | any account | DELETE /api/auth/ereader/opds |
 | POST | `/api/auth/ereader/opds` | any account | POST /api/auth/ereader/opds: makes a new e-reader password. |
+| POST | `/api/auth/forgot` | **public** | POST /api/auth/forgot {"who": user name or email address}: always 202. |
 | GET | `/api/auth/idle-signout` | admin |  |
 | PUT | `/api/auth/idle-signout` | admin |  |
 | GET | `/api/auth/ldap` | admin | GET /api/auth/ldap |
@@ -70,6 +71,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/auth/request-notices` | any account | PUT /api/auth/request-notices {"enabled": bool} |
 | POST | `/api/auth/request-notices/devices` | any account | POST /api/auth/request-notices/devices {"subscription": "<json>", "name": "..."} |
 | DELETE | `/api/auth/request-notices/devices/{id}` | any account | DELETE /api/auth/request-notices/devices/{id} |
+| POST | `/api/auth/reset` | **public** | POST /api/auth/reset {"token","password"}: sets the new password. |
+| GET | `/api/auth/reset/{token}` | **public** | GET /api/auth/reset/{token}: whether a link still works, before anything is typed. |
 | DELETE | `/api/auth/sessions` | any account | signs the caller out everywhere except this browser (DELETE /api/auth/sessions). |
 | GET | `/api/auth/sessions` | any account | lists the places the caller is signed in (GET /api/auth/sessions). |
 | GET | `/api/auth/sign-in` | admin | GET /api/auth/sign-in |
@@ -1368,4 +1371,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-958 routes.
+961 routes.

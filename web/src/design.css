@@ -2611,6 +2611,9 @@ a.version-chip:hover { color: var(--text); border-color: color-mix(in srgb, var(
 .auth-card .forgot summary:hover { color: var(--text); }
 .auth-card .forgot p { margin: 8px 0 0; }
 .auth-card .forgot-cmd { display: block; margin-top: 8px; padding: 8px 10px; border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font-size: 0.8rem; overflow-wrap: anywhere; user-select: all; }
+/* Usherr: Forgot password? by email, above the other ways */
+.auth-card .forgot-email { display: grid; gap: 8px; margin: 8px 0 4px; }
+.auth-card .forgot-email p { margin: 0; }
 
 /* ---- Landmarks and skipping ahead --------------------------------------- */
 .top-title { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.01em; }

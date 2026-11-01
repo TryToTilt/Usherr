@@ -7,8 +7,8 @@ sound logo, a holiday bumper, an ad from the old days), the countdown and
 
 - on the **Showtime** screen before a booked film, timed so the feature starts
   on the minute;
-- before any film you play in Usherr's player, if you turn that on for your
-  browser;
+- before any film you play in Usherr's player, from your library or streamed,
+  if you turn that on for your browser (each browser has its own switch);
 - in the **Jellyfin app**, on every TV and phone, through the NeXroll Intros
   plugin (see [In the Jellyfin app](#the-pre-show-in-the-jellyfin-app));
 - in the **Plex app**, through Plex's pre-roll (see
@@ -18,7 +18,8 @@ The Marquee follows along: it shows "Coming soon" with the trailer's poster,
 the rating, the countdown and the feature as each piece plays.
 
 **Skip** and **Skip the pre-show** are always on screen. A film picked up
-part-way starts without a pre-show.
+part-way starts without a pre-show; one tried for under a minute starts from
+the beginning, with it.
 
 Everything is on **Settings → Movie night → Pre-show** (`/preshow/manage`),
 for administrators.

@@ -61,7 +61,7 @@ async function startFilm(s: Showtime, ahead?: Promise<StreamStart> | null) {
     return
   }
   const st = await (ahead ?? Promise.reject(new Error('none'))).catch(() => findStream(s))
-  playStream(st, s.title, undefined, { about: { kind: 'movie', tmdbId: s.tmdbId } })
+  playStream(st, s.title, undefined, { about: { kind: 'movie', tmdbId: s.tmdbId }, noPreshow: true }) // its pre-show has played
 }
 
 // BookFilm: book a film from the Showtime page itself: search, pick, then

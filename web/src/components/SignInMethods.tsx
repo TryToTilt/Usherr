@@ -65,7 +65,7 @@ function GeneralCard({ state, error, onChange, reload }: { state: SignInSettings
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState('')
 
-  async function save(change: { localSignIn?: boolean; passkeys?: boolean; autoSignIn?: '' | 'oidc' }, done: string) {
+  async function save(change: { localSignIn?: boolean; passkeys?: boolean; autoSignIn?: '' | 'oidc'; emailReset?: boolean }, done: string) {
     setBusy(true)
     setProblem('')
     try {
@@ -150,6 +150,36 @@ function GeneralCard({ state, error, onChange, reload }: { state: SignInSettings
                 {t('Turn on passkeys')}
               </button>
             )}
+          </div>
+          {/* Usherr: Forgot password? by email (home_password_reset.go) */}
+          <div data-walk="signin-email-reset">
+            <strong>
+              <TipLabel text={t('Forgot password? on the sign-in page emails a link that sets a new password: it works once, for 30 minutes, and signs that account out everywhere. Two-step sign-in still asks for its code. It goes to the email address on the account, through the mail server of your email notification, and never says whether an account exists.')} learnMore="accounts#forgot-your-password">
+                {t('Reset a forgotten password by email')}
+              </TipLabel>
+            </strong>
+            <p style={{ margin: '4px 0 8px', color: 'var(--text-dim)' }}>
+              {state.emailReset
+                ? state.emailResetProblem
+                  ? t('Switched on, but it can’t send yet.')
+                  : t('On. Forgot password? on the sign-in page emails a link to the address on the account.')
+                : t('Off. Someone who forgets their password asks an administrator.')}
+            </p>
+            {state.emailResetProblem && (
+              <p className="hint" style={{ margin: '0 0 8px' }}>
+                {state.emailResetProblem}
+              </p>
+            )}
+            {state.emailReset ? (
+              <button disabled={busy} onClick={() => void save({ emailReset: false }, t('Reset by email is off.'))}>
+                {t('Turn off reset by email')}
+              </button>
+            ) : (
+              <button className="primary" disabled={busy || !!state.emailResetProblem} onClick={() => void save({ emailReset: true }, t('Reset by email is on.'))}>
+                {t('Turn on reset by email')}
+              </button>
+            )}
+            <small style={{ display: 'block', marginTop: 6, color: 'var(--text-dim)' }}>{t('Only accounts with an email address can use it. The link works on devices that can reach the address you open Usherr at.')}</small>
           </div>
         </div>
       )}

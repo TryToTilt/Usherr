@@ -105,6 +105,28 @@ export default function Login() {
   // With two-step sign-in on, the password leads to a second step: the code
   // from the authenticator app (or a recovery code).
   const [challenge, setChallenge] = useState('')
+  // Usherr: Forgot password? by email. The reply is the same whether the
+  // account exists or not.
+  const [forgotOpen, setForgotOpen] = useState(false)
+  const [who, setWho] = useState('')
+  const [sent, setSent] = useState('')
+  const [forgotError, setForgotError] = useState('')
+  const [forgotBusy, setForgotBusy] = useState(false)
+  async function askForLink() {
+    if (!who.trim()) {
+      setForgotError(t('Enter your username or email address.'))
+      return
+    }
+    setForgotError('')
+    setForgotBusy(true)
+    try {
+      setSent((await api.forgotPassword(who.trim())).message)
+    } catch (err) {
+      setForgotError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setForgotBusy(false)
+    }
+  }
   useEffect(() => {
     document.title = titleFor(t('Sign in'))
   }, [])
@@ -214,10 +236,31 @@ export default function Login() {
         )}
         {!methods.local && methods.ldap && <p className="auth-sub">{t('Use your directory account.')}</p>}
         {methods.local && (
-        <details className="forgot">
+        <details className="forgot" open={forgotOpen} onToggle={(e) => setForgotOpen((e.target as HTMLDetailsElement).open)}>
           <summary>{t('Forgot your password?')}</summary>
+          {methods.emailReset && (
+            <div className="forgot-email">
+              {sent ? (
+                <p className="auth-done" role="status">
+                  {sent}
+                </p>
+              ) : (
+                <>
+                  <p>{t('Type your username or email address, and Usherr emails you a link to set a new password.')}</p>
+                  <input value={who} onChange={(e) => setWho(e.target.value)} autoComplete="username" aria-label={t('Username or email address')} placeholder={t('Username or email address')} />
+                  {forgotError && <p className="error-text">{forgotError}</p>}
+                  <button type="button" disabled={forgotBusy} onClick={() => void askForLink()}>
+                    {forgotBusy ? t('Sending…') : t('Email me a link')}
+                  </button>
+                </>
+              )}
+              <p className="hint">{t('No email? Ask an administrator, or see below.')}</p>
+            </div>
+          )}
           <p>
-            {t("Mediarium can't send reset emails. Ask an administrator to set a new password in Settings > Account & Access > All accounts. If you're the only administrator, run this on the machine that runs Mediarium (swap 1000:1000 for your own PUID:PGID):")}
+            {methods.emailReset
+              ? t("An administrator can also set a new password in Settings > Account & Access > All accounts. If you're the only administrator and the email doesn't come, run this on the machine that runs Usherr (swap 1000:1000 for your own PUID:PGID):")
+              : t("Mediarium can't send reset emails. Ask an administrator to set a new password in Settings > Account & Access > All accounts. If you're the only administrator, run this on the machine that runs Mediarium (swap 1000:1000 for your own PUID:PGID):")}
           </p>
           <code className="forgot-cmd">docker exec -it -u 1000:1000 mediarium /app/app reset-password &lt;username&gt;</code>
           <p>

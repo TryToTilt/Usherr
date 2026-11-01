@@ -14,6 +14,9 @@ func TestLogPathHidesTheSecretInAnAddress(t *testing.T) {
 		{"/kobo/" + secret + "/v1/library/sync", "/kobo/…/v1/library/sync"},
 		{"/kobo/" + secret + "/v1/library/abc/metadata", "/kobo/…/v1/library/abc/metadata"},
 		{"/kobo/" + secret, "/kobo/…"},
+		{"/reset/" + secret, "/reset/…"},
+		{"/api/auth/reset/" + secret, "/api/auth/reset/…"},
+		{"/api/auth/reset", "/api/auth/reset"}, // setting the password: the secret is in the body
 		{"/api/queue", "/api/queue"},
 		{"/api/calendar/feed", "/api/calendar/feed"},
 		{"/api/auth/ereader/kobo/resync", "/api/auth/ereader/kobo/resync"},

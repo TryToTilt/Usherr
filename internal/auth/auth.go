@@ -402,6 +402,9 @@ func (s *Service) ChangePassword(userID int64, currentPassword, newPassword stri
 	if err := revokeUserGrants(tx.Exec, userID); err != nil { // apps signed in over MCP
 		return err
 	}
+	if err := endResetLinks(tx.Exec, userID); err != nil { // Usherr: reset.go
+		return err
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit change password: %w", err)
 	}
@@ -437,6 +440,9 @@ func (s *Service) ResetPassword(username, newPassword string) error {
 		return fmt.Errorf("clear sessions: %w", err)
 	}
 	if err := revokeUserGrants(tx.Exec, id); err != nil {
+		return err
+	}
+	if err := endResetLinks(tx.Exec, id); err != nil { // Usherr: reset.go
 		return err
 	}
 	if err := tx.Commit(); err != nil {

@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, type ComponentType, type ReactNode } from 'r
 import { Navigate, Route, BrowserRouter as Router, Routes, useLocation } from 'react-router-dom'
 import { isAdmin } from './api'
 import GuidePopupHost from './components/GuidePopup'
-import { BASE_PATH } from './base'
+import { BASE_PATH, withoutBase } from './base'
 import { t } from './i18n'
 import { AuthProvider, useAuth } from './AuthContext'
 import { ModulesProvider } from './ModulesContext'
@@ -19,6 +19,13 @@ import { SETTINGS_REDIRECTS } from './settingsNav'
 // Mediarium Books (reader and player), an app of its own, loaded when opened.
 import MusicPopout from './components/MusicPopout'
 const BookshelfApp = lazy(() => import('./bookshelf/BookshelfApp'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword')) // Usherr: a reset email's link
+
+// resetLinkToken is the secret in a reset email's link (/reset/<it>), signed in or not.
+function resetLinkToken(): string {
+  const m = /^\/reset\/([0-9a-f]{16,128})\/?$/.exec(withoutBase(window.location.pathname))
+  return m ? m[1] : ''
+}
 const Marquee = lazy(() => import('./home/Marquee')) // Usherr: the lobby display
 const MarqueeRemote = lazy(() => import('./home/MarqueeRemote')) // Usherr: the Marquee's phone remote
 const MarqueeHub = lazy(() => import('./home/MarqueeHub')) // Usherr: the Marquee's own page
@@ -155,6 +162,14 @@ function Gate() {
       )
     }
     return <Splash label={offline ? t('Reconnecting to Mediarium') : t('Loading')} />
+  }
+  const resetToken = resetLinkToken()
+  if (resetToken) {
+    return (
+      <Suspense fallback={<Splash label={t('Loading')} />}>
+        <ResetPassword token={resetToken} />
+      </Suspense>
+    )
   }
   if (firstRunNeeded) {
     return (

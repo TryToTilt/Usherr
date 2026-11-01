@@ -88,6 +88,9 @@ func guarded(r *http.Request) bool {
 const (
 	calendarFeedPrefix = "/api/calendar/feed/"
 	koboPrefix         = "/kobo/"
+	// Usherr: a password reset link, and the check of one (home_password_reset.go).
+	resetPagePrefix  = "/reset/"
+	resetCheckPrefix = "/api/auth/reset/"
 )
 
 // logPath is a request path as it may be written to the log: the secret part
@@ -97,6 +100,10 @@ func logPath(p string) string {
 	switch {
 	case strings.HasPrefix(p, calendarFeedPrefix):
 		return calendarFeedPrefix + "…"
+	case strings.HasPrefix(p, resetPagePrefix):
+		return resetPagePrefix + "…"
+	case strings.HasPrefix(p, resetCheckPrefix):
+		return resetCheckPrefix + "…"
 	case strings.HasPrefix(p, koboPrefix):
 		// Only the first part after /kobo/ is the secret; what follows says which call it was.
 		if _, rest, ok := strings.Cut(p[len(koboPrefix):], "/"); ok {
