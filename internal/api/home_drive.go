@@ -574,7 +574,7 @@ func (s *Server) handleDrivePlexLibraries(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusConflict, "The virtual drive is off (Settings, Extras, Virtual drive).")
 		return
 	}
-	servers := s.plexServers()
+	servers := s.plexServersAll() // asked for just now
 	if len(servers) == 0 {
 		writeError(w, http.StatusConflict, "Connect Plex first, under Settings, Media servers.")
 		return

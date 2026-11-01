@@ -45,7 +45,7 @@ func (s *Server) registerTVPlexRoutes(root *http.ServeMux) {
 
 // POST /api/tv/plex (admin): Usherr's channels and guide in Plex's Live TV.
 func (s *Server) handleTVPlex(w http.ResponseWriter, r *http.Request) {
-	servers := s.plexServers()
+	servers := s.plexServersAll() // asked for just now
 	if len(servers) == 0 {
 		writeError(w, http.StatusPreconditionFailed, "Connect Plex first, under Settings, Media servers.")
 		return

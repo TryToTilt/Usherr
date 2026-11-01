@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.33.3] - 2026-10-31
+
+### Fixed
+
+- **Plex: a button always tries**: after Plex didn't answer once, Usherr left it alone for five minutes, buttons too (Add to Plex said to connect Plex first). Now only background work waits, and for two minutes.
+
 ## [2.33.2] - 2026-10-31
 
 ### Fixed

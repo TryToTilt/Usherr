@@ -28,7 +28,7 @@ var plexDown = struct {
 	m map[int64]time.Time
 }{m: map[int64]time.Time{}}
 
-const plexDownFor = 5 * time.Minute
+const plexDownFor = 2 * time.Minute
 
 func plexIsDown(id int64) bool {
 	plexDown.Lock()
@@ -46,6 +46,22 @@ func plexAnswered(id int64, err error) {
 	} else {
 		plexDown.m[id] = time.Now()
 	}
+}
+
+// plexServersAll are the enabled Plex servers, one that didn't answer a
+// moment ago too: for something a person asked for just now.
+func (s *Server) plexServersAll() []mediaservers.Server {
+	list, err := s.MediaServers.List()
+	if err != nil {
+		return nil
+	}
+	var out []mediaservers.Server
+	for _, m := range list {
+		if m.Enabled && m.Kind == mediaservers.KindPlex && m.Token != "" {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // plexServers are the enabled Plex servers Usherr can read (leaving out one
