@@ -11,7 +11,7 @@ export const plexDrive: Walkthrough = {
   title: t('Set up Plex with the virtual drive'),
   blurb: t('Streamed films and shows in Plex: Usherr serves them as a drive of ordinary video files, and rclone puts it on your computer.'),
   icon: 'server',
-  words: 'plex virtual drive webdav rclone winfsp mount streams streamed library now right away put on drive season',
+  words: 'plex virtual drive webdav rclone winfsp mount streams streamed library now right away put on drive season unavailable address router reservation nas',
   simple: [
     {
       kind: 'ask',
@@ -54,6 +54,37 @@ export const plexDrive: Walkthrough = {
       text: t('Each streamed film or episode appears once Usherr knows its release: anything someone plays is kept at once, and a stream you add goes on right away (the film, or the show’s newest season). The rest are looked for a few a day, new episodes first, so your indexers’ daily limits are never spent in one go.'),
     },
     {
+      kind: 'ask',
+      key: 'where',
+      title: t('Where does Plex run?'),
+      card: {
+        title: t('Plex on this computer, or another one'),
+        options: [
+          { name: t('This computer (the one Usherr runs on)'), good: t('rclone reaches Usherr at 127.0.0.1, which never changes: the drive keeps working after every restart.') },
+          { name: t('Another computer'), good: t('Plex can live on a media PC or a NAS.'), bad: t('rclone there uses this computer’s address on your network, which the router can change after a restart unless you reserve it.') },
+        ],
+        recommend: t('Whichever is true for you; Usherr works it out from Plex’s address when it can.'),
+        later: t('Change it on the card any time, then run the setup command again.'),
+      },
+      choices: [
+        { value: 'here', label: t('This computer'), recommended: true },
+        { value: 'other', label: t('Another computer') },
+      ],
+    },
+    {
+      kind: 'point',
+      target: 'drive-local',
+      until: 'next',
+      title: t('Tell the card'),
+      text: t('Plex runs on: pick the same answer here, so the commands below use the right address.'),
+    },
+    {
+      kind: 'say',
+      when: (c) => (c.answers.where as { value: string } | undefined)?.value === 'other',
+      title: t('Give this computer a fixed address'),
+      text: t('In your router’s settings, look for DHCP reservation (some routers say static lease or address reservation), pick this computer and reserve the address it has now. Do the same for the Plex computer, and for a NAS that holds your films. Then a restart can’t move them, and the drive and Plex’s folders keep opening.'),
+    },
+    {
       kind: 'point',
       target: 'drive-steps',
       until: 'next',
@@ -87,7 +118,7 @@ export const plexDrive: Walkthrough = {
     {
       kind: 'done',
       title: t('Plex has your streams'),
-      text: t('Streams you add reach Plex within minutes. For one already in your streams, open it in Library, Streams and press Put it on the virtual drive now. If Plex stops seeing the drive, Something not right? in Show me how checks it.'),
+      text: t('Streams you add reach Plex within minutes. For one already in your streams, open it in Library, Streams and press Put it on the virtual drive now. If Plex says a streamed title is unavailable, Something not right? in Show me how checks whether Plex can reach the drive.'),
     },
   ],
 }

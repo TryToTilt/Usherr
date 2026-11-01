@@ -37,7 +37,7 @@ Administrators make and change the channels; everyone can watch them.
   rounded glow) and *Static*, a burst of snow when you change channel.
 
 A streamed program can take a moment the first time it's tuned after a
-restart (Mediarium finds and checks the release); the channel says *tuning
+restart (Usherr finds and checks the release); the channel says *tuning
 in…* and plays as soon as it's ready. Programs coming up on a channel
 someone is watching are fetched a couple of minutes early so they start on
 time.
@@ -51,8 +51,9 @@ a picture, paste a link, or pick one of its shows' logos).
 **What plays**
 
 - **Shows**: pick shows from your library. **Find a show** also finds shows
-  you don't have: they play through StreamNZB, episode by episode, as they
-  come on (they're marked *STREAMED*).
+  you don't have: they're streamed from Usenet (by Usherr's own engine, or
+  StreamNZB), episode by episode, as they come on (they're marked
+  *STREAMED*).
 - **And every show in these genres** and **From these decades**: the channel
   fills itself from whatever the library has that fits, now and later.
 - **Movies too**: films from the library (or *Also movies in those genres and
@@ -115,7 +116,7 @@ you save it. Needs the AI (see [The AI](ai.md)).
 
 **Kind of channel › Live stream** carries a free stream such as Pluto or PBS:
 its **stream address** (`.m3u8`), and optionally a **guide feed** (XMLTV,
-such as `i.mjh.nz`'s) and the channel's id in it. Mediarium relays the
+such as `i.mjh.nz`'s) and the channel's id in it. Usherr relays the
 stream, so it plays in the browser and in Jellyfin like the other channels.
 Without a guide, the channel shows as *Live* in the guide.
 
@@ -169,13 +170,17 @@ the Live TV page under **Other apps** (each holds a secret key, so
 keep them to yourself):
 
 - **Jellyfin**: **Add to Jellyfin** (on the Live TV card in Settings ›
-  Extras, or the Live TV page) adds Mediarium as a tuner with its guide.
+  Extras, or the Live TV page) adds Usherr as a tuner with its guide.
   Channels then show in Jellyfin's Live TV on every TV, after its next guide
   refresh.
-- **Plex**: copy the **Tuner for Plex** address. In Plex: *Settings › Live TV
-  & DVR › Set up Plex DVR*, then *Don't see your HDHomeRun device? Enter its
-  network address manually*, and paste it. When Plex asks for a guide, give it
-  the **Guide (XMLTV)** address.
+- **Plex** (Plex Pass): **Add to Plex** on the Live TV page, beside Add to
+  Jellyfin. Usherr answers as an HDHomeRun tuner, makes a DVR of it in Plex
+  with its own guide, and switches the channels on. Pressed again, it has
+  Plex read the guide again. Channels relayed from a live stream stay out of
+  Plex's lineup. By hand instead: copy the **Tuner for Plex** address, then in
+  Plex *Settings › Live TV & DVR › Set up Plex DVR*, *Don't see your HDHomeRun
+  device? Enter its network address manually*, and paste it; when Plex asks
+  for a guide, give it the **Guide (XMLTV)** address.
 - **IPTV apps** (TiviMate and others): the **Channel list (M3U)** as the
   playlist, and the **Guide (XMLTV)** as the EPG source.
 - **Stremio and Nuvio**: the add-on (the You page, or Settings › Extras › Stremio and Nuvio)
@@ -187,8 +192,16 @@ keep them to yourself):
   it came on, and it had no backup. It plays again with the next program.
 - **Jellyfin doesn't show the channels**: run Jellyfin's guide refresh
   (Dashboard › Scheduled tasks › *Refresh Guide*), and check that Jellyfin
-  can reach Mediarium's address (Settings › Extras › *Mediarium's address on
+  can reach Usherr's address (Settings › Extras › *Usherr's address on
   your network*).
+- **Plex's guide says *Unknown Airing***: a Plex page opened while the guide
+  was still being read keeps the early empty rows. Reload the page (F5), or
+  close and open Live TV again.
+- **Channels stop after a restart**: if the server got a new address on your
+  network, the tuner and guide addresses Plex and Jellyfin were given no
+  longer answer. Reserve the server's address in your router (see
+  [Usherr's address on your network](integrations.md#usherrs-address-on-your-network)),
+  then press Add to Plex or Add to Jellyfin again.
 - **"Its schedule is still being made"**: a new or changed channel takes a
   moment; the guide fills in by itself.
 - **A Real TV channel still shows an older day**: the listings may not have

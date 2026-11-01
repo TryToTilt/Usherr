@@ -22,11 +22,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/download"
@@ -39,6 +41,7 @@ const (
 	keyDriveBudget = "home.drive.budget"   // searches a day for titles nobody has played yet
 	keyDriveUsed   = "home.drive.used"     // today's searches: "2026-10-31:7"
 	keyDriveWhere  = "home.drive.where"    // where the media server sees the drive: "U:", "/mnt/usherr"
+	keyDriveLocal  = "home.drive.local"    // "1" Plex runs on Usherr's computer, "0" on another; unset: from Plex's address
 	driveUser      = "usherr"
 
 	driveBudgetDefault = 30
@@ -55,7 +58,81 @@ const (
 	// driveScanAfter: a media server is asked to look at a new title once
 	// rclone's folder list has caught up (it keeps one for a minute).
 	driveScanAfter = 75 * time.Second
+	// driveReadWithin: once a media server has been asked to look at a title,
+	// something should read the drive within this, or it can't reach it.
+	driveReadWithin = 15 * time.Minute
 )
+
+// driveAskedAt is when a media server last agreed to look at a title on the
+// drive (ms), so the Doctor can tell a drive Plex can't reach from one
+// nobody needed.
+var driveAskedAt atomic.Int64
+
+// driveLocalPort is the port rclone on Usherr's own computer reaches it at:
+// the one in Usherr's address on your network (Docker may publish another
+// than 8264), else 8264.
+func driveLocalPort(home string) string {
+	if u, err := url.Parse(home); err == nil && u.Port() != "" {
+		return u.Port()
+	}
+	return "8264"
+}
+
+// hostIsThisComputer reports whether a media server's address is the
+// computer Usherr runs on: the address Docker gives the computer itself, or
+// this computer only (localhost).
+func hostIsThisComputer(base string) bool {
+	u, err := url.Parse(base)
+	if err != nil {
+		return false
+	}
+	switch h := strings.ToLower(u.Hostname()); h {
+	case "host.docker.internal", "host.containers.internal", "gateway.docker.internal":
+		return true
+	}
+	return isLocalHostport(u.Host)
+}
+
+// driveLocal is whether Plex (and so rclone) runs on the computer Usherr runs
+// on. Then rclone reaches the drive at 127.0.0.1, which never changes,
+// instead of the computer's network address, which a restart can change.
+// Until it's chosen it's worked out from the connected Plex's address; by
+// itself reports that it was worked out.
+func (s *Server) driveLocal() (local, byItself bool) {
+	switch v, _ := s.Settings.Get(keyDriveLocal); v {
+	case "1":
+		return true, false
+	case "0":
+		return false, false
+	}
+	if s.MediaServers == nil {
+		return false, true
+	}
+	servers := s.plexServersAll()
+	if len(servers) == 0 {
+		return false, true
+	}
+	for _, m := range servers {
+		if !hostIsThisComputer(m.BaseURL) {
+			return false, true
+		}
+	}
+	return true, true
+}
+
+// driveAddress is the drive's address as rclone on the Plex computer reaches
+// it: 127.0.0.1 on Usherr's own computer, else Usherr's address on your
+// network. Empty when that's needed and not set.
+func (s *Server) driveAddress() string {
+	home := s.mediariumAddress(keyHomeAddress)
+	if local, _ := s.driveLocal(); local {
+		return "http://127.0.0.1:" + driveLocalPort(home) + "/dav/"
+	}
+	if home == "" {
+		return ""
+	}
+	return strings.TrimRight(home, "/") + "/dav/"
+}
 
 // driveOn is whether the virtual drive is served. Until it's set, it's on
 // when Plex is the media server and no Jellyfin or Emby is (Jellyfin plays
@@ -256,6 +333,7 @@ func (s *Server) driveTellServers(fileID int64) {
 			if err != nil {
 				slog.Warn("virtual drive: media server scan failed", "server", ms.Name, "folder", folder, "err", err)
 			} else if len(done) > 0 {
+				driveAskedAt.Store(time.Now().UnixMilli())
 				slog.Info("virtual drive: media server scan started", "server", ms.Name, "folder", folder)
 			}
 		}
@@ -437,9 +515,11 @@ func (s *Server) driveJob(ctx context.Context) {
 
 type driveStatus struct {
 	On        bool   `json:"on"`
-	OnByPlex  bool   `json:"onByPlex"` // not chosen yet: on because Plex is the media server
-	Plex      bool   `json:"plex"`     // Plex is the media server (and no Jellyfin)
-	Address   string `json:"address"`  // the drive's address, as a device at home reaches it
+	OnByPlex  bool   `json:"onByPlex"`  // not chosen yet: on because Plex is the media server
+	Plex      bool   `json:"plex"`      // Plex is the media server (and no Jellyfin)
+	Address   string `json:"address"`   // the drive's address, as rclone on the Plex computer reaches it
+	Local     bool   `json:"local"`     // Plex runs on Usherr's computer: rclone uses 127.0.0.1
+	LocalAuto bool   `json:"localAuto"` // not chosen yet: worked out from Plex's address
 	User      string `json:"user"`
 	Password  string `json:"password"`
 	Ready     int    `json:"ready"`
@@ -455,9 +535,8 @@ type driveStatus struct {
 func (s *Server) driveStatus(ctx context.Context) driveStatus {
 	v, _ := s.Settings.Get(keyDriveOn)
 	st := driveStatus{On: s.driveOn(), OnByPlex: v == "" && s.plexOnly(), Plex: s.plexOnly(), User: driveUser, Budget: s.driveBudget(), UsedToday: s.driveUsedToday()}
-	if base := s.mediariumAddress(keyHomeAddress); base != "" {
-		st.Address = strings.TrimRight(base, "/") + "/dav/"
-	}
+	st.Address = s.driveAddress()
+	st.Local, st.LocalAuto = s.driveLocal()
 	if st.On {
 		st.Password = s.drivePassword()
 	}
@@ -476,13 +555,15 @@ func (s *Server) handleDrive(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.driveStatus(r.Context()))
 }
 
-// PUT /api/home/drive {"on","budget","where","newPassword"}.
+// PUT /api/home/drive {"on","budget","where","local","newPassword"}; local
+// is "yes" (Plex on Usherr's computer), "no", or "" to work it out again.
 func (s *Server) handlePutDrive(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		On          *bool   `json:"on"`
 		Budget      *int    `json:"budget"`
 		NewPassword bool    `json:"newPassword"`
 		Where       *string `json:"where"`
+		Local       *string `json:"local"`
 	}
 	if err := decodeJSON(r, &in); err != nil {
 		writeError(w, http.StatusBadRequest, "That couldn't be read.")
@@ -509,6 +590,19 @@ func (s *Server) handlePutDrive(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_ = s.Settings.Set(keyDriveWhere, where, false)
+	}
+	if in.Local != nil {
+		switch *in.Local {
+		case "yes":
+			_ = s.Settings.Set(keyDriveLocal, "1", false)
+		case "no":
+			_ = s.Settings.Set(keyDriveLocal, "0", false)
+		case "":
+			_ = s.Settings.Set(keyDriveLocal, "", false)
+		default:
+			writeError(w, http.StatusBadRequest, "Where Plex runs is yes (this computer), no (another one) or empty.")
+			return
+		}
 	}
 	if in.NewPassword {
 		s.newDrivePassword()

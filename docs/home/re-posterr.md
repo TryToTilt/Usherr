@@ -7,7 +7,7 @@ Marquee and in Usherr. Only pictures change, never a file, and every change can
 be put back.
 
 It's on **Settings → Re-Posterr** (`/settings/re-posterr`), for
-administrators. It needs Jellyfin or Plex (Settings → Media servers) and a
+administrators. It needs Jellyfin or Plex (Settings → Connections → Media servers) and a
 TMDB key. With both, a title's pictures go to both.
 
 **With Plex**: posters and backgrounds go to Plex and are locked there, so

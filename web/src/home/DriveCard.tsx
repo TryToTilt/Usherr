@@ -18,6 +18,8 @@ interface DriveStatus {
   onByPlex: boolean
   plex: boolean
   address: string
+  local: boolean // Plex runs on Usherr's computer: rclone uses 127.0.0.1
+  localAuto: boolean // not chosen yet: worked out from Plex's address
   user: string
   password?: string
   ready: number
@@ -216,6 +218,22 @@ export default function DriveCard() {
           <h3 className="drive-h">
             {t('Mount it on the computer that runs Plex')} <InfoTip text={t('Usherr runs in Docker and can’t make a drive letter on Windows itself. rclone does it, with WinFsp, the free Windows add-on rclone needs for drives. Both come from their own websites; Usherr doesn’t install anything.')} />
           </h3>
+          <div className="drive-row" data-walk="drive-local">
+            <label>
+              {t('Plex runs on')}{' '}
+              <InfoTip text={t('On the computer Usherr runs on, rclone reaches Usherr at 127.0.0.1, which never changes. On another computer it needs this computer’s address on your network, which your router can change after a restart unless you reserve it.')} />
+              <select value={st.local ? 'yes' : 'no'} onChange={(e) => void put({ local: e.target.value }, t('Saved. Run the setup command below again so rclone uses the new address.'))} style={{ marginLeft: 8 }}>
+                <option value="yes">{t('This computer (the one Usherr runs on)')}</option>
+                <option value="no">{t('Another computer')}</option>
+              </select>
+            </label>
+            {st.localAuto && <span className="hint">{t('Worked out from Plex’s address')}</span>}
+          </div>
+          {!st.local && (
+            <p className="hint">
+              <Icon name="info" size={13} /> {t('Give this computer a fixed address on your network: in your router’s settings, look for DHCP reservation (or static lease) and reserve the address it has now. Otherwise a restart can give it a new one, and the drive stops opening until rclone is set up again.')}
+            </p>
+          )}
           {!st.address && <p className="notice notice-warn">{t('First set Usherr’s address on your network (the card at the top of this page): the commands below need it.')}</p>}
           <ol className="drive-steps" data-walk="drive-steps">
             <li>

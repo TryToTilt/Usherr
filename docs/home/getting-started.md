@@ -1,10 +1,17 @@
-# Getting started with the home fork
+# Getting started with Usherr
 
-This fork of Mediarium adds a lot on top of Mediarium itself: streaming
+Usherr is built on Mediarium and adds a lot on top of it: streaming
 straight from Usenet, a streamed library next to the one on disk, Live TV
-channels, playing on a TV box, comics, AI helpers, scores and age ratings,
-Discover recipes and more. Everything Mediarium does is still here and works
-the same way; this guide covers what the fork adds and how to set it up.
+channels, the Marquee and the pre-show, Plex as well as Jellyfin, comics, AI
+helpers, scores and age ratings, Discover recipes and more. Everything
+Mediarium does is still here and works the same way; this guide covers what
+Usherr adds and how to set it up.
+
+New to all of this? The [Start page](https://trytotilt.github.io/Usherr/start/)
+goes from nothing to Usherr and Jellyfin running on Windows in six steps, and
+**Show me how** (in the top bar, and
+[online](https://trytotilt.github.io/Usherr/guide/)) walks you through each
+feature on the real screens.
 
 ![The Dashboard: the AI bar at the top, a greeting with what's downloading and wanted, Tonight and Entertainment news](images/dashboard.png)
 
@@ -12,7 +19,7 @@ the same way; this guide covers what the fork adds and how to set it up.
 
 **Required**
 
-- **Docker**, on Windows (Docker Desktop), Linux or a NAS. Mediarium runs as one
+- **Docker**, on Windows (Docker Desktop), Linux or a NAS. Usherr runs as one
   container. See *Installing* in this guide for the container itself.
 - **A TMDB API key** (free). Every title, poster and episode list comes from
   TMDB. See [TMDB](integrations.md#tmdb).
@@ -24,7 +31,8 @@ the same way; this guide covers what the fork adds and how to set it up.
 | Add | What you get | Card |
 |---|---|---|
 | Jellyfin or Emby | Play in your media server's apps, Live TV in its guide, the streamed library | [Jellyfin or Emby](integrations.md#jellyfin-or-emby) |
-| StreamNZB | "Stream now": play from Usenet without downloading first | [StreamNZB](integrations.md#streaming-streamnzb) |
+| Plex (rclone and WinFsp for the drive) | The same in Plex: streamed titles through the virtual drive, Live TV (Plex Pass), the pre-show, your Diary and taste | [Virtual drive](integrations.md#virtual-drive-for-plex) |
+| Nothing extra (StreamNZB optional) | "Stream now": play from Usenet without downloading first, with Usherr's own engine | [Streaming engine](integrations.md#streaming-engine-usherr-or-streamnzb) |
 | An AI (Ollama or Claude) | The Ask bar, Tonight, Catch me up, the family filter's estimates, news summaries, AI-built Live TV channels | [The AI](ai.md) |
 | MDBList key | IMDb, Rotten Tomatoes and Metacritic scores, Common Sense Media ages | [Scores](integrations.md#scores-mdblist) |
 | ComicVine key | Comics: series, new issues, story arcs | [Comics](integrations.md#comics) |
@@ -38,10 +46,11 @@ the same way; this guide covers what the fork adds and how to set it up.
 
 ## The quickest way to a working server
 
-1. Start the container and open Mediarium in a browser. The **setup wizard**
+1. Start the container and open Usherr in a browser. The **setup wizard**
    asks for an administrator account, the media types you want, your folders,
    your TMDB key, your indexers and Usenet provider, and your media server.
-   Its last step, **Extras**, offers the home fork's own parts: Mediarium's
+   Each step has a **Show me how: this step** card saying what it is and what
+   to choose. Its last step, **Extras**, offers Usherr's own parts: Usherr's
    address on your network, the streaming engine, the AI, scores, In theaters
    (your ZIP, theater and ticket service), the Marquee, the pre-show and
    Re-Posterr. All
@@ -53,7 +62,7 @@ the same way; this guide covers what the fork adds and how to set it up.
 2. Add a movie from **Discover**. If it downloads and lands in your library
    folder, the basics work.
 3. Open **Settings → General → Setup checklist**. It lists every part
-   Mediarium can use, whether it's ready, and what's missing, with a
+   Usherr can use, whether it's ready, and what's missing, with a
    **Test it** button where there is one, **Set up** to go to its settings and
    **Guide** for its card in this guide.
 
@@ -74,9 +83,10 @@ the same way; this guide covers what the fork adds and how to set it up.
   Forest, Plum, Oxblood, Ocean, Stone or OLED black, each light and dark, or
   the highlight's own tint. Kept per browser.
 - **The menu** is a drawer behind the hamburger on every screen. On a wide
-  screen it stays open while you move between pages, and goes away after 8
-  seconds without the mouse over it, with a click or touch outside it, with
-  the hamburger or with Escape.
+  screen it stays open while the mouse is over it and slides away a moment
+  after the mouse leaves (**How soon the menu slides away**, in *Settings →
+  General*: from right away to 10 seconds, 3 to start with), with a click or
+  touch outside it, with the hamburger or with Escape.
 - **The filter bar** of the Library, Discover, Upcoming, Wanted, Diary,
   Comics and NSFW pulls down from under the top bar; closed, a slim handle
   says what's showing.
@@ -86,21 +96,25 @@ the same way; this guide covers what the fork adds and how to set it up.
 ## How the parts fit together
 
 ```
-browsers, phones ──▶ Mediarium ──▶ Usenet provider and indexers
-                        │   ▲
-                        │   └── StreamNZB (streams from Usenet)
-                        ▼
-              library folders ──▶ Jellyfin or Emby ──▶ TVs
+browsers, phones ──▶ Usherr ──▶ Usenet provider and indexers
+                       │  │
+                       │  └── streams from Usenet (its own engine, or StreamNZB)
+                       │        ├─▶ pointer files ──▶ Jellyfin or Emby
+                       │        └─▶ virtual drive ──▶ rclone ──▶ Plex
+                       ▼
+             library folders ──▶ Jellyfin, Emby or Plex ──▶ TVs
 ```
 
-- **Mediarium** finds, downloads, renames and files everything, and is where
+- **Usherr** finds, downloads, renames and files everything, and is where
   you browse, request and manage.
-- **Jellyfin or Emby** plays it on your TVs and phones. Mediarium tells it when
-  something new arrives.
-- **StreamNZB** (optional) plays a title straight from Usenet. Mediarium keeps
-  a list of what you stream, shows it in the Library next to what's on disk,
-  and puts small pointer files in a folder Jellyfin reads, so streamed titles
-  play from Jellyfin too.
+- **Jellyfin, Emby or Plex** plays it on your TVs and phones. Usherr tells it
+  when something new arrives.
+- **Streaming** plays a title straight from Usenet, with Usherr's own engine
+  (or StreamNZB, if you run it). Usherr keeps a list of what you stream and
+  shows it in the Library next to what's on disk. Jellyfin plays streamed
+  titles from small pointer files in a folder it reads; Plex can't, so Usherr
+  also serves them as a [virtual drive](integrations.md#virtual-drive-for-plex)
+  of ordinary video files, which rclone mounts on the Plex computer.
 
 ## Next
 

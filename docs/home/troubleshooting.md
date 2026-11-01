@@ -1,11 +1,11 @@
 # When something goes wrong
 
-Start with **Settings → System → Logs and errors**: Mediarium lists the errors
+Start with **Settings → System → Logs and errors**: Usherr lists the errors
 it noticed, in plain words, with what to do about each. The Dashboard's
 *to fix* count opens the same list. For a failed download, **Explain this** on
 its Activity entry asks the AI what went wrong (when the AI is set up).
 
-## Mediarium doesn't open after a Windows update
+## Usherr doesn't open after a Windows update
 
 A Windows update of WSL (the part of Windows that Docker Desktop runs in) can
 stop Docker's virtual machine, and Docker Desktop doesn't always start it again
@@ -20,9 +20,9 @@ Jellyfin installed on Windows) keep working.
   hours the server is used (up to 18). Windows then installs updates and
   restarts only outside them.
 
-## Restarting Mediarium in the middle of an import
+## Restarting Usherr in the middle of an import
 
-Restart or update Mediarium only when **Activity** shows nothing downloading,
+Restart or update Usherr only when **Activity** shows nothing downloading,
 importing, unpacking or verifying. A restart part-way through an import can
 leave a finished download unimported, or tidy it away as a leftover.
 **Settings → System → Server** can pause downloads first.
@@ -47,14 +47,14 @@ leave AV1 out with a quality profile (**Settings → Library → Quality**).
 ## Streams start slowly, or stop
 
 - Too few Usenet connections are left for streaming. Each stream needs several;
-  if Mediarium, StreamNZB and other apps share one provider, split the
+  if Usherr, StreamNZB and other apps share one provider, split the
   connections between them (see [Usenet and indexers](integrations.md#usenet-and-indexers)).
 - Downloads running at the same time take bandwidth and connections:
   **While someone is watching** (Settings → Connections → Media servers) pauses
   them while anyone is watching in Jellyfin.
 - A second provider as backup fills in articles the first one is missing.
-- **Test it** on the Streaming (StreamNZB) card says whether Mediarium can reach
-  StreamNZB at all.
+- With StreamNZB as the engine, **Test it** on the Streaming (StreamNZB) card
+  says whether Usherr can reach StreamNZB at all.
 
 ## The AI is slow, or says it can't be reached
 
@@ -71,14 +71,35 @@ leave AV1 out with a quality profile (**Settings → Library → Quality**).
 - **Settings → Connections → Media servers:** test the connection; check the
   folder mapping if Jellyfin sees your folders under other names.
 - For streamed titles, check the *Streamed library* card in Extras: the folder
-  must be mapped into Mediarium at `/data/streamed`, and be part of a Jellyfin
+  must be mapped into Usherr at `/data/streamed`, and be part of a Jellyfin
   library.
+
+## Plex says a streamed film or show is unavailable
+
+Plex reads streamed titles from the [virtual drive](integrations.md#virtual-drive-for-plex)
+(`U:` to start with). "Unavailable" means Plex can't open it right now.
+
+- **On the Plex computer, open the drive.** If it opens slowly or not at all,
+  rclone can't reach Usherr. The usual reason is that a restart gave the
+  computer a new address on your network, and rclone still has the old one.
+- **Plex on the same computer as Usherr:** on the drive card in Extras, set
+  **Plex runs on** to *This computer*, run the setup command again, and mount
+  the drive again (or sign out and in, with the startup file). rclone then
+  uses `127.0.0.1`, which never changes.
+- **Plex on another computer:** reserve the Usherr computer's address in your
+  router (see [Usherr's address on your network](integrations.md#usherrs-address-on-your-network)),
+  put the current one in that card, then run the setup command again and
+  mount the drive again.
+- **Something not right?** in Show me how checks it: it warns when Plex was
+  asked to look at a new title and nothing came to read the drive.
+- Titles come back by themselves once the drive opens, as long as **Empty
+  trash automatically** is unticked in Plex.
 
 ## Discover's "Hide what I have" still shows something you have
 
 It hides what's on disk, what's streamed and what's wanted, as you choose in the
 menu next to the switch. What the media server has is read every few minutes,
-so a title added to Jellyfin outside Mediarium shows up there a little later.
+so a title added to Jellyfin outside Usherr shows up there a little later.
 
 ## A comic download says "the library has no #22 to file it as"
 

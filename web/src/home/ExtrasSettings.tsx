@@ -183,8 +183,8 @@ function AddressCard({ x, save }: { x: Extras; save: Save }) {
   const [v, setV] = useState(x.address.value || x.address.suggested)
   return (
     <Card
-      title={t("Mediarium's address on your network")}
-      guide="mediariums-address-on-your-network"
+      title={t("Usherr's address on your network")}
+      guide="usherrs-address-on-your-network"
       state={x.address.value ? 'ready' : 'setup'}
       blurb={t("The address your TV and media server reach Mediarium at. Live TV and the streamed library hand it out, so it has to work from another device: your server's network address, not localhost.")}
       needs={t('the address, such as http://192.168.1.20:8264.')}

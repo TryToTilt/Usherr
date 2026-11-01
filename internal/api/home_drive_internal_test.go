@@ -249,6 +249,48 @@ func TestDriveOnByDefaultOnlyWithPlex(t *testing.T) {
 	}
 }
 
+func TestHostIsThisComputer(t *testing.T) {
+	for base, want := range map[string]bool{
+		"http://host.docker.internal:32400":     true,
+		"http://HOST.CONTAINERS.INTERNAL:32400": true,
+		"http://127.0.0.1:32400":                true,
+		"http://localhost:32400":                true,
+		"http://[::1]:32400":                    true,
+		"http://192.168.1.74:32400":             false,
+		"https://1-2-3-4.abc.plex.direct:32400": false,
+		"http://plex:32400":                     false,
+	} {
+		if got := hostIsThisComputer(base); got != want {
+			t.Errorf("hostIsThisComputer(%q) = %v, want %v", base, got, want)
+		}
+	}
+}
+
+// A Plex on Usherr's own computer mounts the drive from 127.0.0.1, which a
+// restart can't change; one on another computer needs the network address.
+func TestDriveAddress(t *testing.T) {
+	s, db := optionsServer(t)
+	s.db = db
+	if got := s.driveAddress(); got != "" {
+		t.Errorf("another computer, no address set: got %q, want none", got)
+	}
+	_ = s.Settings.Set(keyHomeAddress, "http://192.168.1.74:8300/", false)
+	if got := s.driveAddress(); got != "http://192.168.1.74:8300/dav/" {
+		t.Errorf("another computer: got %q", got)
+	}
+	_ = s.Settings.Set(keyDriveLocal, "1", false)
+	if got := s.driveAddress(); got != "http://127.0.0.1:8300/dav/" {
+		t.Errorf("this computer: got %q, want 127.0.0.1 on the address's port", got)
+	}
+	_ = s.Settings.Set(keyHomeAddress, "", false)
+	if got := s.driveAddress(); got != "http://127.0.0.1:8264/dav/" {
+		t.Errorf("this computer, no address set: got %q", got)
+	}
+	if local, auto := s.driveLocal(); !local || auto {
+		t.Errorf("chosen: local %v, worked out %v", local, auto)
+	}
+}
+
 // TestDriveServeForRclone serves the drive with a real video file, for trying
 // it with rclone by hand: DRIVE_SERVE=path/to/video.mkv go test -run
 // TestDriveServeForRclone (it serves on :8099 until stopped).

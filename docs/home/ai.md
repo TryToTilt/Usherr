@@ -3,7 +3,7 @@
 The AI helps find something to watch, explains things, and builds Live TV
 channels. It only suggests: every title it names is checked on TMDB, and
 nothing is added, downloaded or changed without you. Without an AI, every
-part of Mediarium still works; the AI buttons simply don't show.
+part of Usherr still works; the AI buttons simply don't show.
 
 ## Setting it up
 
@@ -25,7 +25,7 @@ part of Mediarium still works; the AI buttons simply don't show.
 
 What it costs with Claude, roughly: a question in the Ask bar is a fraction
 of a cent with Haiku and around a cent with Sonnet. Real TV's questions carry
-your library's list; Mediarium keeps that part in Claude's cache, which is
+your library's list; Usherr keeps that part in Claude's cache, which is
 billed at a tenth of the price when asked again soon.
 
 ![The AI card: which AI, its address and model, the daily allowance, Save and Test it](images/extras-ai.png)

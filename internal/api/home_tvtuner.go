@@ -452,7 +452,7 @@ func (s *Server) handleTVJellyfin(w http.ResponseWriter, r *http.Request) {
 	}
 	base := s.feedAddress(r)
 	if base == "" {
-		writeError(w, http.StatusPreconditionFailed, "Set Mediarium's address on your network under Settings > Extras first, so "+serverLabel(srv)+" can reach it.")
+		writeError(w, http.StatusPreconditionFailed, "Set Usherr's address on your network under Settings > Extras first, so "+serverLabel(srv)+" can reach it.")
 		return
 	}
 	feed := strings.TrimRight(base, "/") + "/api/tvfeed/" + s.tvFeedKey()

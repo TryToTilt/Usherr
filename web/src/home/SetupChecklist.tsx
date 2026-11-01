@@ -93,7 +93,7 @@ export default function SetupChecklist() {
     if (x) {
       const server = x.server.kind ? x.server.name || x.server.kind : ''
       add({ id: 'jellyfin', title: t('Jellyfin or Emby'), gives: t('Playing on your TVs, Live TV in its guide, the streamed library'), state: server ? 'ready' : 'setup', missing: server ? undefined : t('a Jellyfin or Emby server'), to: '/settings/media-servers', guide: 'jellyfin-or-emby' })
-      add({ id: 'address', title: t("Mediarium's address on your network"), gives: t('Reached by your TV and media server'), state: x.address.value ? 'ready' : 'setup', missing: x.address.value ? undefined : t('the address, such as http://192.168.1.20:8264'), to: '/settings/extras', guide: 'mediariums-address-on-your-network', test: x.address.value ? () => tested(call('POST', '/api/home/extras/test/address')) : undefined })
+      add({ id: 'address', title: t("Usherr's address on your network"), gives: t('Reached by your TV and media server'), state: x.address.value ? 'ready' : 'setup', missing: x.address.value ? undefined : t('the address, such as http://192.168.1.20:8264'), to: '/settings/extras', guide: 'usherrs-address-on-your-network', test: x.address.value ? () => tested(call('POST', '/api/home/extras/test/address')) : undefined })
       // Usherr: streaming is ready when the engine chosen is (Usherr's own, or StreamNZB).
       const streamOk = eng ? eng.engines[eng.engine]?.ready : x.streaming.ready
       const streamWhy = eng ? eng.engines[eng.engine]?.problem : x.streaming.problem

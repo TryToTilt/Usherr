@@ -428,7 +428,6 @@
   "Media server refreshes": "Medienserver-Aktualisierungen",
   "Mediarium looking for missing or better movies, episodes, music and books.": "Mediarium sucht fehlende oder bessere Filme, Episoden, Musik und Bücher.",
   "Mediarium's address (above)": "Mediariums Adresse (oben)",
-  "Mediarium's address on your network": "Mediariums Adresse in deinem Netzwerk",
   "medium confidence": "mittlere Sicherheit",
   "Metacritic at least": "Metacritic mindestens",
   "Mind-bending": "Kopfverdreher",
@@ -1340,5 +1339,6 @@
   "Locked on this server. Whoever runs it can unlock it by adding {setting} to the container's environment and restarting it. Then it can be turned on here.": "Auf diesem Server gesperrt. Wer ihn betreibt, kann es freischalten, indem {setting} zur Umgebung des Containers hinzugefügt und dieser neu gestartet wird. Danach lässt es sich hier einschalten.",
   "This shows adult content to administrators. Everyone else still never sees it. Only turn it on if you are 18 or older and adult content is legal where you live.": "Dies zeigt Administratoren Inhalte für Erwachsene. Alle anderen sehen sie nie. Schalte es nur ein, wenn du mindestens 18 bist und solche Inhalte bei dir legal sind.",
   "To confirm, type {phrase}": "Zur Bestätigung tippe {phrase}",
-  "e.g. Weeknight TV time": "z. B. Fernsehzeit unter der Woche"
+  "e.g. Weeknight TV time": "z. B. Fernsehzeit unter der Woche",
+  "Usherr's address on your network": "Usherrs Adresse in deinem Netzwerk"
 }

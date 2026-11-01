@@ -5,6 +5,18 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.34.0] - 2026-10-31
+
+### Added
+
+- **Virtual drive: Plex runs on this computer, or another one**: with Plex on the computer Usherr runs on, the drive's rclone commands and startup file reach Usherr at 127.0.0.1, which never changes, instead of the computer's address on your network, which a restart can change (Plex then said every streamed title was unavailable). Usherr works it out from Plex's address until it's chosen on the drive card. For Plex on another computer, the card and *Set up Plex with the virtual drive* say how to reserve the address in the router.
+
+### Fixed
+
+- **Something not right? sees a drive Plex can't reach**: when Plex is asked to look at a new title on the drive and nothing comes to read it within 15 minutes, it warns that Plex can't reach the drive and what to do. With Plex connected, a drive nobody has read for a day is now a warning too (it was a note after two days).
+- **Usherr's address on your network** is called that everywhere, instead of Mediarium's.
+- **The guide**: Usherr's own pages say Usherr instead of Mediarium, the streaming engine instead of only StreamNZB, Add to Plex for Live TV, Re-Posterr with Plex, the virtual drive in *How the parts fit together*, how the two address settings differ, and what to do when Plex says a streamed title is unavailable.
+
 ## [2.33.6] - 2026-10-31
 
 ### Fixed

@@ -14,7 +14,7 @@ bar, Discover, the Library, Upcoming and this guide. **Skip the tour** ends it;
 
 The first page you see.
 
-- **Ask Mediarium anything** at the top: type what you're in the mood for, in
+- **Ask Usherr anything** at the top: type what you're in the mood for, in
   your own words, such as *a 90s heist movie, not too violent*. The chips under
   it are ideas to tap.
 - **Tonight**: tap **What should I watch tonight?** for three picks from what's
@@ -26,7 +26,7 @@ The first page you see.
   headline that changes every few seconds, or a ticker, or off (each person
   picks, in **All news** or Settings › General).
 
-![The Dashboard: Ask Mediarium anything, Tonight and Entertainment news](images/dashboard.png)
+![The Dashboard: Ask Usherr anything, Tonight and Entertainment news](images/dashboard.png)
 
 ## Roulette
 
@@ -44,7 +44,7 @@ Can't decide? **Roulette** (on the Tonight card and on Discover, next to
 
 ## Thumbs up and down
 
-Tell Mediarium what you like, and what isn't for you. Your votes are your own:
+Tell Usherr what you like, and what isn't for you. Your votes are your own:
 nobody else in the household sees them.
 
 - **Like** and 👎 are on every title's page: films, shows, artists, albums,
@@ -81,7 +81,7 @@ your phone.
 
 ## For you
 
-From your votes and what you watch in Jellyfin or Plex, Mediarium works out your taste
+From your votes and what you watch in Jellyfin or Plex, Usherr works out your taste
 for films and for shows: the genres, subjects, actors, directors and creators
 you keep coming back to, and the ones you don't. Nobody else sees it.
 
@@ -135,9 +135,11 @@ you there.
   strong matches (85% or more). Never something you've seen or voted on, that
   the household set aside, or that the household already has anywhere: on
   disk, in the streamed library, or in the stream libraries Jellyfin reads.
-- **Nothing is downloaded.** A film is added the way **Add as stream** adds one:
-  StreamNZB finds a release only when someone presses play, so no indexer is
-  asked when it's added.
+- **Nothing is downloaded.** A film is added to your streams, and the
+  streaming engine (Usherr's own, or StreamNZB) finds a release only when
+  someone presses play, so no indexer is asked when it's added. With the
+  virtual drive on, the drive's own search gets to it later, within its
+  searches a day.
 - **Nothing is ever removed by itself.** The card lists what was added for you,
   with its match and why; **Remove** takes one back out.
 - Switching it on looks for a first film straight away; after that it looks a
@@ -232,7 +234,7 @@ A recipe is a set of filters with a name, shown as its own row: genres, years,
 a minimum rating, how long, which language, who's in it, an age rating, and
 whether it's on the streaming services you pay for. **New recipe** starts one,
 with ideas to start from and a preview as you go. **Choose my services** tells
-Mediarium which streaming services you have, for the *On my services* rows.
+Usherr which streaming services you have, for the *On my services* rows.
 
 ### Hide what I have, and the family filter
 

@@ -30,7 +30,7 @@ const (
 	animeRoot      = "/data/anime"  // anime shows, filed like TV
 )
 
-var errNoAddress = errors.New("Mediarium's address on your network isn't set (Settings > Extras)")
+var errNoAddress = errors.New("Usherr's address on your network isn't set (Settings > Extras)")
 
 func (s *Server) registerExtrasRoutes(admin routeGroup) {
 	admin.HandleFunc("GET /api/home/extras", s.handleGetExtras)

@@ -1,7 +1,7 @@
 # Setting up each part
 
-Every service the home fork can use, one card each: what it does, whether you
-need it, where to get it, where to put it in Mediarium, and how to check it
+Every service Usherr can use, one card each: what it does, whether you
+need it, where to get it, where to put it in Usherr, and how to check it
 works. Only the first two are required.
 
 Most optional parts live in **Settings → Extras**. Each card there shows its
@@ -25,7 +25,7 @@ episode list comes from, and what Discover browses.
 ## Usenet and indexers
 
 **Required** (or torrents instead). An indexer finds releases; a Usenet
-provider is where they're downloaded from. Mediarium has its own downloader,
+provider is where they're downloaded from. Usherr has its own downloader,
 so no SABnzbd or NZBGet is needed.
 
 - **Get it:** a paid Usenet provider (any with a long retention), and one or
@@ -39,7 +39,7 @@ so no SABnzbd or NZBGet is needed.
 - **Check:** each indexer and provider has a test button. Then search a title's
   releases from its page.
 - **Connections:** a provider allows a set number of connections at once. If
-  StreamNZB uses the same account, split them (for example 20 for Mediarium
+  StreamNZB uses the same account, split them (for example 20 for Usherr
   and 20 for StreamNZB) so streams don't starve downloads.
 
 ![Settings → Usenet: the provider with its connections and a test button](images/settings-usenet.png)
@@ -50,7 +50,7 @@ so no SABnzbd or NZBGet is needed.
 the player, Live TV and the streamed library work through.
 
 - **Get it:** install Jellyfin (free) or Emby on the same server, with libraries
-  on the same folders Mediarium files into.
+  on the same folders Usherr files into.
 - **Put it in:** **Settings → Connections → Media servers**: its address and an
   API key made in Jellyfin's *Dashboard → API Keys*. If Jellyfin sees your
   folders under other names (Jellyfin runs outside Docker, for example),
@@ -64,17 +64,28 @@ the player, Live TV and the streamed library work through.
 
 ![The Jellyfin or Emby card in Settings → Extras](images/extras-jellyfin.png)
 
-## Mediarium's address on your network
+## Usherr's address on your network
 
-**Optional, needed for Live TV and the streamed library.** The address your TV
-and Jellyfin use to reach Mediarium. It has to work from another device, so
-it's your server's network address, not `localhost`.
+**Optional, needed for Live TV, the streamed library, the Stremio and Nuvio
+add-on, and a virtual drive mounted on another computer.** The address your
+TV, phone and media server use to reach Usherr. It has to work from another
+device, so it's your server's network address, not `localhost`.
 
-- **Put it in:** **Settings → Extras → Mediarium's address on your network**,
+- **Put it in:** **Settings → Extras → Usherr's address on your network**,
   for example `http://192.168.1.20:8264`.
 - **Check:** open that address on your phone while on the same network.
+- **Keep it from changing.** Your router hands out these addresses, and can
+  give the server a new one after a restart: then everything using the old
+  one stops working. In your router's settings, look for **DHCP
+  reservation** (some routers say *static lease* or *address reservation*)
+  and reserve the address the server has now. Do the same for a separate
+  Plex or Jellyfin computer, and for a NAS that holds your films.
+- **Not the same as *Address of Mediarium*** (**Settings → General**). That
+  one is the full `https://` address people open Usherr at from anywhere,
+  used for links in messages, passkeys and single sign-on. This one is the
+  plain address at home. Many households only need this one.
 
-![Mediarium's address on your network](images/extras-address.png)
+![Usherr's address on your network](images/extras-address.png)
 
 ## Streaming engine (Usherr or StreamNZB)
 
@@ -115,12 +126,12 @@ release straight from Usenet without downloading it first. With it,
 title pages get **Stream now**, and you get the streamed library and streamed
 Live TV channels.
 
-- **Get it:** run StreamNZB next to Mediarium (its own container), with your
+- **Get it:** run StreamNZB next to Usherr (its own container), with your
   Usenet provider set up in it.
 - **Put it in:** **Settings → Extras → Streaming (StreamNZB)**: its address
   (empty means `http://host.docker.internal:7000`) and its admin token, from
   StreamNZB's `config.json` (`admin_token`). Or map that `config.json` into
-  Mediarium at `/streamnzb/config.json` (read only) and leave the token empty.
+  Usherr at `/streamnzb/config.json` (read only) and leave the token empty.
 - **Check:** **Test it** on the card, then **Stream now** on any title page.
 
 ![The Streaming (StreamNZB) card: the address, the admin token, Save and Test it](images/extras-streamnzb.png)
@@ -133,7 +144,7 @@ Jellyfin as small pointer files that start the stream when played. A title you
 later download plays from disk instead.
 
 - **Set it up:**
-  1. Map a folder on your server to `/data/streamed` in Mediarium's container.
+  1. Map a folder on your server to `/data/streamed` in Usherr's container.
   2. Add that folder to a Jellyfin library (or make one, such as "Streamed").
   3. In the card, enter the folder **as Jellyfin sees it**, for example
      `D:\Streamed` or `/media/streamed`. Leave it empty if the folder mapping
@@ -176,12 +187,26 @@ websites: Usherr doesn't install anything on your computer.
   shown on the card. It only opens the drive, and only to read; it is never a
   person's account. **New password** makes another (then run rclone's setup
   command again).
+- **Where Plex runs.** **Plex runs on** on the card says whether Plex is on
+  the computer Usherr runs on, or another one. Usherr works it out from
+  Plex's address until you choose.
+  - **This computer:** rclone reaches Usherr at `127.0.0.1`, which never
+    changes, so the drive keeps working after every restart.
+  - **Another computer** (a media PC, a NAS): rclone there uses [Usherr's
+    address on your network](#usherrs-address-on-your-network). Reserve that
+    address in your router, or a restart can move it and the drive stops
+    opening: Plex then says streamed titles are unavailable.
+
+  After changing it, run the setup command (step 2 below) again.
 - **Mount it** (the card has the exact commands, with your address and password
   filled in):
   1. Install [WinFsp](https://winfsp.dev/rel/) and [rclone](https://rclone.org/downloads/)
      (on Linux, rclone alone).
-  2. Tell rclone about the drive, once:
-     `rclone config create usherr webdav url=http://<Usherr's address>:8264/dav/ vendor=other user=usherr pass=<the drive's password> --obscure`
+  2. Tell rclone about the drive, once (Usherr's own port, if Docker publishes
+     it as something other than 8264):
+     `rclone config create usherr webdav url=http://<address>:8264/dav/ vendor=other user=usherr pass=<the drive's password> --obscure`
+     where `<address>` is `127.0.0.1` with Plex on this computer, else Usherr's
+     address on your network.
   3. Mount it, on Windows as drive U: (any free letter):
      `rclone mount usherr: U: --read-only --vfs-cache-mode off --dir-cache-time 1m --network-mode`
      If rclone isn't on your PATH, put the full path to `rclone.exe` in the
@@ -192,7 +217,7 @@ websites: Usherr doesn't install anything on your computer.
      runs every time you sign in, waits until Usherr answers, then mounts the
      drive with its window hidden. It holds no password (rclone keeps it).
      Delete the file from that folder to stop it.
-  5. With Plex connected to Usherr (**Settings → Media servers**), press **Add
+  5. With Plex connected to Usherr (**Settings → Connections → Media servers**), press **Add
      them to Plex for me** on the card: Usherr makes **Movies-Stream**,
      **TV-Stream** and **Anime-Stream** (a folder already in one of your
      libraries is left as it is). Or, by hand: in Plex, add `U:\Movies` to a Movies library and `U:\TV` (and `U:\Anime`)
@@ -214,7 +239,9 @@ websites: Usherr doesn't install anything on your computer.
   on Linux). A Windows letter there is also the one the commands mount.
 - **Check:** the card counts the films and episodes ready, and says when
   something last read the drive. **Something not right?** in Show me how warns
-  when nothing has read it for two days.
+  when Plex was asked to look at a new title and nothing came to read the
+  drive within 15 minutes (it isn't mounted, or rclone has an old address),
+  and when nothing has read it for a day while Plex is connected.
 
 **Show me how → Set up Plex with the virtual drive** walks you through all of
 this. WinFsp is Windows File System Proxy, copyright Bill Zissimopoulos
@@ -242,7 +269,7 @@ IPTV apps.
 ## Play on TV
 
 **Optional.** Sends a stream to an Android TV box (such as an NVIDIA Shield),
-which plays it in VLC or opens it in Stremio. Mediarium uses the box's network
+which plays it in VLC or opens it in Stremio. Usherr uses the box's network
 debugging to do it.
 
 - **On the TV box:** turn on *Developer options* (press *Build* seven times in
@@ -323,7 +350,7 @@ recipes. The family filter uses the Common Sense ages first.
 ## Entertainment news
 
 **Optional, needs the AI.** Short news under *Tonight* on the Dashboard: film
-and TV, home theater, books, comics and music. Every few hours Mediarium reads
+and TV, home theater, books, comics and music. Every few hours Usherr reads
 the feeds and the AI writes a short summary of each story, linking titles it
 names to your library.
 
@@ -349,7 +376,7 @@ calendar, and links to showtimes on a film's page.
   `{zip}` for your ZIP code), or none. With Fandango, **All showtimes near**
   (your ZIP) lists everything playing nearby.
 - **Upload a picture** puts any picture you like on the chosen service's
-  button, such as its logo; each service keeps its own, and Mediarium
+  button, such as its logo; each service keeps its own, and Usherr
   doesn't come with any.
 - **Optional:** an AMC key (from developers.amctheatres.com) makes the row
   follow what your AMC theater is showing, with its showtimes.
@@ -379,9 +406,10 @@ Pre-show**.
 ## Re-Posterr
 
 **Optional.** Re-Posterr, Usherr's artwork picker, picks the poster, background and logo for each title in
-Jellyfin from TMDB (and fanart.tv), and asks before changing anything.
+Jellyfin and Plex from TMDB (and fanart.tv), and asks before changing anything.
 
-- **Needs:** Jellyfin connected and the TMDB key.
+- **Needs:** Jellyfin or Plex connected, and the TMDB key. Plex keeps posters
+  and backgrounds; logos, season posters and title cards are Jellyfin's.
 - **fanart.tv (optional):** a free personal key from your fanart.tv profile,
   pasted on **Settings → Re-Posterr**.
 - **Your style (optional):** posters, season posters, episode title cards and
@@ -471,9 +499,9 @@ ntfy, Discord, Telegram and others, under **Settings → Connections →
 Notifications**. Each person can also choose their own under
 **Settings → Your profile**.
 
-## Reaching Mediarium away from home
+## Reaching Usherr away from home
 
-Mediarium is meant to sit behind your home network. To use it from your phone
+Usherr is meant to sit behind your home network. To use it from your phone
 away from home, use a private network such as Tailscale (nothing opened to the
 internet), or a reverse proxy with HTTPS. Turn on two-step sign-in or passkeys
 under **Settings → Account & Access → Security** before opening it up.

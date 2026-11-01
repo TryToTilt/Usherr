@@ -14,7 +14,7 @@ Settings), for administrators.
 
 ## Setting up a screen
 
-Any browser that shows `http://<Mediarium's address>:8264/marquee` full-screen
+Any browser that shows `http://<Usherr's address>:8264/marquee` full-screen
 is a Marquee screen. Sign in once on it; it stays signed in.
 
 - **A tablet:** a kiosk browser (such as Fully Kiosk Browser) with the address
@@ -101,7 +101,7 @@ is:
   Digital+**..., and its channels (**7.1**, **5.1**, **Stereo**).
 
 Jellyfin, Plex and Emby say what they play. For a library file Usherr plays, the
-badges come from the details Mediarium reads from every file's headers in
+badges come from the details Usherr reads from every file's headers in
 the background (the same ones a film's page shows); only when the picture
 could hold black bars does Usherr look at a few seconds of it for its real
 shape. A stream is looked at once, a few seconds after it starts; until then
@@ -122,7 +122,7 @@ own pre-show videos fill too).
 
 On a film, an **info panel** (the plot, the cast with their photos, the
 director) can show always, when paused, or only from the remote; a **QR
-code** in the corner can open the trailer or the film in Mediarium on a phone.
+code** in the corner can open the trailer or the film in Usherr on a phone.
 *While something plays, show only that* keeps what's playing on screen.
 
 ![The info panel and a QR code over a film](images/marquee-info.png)
@@ -257,9 +257,9 @@ curl -X POST http://<address>:8264/api/home/marquee/screens/tablet/command \
   audio* on a tablet; `--autoplay-policy=no-user-gesture-required` for
   Chrome).
 - **A web page slide stays blank**: some sites refuse to be shown inside
-  another page; that can't be changed from Mediarium.
+  another page; that can't be changed from Usherr.
 - **The screen stopped answering after a while**: the computer running
-  Mediarium may have a new address on the network; give it a fixed one in
+  Usherr may have a new address on the network; give it a fixed one in
   the router (*DHCP reservation*).
 - **Home Assistant shows nothing**: check *Test the connection*, and that
   MQTT discovery is on in Home Assistant (it is by default).

@@ -161,7 +161,7 @@ up to where you stopped, and **Story arcs** lists what to read in which order.
 
 ## On a phone
 
-Mediarium works the same on a phone. To keep it like an app, open it in the
+Usherr works the same on a phone. To keep it like an app, open it in the
 phone's browser and choose **Add to Home Screen** (Safari's share menu on an
 iPhone, or the ⋮ menu in Chrome on Android).
 

@@ -373,13 +373,24 @@ func (s *Server) collectHealth() []healthItem {
 
 	// Usherr: the virtual drive (home_drive.go), when it's on.
 	if s.driveOn() {
-		if s.mediariumAddress(keyHomeAddress) == "" {
+		if s.driveAddress() == "" {
 			addHealth("drive-no-address", "warn", "The virtual drive has no address",
-				"rclone needs Usherr's address on your network to mount the drive. Set it in the first card of Extras.",
+				"Plex runs on another computer, so rclone there needs Usherr's address on your network to mount the drive. Set it in the first card of Extras.",
 				"Set the address", "/settings/extras")
 		}
-		if last := driveLastRead.Load(); last == 0 || time.Since(time.UnixMilli(last)) > 48*time.Hour {
-			addHealth("drive-not-read", "info", "Nothing has read the virtual drive lately",
+		// Plex was asked to look at a title on the drive and nothing came to
+		// read it: the drive isn't mounted, or rclone has an old address.
+		last, asked := driveLastRead.Load(), driveAskedAt.Load()
+		if asked > last && time.Since(time.UnixMilli(asked)) > driveReadWithin {
+			addHealth("drive-unreachable", "warn", "Plex can't reach the virtual drive",
+				"Usherr asked Plex to look at a new title on the drive and nothing read it, so Plex shows streamed titles as unavailable. On the Plex computer, check the drive opens. If it doesn't, mount it again with the commands on the card: if Usherr's address on your network changed (a restart can do that), run the setup command again first.",
+				"See the drive", "/settings/extras#virtual-drive")
+		} else if last == 0 || time.Since(time.UnixMilli(last)) > 24*time.Hour {
+			level := "info"
+			if len(s.plexServers()) > 0 {
+				level = "warn" // Plex is connected, so something should be reading it
+			}
+			addHealth("drive-not-read", level, "Nothing has read the virtual drive lately",
 				"If Plex should be using it, rclone may not be running: the drive needs to be mounted on the computer that runs Plex.",
 				"See the drive", "/settings/extras#virtual-drive")
 		}

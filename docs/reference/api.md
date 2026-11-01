@@ -408,7 +408,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/discover/watched-seeds` | any account | GET /api/home/discover/watched-seeds?kind=&who=: the titles the rail is built from, most recent first ("Because you watched The Bear, Severance…"). |
 | GET | `/api/home/discover/why` | any account | GET /api/home/discover/why?kind=&who=: for each "Because you watched" suggestion, the watched titles that led to it (up to two). |
 | GET | `/api/home/drive` | admin | GET /api/home/drive (administrators): the drive's state, address and sign-in. |
-| PUT | `/api/home/drive` | admin | PUT /api/home/drive {"on","budget","where","newPassword"}. |
+| PUT | `/api/home/drive` | admin | PUT /api/home/drive {"on","budget","where","local","newPassword"}; local is "yes" (Plex on Usherr's computer), "no", or "" to work it out again. |
 | POST | `/api/home/drive/plex` | admin | POST /api/home/drive/plex: adds the drive's libraries to each connected Plex server that doesn't have them yet (a folder already in a library of the right ki... |
 | POST | `/api/home/drive/prepare` | admin | POST /api/home/drive/prepare: get one more title ready now (it counts against the day's searches). |
 | POST | `/api/home/drive/title/{id}` | admin | POST /api/home/drive/title/{id}: put a streamed title on the drive right away (the film, or a show's newest season), within today's searches. |
