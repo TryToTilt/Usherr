@@ -10,6 +10,7 @@ import PaletteChoice from '../../components/PaletteChoice' // Usherr
 import BaseChoice from '../../components/BaseChoice' // Usherr
 import LookChoice from '../../neu/LookChoice' // Usherr Neu
 import MenuHideChoice from '../../components/MenuHideChoice' // Usherr: how soon the menu slides away
+import FilmLayoutChoice from '../../home/FilmLayoutChoice' // Usherr: the film page's layout
 import ThemeToggle from '../../components/ThemeToggle'
 import { PushCard } from '../../components/UpdateCards'
 import { LANGUAGES, chooseLanguage, currentLanguage, locale, t, type Lang } from '../../i18n'
@@ -123,6 +124,7 @@ export default function GeneralSettings() {
     <div className="settings-stack">
       <LanguageCard />
       <LookCard />
+      <FilmLayoutChoice /> {/* Usherr */}
       <NewsStyleCard /> {/* Usherr */}
       <TimeZoneCard />
       {admin && <PublicAddress />}

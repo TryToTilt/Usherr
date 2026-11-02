@@ -263,6 +263,27 @@ export const streamOrKeep: Walkthrough = {
 
 // ---- Diary and Wrapped ----
 
+// Usherr: the title page's layouts (home/filmLayout.ts), films and shows.
+export const filmLayout: Walkthrough = {
+  id: 'film-layout',
+  group: 'watch',
+  title: t('Choose how a film’s or show’s page looks'),
+  blurb: t('Cinema, Side by side or Streaming, per browser: the TV and your laptop can each have their own.'),
+  icon: 'film',
+  words: 'film show anime series page layout cinema side by side streaming tv tabs manage episodes clean busy messy look design',
+  simple: [
+    { kind: 'go', to: '/settings/general', title: t('Settings, General'), text: t('Where the look of Usherr is chosen.') },
+    {
+      kind: 'point',
+      target: 'film-layout',
+      until: 'next',
+      title: t('Film and show pages'),
+      text: t('Pick a layout: Cinema (tabs), Side by side (the reviews on the right) or Streaming (big, for a TV remote). Automatic picks by the screen. The switches below say what the page shows. It’s kept in this browser.'),
+    },
+    { kind: 'done', title: t('Open a film to see it'), text: t('Everything about the files and downloads is under Manage. On a show, Episode tools on the episode list does the same for each episode.') },
+  ],
+}
+
 export const diary: Walkthrough = {
   id: 'diary',
   group: 'watch',

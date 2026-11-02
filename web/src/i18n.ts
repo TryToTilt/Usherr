@@ -9,7 +9,7 @@
 // - pass t(), tc(), tx() and plural() a plain string literal, never a variable;
 // - put changing parts in {braces}: t('{name} was added', { name });
 // - plural(n, '{n} movie', '{n} movies') picks the right form for the language.
-import { brandText } from './brand' // Usherr
+import { brandText } from './brand.ts' // Usherr
 import { Fragment, createElement, type ReactNode } from 'react'
 
 export type Lang = 'en' | 'es' | 'de' | 'fr' | 'it' | 'nl' | 'pl' | 'pt' | 'pt-PT' | 'ru' | 'uk'

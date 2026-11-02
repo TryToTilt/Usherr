@@ -67,6 +67,42 @@
   since that means reading the whole film). The language you pick is
   remembered, and a release with several (MULTi) starts in it.
 
+## A film's page
+
+A film's page keeps to what you came for: the title, three lines of the plot
+(**More** shows the rest), and one row of everyday buttons: **Play** (or
+**Stream**, or **Add to library**), **Showtime**, **Stack**, your thumbs, and
+**Manage**. Everything about the file and its downloads (Look for a better
+copy, Replace with a smaller version, Choose a release, Re-Posterr, Rescan,
+Delete, Remove, the quality profile, Monitored, the file and folder, What
+happened, Files and Subtitles) sits under **Manage**.
+
+A show's page (anime too) works the same way. Its everyday buttons are
+**Stack**, your thumbs, **Catch me up**, **What's it like?** and **Manage**;
+under **Manage** are Find missing episodes, Refresh episodes, Rescan files,
+Re-Posterr, Remove, Monitored, the quality profile, which episodes to look for,
+the series type, the folder, episode numbering, second copies, What happened
+and the files. The episode list keeps to watching (the number, title, air
+date, status, **Play** or **Stream**); **Episode tools** on it (or Manage)
+adds monitoring, searching, quality, size, Delete file, Link a file and
+Subtitles for each episode and season.
+
+Pick how it's laid out under **Settings → General → Film and show pages**,
+kept in each browser, so the TV and your laptop can differ:
+
+- **Cinema:** the title up top, the rest in tabs: Episodes (for a show), About,
+  Reviews, Cast, More like this and Manage.
+- **Side by side:** the film on the left; you, the community's reviews and where
+  it streams on the right; a show's episodes, then Manage folded, underneath.
+- **Streaming:** a big backdrop with the title and Play, then rows (a show's
+  episodes first). Manage opens as a panel. Easy with a TV remote.
+- **Automatic** (the default): Streaming on a TV-sized screen, Side by side on a
+  wide one, Cinema on a phone or laptop.
+
+**Show on the page** switches the score line, where it streams, your
+watches, reviews, the cast, More like this, and the whole plot on or off, in
+every layout. Administrators can keep Manage open instead of folded.
+
 ## Releases that play
 
 Usherr's own streaming engine learns which releases play. Each release it

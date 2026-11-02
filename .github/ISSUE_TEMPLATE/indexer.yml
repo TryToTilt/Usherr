@@ -29,8 +29,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: Mediarium version
-      description: Shown under **Settings > System > About and credits**.
+      label: Usherr version
+      description: Shown under **Settings > About and credits**.
     validations:
       required: true
 

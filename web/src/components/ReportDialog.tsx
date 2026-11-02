@@ -208,7 +208,8 @@ export default function ReportDialog({ onClose, initialKind = 'problem' }: { onC
     const copied = withReport && (await copyText(report))
     window.open(url, '_blank', 'noopener,noreferrer')
     setGithub({ withReport })
-    if (copied) toast.success(t('Support report copied. Paste it into the Support report box.'))
+    if (copied) toast.success(t('Support report copied. On GitHub, click in the Support report box and paste it (Ctrl+V).'))
+    else if (withReport) toast.error(t("Couldn't copy the support report. Press Copy the support report here, then paste it on GitHub."))
   }
 
   async function copyReport() {
@@ -266,7 +267,7 @@ export default function ReportDialog({ onClose, initialKind = 'problem' }: { onC
             <div className="report-steps">
               {github.withReport && (
                 <div className="report-step">
-                  <p>{t('The support report is not put in the link. Paste it into the Support report box, and copy it again here if you need to.')}</p>
+                  <p>{t('One more step: the support report isn’t in the link. On GitHub, click in the Support report box and paste it (Ctrl+V). Copy it again here if you need to.')}</p>
                   <button className="btn-with-icon" onClick={() => void copyReport()}>
                     <Icon name="copy" size={15} /> {t('Copy the support report')}
                   </button>

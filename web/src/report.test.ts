@@ -1,7 +1,7 @@
 // Run with: npm test (uses node's built-in test runner, no extra packages).
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { GITHUB_URL_MAX, SUPPORT_NOTE, draftProblem, fitWithin, githubIssueURL } from './report.ts'
+import { GITHUB_URL_MAX, draftProblem, fitWithin, githubIssueURL } from './report.ts'
 
 test('a draft needs a short title and a sentence or two', () => {
   assert.equal(draftProblem({ title: 'ok', message: 'Long enough message' }), 'title')
@@ -17,11 +17,11 @@ test('a problem opens the bug form with the version, and the report stays out of
   assert.equal(q.get('title'), 'Repair fails')
   assert.equal(q.get('version'), '3.0.0')
   assert.equal(q.get('what-happened'), 'It fails & stops.')
-  assert.equal(q.get('support'), SUPPORT_NOTE)
+  assert.equal(q.get('support'), null) // left empty, for the copied report
   assert.ok(!url.includes('log+line') && !url.includes('movies'))
 })
 
-test('without a report there is no note either', () => {
+test('without a report the box is empty too', () => {
   const { url } = githubIssueURL({ kind: 'problem', title: 'Logs', message: 'No report this time.', version: '3' })
   assert.equal(new URL(url).searchParams.get('support'), null)
 })
@@ -38,7 +38,7 @@ test('a long message is cut to fit in a link', () => {
   const long = githubIssueURL({ kind: 'problem', title: 'Long', message: 'ä'.repeat(8000), version: '3', report: 'line\n'.repeat(5000) })
   assert.ok(long.url.length <= GITHUB_URL_MAX)
   assert.match(new URL(long.url).searchParams.get('what-happened') ?? '', /cut short/)
-  assert.equal(new URL(long.url).searchParams.get('support'), SUPPORT_NOTE)
+  assert.equal(new URL(long.url).searchParams.get('support'), null)
 })
 
 test('screenshots shrink to fit, never grow', () => {

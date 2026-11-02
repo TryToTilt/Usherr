@@ -19,7 +19,10 @@ import ShortFile from '../components/ShortFile'
 import { redoAnswerText } from '../shortFile'
 import Switch from '../components/Switch'
 import MonitorModePicker from '../components/MonitorModePicker'
-import TitleHero from '../components/TitleHero'
+import TitleHero, { TitleFacts } from '../components/TitleHero'
+import { useFilmPage } from '../home/filmLayout' // Usherr: the title page's layouts
+import TitleLayout from '../home/TitleLayout' // Usherr
+import SimilarShows from '../home/SimilarShows' // Usherr
 import WatchLinks from '../components/WatchLinks'
 import FolderLine from '../components/FolderLine'
 import LocateDialog from '../components/LocateDialog'
@@ -40,7 +43,7 @@ import { playTitle } from '../home/Player' // play hook (home fork)
 import StreamButton, { streamRelease } from '../home/StreamButton' // stream hook (home fork)
 import CatchUp from '../home/CatchUp' // Catch me up (home fork)
 import { useModules } from '../ModulesContext'
-import { api, can, isAdmin, isViewer, type Episode, type SearchResult, type SeriesDetail as SeriesDetailData, type TVDetail } from '../api'
+import { api, can, isAdmin, isViewer, type Episode, type SearchResult, type DiscoverMovie, type SeriesDetail as SeriesDetailData, type TVDetail } from '../api'
 import { formatBytes, qualityText, withNameTag } from '../format'
 import { showStatusLabel } from '../home/showStatus' // home fork: also Canceled, from TMDB's own words
 import { rescanMessage } from '../rescanMessage'
@@ -99,10 +102,16 @@ function SeriesPage() {
   const [series, setSeries] = useState<SeriesDetailData | null>(null)
   useDocumentTitle(series?.title)
   const [tv, setTv] = useState<TVDetail | null>(null)
-  const [error, setError] = useState('')
+  // Usherr: the layout this browser chose (Settings, General); Manage (a tab,
+  // a fold or a panel, by layout); the episode list's own tools (monitoring,
+  // searching, files), shown with Manage or on their own.
+  const { resolved: layout, show } = useFilmPage()
+  const [manageOpen, setManageOpen] = useState(false)
+  const [epTools, setEpTools] = useState(false)
+  const tools = epTools || manageOpen
+  const [similar, setSimilar] = useState<DiscoverMovie[]>([])
   // A refresh that fails while the show is already on screen is not worth an error message.
   const [loadError, setLoadError] = useState('')
-  const [message, setMessage] = useState('')
   const [target, setTarget] = useState<SearchTarget | null>(null)
   const [results, setResults] = useState<SearchResult[] | null>(null)
   const [answered, setAnswered] = useState<{ sources: number; unanswered: Unanswered[]; warnings?: string[]; searched?: Searched[] }>({ sources: 0, unanswered: [] })
@@ -122,6 +131,10 @@ function SeriesPage() {
   }
   const [missingOnly, setMissingOnly] = useState(false)
   const toast = useToast()
+  // Usherr: what a button did is said in a toast, since the button may sit
+  // under Manage, in another tab than the episodes.
+  const setMessage = (text: string) => text && toast.info(text)
+  const setError = (text: string) => text && toast.error(text)
   const { grabError } = useTorrentsSwitch()
 
   const load = useCallback(() => {
@@ -137,6 +150,7 @@ function SeriesPage() {
   const tmdbId = series?.tmdbId
   useEffect(() => {
     if (tmdbId) api.tmdbTVDetail(tmdbId).then(setTv).catch(() => undefined)
+    if (tmdbId) api.tmdbSimilarShows(tmdbId).then(setSimilar).catch(() => undefined)
   }, [tmdbId])
 
   // Refreshes itself, faster while anything is downloading so statuses update without a reload.
@@ -397,7 +411,7 @@ function SeriesPage() {
     }
   }
 
-  if (!series) return loadError || error ? <p className="error-text">{loadError || error}</p> : <p>{t('Loading…')}</p>
+  if (!series) return loadError ? <p className="error-text">{loadError}</p> : <p>{t('Loading…')}</p>
 
   const creators = crewWith(tv?.crew, 'Creator')
   const today = localDate(new Date())
@@ -424,359 +438,402 @@ function SeriesPage() {
   const diskBytes = sumBytes(series.episodes)
   const shownSeasons = missingOnly ? seasons.filter(([, eps]) => eps.some(isMissing)) : seasons
 
+  // Usherr: the title page's layouts (home/TitleLayout.tsx), as on a film's
+  // page: everyday actions up top, everything that manages the show, its
+  // files and its downloads under Manage.
+  const hasManage = admin || canManage || !viewer
+  const info = {
+    ...(tv ?? {}),
+    kind: 'tv' as const,
+    title: withNameTag(series.title, series.nameTag, series.year),
+    year: series.year,
+    posterUrl: series.posterUrl,
+    overview: series.overview,
+    certification: tv?.contentRating,
+    links: titleLinks('tv', series.tmdbId, tv?.imdbId, tv?.homepage),
+    facts: [
+      ...(creators.length ? [{ label: creators.length > 1 ? t('Creators') : t('Creator'), value: <PeopleLinks people={creators} /> }] : []),
+      // home fork: in words from TMDB too, so a canceled show says Canceled
+      ...(showStatusLabel(series.showStatus, tv?.releaseStatus) ? [{ label: t('Status'), value: showStatusLabel(series.showStatus, tv?.releaseStatus) ?? '' }] : []),
+      { label: t('Episodes'), value: t('{done} of {total} downloaded', { done: series.downloadedCount, total: series.episodeCount }) },
+      ...(diskBytes > 0 ? [{ label: t('Size on disk'), value: formatBytes(diskBytes) }] : []),
+      ...(nextText ? [{ label: t('Next episode'), value: nextText }] : []),
+      ...(tv?.networks?.length ? [{ label: t('Network'), value: tv.networks.join(', ') }] : []),
+    ],
+  }
+  const status = (
+    <span className={`state-tag st-mon-${monitoring.kind === 'off' ? 'off' : 'on'}`} title={monitoring.detail}>
+      <Icon name={monitoring.kind === 'off' ? 'eye-off' : 'eye'} size={13} /> {monitoring.text}
+    </span>
+  )
+
+  // The everyday actions: plan, keep, rate, catch up.
+  const everyday = (
+    <>
+      {series.downloadedCount > 0 && <WatchLinks tmdbId={series.tmdbId} kind="tv" />}
+      <StackButton item={{ kind: 'tv', tmdbId: series.tmdbId, title: series.title, year: series.year, posterUrl: series.posterUrl }} /> {/* Usherr */}
+      <VoteButtons kind="tv" refId={series.tmdbId} meta={{ title: series.title, year: series.year, image: series.posterUrl }} /> {/* home fork */}
+      <CatchUp tmdbId={series.tmdbId} /> {/* home fork */}
+      <WhatsItLike kind="tv" tmdbId={series.tmdbId} title={series.title} /> {/* home fork */}
+      <SkipGuide tmdbId={series.tmdbId} title={series.title} /> {/* home fork */}
+      {hasManage && (
+        <button className={`btn-with-icon${manageOpen ? ' primary' : ''}`} data-walk="title-manage" aria-expanded={manageOpen} onClick={() => setManageOpen(!manageOpen)} title={t('Find missing episodes, refresh, the quality profile, monitoring, the folder and its files, remove')}>
+          <Icon name="sliders" size={16} /> {t('Manage')}
+        </button>
+      )}
+    </>
+  )
+
+  // Manage: the show, its files and downloads, and the library's settings for it.
+  const manage = hasManage && (
+    <div className="fp-manage" data-walk="title-manage-panel">
+      <div className="title-actions">
+        {canManage && (
+          <button className="btn-with-icon" onClick={() => searchNow()} disabled={searchingNow}>
+            <Icon name="search" size={16} /> {searchingNow ? t('Searching…') : t('Find missing episodes')}
+          </button>
+        )}
+        {canManage && <InfoTip text={t('Searches your indexers right now for the episodes that are still missing, even if the show is not monitored. To search one season or one episode, use Episode tools on the episode list.')} />}
+        {!viewer && (
+          <button className="btn-with-icon" onClick={refresh} disabled={refreshing}>
+            <Icon name="refresh" size={16} /> {refreshing ? t('Refreshing…') : t('Refresh episodes')}
+          </button>
+        )}
+        {!viewer && <InfoTip text={t('Fetches the episode list again, so new episodes, new seasons and changed air dates show up.')} />}
+        {admin && (
+          <button className="btn-with-icon" onClick={() => void rescan()} disabled={rescanning} title={t("Looks at the files on your disk again: a file that was deleted by hand makes its episode wanted again, a file that was renamed is found, and a video file you put in the show's folder goes on its episode.")}>
+            <Icon name="folder" size={16} /> {rescanning ? t('Checking…') : t('Rescan files')}
+          </button>
+        )}
+        {admin && <ArtworkButton kind="tv" tmdbId={series.tmdbId} title={series.title} />} {/* Usherr */}
+        {admin && (
+          <button className="btn-with-icon danger-ghost" onClick={remove}>
+            <Icon name="trash" size={16} /> {t('Remove')}
+          </button>
+        )}
+      </div>
+      <div className="title-controls">
+        <Switch checked={series.monitored} onChange={toggleSeries} disabled={!canManage} label={<span className="has-tip">{t('Monitored')}<InfoTip text={t('Mediarium keeps searching for the episodes of this show that are monitored and missing. Switch it off to leave the show alone; files you already have stay where they are.')} /></span>} description={[series.monitored ? t('Keeps looking for missing episodes.') : t('Not looking for missing episodes. Files you already have stay where they are.'), monitoring.detail].filter(Boolean).join(' ')} />
+        <ProfilePicker kind="series" itemId={seriesId} onMoved={load}>
+          <TitleTags kind="tv" id={seriesId} />
+        </ProfilePicker>
+        {canManage && <MonitorModePicker id={seriesId} onDone={load} />}
+        {canManage && <SeriesTypePicker id={seriesId} value={series.seriesType ?? 'standard'} onChange={(type) => setSeries((cur) => (cur ? { ...cur, seriesType: type } : cur))} />}
+      </div>
+      {admin && series.folderPath && (
+        <FolderLine path={series.folderPath} kind="series">
+          <button type="button" className="btn-sm btn-with-icon" onClick={() => setChangingFolder(true)}>
+            <Icon name="folder" size={14} /> {t('Change folder')}
+          </button>
+        </FolderLine>
+      )}
+      {canManage && <NumberingCard id={seriesId} seriesType={series.seriesType ?? 'standard'} seasons={seasons.map(([s]) => s).filter((s) => s > 0)} monitored={series.monitored} onRescanned={load} />}
+      {!series.copyOf && <CopiesCard kind="series" id={series.id} admin={admin} />}
+      <section className="card" data-walk="title-log" style={{ margin: '16px 0' }}>
+        <h2>{t('What happened')}</h2>
+        <TitleEvents kind="series" id={series.id} />
+      </section>
+      {series.downloadedCount > 0 && (
+        <section className="card" style={{ marginBottom: 16 }}>
+          <h2>{t('Files on disk')}</h2>
+          <FilesPanel kind="series" id={series.id} />
+        </section>
+      )}
+      {series.downloadedCount > 0 && !subtitlesOn && <SubtitlesOffNote />}
+    </div>
+  )
+  const manageSummary = [monitoring.text, t('{done} of {total} downloaded', { done: series.downloadedCount, total: series.episodeCount }), diskBytes > 0 ? formatBytes(diskBytes) : ''].filter(Boolean).join(' · ')
+
+  // The seasons and their episodes. Watching is everyday; monitoring,
+  // searching and the files are the list's tools (with Manage, or on their own).
+  const episodes = seasons.length > 0 && (
+    <div className="fp-episodes" data-walk="title-episodes">
+      <div className="season-bar">
+        <div className="chip-row" role="group" aria-label={t('Seasons')}>
+          {seasons.map(([season, eps]) => (
+            <button
+              key={season}
+              className={`chip${isOpen(season) ? ' active' : ''}`}
+              onClick={() => {
+                setOpenSeasons((o) => ({ ...o, [season]: true }))
+                requestAnimationFrame(() => document.getElementById(`season-${season}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+              }}
+            >
+              {season === 0 ? t('Specials') : t('Season {n}', { n: season })}
+              {eps.some(isMissing) && <span className="dot-missing" aria-label={t('has missing episodes')} />}
+            </button>
+          ))}
+        </div>
+        <div className="season-bar-actions">
+          {tools && (
+            <>
+              <label className="inline-field">
+                <input type="checkbox" checked={missingOnly} onChange={(e) => setMissingOnly(e.target.checked)} />
+                {t('Missing episodes only')}
+                <InfoTip text={t('Shows only the episodes that have aired and are not downloaded yet.')} />
+              </label>
+              <label className="inline-field">
+                {t('Seasons on this page')}
+                <select value={seasonsMode} onChange={(e) => chooseSeasonsMode(e.target.value as SeasonsOpen)} aria-label={t('Seasons on this page')}>
+                  <option value="collapsed">{t('Collapsed')}</option>
+                  <option value="latest">{t('Latest season open')}</option>
+                  <option value="all">{t('All open')}</option>
+                </select>
+                <InfoTip text={t('Which seasons are open when you visit a show. Open all and Close all change the page right now. Your choice is kept in this browser.')} />
+              </label>
+              <button className="btn-sm" onClick={() => setOpenSeasons(Object.fromEntries(seasons.map(([s]) => [s, true])))}>
+                {t('Open all')}
+              </button>
+              <button className="btn-sm" onClick={() => setOpenSeasons(Object.fromEntries(seasons.map(([s]) => [s, false])))}>
+                {t('Close all')}
+              </button>
+            </>
+          )}
+          <button
+            className={`btn-sm btn-with-icon${tools ? ' primary' : ''}`}
+            data-walk="title-episode-tools"
+            aria-pressed={tools}
+            onClick={() => {
+              if (tools) {
+                setEpTools(false)
+                setManageOpen(false)
+                setMissingOnly(false)
+              } else setEpTools(true)
+            }}
+            title={t('Monitoring, searching, quality, size and the files of each episode')}
+          >
+            <Icon name="sliders" size={14} /> {tools ? t('Done') : t('Episode tools')}
+          </button>
+        </div>
+      </div>
+        {target && (
+          <section ref={releasesRef} className="card" style={{ marginBottom: 16, scrollMarginTop: 80 }}>
+            <h2>{t('Releases for {target}', { target: target.label })}</h2>
+            {searching && <p>{t('Looking for releases…')}</p>}
+            {results !== null && <ReleaseNotice sources={answered.sources} unanswered={answered.unanswered} warnings={answered.warnings} searched={answered.searched} results={results.length} />}
+            {!searching && (results === null || results.length === 0) && (
+              <button className="btn-sm" onClick={() => setTarget(null)}>
+                {t('Close')}
+              </button>
+            )}
+            {blocked && (
+              <GrabBlocked
+                message={blocked.message}
+                blocking={blocked.blocking}
+                busy={grabbing !== null}
+                onReplace={() => void grab(blocked.release, blocked.blocking.id, blocked.replace)}
+                onDismiss={() => setBlocked(null)}
+              />
+            )}
+            {results !== null && results.length > 0 && (
+              <ReleaseTable results={results} searched={answered.searched} grabbing={grabbing} onGrab={(r) => void grab(r)} showPackBadge onClose={() => setTarget(null)} onStream={can(me, 'play') ? streamFromList : undefined} streaming={streaming} />
+            )}
+          </section>
+        )}
+        {missingOnly && shownSeasons.length === 0 && <p style={{ color: 'var(--text-dim)' }}>{t('No episodes that have aired are missing.')}</p>}
+        {shownSeasons.map(([season, allEps]) => {
+          const eps = missingOnly ? allEps.filter(isMissing) : allEps
+          const done = allEps.filter((e) => e.status === 'downloaded').length
+          const open = missingOnly || isOpen(season)
+          // home fork: the season's size on disk (a two-episode file counted once)
+          const seasonBytes = [...new Map(allEps.filter((e) => e.filePath && e.sizeBytes).map((e) => [e.filePath, e.sizeBytes ?? 0])).values()].reduce((a, b) => a + b, 0)
+          return (
+            <section key={season} id={`season-${season}`} style={{ marginBottom: open ? 28 : 12, scrollMarginTop: 80 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <button className="season-toggle" aria-expanded={open} onClick={() => setOpenSeasons((o) => ({ ...o, [season]: !open }))}>
+                  <Icon name={open ? 'chevron-down' : 'chevron-right'} size={18} />
+                  <h2 style={{ margin: 0 }}>{season === 0 ? t('Specials') : t('Season {n}', { n: season })}</h2>
+                </button>
+                <span className={`badge ${done === allEps.length ? 'downloaded' : 'missing'}`}>
+                  {done} / {allEps.length}
+                </span>
+                {tools && seasonBytes > 0 && <span className="badge" title={t('Size on disk')}>{formatBytes(seasonBytes)}</span>} {/* home fork: a two-episode file counts once */}
+                {!tools ? null : season === 0 ? (
+                  <span className="hint">{t("Specials aren't looked for until you tick them. Each one is searched on its own, by S00E number and by its title.")}</span>
+                ) : (
+                  <>
+                    {canReleases && <button onClick={() => runSearch({ season, label: t('Season {n} (packs)', { n: season }) })}>{t('Search season')}</button>}
+                    {canReleases && <InfoTip text={t('Lists the releases found for this whole season, season packs included, so you can pick one yourself.')} />}
+                    {canManage && allEps.some(isMissing) && (
+                      <button onClick={() => searchNow({ season })} disabled={searchingNow}>
+                        {t('Find missing')}
+                      </button>
+                    )}
+                    {canManage && allEps.some(isMissing) && <InfoTip text={t("Searches your indexers right now for this season's missing episodes and downloads what it finds. The rest of the show is left alone.")} />}
+                    {admin && allEps.some((e) => e.status === 'downloaded' && e.filePath) && (
+                      <button className="danger-ghost" onClick={() => void deleteFiles({ season })} title={t('Delete the files of this season and keep the show')}>
+                        {t('Delete files')}
+                      </button>
+                    )}
+                    <label style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+                      <input
+                        type="checkbox"
+                        checked={allEps.every((e) => e.monitored)}
+                        disabled={!canManage}
+                        onChange={(e) => toggleSeason(season, e.target.checked)}
+                      />
+                      {t('Monitored')}
+                    </label>
+                  </>
+                )}
+              </div>
+              {open && <table className="ep-table" style={{ marginTop: 8 }}>
+                <thead>
+                  <tr>
+                    {tools && (
+                      <th style={{ width: 32 }}>
+                        <span className="sr-only">{t('Monitored')}</span>
+                      </th>
+                    )}
+                    <th style={{ width: 48 }}>#</th>
+                    <th>{t('Title')}</th>
+                    <th>{t('Air date')}</th>
+                    <th>{t('Status')}</th>
+                    {tools && <th>{t('Quality')}</th>}
+                    {tools && <th>{t('Size')}</th>}
+                    <th>
+                      <span className="sr-only">{t('Actions')}</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {eps.map((e) => {
+                    const unaired = !e.airDate || e.airDate > today
+                    return (
+                      <Fragment key={e.id}>
+                      <tr>
+                        {tools && <td>
+                          <input
+                            type="checkbox"
+                            checked={e.monitored}
+                            disabled={!canManage}
+                            onChange={(ev) => toggleEpisode(e.id, ev.target.checked)}
+                            aria-label={season === 0 ? t('Look for special {n}', { n: e.episode }) : t('Monitor episode {n}', { n: e.episode })}
+                          />
+                        </td>}
+                        <td>{e.episode}</td>
+                        <td>
+                          {e.title || <span style={{ color: 'var(--text-dim)' }}>{t('TBA')}</span>}
+                          {tools && e.status === 'downloaded' && <FileChips info={e.fileInfo} className="compact" />}
+                          {tools && e.status === 'downloaded' && <ShortFile compact note={e.shortFile} onRedo={admin ? () => void redoShortFile(e) : undefined} />}
+                        </td>
+                        <td style={{ color: 'var(--text-dim)' }}>{e.airDate || '—'}</td>
+                        <td>
+                          {e.status === 'missing' && unaired ? (
+                            <span className="badge">{t('unaired')}</span>
+                          ) : (
+                            <span className={`badge ${e.status}`}>{EP_STATUS[e.status] ?? e.status}</span>
+                          )}
+                        </td>
+                        {tools && <td>{qualityText(e.quality)}</td>}
+                        {tools && <td style={{ color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{e.sizeBytes ? formatBytes(e.sizeBytes) : '—'}</td>}
+                        <td>
+                          {e.status === 'downloaded' && (
+                            // play hook (home fork)
+                            <>
+                              <button onClick={() => playTitle('episode', e.id, `${series.title} S${String(season).padStart(2, '0')}E${String(e.episode).padStart(2, '0')}${e.title ? ' - ' + e.title : ''}`)}>{t('Play')}</button>{' '}
+                            </>
+                          )}
+                          {season > 0 && !unaired && e.status !== 'downloaded' && can(me, 'play') && (
+                            // stream hook (home fork)
+                            <>
+                              <StreamButton
+                                small
+                                target={{ kind: 'series', tmdbId: series.tmdbId, season, episode: e.episode, title: `${series.title} S${String(season).padStart(2, '0')}E${String(e.episode).padStart(2, '0')}` }}
+                                onKeep={() => keepEpisode(e.id, season, e.episode)}
+                              />{' '}
+                            </>
+                          )}
+                          {tools && canReleases && (
+                            <button
+                              disabled={unaired && e.status === 'missing'}
+                              onClick={() => runSearch({ season, episode: e.episode, label: season === 0 ? t('Special: {title}', { title: e.title || `S00E${String(e.episode).padStart(2, '0')}` }) : `S${String(season).padStart(2, '0')}E${String(e.episode).padStart(2, '0')}` })}
+                            >
+                              {t('Search')}
+                            </button>
+                          )}{' '}
+                          {tools && admin && e.status === 'downloaded' && e.filePath && (
+                            <>
+                              <button className="danger-ghost" onClick={() => void deleteFiles({ episode: e })} title={t('Delete this episode’s file and keep the show')}>
+                                {t('Delete file')}
+                              </button>{' '}
+                            </>
+                          )}
+                          {tools && admin && e.status !== 'downloading' && (
+                            <>
+                              <button className="btn-sm" onClick={() => setLinking(e)} title={t('Point this episode at a video file you choose')}>
+                                {t('Link a file')}
+                              </button>{' '}
+                            </>
+                          )}
+                          {tools && subtitlesOn && e.status === 'downloaded' && can(me, 'subtitles') && (
+                            <button onClick={() => setSubsOpen(subsOpen === e.id ? null : e.id)}>{t('Subtitles')}</button>
+                          )}
+                        </td>
+                      </tr>
+                      {subtitlesOn && subsOpen === e.id && (
+                        <tr>
+                          <td colSpan={tools ? 8 : 5}>
+                            <SubtitlesPanel kind="episode" id={e.id} />
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
+                    )
+                  })}
+
+                </tbody>
+              </table>}
+            </section>
+          )
+        })}
+    </div>
+  )
+
+  const dialogs = (
+    <>
+      {changingFolder && <LocateDialog kind="series" id={seriesId} start={series.folderPath} onClose={() => setChangingFolder(false)} onDone={load} />}
+      {linking && (
+        <LocateDialog
+          kind="episode"
+          id={linking.id}
+          label={linking.season === 0 ? t('Special {n}', { n: linking.episode }) : `S${String(linking.season).padStart(2, '0')}E${String(linking.episode).padStart(2, '0')}`}
+          start={series.folderPath}
+          onClose={() => setLinking(null)}
+          onDone={load}
+        />
+      )}
+    </>
+  )
+
   return (
-    <div>
+    <>
       {series.copyOf ? (
         <div className="notice notice-info" style={{ marginBottom: 16 }}>
           {t('This is a second copy of the show, kept in another quality in the copies folder. Its episodes are looked for on their own.')}{' '}
           <Link to={`/series/${series.copyOf}`}>{t('Open the main show')}</Link>
         </div>
       ) : null}
-      <TitleHero
-        info={{
-          ...(tv ?? {}),
-          kind: 'tv',
-          title: withNameTag(series.title, series.nameTag, series.year),
-          year: series.year,
-          posterUrl: series.posterUrl,
-          overview: series.overview,
-          certification: tv?.contentRating,
-          links: titleLinks('tv', series.tmdbId, tv?.imdbId, tv?.homepage),
-          facts: [
-            ...(creators.length ? [{ label: creators.length > 1 ? t('Creators') : t('Creator'), value: <PeopleLinks people={creators} /> }] : []),
-            // home fork: in words from TMDB too, so a canceled show says Canceled
-            ...(showStatusLabel(series.showStatus, tv?.releaseStatus) ? [{ label: t('Status'), value: showStatusLabel(series.showStatus, tv?.releaseStatus) ?? '' }] : []),
-            { label: t('Episodes'), value: t('{done} of {total} downloaded', { done: series.downloadedCount, total: series.episodeCount }) },
-            ...(diskBytes > 0 ? [{ label: t('Size on disk'), value: formatBytes(diskBytes) }] : []),
-            ...(nextText ? [{ label: t('Next episode'), value: nextText }] : []),
-            ...(tv?.networks?.length ? [{ label: t('Network'), value: tv.networks.join(', ') }] : []),
-          ],
-        }}
-        status={
-          <span className={`state-tag st-mon-${monitoring.kind === 'off' ? 'off' : 'on'}`} title={monitoring.detail}>
-            <Icon name={monitoring.kind === 'off' ? 'eye-off' : 'eye'} size={13} /> {monitoring.text}
-          </span>
-        }
-        actions={
-          <>
-            {canManage && (
-              <button className="primary btn-with-icon" onClick={() => searchNow()} disabled={searchingNow}>
-                <Icon name="search" size={16} /> {searchingNow ? t('Searching…') : t('Find missing episodes')}
-              </button>
-            )}
-            {canManage && <InfoTip text={t('Searches your indexers right now for the episodes that are still missing, even if the show is not monitored. To search one season or one episode, use the buttons further down.')} />}
-            {!viewer && (
-              <button className="btn-with-icon" onClick={refresh} disabled={refreshing}>
-                <Icon name="refresh" size={16} /> {refreshing ? t('Refreshing…') : t('Refresh episodes')}
-              </button>
-            )}
-            {!viewer && <InfoTip text={t('Fetches the episode list again, so new episodes, new seasons and changed air dates show up.')} />}
-            {admin && (
-              <button className="btn-with-icon" onClick={() => void rescan()} disabled={rescanning} title={t("Looks at the files on your disk again: a file that was deleted by hand makes its episode wanted again, a file that was renamed is found, and a video file you put in the show's folder goes on its episode.")}>
-                <Icon name="folder" size={16} /> {rescanning ? t('Checking…') : t('Rescan files')}
-              </button>
-            )}
-            {series.downloadedCount > 0 && <WatchLinks tmdbId={series.tmdbId} kind="tv" />}
-            <CatchUp tmdbId={series.tmdbId} /> {/* home fork */}
-            <WhatsItLike kind="tv" tmdbId={series.tmdbId} title={series.title} /> {/* home fork */}
-            <VoteButtons kind="tv" refId={series.tmdbId} meta={{ title: series.title, year: series.year, image: series.posterUrl }} /> {/* home fork */}
-            <StackButton item={{ kind: 'tv', tmdbId: series.tmdbId, title: series.title, year: series.year, posterUrl: series.posterUrl }} /> {/* Usherr */}
-            <SkipGuide tmdbId={series.tmdbId} title={series.title} /> {/* home fork */}
-            {admin && <ArtworkButton kind="tv" tmdbId={series.tmdbId} title={series.title} />} {/* Usherr */}
-            {admin && (
-              <button className="btn-with-icon danger-ghost" onClick={remove}>
-                <Icon name="trash" size={16} /> {t('Remove')}
-              </button>
-            )}
-          </>
-        }
-      >
-        <div className="title-controls">
-          <Switch checked={series.monitored} onChange={toggleSeries} disabled={!canManage} label={<span className="has-tip">{t('Monitored')}<InfoTip text={t('Mediarium keeps searching for the episodes of this show that are monitored and missing. Switch it off to leave the show alone; files you already have stay where they are.')} /></span>} description={[series.monitored ? t('Keeps looking for missing episodes.') : t('Not looking for missing episodes. Files you already have stay where they are.'), monitoring.detail].filter(Boolean).join(' ')} />
-          <ProfilePicker kind="series" itemId={seriesId} onMoved={load}>
-            <TitleTags kind="tv" id={seriesId} />
-          </ProfilePicker>
-          {canManage && <MonitorModePicker id={seriesId} onDone={load} />}
-          {canManage && <SeriesTypePicker id={seriesId} value={series.seriesType ?? 'standard'} onChange={(type) => setSeries((cur) => (cur ? { ...cur, seriesType: type } : cur))} />}
-        </div>
-        {admin && series.folderPath && (
-          <FolderLine path={series.folderPath} kind="series">
-            <button type="button" className="btn-sm btn-with-icon" onClick={() => setChangingFolder(true)}>
-              <Icon name="folder" size={14} /> {t('Change folder')}
-            </button>
-          </FolderLine>
-        )}
-        {changingFolder && <LocateDialog kind="series" id={seriesId} start={series.folderPath} onClose={() => setChangingFolder(false)} onDone={load} />}
-        {linking && (
-          <LocateDialog
-            kind="episode"
-            id={linking.id}
-            label={linking.season === 0 ? t('Special {n}', { n: linking.episode }) : `S${String(linking.season).padStart(2, '0')}E${String(linking.episode).padStart(2, '0')}`}
-            start={series.folderPath}
-            onClose={() => setLinking(null)}
-            onDone={load}
-          />
-        )}
-        <WatchedLine kind="tv" id={seriesId} />
-        <ScoresLine kind="tv" tmdbId={series.tmdbId} /> {/* home fork */}
-        <StreamingOn kind="tv" tmdbId={series.tmdbId} /> {/* home fork */}
-        <CommunityReviews kind="tv" tmdbId={series.tmdbId} /> {/* Usherr: Community */}
-      </TitleHero>
-
-      {error && <p className="error-text">{error}</p>}
-      {message && <p className="badge downloaded">{message}</p>}
-
-      {target && (
-        <section ref={releasesRef} className="card" style={{ marginBottom: 24, scrollMarginTop: 80 }}>
-          <h2>{t('Releases for {target}', { target: target.label })}</h2>
-          {searching && <p>{t('Looking for releases…')}</p>}
-          {results !== null && <ReleaseNotice sources={answered.sources} unanswered={answered.unanswered} warnings={answered.warnings} searched={answered.searched} results={results.length} />}
-          {!searching && (results === null || results.length === 0) && (
-            <button className="btn-sm" onClick={() => setTarget(null)}>
-              {t('Close')}
-            </button>
-          )}
-          {blocked && (
-            <GrabBlocked
-              message={blocked.message}
-              blocking={blocked.blocking}
-              busy={grabbing !== null}
-              onReplace={() => void grab(blocked.release, blocked.blocking.id, blocked.replace)}
-              onDismiss={() => setBlocked(null)}
-            />
-          )}
-          {results !== null && results.length > 0 && (
-            <ReleaseTable results={results} searched={answered.searched} grabbing={grabbing} onGrab={(r) => void grab(r)} showPackBadge onClose={() => setTarget(null)} onStream={can(me, 'play') ? streamFromList : undefined} streaming={streaming} />
-          )}
-        </section>
-      )}
-
-      {canManage && <NumberingCard id={seriesId} seriesType={series.seriesType ?? 'standard'} seasons={seasons.map(([s]) => s).filter((s) => s > 0)} monitored={series.monitored} onRescanned={load} />}
-
-      {seasons.length > 0 && (
-        <div className="season-bar">
-          <div className="chip-row" role="group" aria-label={t('Seasons')}>
-            {seasons.map(([season, eps]) => (
-              <button
-                key={season}
-                className={`chip${isOpen(season) ? ' active' : ''}`}
-                onClick={() => {
-                  setOpenSeasons((o) => ({ ...o, [season]: true }))
-                  requestAnimationFrame(() => document.getElementById(`season-${season}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-                }}
-              >
-                {season === 0 ? t('Specials') : t('Season {n}', { n: season })}
-                {eps.some(isMissing) && <span className="dot-missing" aria-label={t('has missing episodes')} />}
-              </button>
-            ))}
-          </div>
-          <div className="season-bar-actions">
-            <label className="inline-field">
-              <input type="checkbox" checked={missingOnly} onChange={(e) => setMissingOnly(e.target.checked)} />
-              {t('Missing episodes only')}
-              <InfoTip text={t('Shows only the episodes that have aired and are not downloaded yet.')} />
-            </label>
-            <label className="inline-field">
-              {t('Seasons on this page')}
-              <select value={seasonsMode} onChange={(e) => chooseSeasonsMode(e.target.value as SeasonsOpen)} aria-label={t('Seasons on this page')}>
-                <option value="collapsed">{t('Collapsed')}</option>
-                <option value="latest">{t('Latest season open')}</option>
-                <option value="all">{t('All open')}</option>
-              </select>
-              <InfoTip text={t('Which seasons are open when you visit a show. Open all and Close all change the page right now. Your choice is kept in this browser.')} />
-            </label>
-            <button className="btn-sm" onClick={() => setOpenSeasons(Object.fromEntries(seasons.map(([s]) => [s, true])))}>
-              {t('Open all')}
-            </button>
-            <button className="btn-sm" onClick={() => setOpenSeasons(Object.fromEntries(seasons.map(([s]) => [s, false])))}>
-              {t('Close all')}
-            </button>
-          </div>
-        </div>
-      )}
-      {missingOnly && shownSeasons.length === 0 && <p style={{ color: 'var(--text-dim)' }}>{t('No episodes that have aired are missing.')}</p>}
-
-      {shownSeasons.map(([season, allEps]) => {
-        const eps = missingOnly ? allEps.filter(isMissing) : allEps
-        const done = allEps.filter((e) => e.status === 'downloaded').length
-        const open = missingOnly || isOpen(season)
-        // home fork: the season's size on disk (a two-episode file counted once)
-        const seasonBytes = [...new Map(allEps.filter((e) => e.filePath && e.sizeBytes).map((e) => [e.filePath, e.sizeBytes ?? 0])).values()].reduce((a, b) => a + b, 0)
-        return (
-          <section key={season} id={`season-${season}`} style={{ marginBottom: open ? 28 : 12, scrollMarginTop: 80 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <button className="season-toggle" aria-expanded={open} onClick={() => setOpenSeasons((o) => ({ ...o, [season]: !open }))}>
-                <Icon name={open ? 'chevron-down' : 'chevron-right'} size={18} />
-                <h2 style={{ margin: 0 }}>{season === 0 ? t('Specials') : t('Season {n}', { n: season })}</h2>
-              </button>
-              <span className={`badge ${done === allEps.length ? 'downloaded' : 'missing'}`}>
-                {done} / {allEps.length}
-              </span>
-              {seasonBytes > 0 && <span className="badge" title={t('Size on disk')}>{formatBytes(seasonBytes)}</span>} {/* home fork: a two-episode file counts once */}
-              {season === 0 ? (
-                <span className="hint">{t("Specials aren't looked for until you tick them. Each one is searched on its own, by S00E number and by its title.")}</span>
-              ) : (
-                <>
-                  {canReleases && <button onClick={() => runSearch({ season, label: t('Season {n} (packs)', { n: season }) })}>{t('Search season')}</button>}
-                  {canReleases && <InfoTip text={t('Lists the releases found for this whole season, season packs included, so you can pick one yourself.')} />}
-                  {canManage && allEps.some(isMissing) && (
-                    <button onClick={() => searchNow({ season })} disabled={searchingNow}>
-                      {t('Find missing')}
-                    </button>
-                  )}
-                  {canManage && allEps.some(isMissing) && <InfoTip text={t("Searches your indexers right now for this season's missing episodes and downloads what it finds. The rest of the show is left alone.")} />}
-                  {admin && allEps.some((e) => e.status === 'downloaded' && e.filePath) && (
-                    <button className="danger-ghost" onClick={() => void deleteFiles({ season })} title={t('Delete the files of this season and keep the show')}>
-                      {t('Delete files')}
-                    </button>
-                  )}
-                  <label style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: '0.85rem', color: 'var(--text-dim)' }}>
-                    <input
-                      type="checkbox"
-                      checked={allEps.every((e) => e.monitored)}
-                      disabled={!canManage}
-                      onChange={(e) => toggleSeason(season, e.target.checked)}
-                    />
-                    {t('Monitored')}
-                  </label>
-                </>
-              )}
-            </div>
-            {open && <table className="ep-table" style={{ marginTop: 8 }}>
-              <thead>
-                <tr>
-                  <th style={{ width: 32 }}>
-                    <span className="sr-only">{t('Monitored')}</span>
-                  </th>
-                  <th style={{ width: 48 }}>#</th>
-                  <th>{t('Title')}</th>
-                  <th>{t('Air date')}</th>
-                  <th>{t('Status')}</th>
-                  <th>{t('Quality')}</th>
-                  <th>{t('Size')}</th>
-                  <th>
-                    <span className="sr-only">{t('Actions')}</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {eps.map((e) => {
-                  const unaired = !e.airDate || e.airDate > today
-                  return (
-                    <Fragment key={e.id}>
-                    <tr>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={e.monitored}
-                          disabled={!canManage}
-                          onChange={(ev) => toggleEpisode(e.id, ev.target.checked)}
-                          aria-label={season === 0 ? t('Look for special {n}', { n: e.episode }) : t('Monitor episode {n}', { n: e.episode })}
-                        />
-                      </td>
-                      <td>{e.episode}</td>
-                      <td>
-                        {e.title || <span style={{ color: 'var(--text-dim)' }}>{t('TBA')}</span>}
-                        {e.status === 'downloaded' && <FileChips info={e.fileInfo} className="compact" />}
-                        {e.status === 'downloaded' && <ShortFile compact note={e.shortFile} onRedo={admin ? () => void redoShortFile(e) : undefined} />}
-                      </td>
-                      <td style={{ color: 'var(--text-dim)' }}>{e.airDate || '—'}</td>
-                      <td>
-                        {e.status === 'missing' && unaired ? (
-                          <span className="badge">{t('unaired')}</span>
-                        ) : (
-                          <span className={`badge ${e.status}`}>{EP_STATUS[e.status] ?? e.status}</span>
-                        )}
-                      </td>
-                      <td>{qualityText(e.quality)}</td>
-                      <td style={{ color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{e.sizeBytes ? formatBytes(e.sizeBytes) : '—'}</td>
-                      <td>
-                        {e.status === 'downloaded' && (
-                          // play hook (home fork)
-                          <>
-                            <button onClick={() => playTitle('episode', e.id, `${series.title} S${String(season).padStart(2, '0')}E${String(e.episode).padStart(2, '0')}${e.title ? ' - ' + e.title : ''}`)}>{t('Play')}</button>{' '}
-                          </>
-                        )}
-                        {season > 0 && !unaired && e.status !== 'downloaded' && can(me, 'play') && (
-                          // stream hook (home fork)
-                          <>
-                            <StreamButton
-                              small
-                              target={{ kind: 'series', tmdbId: series.tmdbId, season, episode: e.episode, title: `${series.title} S${String(season).padStart(2, '0')}E${String(e.episode).padStart(2, '0')}` }}
-                              onKeep={() => keepEpisode(e.id, season, e.episode)}
-                            />{' '}
-                          </>
-                        )}
-                        {canReleases && (
-                          <button
-                            disabled={unaired && e.status === 'missing'}
-                            onClick={() => runSearch({ season, episode: e.episode, label: season === 0 ? t('Special: {title}', { title: e.title || `S00E${String(e.episode).padStart(2, '0')}` }) : `S${String(season).padStart(2, '0')}E${String(e.episode).padStart(2, '0')}` })}
-                          >
-                            {t('Search')}
-                          </button>
-                        )}{' '}
-                        {admin && e.status === 'downloaded' && e.filePath && (
-                          <>
-                            <button className="danger-ghost" onClick={() => void deleteFiles({ episode: e })} title={t('Delete this episode’s file and keep the show')}>
-                              {t('Delete file')}
-                            </button>{' '}
-                          </>
-                        )}
-                        {admin && e.status !== 'downloading' && (
-                          <>
-                            <button className="btn-sm" onClick={() => setLinking(e)} title={t('Point this episode at a video file you choose')}>
-                              {t('Link a file')}
-                            </button>{' '}
-                          </>
-                        )}
-                        {subtitlesOn && e.status === 'downloaded' && can(me, 'subtitles') && (
-                          <button onClick={() => setSubsOpen(subsOpen === e.id ? null : e.id)}>{t('Subtitles')}</button>
-                        )}
-                      </td>
-                    </tr>
-                    {subtitlesOn && subsOpen === e.id && (
-                      <tr>
-                        <td colSpan={8}>
-                          <SubtitlesPanel kind="episode" id={e.id} />
-                        </td>
-                      </tr>
-                    )}
-                    </Fragment>
-                  )
-                })}
-
-              </tbody>
-            </table>}
-          </section>
-        )
-      })}
-
-      <CastCard cast={tv?.cast ?? []} />
-
-      {!series.copyOf && <TitleRequestActions kind="tv" tmdbId={series.tmdbId} libraryId={series.id} title={series.title} />}
-      {!series.copyOf && <CopiesCard kind="series" id={series.id} admin={admin} />}
-
-      <details className="card files-card" style={{ marginBottom: 24 }}>
-        <summary>
-          <h2 style={{ margin: 0, display: 'inline' }}>{t('What happened')}</h2>
-        </summary>
-        <div style={{ marginTop: 14 }}>
-          <TitleEvents kind="series" id={series.id} />
-        </div>
-      </details>
-
-      {series.downloadedCount > 0 && (
-        <details className="card files-card" style={{ marginBottom: 24 }}>
-          <summary>
-            <h2 style={{ margin: 0, display: 'inline' }}>{t('Files on disk')}</h2>
-          </summary>
-          <div style={{ marginTop: 14 }}>
-            <FilesPanel kind="series" id={series.id} />
-          </div>
-        </details>
-      )}
-
-      {series.downloadedCount > 0 && !subtitlesOn && <SubtitlesOffNote />}
-    </div>
+      <TitleLayout
+        layout={layout}
+        show={show}
+        hero={<TitleHero info={info} status={status} actions={everyday} layout={layout} fullPlot={show.fullPlot} />}
+        facts={<TitleFacts info={info} />}
+        scores={show.scores && <ScoresLine kind="tv" tmdbId={series.tmdbId} />}
+        where={show.streaming && <StreamingOn kind="tv" tmdbId={series.tmdbId} />}
+        you={show.you && <WatchedLine kind="tv" id={seriesId} />}
+        requests={!series.copyOf && <TitleRequestActions kind="tv" tmdbId={series.tmdbId} libraryId={series.id} title={series.title} />}
+        reviews={show.reviews && <CommunityReviews kind="tv" tmdbId={series.tmdbId} />}
+        cast={show.cast && (tv?.cast ?? []).length > 0 && <CastCard cast={tv?.cast ?? []} />}
+        more={show.similar && similar.length > 0 && <SimilarShows shows={similar} />}
+        episodes={episodes}
+        manage={manage}
+        manageSummary={manageSummary}
+        manageOpen={manageOpen}
+        setManageOpen={setManageOpen}
+        dialogs={dialogs}
+        label={t('About this show')}
+      />
+    </>
   )
 }

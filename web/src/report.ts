@@ -34,14 +34,12 @@ export function draftProblem(d: Pick<ReportDraft, 'title' | 'message'>): '' | 't
   return ''
 }
 
-// Put in the Support report box instead of the report itself.
-export const SUPPORT_NOTE = 'Paste the support report here. Usherr copied it for you.' // Usherr
-
 // A link that opens a new GitHub issue with the form already filled in. The
 // support report never goes in the link: a link stays in the browser history
 // and in the logs of every proxy on the way, even when the issue is never
-// sent. The dialog copies the report instead, and the link only leaves a note
-// in its box.
+// sent. The dialog copies the report instead, and the box is left empty for
+// it: a note put there was sent as it was, and GitHub's own help above the
+// box says to paste (.github/ISSUE_TEMPLATE/bug_report.yml).
 export function githubIssueURL(d: ReportDraft): { url: string } {
   const params = new URLSearchParams()
   const title = d.title.trim()
@@ -55,7 +53,6 @@ export function githubIssueURL(d: ReportDraft): { url: string } {
     params.set('title', title)
     if (d.version) params.set('version', d.version)
     params.set('what-happened', message)
-    if ((d.report ?? '').trim()) params.set('support', SUPPORT_NOTE)
   }
   const url = `${ISSUES}?${params.toString()}`
   return { url: url.length > GITHUB_URL_MAX ? shorten(d) : url }

@@ -6,13 +6,13 @@ body:
     attributes:
       value: |
         Thanks for taking the time to report a problem. The more of this you fill in, the quicker it can be fixed.
-        **Security problem?** Don't open an issue. Report it privately as described in [SECURITY.md](https://github.com/rdborg/Mediarium/blob/main/.github/SECURITY.md).
+        **Security problem?** Don't open an issue. Report it privately as described in [SECURITY.md](https://github.com/TryToTilt/Usherr/blob/main/.github/SECURITY.md).
 
   - type: input
     id: version
     attributes:
-      label: Mediarium version
-      description: Shown in Mediarium under **Settings > System > About and credits**.
+      label: Usherr version
+      description: Shown in Usherr under **Settings > About and credits**. Usherr's **Report a problem** window fills it in for you.
       placeholder: "2.1.0"
     validations:
       required: true
@@ -67,8 +67,9 @@ body:
     attributes:
       label: Support report
       description: |
-        In Mediarium go to **Settings > System > Server and backup**, find **Help and support**, press **Copy for support** and paste the text here. It has your version, how the database is doing, the setup warnings, the latest problems from **Logs and errors** and the last 500 lines of the log. Passwords, keys and tokens are left out.
-        If the pages do not open, leave this empty and fill in the Log box below instead.
+        **Came from Usherr's Report a problem window?** It already copied the report for you: click in this box and paste (Ctrl+V, or Cmd+V on a Mac). If nothing appears, go back to Usherr and press **Copy the support report**.
+        Otherwise, in Usherr go to **Settings > Logs and errors**, press **Copy for support** and paste the text here. It has your version, how the database is doing, the setup warnings, the latest problems and the last 500 lines of the log. Passwords, keys and tokens are left out.
+        If Usherr's pages do not open, leave this empty and fill in the Log box below instead.
       render: text
 
   - type: textarea

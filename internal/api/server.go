@@ -767,6 +767,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("GET /api/tmdb/movies/{tmdbId}", s.handleTMDBMovieDetail)
 	member.HandleFunc("GET /api/tmdb/movies/{tmdbId}/similar", s.handleTMDBSimilarMovies)
 	member.HandleFunc("GET /api/tmdb/tv/{tmdbId}", s.handleTMDBTVDetail)
+	member.HandleFunc("GET /api/tmdb/tv/{tmdbId}/similar", s.handleTMDBSimilarShows) // Usherr: More like this on a show's page
 	member.HandleFunc("GET /api/tmdb/people/{personId}", s.handleTMDBPerson)
 	releases.HandleFunc("GET /api/search", s.handleSearch)
 	releases.HandleFunc("POST /api/search/grab", s.handleSearchGrab)

@@ -52,11 +52,6 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.person-filter {
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  max-width: 100%;
-}
 .person-empty {
   color: var(--text-dim);
 }
@@ -71,3 +66,12 @@
     width: 140px;
   }
 }
+
+/* Usherr: finding, narrowing and sorting a filmography: a compact row, not a full-width bar. */
+.person-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 22px; }
+.person-tools select { width: auto; max-width: 100%; }
+/* The input keeps the app's own box (each look draws it its own way); the magnifier sits inside it. */
+.person-find { position: relative; display: inline-flex; align-items: center; color: var(--text-dim); }
+.person-find > svg { position: absolute; left: 11px; pointer-events: none; z-index: 1; }
+.person-tools .person-find input { width: 15em; max-width: 60vw; padding-left: 32px; margin: 0; }
+.person-count { color: var(--text-dim); font-size: 0.9rem; }

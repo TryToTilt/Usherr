@@ -30,7 +30,9 @@ import { redoAnswerText } from '../shortFile'
 import SubtitlesOffNote from '../components/SubtitlesOffNote'
 import SubtitlesPanel from '../components/SubtitlesPanel'
 import Switch from '../components/Switch'
-import TitleHero from '../components/TitleHero'
+import TitleHero, { TitleFacts } from '../components/TitleHero'
+import { useFilmPage } from '../home/filmLayout' // Usherr: the film page's layouts
+import TitleLayout from '../home/TitleLayout' // Usherr: Cinema, Side by side, Streaming
 import { CastCard, PeopleLinks, titleLinks } from '../components/TitlePreview'
 import { crewWith } from '../people'
 import WatchLinks from '../components/WatchLinks'
@@ -63,6 +65,7 @@ import { plural, t } from '../i18n'
 // library" (the dialog picks quality and where to download, and can start the
 // search). In your library: "Find and download now" does the automatic search,
 // and "Choose a release" is the manual version for when you want to pick.
+
 export default function MovieDetail() {
   // Another movie (from "Similar movies") starts clean, so nothing of the last one stays on the page.
   return <MoviePage key={useParams<{ tmdbId: string }>().tmdbId} />
@@ -82,6 +85,10 @@ function MoviePage() {
 
   const [movie, setMovie] = useState<MovieDetailData | null>(null)
   useDocumentTitle(movie?.title)
+  // Usherr: the layout this browser chose (Settings, General), and the Manage
+  // section (a tab, a fold or a panel, by layout).
+  const { resolved: layout, show } = useFilmPage()
+  const [manageOpen, setManageOpen] = useState(false)
   const [similar, setSimilar] = useState<DiscoverMovie[]>([])
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(false)
@@ -235,6 +242,7 @@ function MoviePage() {
 
   async function chooseRelease() {
     if (!libraryId) return
+    setManageOpen(true) // the releases are listed under Manage
     setSearching(true)
     setResults(null)
     try {
@@ -335,156 +343,147 @@ function MoviePage() {
   const writers = crewWith(movie.crew, 'Writer')
   const stateKey = !inLibrary ? (streamedHere ? 'streams' : null) : movie.status === 'downloaded' ? 'downloaded' : movie.status === 'downloading' ? 'downloading' : monitored === false ? 'added' : 'searching'
   const state = stateKey ? describeState(stateKey) : null
+  const canPlayIt = movie.status === 'downloaded' && !!movie.libraryId && can(me, 'play')
+  const play = canPlayIt ? () => playTitle('movie', movie.libraryId!, movie.title) : undefined /* play hook (home fork) */
 
-  return (
-    <div>
-      <TitleHero
-        onPlay={movie.status === 'downloaded' && movie.libraryId && can(me, 'play') ? () => playTitle('movie', movie.libraryId!, movie.title) : undefined} /* play hook (home fork) */
-        info={{
-          ...movie,
-          kind: 'movie',
-          facts: [
-            ...(directors.length ? [{ label: directors.length > 1 ? t('Directors') : t('Director'), value: <PeopleLinks people={directors} /> }] : []),
-            ...(writers.length ? [{ label: writers.length > 1 ? t('Writers') : t('Writer'), value: <PeopleLinks people={writers} /> }] : []),
-            ...releaseFacts(movie.releaseDates, movie.releaseDate),
-            ...(movie.releaseStatus ? [{ label: t('Status'), value: movie.releaseStatus }] : []),
-            ...(inLibrary && movie.filePath && diskBytes > 0 ? [{ label: t('Size on disk'), value: formatBytes(diskBytes) }] : []),
-          ],
-          links: titleLinks('movie', movie.tmdbId, movie.imdbId, movie.homepage),
-        }}
-        status={
-          state && (
-            <span className={`state-tag st-${state.key}`} title={state.hint}>
-              <Icon name={state.icon} size={13} /> {state.label}
-              {movie.quality ? ` · ${qualityText(movie.quality)}` : ''}
-            </span>
-          )
-        }
-        actions={
-          inLibrary ? (
-            <>
-              {can(me, 'manage') && (
-                <button className="primary btn-with-icon" onClick={searchNow} disabled={searchingNow || movie.status === 'downloading'}>
-                  <Icon name="search" size={16} /> {searchingNow ? t('Searching…') : movie.status === 'downloaded' ? t('Look for a better copy') : t('Find and download now')}
-                </button>
-              )}
-              {can(me, 'manage') && (
-                <InfoTip
-                  text={
-                    movie.status === 'downloaded'
-                      ? t('Searches your indexers right now for a better release than the file you have. It only looks when "Better versions" is on and the file is below the profile\'s cutoff.')
-                      : t('Searches your indexers right now and starts the best release for the quality profile, even if the movie is not monitored.')
-                  }
-                />
-              )}
-              {can(me, 'manage') && movie.status === 'downloaded' && movie.filePath && (
-                <button className="btn-with-icon" onClick={() => void replaceSmaller()} disabled={shrinking}>
-                  <Icon name="download" size={16} /> {shrinking ? t('Searching…') : t('Replace with a smaller version')}
-                </button>
-              )}
-              {can(me, 'manage') && movie.status === 'downloaded' && movie.filePath && (
-                <InfoTip text={t('For a movie you moved to a lower quality profile, 4K to 1080p say. Looks for a smaller release the profile accepts, downloads it, and only then removes the big file.')} />
-              )}
-              {can(me, 'releases') && (
-                <button className="btn-with-icon" data-walk="title-choose" onClick={chooseRelease} disabled={searching}>
-                  <Icon name="list" size={16} /> {searching ? t('Loading…') : t('Choose a release')}
-                </button>
-              )}
-              {can(me, 'releases') && <InfoTip text={t('Lists every release your indexers found for this movie, so you can pick one yourself instead of letting Mediarium choose.')} />}
-              {movie.status === 'downloaded' && movie.libraryId && can(me, 'play') && (
-                // play hook (home fork)
-                <button className="primary btn-with-icon" data-walk="title-play" onClick={() => playTitle('movie', movie.libraryId!, movie.title)}>
-                  <Icon name="play" size={16} /> {t('Play')}
-                </button>
-              )}
-              {movie.status !== 'downloaded' && can(me, 'play') && (
-                // stream hook (home fork)
-                <StreamButton target={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title }} onKeep={can(me, 'manage') ? () => void searchNow() : undefined} />
-              )}
-              {movie.status === 'downloaded' && <WatchLinks tmdbId={movie.tmdbId} kind="movie" />}
-              <WhatsItLike kind="movie" tmdbId={movie.tmdbId} title={movie.title} /> {/* home fork */}
-              <VoteButtons kind="movie" refId={movie.tmdbId} meta={{ title: movie.title, year: movie.year, image: movie.posterUrl }} /> {/* home fork */}
-              <StackButton item={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title, year: movie.year, posterUrl: movie.posterUrl }} /> {/* Usherr */}
-              <ShowtimeButton film={{ tmdbId: movie.tmdbId, title: movie.title, year: movie.year, posterUrl: movie.posterUrl }} /> {/* Usherr */}
-              {admin && <ArtworkButton kind="movie" tmdbId={movie.tmdbId} title={movie.title} />} {/* Usherr */}
-              {admin && ((movie.status === 'downloaded' && movie.filePath) || movie.status === 'missing') && (
-                <button className="btn-with-icon" onClick={() => void rescan()} disabled={rescanning} title={movie.filePath ? t('Looks at the file on your disk again: if it was deleted by hand the movie is wanted again, and a renamed file is found.') : t("Looks in the movie's folder for a video file you put there by hand and adds it to the movie.")}>
-                  <Icon name="folder" size={16} /> {rescanning ? t('Checking…') : t('Rescan files')}
-                </button>
-              )}
-              {admin && movie.status === 'downloaded' && movie.filePath && (
-                <button className="btn-with-icon danger-ghost" onClick={() => void deleteFile()} title={t('Delete the file and keep the movie')}>
-                  <Icon name="trash" size={16} /> {t('Delete file')}
-                </button>
-              )}
-              {admin && (
-                <button className="btn-with-icon danger-ghost" onClick={onRemove}>
-                  <Icon name="trash" size={16} /> {t('Remove')}
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              <button className="primary btn-with-icon big" data-walk="title-add" onClick={() => setAdding(true)}>
-                <Icon name="plus" size={18} /> {t('Add to library')}
-              </button>
-              {can(me, 'play') && (
-                // stream hook (home fork): watch it now, add it later if you like it
-                <StreamButton target={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title }} onKeep={() => setAdding(true)} />
-              )}
-              <WhatsItLike kind="movie" tmdbId={movie.tmdbId} title={movie.title} /> {/* home fork */}
-              <VoteButtons kind="movie" refId={movie.tmdbId} meta={{ title: movie.title, year: movie.year, image: movie.posterUrl }} /> {/* home fork */}
-              <StackButton item={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title, year: movie.year, posterUrl: movie.posterUrl }} /> {/* Usherr */}
-              <ShowtimeButton film={{ tmdbId: movie.tmdbId, title: movie.title, year: movie.year, posterUrl: movie.posterUrl }} /> {/* Usherr */}
-              {admin && <ArtworkButton kind="movie" tmdbId={movie.tmdbId} title={movie.title} />} {/* Usherr: a streamed film is in Jellyfin too */}
-            </>
-          )
-        }
-      >
-        {inLibrary && movie.status === 'missing' && movie.libraryId && <SearchStatus kind="movie" id={movie.libraryId} />}
-        {inLibrary && (
-          <div className="title-controls">
-            <Switch checked={monitored ?? true} onChange={toggleMonitored} disabled={!can(me, 'manage')} label={<span className="has-tip">{t('Monitored')}<InfoTip text={t('Mediarium keeps searching and downloads a release when one turns up. Switch it off to leave this movie alone; files you already have stay where they are.')} /></span>} description={monitored ?? true ? t('Keeps looking until it finds this movie.') : t('Not looking for this movie. Files you already have stay where they are.')} />
-            <ProfilePicker kind="movie" itemId={movie.libraryId!} onMoved={reload}>
-              {movie.libraryId && <TitleTags kind="movie" id={movie.libraryId} />}
-            </ProfilePicker>
-            {movie.filePath && <code className="filepath">{movie.filePath}</code>}
-          </div>
-        )}
-        {inLibrary && movie.status === 'downloaded' && <FileChips info={movie.fileInfo} />}
-        {inLibrary && movie.status === 'downloaded' && <ShortFile note={movie.shortFile} onRedo={admin ? () => void redoShortFile() : undefined} />}
-        {inLibrary && admin && movie.folderPath && (
-          <FolderLine path={movie.folderPath} kind="movie">
-            {movie.libraryId && (
-              <button type="button" className="btn-sm btn-with-icon" onClick={() => setLocating(true)}>
-                <Icon name="folder" size={14} /> {t('Locate the file')}
-              </button>
-            )}
-          </FolderLine>
-        )}
-        {locating && movie.libraryId && <LocateDialog kind="movie" id={movie.libraryId} start={movie.folderPath} onClose={() => setLocating(false)} onDone={reload} />}
-        {inLibrary && movie.libraryId && <WatchedLine kind="movie" id={movie.libraryId} />}
-        <ScoresLine kind="movie" tmdbId={movie.tmdbId} /> {/* home fork */}
-        <StreamingOn kind="movie" tmdbId={movie.tmdbId} /> {/* home fork */}
-        <InTheatersPanel tmdbId={movie.tmdbId} title={movie.title} year={movie.year} /> {/* Usherr */}
-        <CommunityReviews kind="movie" tmdbId={movie.tmdbId} /> {/* Usherr: Community */}
-      </TitleHero>
+  const heroInfo = {
+    ...movie,
+    kind: 'movie' as const,
+    facts: [
+      ...(directors.length ? [{ label: directors.length > 1 ? t('Directors') : t('Director'), value: <PeopleLinks people={directors} /> }] : []),
+      ...(writers.length ? [{ label: writers.length > 1 ? t('Writers') : t('Writer'), value: <PeopleLinks people={writers} /> }] : []),
+      ...releaseFacts(movie.releaseDates, movie.releaseDate),
+      ...(movie.releaseStatus ? [{ label: t('Status'), value: movie.releaseStatus }] : []),
+      ...(inLibrary && movie.filePath && diskBytes > 0 ? [{ label: t('Size on disk'), value: formatBytes(diskBytes) }] : []),
+    ],
+    links: titleLinks('movie', movie.tmdbId, movie.imdbId, movie.homepage),
+  }
+  const statusTag = state && (
+    <span className={`state-tag st-${state.key}`} title={state.hint}>
+      <Icon name={state.icon} size={13} /> {state.label}
+      {movie.quality ? ` · ${qualityText(movie.quality)}` : ''}
+    </span>
+  )
 
-      <CastCard cast={movie.cast ?? []} />
+  // Usherr: the film page's layouts (home/filmLayout.ts). The same pieces,
+  // arranged three ways: everyday actions up top, everything that manages
+  // the file and its downloads under Manage.
+  const hasManage = admin || (inLibrary && (can(me, 'manage') || can(me, 'releases')))
+  const filmItem = { tmdbId: movie.tmdbId, title: movie.title, year: movie.year, posterUrl: movie.posterUrl }
 
-      {adding && (
-        <AddDialog
-          target={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title, year: movie.year, posterUrl: movie.posterUrl, overview: movie.overview }}
-          onClose={() => setAdding(false)}
-          onAdded={() => {
-            setAdding(false)
-            reload()
-          }}
-        />
+  // The everyday actions: play, plan, keep, rate.
+  const everyday = (
+    <>
+      {inLibrary ? (
+        <>
+          {canPlayIt && (
+            <button className="primary btn-with-icon big" data-walk="title-play" onClick={play}>
+              <Icon name="play" size={18} /> {t('Play')}
+            </button>
+          )}
+          {movie.status !== 'downloaded' && can(me, 'play') && (
+            // stream hook (home fork)
+            <StreamButton target={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title }} onKeep={can(me, 'manage') ? () => void searchNow() : undefined} />
+          )}
+        </>
+      ) : (
+        <>
+          <button className="primary btn-with-icon big" data-walk="title-add" onClick={() => setAdding(true)}>
+            <Icon name="plus" size={18} /> {t('Add to library')}
+          </button>
+          {can(me, 'play') && (
+            // stream hook (home fork): watch it now, add it later if you like it
+            <StreamButton target={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title }} onKeep={() => setAdding(true)} />
+          )}
+        </>
       )}
+      <ShowtimeButton film={filmItem} /> {/* Usherr */}
+      <StackButton item={{ kind: 'movie', ...filmItem }} /> {/* Usherr */}
+      <VoteButtons kind="movie" refId={movie.tmdbId} meta={{ title: movie.title, year: movie.year, image: movie.posterUrl }} /> {/* home fork */}
+      <WhatsItLike kind="movie" tmdbId={movie.tmdbId} title={movie.title} /> {/* home fork */}
+      {hasManage && (
+        <button className={`btn-with-icon${manageOpen ? ' primary' : ''}`} data-walk="title-manage" aria-expanded={manageOpen} onClick={() => setManageOpen(!manageOpen)} title={t('Look for a better copy, choose a release, the quality profile, the file and its folder, delete or remove')}>
+          <Icon name="sliders" size={16} /> {t('Manage')}
+        </button>
+      )}
+      {movie.status === 'downloaded' && <WatchLinks tmdbId={movie.tmdbId} kind="movie" />}
+    </>
+  )
 
+  // Manage: the file, its downloads and the library's settings for it.
+  const manage = hasManage && (
+    <div className="fp-manage" data-walk="title-manage-panel">
+      <div className="title-actions">
+        {inLibrary && can(me, 'manage') && (
+          <>
+            <button className="btn-with-icon" onClick={searchNow} disabled={searchingNow || movie.status === 'downloading'}>
+              <Icon name="search" size={16} /> {searchingNow ? t('Searching…') : movie.status === 'downloaded' ? t('Look for a better copy') : t('Find and download now')}
+            </button>
+            <InfoTip
+              text={
+                movie.status === 'downloaded'
+                  ? t('Searches your indexers right now for a better release than the file you have. It only looks when "Better versions" is on and the file is below the profile\'s cutoff.')
+                  : t('Searches your indexers right now and starts the best release for the quality profile, even if the movie is not monitored.')
+              }
+            />
+          </>
+        )}
+        {inLibrary && can(me, 'manage') && movie.status === 'downloaded' && movie.filePath && (
+          <>
+            <button className="btn-with-icon" onClick={() => void replaceSmaller()} disabled={shrinking}>
+              <Icon name="download" size={16} /> {shrinking ? t('Searching…') : t('Replace with a smaller version')}
+            </button>
+            <InfoTip text={t('For a movie you moved to a lower quality profile, 4K to 1080p say. Looks for a smaller release the profile accepts, downloads it, and only then removes the big file.')} />
+          </>
+        )}
+        {inLibrary && can(me, 'releases') && (
+          <>
+            <button className="btn-with-icon" data-walk="title-choose" onClick={chooseRelease} disabled={searching}>
+              <Icon name="list" size={16} /> {searching ? t('Loading…') : t('Choose a release')}
+            </button>
+            <InfoTip text={t('Lists every release your indexers found for this movie, so you can pick one yourself instead of letting Mediarium choose.')} />
+          </>
+        )}
+        {admin && <ArtworkButton kind="movie" tmdbId={movie.tmdbId} title={movie.title} />} {/* Usherr */}
+        {inLibrary && admin && ((movie.status === 'downloaded' && movie.filePath) || movie.status === 'missing') && (
+          <button className="btn-with-icon" onClick={() => void rescan()} disabled={rescanning} title={movie.filePath ? t('Looks at the file on your disk again: if it was deleted by hand the movie is wanted again, and a renamed file is found.') : t("Looks in the movie's folder for a video file you put there by hand and adds it to the movie.")}>
+            <Icon name="folder" size={16} /> {rescanning ? t('Checking…') : t('Rescan files')}
+          </button>
+        )}
+        {inLibrary && admin && movie.status === 'downloaded' && movie.filePath && (
+          <button className="btn-with-icon danger-ghost" onClick={() => void deleteFile()} title={t('Delete the file and keep the movie')}>
+            <Icon name="trash" size={16} /> {t('Delete file')}
+          </button>
+        )}
+        {inLibrary && admin && (
+          <button className="btn-with-icon danger-ghost" onClick={onRemove}>
+            <Icon name="trash" size={16} /> {t('Remove')}
+          </button>
+        )}
+      </div>
+      {inLibrary && movie.status === 'missing' && movie.libraryId && <SearchStatus kind="movie" id={movie.libraryId} />}
+      {inLibrary && (
+        <div className="title-controls">
+          <Switch checked={monitored ?? true} onChange={toggleMonitored} disabled={!can(me, 'manage')} label={<span className="has-tip">{t('Monitored')}<InfoTip text={t('Mediarium keeps searching and downloads a release when one turns up. Switch it off to leave this movie alone; files you already have stay where they are.')} /></span>} description={monitored ?? true ? t('Keeps looking until it finds this movie.') : t('Not looking for this movie. Files you already have stay where they are.')} />
+          <ProfilePicker kind="movie" itemId={movie.libraryId!} onMoved={reload}>
+            {movie.libraryId && <TitleTags kind="movie" id={movie.libraryId} />}
+          </ProfilePicker>
+          {movie.filePath && <code className="filepath">{movie.filePath}</code>}
+        </div>
+      )}
+      {inLibrary && movie.status === 'downloaded' && <FileChips info={movie.fileInfo} />}
+      {inLibrary && movie.status === 'downloaded' && <ShortFile note={movie.shortFile} onRedo={admin ? () => void redoShortFile() : undefined} />}
+      {inLibrary && admin && movie.folderPath && (
+        <FolderLine path={movie.folderPath} kind="movie">
+          {movie.libraryId && (
+            <button type="button" className="btn-sm btn-with-icon" onClick={() => setLocating(true)}>
+              <Icon name="folder" size={14} /> {t('Locate the file')}
+            </button>
+          )}
+        </FolderLine>
+      )}
       {results !== null && (
-        <section ref={releasesRef} className="card" style={{ marginBottom: 24, scrollMarginTop: 80 }}>
+        <section ref={releasesRef} className="card" style={{ margin: '16px 0', scrollMarginTop: 80 }}>
           <h2>{t('Releases')}</h2>
           <ReleaseNotice sources={answered.sources} unanswered={answered.unanswered} warnings={answered.warnings} searched={answered.searched} ignoredSamples={answered.ignoredSamples} results={results.length} />
           {results.length === 0 && (
@@ -504,20 +503,16 @@ function MoviePage() {
           {results.length > 0 && <ReleaseTable results={results} searched={answered.searched} grabbing={grabbing} onGrab={(r) => void grab(r)} onStream={can(me, 'play') ? streamFromList : undefined} streaming={streaming} onClose={() => setResults(null)} />}
         </section>
       )}
-
-      {movie.libraryId && <TitleRequestActions kind="movie" tmdbId={movie.tmdbId} libraryId={movie.libraryId} title={movie.title} />}
       {movie.libraryId && <CopiesCard kind="movie" id={movie.libraryId} admin={admin} />}
-
       {movie.libraryId && (
-        <section className="card" data-walk="title-log" style={{ marginBottom: 24 }}>
+        <section className="card" data-walk="title-log" style={{ margin: '16px 0' }}>
           <h2>{t('What happened')}</h2>
           <TitleEvents kind="movie" id={movie.libraryId} />
         </section>
       )}
-
       {movie.libraryId && movie.status === 'downloaded' && (
         <>
-          <div className={subtitlesOn ? 'half-cols' : undefined} style={{ marginBottom: subtitlesOn ? 24 : 12 }}>
+          <div className={subtitlesOn ? 'half-cols' : undefined} style={{ marginBottom: subtitlesOn ? 16 : 8 }}>
             <section className="card">
               <h2>{t('Files')}</h2>
               <FilesPanel kind="movie" id={movie.libraryId} />
@@ -532,13 +527,31 @@ function MoviePage() {
           {!subtitlesOn && <SubtitlesOffNote />}
         </>
       )}
+    </div>
+  )
+  const manageSummary = [inLibrary ? describeState(stateKey ?? 'added').label : t('Not in your library'), movie.quality ? qualityText(movie.quality) : '', diskBytes > 0 ? formatBytes(diskBytes) : '', inLibrary ? (monitored === false ? t('Not monitored') : t('Monitored')) : '']
+    .filter(Boolean)
+    .join(' · ')
 
+  // About the film: its facts and where it's playing.
+  const scores = show.scores && <ScoresLine kind="movie" tmdbId={movie.tmdbId} />
+  const where = show.streaming && (
+    <>
+      <StreamingOn kind="movie" tmdbId={movie.tmdbId} /> {/* home fork */}
+      <InTheatersPanel tmdbId={movie.tmdbId} title={movie.title} year={movie.year} /> {/* Usherr */}
+    </>
+  )
+  const you = show.you && inLibrary && movie.libraryId && <WatchedLine kind="movie" id={movie.libraryId} />
+  const requests = movie.libraryId && <TitleRequestActions kind="movie" tmdbId={movie.tmdbId} libraryId={movie.libraryId} title={movie.title} />
+  const reviews = show.reviews && <CommunityReviews kind="movie" tmdbId={movie.tmdbId} />
+  const cast = show.cast && (movie.cast ?? []).length > 0 && <CastCard cast={movie.cast ?? []} />
+  const more = show.similar && (movie.collection || similar.length > 0) && (
+    <>
       {movie.collection && <CollectionCard collection={movie.collection} admin={admin} onChanged={reload} />}
-
       {similar.length > 0 && (
         <section>
           <div className="rail-head">
-            <h2>{t('Similar movies')}</h2>
+            <h2>{t('More like this')}</h2>
           </div>
           <div className="poster-grid">
             {similar.map((m) => (
@@ -547,6 +560,44 @@ function MoviePage() {
           </div>
         </section>
       )}
-    </div>
+    </>
+  )
+  const dialogs = (
+    <>
+      {locating && movie.libraryId && <LocateDialog kind="movie" id={movie.libraryId} start={movie.folderPath} onClose={() => setLocating(false)} onDone={reload} />}
+      {adding && (
+        <AddDialog
+          target={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title, year: movie.year, posterUrl: movie.posterUrl, overview: movie.overview }}
+          onClose={() => setAdding(false)}
+          onAdded={() => {
+            setAdding(false)
+            reload()
+          }}
+        />
+      )}
+    </>
+  )
+  const hero = <TitleHero onPlay={play} info={heroInfo} status={statusTag} actions={everyday} layout={layout} fullPlot={show.fullPlot} />
+
+  return (
+    <TitleLayout
+      layout={layout}
+      show={show}
+      hero={hero}
+      facts={<TitleFacts info={heroInfo} />}
+      scores={scores}
+      where={where}
+      you={you}
+      requests={requests}
+      reviews={reviews}
+      cast={cast}
+      more={more}
+      manage={manage}
+      manageSummary={manageSummary}
+      manageOpen={manageOpen}
+      setManageOpen={setManageOpen}
+      dialogs={dialogs}
+      label={t('About this film')}
+    />
   )
 }

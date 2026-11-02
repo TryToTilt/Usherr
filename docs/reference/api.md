@@ -1224,6 +1224,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/tmdb/people/{personId}` | any account | gives a person's page in one answer: who they are and every movie and show they are credited on, most popular first. |
 | GET | `/api/tmdb/search` | any account | is a plain TMDB title search for either kind, used by the import review to fix a wrong or missing automatic match. |
 | GET | `/api/tmdb/tv/{tmdbId}` | any account | gives everything the TV page shows from a TMDB id alone, plus library membership if the show has been added. |
+| GET | `/api/tmdb/tv/{tmdbId}/similar` | any account | is handleTMDBSimilarMovies for shows: More like this on a show's page (Usherr). |
 
 ## trash
 
@@ -1387,4 +1388,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-977 routes.
+978 routes.

@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the idea! Check [FEATURES.md](https://github.com/rdborg/Mediarium/blob/main/docs/FEATURES.md) first, it lists what Mediarium does today and what is planned.
+        Thanks for the idea! Check [FEATURES.md](https://github.com/TryToTilt/Usherr/blob/main/docs/FEATURES.md) first, it lists what Usherr does today.
 
   - type: textarea
     id: problem
@@ -18,7 +18,7 @@ body:
   - type: textarea
     id: idea
     attributes:
-      label: How could Mediarium help?
+      label: How could Usherr help?
       description: Your idea for how it could work. Screenshots from other apps are welcome.
 
   - type: textarea

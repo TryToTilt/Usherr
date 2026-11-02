@@ -69,3 +69,83 @@ export function ageOf(birthday: string | undefined, deathday: string | undefined
   if (em < Number(b[2]) || (em === Number(b[2]) && ed < Number(b[3]))) age--
   return age >= 0 && age < 130 ? age : undefined
 }
+
+// Usherr: sorting and narrowing a filmography (a person's page). The list
+// comes most popular first from the server, so 'popular' keeps that order.
+export type CreditSort = 'popular' | 'newest' | 'oldest' | 'rated' | 'az'
+export type CreditHave = 'all' | 'have' | 'missing'
+
+export interface CreditView {
+  sort: CreditSort
+  genre: string // '' for every genre
+  query: string // part of a title
+  have: CreditHave
+}
+
+interface Arrangeable {
+  tmdbId: number
+  title: string
+  year?: number
+  releaseDate?: string
+  genres?: string[]
+  rating?: number
+  voteCount?: number
+}
+
+// A rating from a handful of votes says little: it sorts after the rest.
+const FEW_VOTES = 25
+
+function when(c: Arrangeable): string {
+  return c.releaseDate || (c.year ? `${c.year}` : '')
+}
+
+// Lower case and without accents, so "pokemon" finds "Pokémon".
+function plain(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+export function arrangeCredits<T extends Arrangeable>(items: T[], v: CreditView, owned: (id: number) => boolean): T[] {
+  const q = plain(v.query.trim())
+  const out = items.filter(
+    (c) => (!v.genre || (c.genres ?? []).includes(v.genre)) && (!q || plain(c.title).includes(q)) && (v.have === 'all' || owned(c.tmdbId) === (v.have === 'have')),
+  )
+  switch (v.sort) {
+    case 'newest':
+    case 'oldest': {
+      // Undated titles (announced, not yet dated) go last either way.
+      const dir = v.sort === 'newest' ? -1 : 1
+      return out.sort((a, b) => {
+        const x = when(a)
+        const y = when(b)
+        if (!x || !y) return x ? -1 : y ? 1 : 0
+        return x < y ? -dir : x > y ? dir : 0
+      })
+    }
+    case 'rated':
+      return out.sort((a, b) => {
+        const fa = (a.voteCount ?? 0) < FEW_VOTES
+        const fb = (b.voteCount ?? 0) < FEW_VOTES
+        if (fa !== fb) return fa ? 1 : -1
+        return (b.rating ?? 0) - (a.rating ?? 0)
+      })
+    case 'az':
+      return out.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base', numeric: true }))
+    default:
+      return out
+  }
+}
+
+// The genres across a filmography, the most common first, for the Genre menu.
+export function creditGenres(items: { genres?: string[] }[]): string[] {
+  const count = new Map<string, number>()
+  for (const c of items) for (const g of c.genres ?? []) count.set(g, (count.get(g) ?? 0) + 1)
+  return [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([g]) => g)
+}
+
+export function creditSortFrom(v: string | null): CreditSort {
+  return v === 'newest' || v === 'oldest' || v === 'rated' || v === 'az' ? v : 'popular'
+}
+
+export function creditHaveFrom(v: string | null): CreditHave {
+  return v === 'have' || v === 'missing' ? v : 'all'
+}

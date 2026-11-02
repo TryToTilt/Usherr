@@ -11,6 +11,8 @@ import { useMusicPlayer } from './MusicPlayer'
 import { MEDIA_SERVER_BRAND, MediaServerMark } from './mediaServerBrand'
 import { withBase } from '../base'
 import './InfoTip.css'
+import SupportDialog from '../home/SupportDialog' // Usherr: a word before the Ko-fi page
+import { UPSTREAM } from '../brand' // Usherr
 
 type Tip = { text: string; x: number; y: number; below?: boolean }
 
@@ -193,6 +195,7 @@ export default function SideTools({ ebooksOn, audiobooksOn, musicOn, homes, apps
   const navigate = useNavigate()
   const [tip, setTip] = useState<Tip | null>(null)
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
+  const [supporting, setSupporting] = useState(false)
   const top = variant === 'top'
   const anyPlayer = ebooksOn || audiobooksOn || musicOn || homes.length > 0 || apps.length > 0
   const showTip = (text: string, el: HTMLElement) => {
@@ -229,14 +232,15 @@ export default function SideTools({ ebooksOn, audiobooksOn, musicOn, homes, apps
       <Tool label={t('Report a problem or share an idea')} onClick={() => openReport()} className="report" {...props}>
         <Icon name="bug" size={16} />
       </Tool>
-      <Tool label={t('Star Mediarium on GitHub')} href={REPO_URL} className="github" {...props}>
+      <Tool label={t('Star Usherr on GitHub')} href={REPO_URL} className="github" {...props}>
         <Icon name="github" size={16} />
       </Tool>
       {showSupport && (
-        <Tool label={t('Support Mediarium')} href="https://ko-fi.com/ryanborg" className="support" {...props}>
+        <Tool label={t('Support {upstream}', { upstream: UPSTREAM })} onClick={() => setSupporting(true)} className="support" {...props}>
           <Icon name="heart" size={16} />
         </Tool>
       )}
+      {supporting && <SupportDialog onClose={() => setSupporting(false)} />}
       {children}
       {tip &&
         !menuAt &&

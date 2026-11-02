@@ -5,7 +5,7 @@ import { completeCollection } from './collection'
 import { communityBot, joinWatchParty, linkDiscord, partyChat, reviewInDiscord, ticketStubs } from './community'
 import { comicArcs, comicReview, comicWeek, readComic, setupComics } from './comics'
 import { askAi, completeLibrary, discover, followPerson, getShow, upcoming } from './discover'
-import { diary, familyMember, phone, roulette, stack, streamOrKeep, tonight, vote } from './everyday'
+import { diary, familyMember, filmLayout, phone, roulette, stack, streamOrKeep, tonight, vote } from './everyday'
 import { betterCopy, importLibrary, moveTitle, restylePosters, subtitles, tags, whyFailed } from './library'
 import { getBook, importMusic, listenAudiobook, makePlaylist, playMusic, readEbook } from './listen'
 import { addArtist, connectJellyfin, downloadClients, importLists, naming } from './more'
@@ -29,6 +29,7 @@ export const WALKS: Walkthrough[] = [
   vote,
   stack,
   diary,
+  filmLayout,
   bookShowtime,
   setUpPreshow,
   communityBot,

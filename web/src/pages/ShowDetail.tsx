@@ -10,10 +10,13 @@ import { ScoresLine } from '../home/scores' // home fork
 import { useNavigate, useParams } from 'react-router-dom'
 import AddDialog from '../components/AddDialog'
 import Icon from '../components/Icon'
-import TitleHero from '../components/TitleHero'
+import TitleHero, { TitleFacts } from '../components/TitleHero'
+import { useFilmPage } from '../home/filmLayout' // Usherr: the title page's layouts
+import TitleLayout from '../home/TitleLayout' // Usherr
+import SimilarShows from '../home/SimilarShows' // Usherr
 import { CastCard, PeopleLinks, SeasonsCard, titleLinks } from '../components/TitlePreview'
 import { crewWith } from '../people'
-import { api, isAdmin, type TVDetail } from '../api'
+import { api, isAdmin, type DiscoverMovie, type TVDetail } from '../api'
 import { useAuth } from '../AuthContext'
 import ArtworkButton from '../home/ArtworkButton' // Usherr: Re-Posterr
 import { useDocumentTitle } from '../documentTitle'
@@ -32,6 +35,13 @@ export default function ShowDetail() {
   const id = Number(tmdbId)
   const admin = isAdmin(useAuth().user) // Usherr: Re-Posterr
   const [show, setShow] = useState<TVDetail | null>(null)
+  // Usherr: the layout this browser chose (Settings, General), and Manage.
+  const { resolved: layout, show: shows } = useFilmPage()
+  const [manageOpen, setManageOpen] = useState(false)
+  const [similar, setSimilar] = useState<DiscoverMovie[]>([])
+  useEffect(() => {
+    api.tmdbSimilarShows(id).then(setSimilar).catch(() => undefined)
+  }, [id])
   useDocumentTitle(show?.title)
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(false)
@@ -66,52 +76,77 @@ export default function ShowDetail() {
     show.releaseStatus ? { label: t('Status'), value: showStatusLabel(undefined, show.releaseStatus) ?? show.releaseStatus } : null, // home fork: in words
   ].filter(Boolean) as { label: string; value: ReactNode }[]
 
-  return (
-    <div>
-      <TitleHero
-        info={{ ...show, kind: 'tv', certification: show.contentRating ?? show.certification, facts, links: titleLinks('tv', show.tmdbId, show.imdbId, show.homepage) }}
-        actions={
-          <>
-            {streamedHere && (
-              <span className="state-tag st-streams" title={describeState('streams').hint}>
-                <Icon name="play" size={13} /> {describeState('streams').label}
-              </span>
-            )}
-            {streamedHere && (
-              <button className="primary btn-with-icon big" onClick={() => void watchStreamed()}>
-                <Icon name="play" size={18} /> {t('Watch (streams)')}
-              </button>
-            )}
-            <button className={`${streamedHere ? '' : 'primary '}btn-with-icon big`} data-walk="title-add" onClick={() => setAdding(true)}>
-              <Icon name="plus" size={18} /> {t('Add to library')}
-            </button>
-            <CatchUp tmdbId={show.tmdbId} /> {/* home fork */}
-            <WhatsItLike kind="tv" tmdbId={show.tmdbId} title={show.title} /> {/* home fork */}
-            <VoteButtons kind="tv" refId={show.tmdbId} meta={{ title: show.title, year: show.year, image: show.posterUrl }} /> {/* home fork */}
-            <StackButton item={{ kind: 'tv', tmdbId: show.tmdbId, title: show.title, year: show.year, posterUrl: show.posterUrl }} /> {/* Usherr */}
-            {admin && <ArtworkButton kind="tv" tmdbId={show.tmdbId} title={show.title} />} {/* Usherr: a streamed show is in Jellyfin too */}
-            <SkipGuide tmdbId={show.tmdbId} title={show.title} /> {/* home fork */}
-          </>
-        }
-      >
-        <ScoresLine kind="tv" tmdbId={show.tmdbId} /> {/* home fork */}
-        <StreamingOn kind="tv" tmdbId={show.tmdbId} /> {/* home fork */}
-        <CommunityReviews kind="tv" tmdbId={show.tmdbId} /> {/* Usherr: Community */}
-      </TitleHero>
-      <SeasonsCard seasons={show.seasonList ?? []} />
-      <CastCard cast={show.cast ?? []} />
-      {sheet > 0 && (
-        <Suspense fallback={null}>
-          <StreamedSheet id={sheet} tmdbId={show.tmdbId} title={show.title} onClose={() => setSheet(0)} />
-        </Suspense>
+  const info = { ...show, kind: 'tv' as const, certification: show.contentRating ?? show.certification, facts, links: titleLinks('tv', show.tmdbId, show.imdbId, show.homepage) }
+  const status = streamedHere && (
+    <span className="state-tag st-streams" title={describeState('streams').hint}>
+      <Icon name="play" size={13} /> {describeState('streams').label}
+    </span>
+  )
+  // The everyday actions; artwork (administrators) is under Manage.
+  const everyday = (
+    <>
+      {streamedHere && (
+        <button className="primary btn-with-icon big" onClick={() => void watchStreamed()}>
+          <Icon name="play" size={18} /> {t('Watch (streams)')}
+        </button>
       )}
-      {adding && (
-        <AddDialog
-          target={{ kind: 'tv', tmdbId: show.tmdbId, title: show.title, year: show.year, posterUrl: show.posterUrl, overview: show.overview }}
-          onClose={() => setAdding(false)}
-          onAdded={(libraryId) => navigate(`/series/${libraryId}`)}
-        />
+      <button className={`${streamedHere ? '' : 'primary '}btn-with-icon big`} data-walk="title-add" onClick={() => setAdding(true)}>
+        <Icon name="plus" size={18} /> {t('Add to library')}
+      </button>
+      <StackButton item={{ kind: 'tv', tmdbId: show.tmdbId, title: show.title, year: show.year, posterUrl: show.posterUrl }} /> {/* Usherr */}
+      <VoteButtons kind="tv" refId={show.tmdbId} meta={{ title: show.title, year: show.year, image: show.posterUrl }} /> {/* home fork */}
+      <CatchUp tmdbId={show.tmdbId} /> {/* home fork */}
+      <WhatsItLike kind="tv" tmdbId={show.tmdbId} title={show.title} /> {/* home fork */}
+      <SkipGuide tmdbId={show.tmdbId} title={show.title} /> {/* home fork */}
+      {admin && (
+        <button className={`btn-with-icon${manageOpen ? ' primary' : ''}`} data-walk="title-manage" aria-expanded={manageOpen} onClick={() => setManageOpen(!manageOpen)} title={t('The artwork Jellyfin shows')}>
+          <Icon name="sliders" size={16} /> {t('Manage')}
+        </button>
       )}
+    </>
+  )
+  const manage = admin && (
+    <div className="fp-manage" data-walk="title-manage-panel">
+      <div className="title-actions">
+        <ArtworkButton kind="tv" tmdbId={show.tmdbId} title={show.title} /> {/* Usherr: a streamed show is in Jellyfin too */}
+      </div>
     </div>
   )
+  const seasons = (show.seasonList ?? []).length > 0 && <SeasonsCard seasons={show.seasonList ?? []} />
+  return (
+    <TitleLayout
+      layout={layout}
+      show={shows}
+      hero={<TitleHero info={info} status={status} actions={everyday} layout={layout} fullPlot={shows.fullPlot} />}
+      facts={<TitleFacts info={info} />}
+      scores={shows.scores && <ScoresLine kind="tv" tmdbId={show.tmdbId} />}
+      where={shows.streaming && <StreamingOn kind="tv" tmdbId={show.tmdbId} />}
+      reviews={shows.reviews && <CommunityReviews kind="tv" tmdbId={show.tmdbId} />}
+      cast={shows.cast && (show.cast ?? []).length > 0 && <CastCard cast={show.cast ?? []} />}
+      more={shows.similar && similar.length > 0 && <SimilarShows shows={similar} />}
+      episodes={seasons}
+      manage={manage}
+      manageSummary={t('Not in your library')}
+      manageOpen={manageOpen}
+      setManageOpen={setManageOpen}
+      label={t('About this show')}
+      dialogs={
+        <>
+          {sheet > 0 && (
+            <Suspense fallback={null}>
+              <StreamedSheet id={sheet} tmdbId={show.tmdbId} title={show.title} onClose={() => setSheet(0)} />
+            </Suspense>
+          )}
+          {adding && (
+            <AddDialog
+              target={{ kind: 'tv', tmdbId: show.tmdbId, title: show.title, year: show.year, posterUrl: show.posterUrl, overview: show.overview }}
+              onClose={() => setAdding(false)}
+              onAdded={(libraryId) => navigate(`/series/${libraryId}`)}
+            />
+          )}
+        </>
+      }
+    />
+  )
 }
+

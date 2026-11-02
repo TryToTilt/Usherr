@@ -5,6 +5,22 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.38.0] - 2026-11-01
+
+### Changed
+
+- **A film's page, cleaned up.** It fits on one screen: the title, three lines of the plot (More shows the rest), and one row of everyday buttons (Play, Showtime, Stack, your thumbs, Manage). Everything about the file and its downloads moved under **Manage**. Three layouts to pick from in **Settings → General → Film and show pages**, kept per browser: **Cinema** (tabs), **Side by side** (you and the reviews on the right) and **Streaming** (a big backdrop and rows, for the TV), or **Automatic** by the screen. **Show on the page** switches the scores, where it streams, your watches, reviews, the cast, More like this and the whole plot on or off. *Show me how* has *Choose how a film's or show's page looks*.
+- **A show's page, cleaned up the same way** (anime too). The same three layouts and switches, with **Episodes** as the first tab in Cinema. Everyday buttons up top (Stack, your thumbs, Catch me up, What's it like?, Manage); Find missing episodes, Refresh, Rescan, Remove, Monitored, the profile, the series type, the folder, episode numbering, copies, What happened and the files are under **Manage**. The episode list keeps to watching, and **Episode tools** adds monitoring, searching, quality, size and each episode's file buttons. A show not yet in your library gets the layouts too, and both now have **More like this**.
+- **The heart button says a word first.** Before Ryan's Ko-fi page, it explains that Usherr is built on his Mediarium and couldn't exist without it, asks you to share Usherr so it can grow (Share Usherr copies its link, or opens your phone's share sheet), and says feedback and bug reports are welcome. Its tooltip now says Support Mediarium, not Support Usherr, and the GitHub button says Star Usherr.
+- **Sort and narrow a person's work.** On an actor's or director's page, a compact row of menus replaces the All / Acting / Directing bar: **Find a title**, the role, movies or shows, the genre, whether it's in your library, and the order (most popular, newest, oldest, highest rated, A to Z). The choices stay in the address, so Back returns to them. TMDB has no awards, so there is no awards filter.
+
+### Fixed
+
+- *Show me how* walkthroughs that point at something under Manage on a film's page (*Move a film to another folder*, *Make a Kids shelf*, *Re-Posterr*) open Manage first.
+- **Report a problem: the support report gets pasted, not a note.** The form used to fill GitHub's Support report box with "Paste the support report here", and that note was what got sent. The box now starts empty, and both Usherr and the GitHub form say to click in it and paste. If Usherr couldn't copy the report, it says so.
+- **The web app's own tests run again.** One file's import (`./brand`, without `.ts`) stopped 48 of the test files from loading.
+- **The GitHub forms say Usherr.** The bug, idea and indexer forms asked for the "Mediarium version" and pointed at Mediarium's pages, Discussions and Reddit. They now ask for the Usherr version, give Usherr's menu paths, and link to Usherr's own security, install and features pages.
+
 ## [2.37.0] - 2026-11-01
 
 ### Added

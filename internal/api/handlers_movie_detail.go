@@ -170,6 +170,30 @@ func (s *Server) handleTMDBSimilarMovies(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, out)
 }
 
+// handleTMDBSimilarShows is handleTMDBSimilarMovies for shows: More like this
+// on a show's page (Usherr).
+func (s *Server) handleTMDBSimilarShows(w http.ResponseWriter, r *http.Request) {
+	tmdbID, err := strconv.Atoi(r.PathValue("tmdbId"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "That isn't a valid TMDB ID.")
+		return
+	}
+	if !s.TMDB().HasAPIKey() {
+		writeJSON(w, http.StatusOK, []discoverPayload{})
+		return
+	}
+	similar, err := s.displayTMDB().RelatedShows(r.Context(), tmdbID, metadata.RelatedRecommended)
+	if err != nil {
+		writeUpstreamError(w, "load similar shows", err)
+		return
+	}
+	out := make([]discoverPayload, len(similar))
+	for i, sh := range similar {
+		out[i] = s.showDiscover(r.Context(), sh)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 type tvDetailPayload struct {
 	TMDBID    int    `json:"tmdbId"`
 	Title     string `json:"title"`

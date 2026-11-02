@@ -39,7 +39,32 @@ function runtimeLabel(min?: number): string {
 // The top of a movie or show page: poster on the left, everything worth
 // knowing stacked on the right (title, rating, age rating, genres, summary,
 // trailer links, cast), with the page's own action buttons passed in.
-export default function TitleHero({ info, status, actions, children, onPlay }: { info: HeroInfo; status?: ReactNode; actions?: ReactNode; children?: ReactNode; onPlay?: () => void }) {
+// Usherr: the facts (year, runtime, the page's own: directors, dates…), on
+// their own, for a page laid out in one of the film page's layouts.
+export function TitleFacts({ info }: { info: HeroInfo }) {
+  const facts = [
+    info.year ? { label: t('Year'), value: String(info.year) } : null,
+    info.runtime ? { label: t('Runtime'), value: runtimeLabel(info.runtime) } : null,
+    ...(info.facts ?? []),
+  ].filter(Boolean) as { label: string; value: ReactNode }[]
+  if (facts.length === 0) return null
+  return (
+    <dl className="title-facts">
+      {facts.map((f) => (
+        <div key={f.label}>
+          <dt>{f.label}</dt>
+          <dd>{f.value}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+// layout (Usherr, the film page's layouts): the hero keeps to the title, the
+// plot (three lines, unless fullPlot), the trailer and the actions; the facts
+// and the cast are shown elsewhere on the page. Without it, the classic hero.
+export default function TitleHero({ info, status, actions, children, onPlay, layout, fullPlot }: { info: HeroInfo; status?: ReactNode; actions?: ReactNode; children?: ReactNode; onPlay?: () => void; layout?: 'cinema' | 'side' | 'stream'; fullPlot?: boolean }) {
+  const [plotOpen, setPlotOpen] = useState(false)
   const side = useRef<HTMLDivElement>(null)
   // The poster turns a little towards the pointer and catches the light.
   function tilt(e: PointerEvent<HTMLDivElement>) {
@@ -266,7 +291,7 @@ export default function TitleHero({ info, status, actions, children, onPlay }: {
   ].filter(Boolean) as { label: string; value: ReactNode }[]
 
   return (
-    <section className={`title-hero kind-${info.kind}`}>
+    <section className={`title-hero kind-${info.kind}${layout ? ` lay-${layout}` : ''}`}>
       {info.backdropUrl ? (
         <div ref={scene} className={`title-scene${videoReady ? ' video-on' : ''}${wide ? ' video-wide' : ''}`} aria-hidden="true">
           <img src={info.backdropUrl} alt="" />
@@ -346,16 +371,27 @@ export default function TitleHero({ info, status, actions, children, onPlay }: {
               <Icon name="clock" size={13} /> {runtimeLabel(info.runtime)}
             </span>
           ) : null}
-          {(info.genres ?? []).map((g) => (
+          {(layout ? (info.genres ?? []).slice(0, 3) : (info.genres ?? [])).map((g) => (
             <span key={g} className="chip-genre">
               {g}
             </span>
           ))}
         </div>
 
-        {info.overview && <p className="title-overview">{info.overview}</p>}
+        {info.overview && (!layout || fullPlot || plotOpen ? (
+          <p className="title-overview">{info.overview}</p>
+        ) : (
+          <p className="title-overview plot-clamp">
+            {info.overview}{' '}
+          </p>
+        ))}
+        {info.overview && layout && !fullPlot && info.overview.length > 220 && (
+          <button type="button" className="link-button plot-more" onClick={() => setPlotOpen(!plotOpen)}>
+            {plotOpen ? t('Less') : t('More')}
+          </button>
+        )}
 
-        {facts.length > 0 && (
+        {!layout && facts.length > 0 && (
           <dl className="title-facts">
             {facts.map((f) => (
               <div key={f.label}>
@@ -429,7 +465,7 @@ export default function TitleHero({ info, status, actions, children, onPlay }: {
           </div>
         )}
 
-        {info.cast && info.cast.length > 0 && (
+        {!layout && info.cast && info.cast.length > 0 && (
           <p className="title-cast">
             <strong>{t('Starring')}</strong> <PeopleLinks people={info.cast.slice(0, 6)} />
           </p>

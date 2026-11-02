@@ -80,6 +80,7 @@ var memberRoutes = []string{
 	"GET /api/tmdb/movies/{tmdbId}",
 	"GET /api/tmdb/movies/{tmdbId}/similar",
 	"GET /api/tmdb/tv/{tmdbId}",
+	"GET /api/tmdb/tv/{tmdbId}/similar",
 	"GET /api/tmdb/people/{personId}",
 	"GET /api/search",
 	"POST /api/search/grab",

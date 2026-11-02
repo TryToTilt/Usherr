@@ -1,0 +1,6 @@
+/* Usherr: the heart button's message (home/SupportDialog.tsx). */
+.support-dialog { max-width: 520px; }
+.support-dialog .support-ico { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.support-dialog .support-x { margin-left: auto; }
+.support-dialog .confirm-body p { line-height: 1.5; }
+.support-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 20px 20px; }

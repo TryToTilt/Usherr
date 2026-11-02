@@ -3596,6 +3596,7 @@ export const api = {
   tmdbTVDetail: (tmdbId: number) => get<TVDetail>(`/tmdb/tv/${tmdbId}`),
   tmdbPerson: (id: number) => get<PersonPage>(`/tmdb/people/${id}`),
   tmdbSimilarMovies: (tmdbId: number) => get<DiscoverMovie[]>(`/tmdb/movies/${tmdbId}/similar`),
+  tmdbSimilarShows: (tmdbId: number) => get<DiscoverMovie[]>(`/tmdb/tv/${tmdbId}/similar`), // Usherr: More like this on a show's page
 
   movieSubtitleStatus: (id: number) => get<SubtitleStatus>(`/movies/${id}/subtitles/status`),
   episodeSubtitleStatus: (id: number) => get<SubtitleStatus>(`/episodes/${id}/subtitles/status`),

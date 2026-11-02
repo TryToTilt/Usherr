@@ -49,6 +49,22 @@ const libraryFilm = (title: string): SmhStep[] => [
   { kind: 'go', when: inLib, to: (c) => `/title/${pick(c, 'film')}`, title: label, text: t('Its page.') },
 ]
 
+
+// Usherr: on a film's page, the file and its downloads are under Manage (a
+// tab, a fold or a panel, by layout): open it when it isn't. anyFilm: the
+// walk's film needn't be in the library (Re-Posterr).
+const openManage = (anyFilm = false): SmhStep => ({
+  kind: 'do',
+  when: anyFilm ? undefined : inLib,
+  title: t('Opening Manage'),
+  text: t('Everything about the file and its downloads is under Manage on a film’s page.'),
+  run: async () => {
+    const panel = document.querySelector<HTMLElement>('[data-walk="title-manage-panel"]')
+    if (!panel || panel.offsetParent === null) document.querySelector<HTMLElement>('[data-walk="title-manage"]')?.click()
+    await new Promise((r) => setTimeout(r, 300))
+  },
+})
+
 // ---- a better copy ----
 
 export const betterCopy: Walkthrough = {
@@ -60,6 +76,7 @@ export const betterCopy: Walkthrough = {
   words: 'better copy quality upgrade replace release 4k 1080p edition smaller',
   simple: [
     ...libraryFilm(t('Which film?')),
+    openManage(),
     {
       kind: 'point',
       target: 'title-choose',
@@ -89,6 +106,7 @@ export const subtitles: Walkthrough = {
   words: 'subtitles captions srt language sdh forced out of sync timing',
   simple: [
     ...libraryFilm(t('Which film?')),
+    openManage(),
     {
       kind: 'point',
       target: 'title-subs',
@@ -125,6 +143,7 @@ export const moveTitle: Walkthrough = {
   words: 'move folder drive keep it in another disk relocate',
   simple: [
     ...libraryFilm(t('Which film?')),
+    openManage(),
     {
       kind: 'point',
       target: 'title-keepin',
@@ -155,6 +174,7 @@ export const tags: Walkthrough = {
   words: 'tags tag kids christmas collection shelf jellyfin group sort',
   simple: [
     ...libraryFilm(t('A film for the shelf')),
+    openManage(),
     {
       kind: 'point',
       target: 'title-tags',
@@ -257,6 +277,7 @@ export const restylePosters: Walkthrough = {
         (await api.tmdbSearch('movie', q)).slice(0, 8).map((f): SmhChoice => ({ value: String(f.tmdbId), label: f.year ? `${f.title} (${f.year})` : f.title, image: f.posterUrl })),
     },
     { kind: 'go', to: (c) => `/title/${pick(c, 'film')}`, title: label, text: t('Its page.') },
+    openManage(true),
     { kind: 'point', target: 'title-art', act: 'click', until: { seen: 'art-dialog' }, title: t('Re-Posterr'), text: t('Opens the artwork for this film.') },
     {
       kind: 'point',
