@@ -30,6 +30,7 @@ export const SETTINGS_NAV: { to: string; label: string; icon: IconName; color: s
   { to: '/settings/other-apps', label: t('Other apps'), icon: 'server', color: '#9fd4a8', blurb: t('Let Overseerr, Homepage and phone apps talk to Mediarium.'), help: 'media-servers#overseerr-dashboards-and-phone-apps' },
   { to: '/settings/extras', label: t('Extras'), icon: 'sparkles', color: '#6fd6c8', blurb: t('Streaming, Live TV, playing on a TV, comics and more.'), help: 'home-setup' }, // home fork
   { to: '/marquee/manage', label: t('Marquee'), icon: 'monitor', color: '#f2c14e', blurb: t('The lobby display for a tablet or a screen by the TV: its screens, looks, slides, pre-show and Home Assistant.'), help: 'home-marquee' }, // Usherr
+  { to: '/settings/community', label: t('Community'), icon: 'chat', color: '#f2c14e', blurb: t('Watch parties and reviews with friends in your own Discord server, through your own bot. A preview.'), help: 'home-community' }, // Usherr: Community (preview)
   { to: '/preshow/manage', label: t('Pre-show'), icon: 'film', color: '#f2c14e', blurb: t('What plays before a film: welcome, trailers for films coming soon, your own clips, the countdown. With themes for holidays and nights.') }, // Usherr
   { to: '/settings/re-posterr', label: 'Re-Posterr', icon: 'image', color: '#f59e8b', blurb: t('The posters, backgrounds and logos Jellyfin and Plex show: Usherr’s picks from TMDB and fanart.tv, to approve, and every change can be put back.'), help: 'home-reposterr' }, // Usherr: Re-Posterr
   { to: '/settings/addons', label: t('Add-ons'), icon: 'grid', color: '#9fd4a8', blurb: t('Other programs you run next to Mediarium, with a link to each.'), help: 'media-servers#add-ons' },
@@ -84,7 +85,7 @@ const GROUPS: { key: string; label: string; icon: IconName; color: string; pages
   { key: 'metadata', label: t('Info, lists and subtitles'), icon: 'globe', color: '#c1acf7', pages: ['/settings/metadata', '/settings/lists', '/settings/subtitles'] },
   { key: 'connections', label: t('Connections'), icon: 'monitor', color: '#f2c14e', pages: ['/settings/media-servers', '/settings/notifications', '/settings/other-apps', '/settings/addons'] },
   { key: 'extras', label: t('Extras'), icon: 'sparkles', color: '#6fd6c8', pages: ['/settings/extras'] }, // home fork
-  { key: 'marquee', label: t('Movie night'), icon: 'monitor', color: '#f2c14e', pages: ['/marquee/manage', '/preshow/manage'] }, // Usherr: the Marquee and the pre-show
+  { key: 'marquee', label: t('Movie night'), icon: 'monitor', color: '#f2c14e', pages: ['/marquee/manage', '/preshow/manage', '/settings/community'] }, // Usherr: the Marquee and the pre-show
   { key: 'reposterr', label: 'Re-Posterr', icon: 'image', color: '#f59e8b', pages: ['/settings/re-posterr'] }, // Usherr: artwork picking
   { key: 'profile', label: t('Account & Access'), icon: 'user', color: '#8fb8f5', pages: ['/settings/profile', '/settings/security', '/settings/services', '/settings/accounts', '/settings/requests', '/settings/sign-in'] },
   { key: 'system', label: t('System'), icon: 'hard', color: '#b4bfcc', pages: ['/settings/system', '/settings/backup', '/settings/statistics', '/settings/logs', '/settings/migrate', '/settings/about'] },

@@ -5,6 +5,7 @@ import VoteButtons from '../home/VoteButtons' // home fork
 import StackButton from '../home/StackButton' // Usherr: your stack
 import { SkipGuide, WhatsItLike } from '../home/AIGuides' // home fork
 import { StreamingOn } from '../home/Recipes' // home fork
+import CommunityReviews from '../home/CommunityReviews' // Usherr: Community, reviews
 import { ScoresLine } from '../home/scores' // home fork
 import { useNavigate, useParams } from 'react-router-dom'
 import AddDialog from '../components/AddDialog'
@@ -95,6 +96,7 @@ export default function ShowDetail() {
       >
         <ScoresLine kind="tv" tmdbId={show.tmdbId} /> {/* home fork */}
         <StreamingOn kind="tv" tmdbId={show.tmdbId} /> {/* home fork */}
+        <CommunityReviews kind="tv" tmdbId={show.tmdbId} /> {/* Usherr: Community */}
       </TitleHero>
       <SeasonsCard seasons={show.seasonList ?? []} />
       <CastCard cast={show.cast ?? []} />

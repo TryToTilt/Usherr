@@ -126,6 +126,14 @@ export const bookShowtime: Walkthrough = {
         return t('Choose the one you picked: {pick}.', { pick })
       },
     },
+    {
+      kind: 'point',
+      target: 'showtime-share',
+      until: 'next',
+      optional: true,
+      title: t('A watch party in Discord?'),
+      text: t('Tick it to share the showtime in your Discord server: a card with the times and I’m in buttons, a thread for the chat, and an event on the server’s calendar. Everyone watches in their own Usherr at the same time.'),
+    },
     book(),
     pill(),
     {

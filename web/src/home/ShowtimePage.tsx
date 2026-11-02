@@ -12,10 +12,12 @@ import { useDocumentTitle } from '../documentTitle'
 import { t } from '../i18n'
 import { playStream, playTitle, playWithPreshow } from './Player'
 import { preshowApi } from './preshowApi' // Usherr
-import { cancelShowtime, clockLabel, inLabel, listShowtimes, moveShowtime, PLAY_ON_LABEL, showtimeEnds, whenLabel, type Showtime } from './showtimes'
+import { cancelShowtime, clockLabel, inLabel, joinShowtime, listShowtimes, moveShowtime, PLAY_ON_LABEL, shareShowtime, showtimeEnds, whenLabel, type PlayOn, type Showtime } from './showtimes'
 import { rememberedQuality, streamApi, type StreamStart } from './streamApi'
 import { api, type ImportCandidate } from '../api'
 import { openShowtimeBooking } from './ShowtimePill' // Usherr: book from here
+import { PartyChat } from './PartyChat' // Usherr: Community, the watch party chat
+import { Link } from 'react-router-dom'
 import './showtime.css'
 
 // findStream starts the best stream for a showtime's film at this device's
@@ -57,11 +59,11 @@ async function watchStreamed(s: Showtime): Promise<StreamStart> {
 // (found ahead, during the pre-show, when it could be).
 async function startFilm(s: Showtime, ahead?: Promise<StreamStart> | null) {
   if (s.libraryId) {
-    playTitle('movie', s.libraryId, s.title, { noPreshow: true }) // its pre-show has played
+    playTitle('movie', s.libraryId, s.title, { noPreshow: true, party: s.party ? s.id : undefined }) // its pre-show has played; Usherr: its party's chat
     return
   }
   const st = await (ahead ?? Promise.reject(new Error('none'))).catch(() => findStream(s))
-  playStream(st, s.title, undefined, { about: { kind: 'movie', tmdbId: s.tmdbId }, noPreshow: true }) // its pre-show has played
+  playStream(st, s.title, undefined, { about: { kind: 'movie', tmdbId: s.tmdbId }, noPreshow: true, party: s.party ? s.id : undefined }) // its pre-show has played; Usherr: its party's chat
 }
 
 // BookFilm: book a film from the Showtime page itself: search, pick, then
@@ -102,12 +104,61 @@ function BookFilm() {
   )
 }
 
+// JoinParty: Usherr, Community. A watch party's code, from its card in
+// Discord, books the same film for the same moment here.
+function JoinParty({ onJoined }: { onJoined: () => void }) {
+  const toast = useToast()
+  const [code, setCode] = useState('')
+  const [playOn, setPlayOn] = useState<PlayOn>('here')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const join = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      const d = await joinShowtime(code, playOn)
+      toast.success(d.already ? t('{title} is already booked here for {when}.', { title: d.title, when: whenLabel(d.atMs) }) : t('{title} is booked for {when}, with the watch party.', { title: d.title, when: whenLabel(d.atMs) }))
+      setCode('')
+      onJoined()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <section className="card sht-join" data-walk="showtime-join">
+      <h2>{t('Join a watch party')}</h2>
+      <p className="hint">{t('Got a showtime code from a watch party in Discord? Paste it here: the same film is booked for the same moment, with a pre-show of the same length (your own clips and trailers).')}</p>
+      <form
+        className="sht-join-row"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void join()
+        }}
+      >
+        <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="HXK4-7QPM-2RD9C" aria-label={t('Showtime code')} spellCheck={false} autoComplete="off" />
+        <select value={playOn} onChange={(e) => setPlayOn(e.target.value as PlayOn)} aria-label={t('The film plays')}>
+          <option value="here">{PLAY_ON_LABEL.here()}</option>
+          <option value="tv">{PLAY_ON_LABEL.tv()}</option>
+          <option value="none">{PLAY_ON_LABEL.none()}</option>
+        </select>
+        <button className="primary btn-sm" type="submit" disabled={busy || code.trim().length < 13}>
+          {t('Join')}
+        </button>
+      </form>
+      {error && <p className="notice notice-warn">{error}</p>}
+    </section>
+  )
+}
+
 export default function ShowtimePage() {
   useDocumentTitle(t('Showtime'))
   const toast = useToast()
   const confirm = useConfirm()
   const admin = isAdmin(useAuth().user)
   const [list, setList] = useState<Showtime[] | null>(null)
+  const [communityOn, setCommunityOn] = useState(false) // Usherr: showtimes can be shared to Discord
   const [offset, setOffset] = useState(0) // the server's clock minus this one
   const [now, setNow] = useState(() => Date.now())
   const [ready, setReady] = useState(false) // pressed: allowed to start with sound
@@ -118,6 +169,7 @@ export default function ShowtimePage() {
     listShowtimes()
       .then((d) => {
         setList(d.showtimes)
+        setCommunityOn(!!d.community)
         setOffset(d.nowMs - Date.now())
       })
       .catch((e: Error) => setError(e.message))
@@ -199,8 +251,17 @@ export default function ShowtimePage() {
       toast.error(e instanceof Error ? e.message : String(e))
     }
   }
+  const share = async (s: Showtime) => {
+    try {
+      await shareShowtime(s.id)
+      toast.success(t('Shared to Discord as a watch party.'))
+      load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
   const cancel = async (s: Showtime) => {
-    if (!(await confirm({ title: t('Cancel {title}?', { title: s.title }), body: t('The Marquee stops counting down to it.'), confirmLabel: t('Cancel it'), danger: true }))) return
+    if (!(await confirm({ title: t('Cancel {title}?', { title: s.title }), body: s.party ? t('The Marquee stops counting down to it, and the watch party in Discord is called off.') : t('The Marquee stops counting down to it.'), confirmLabel: t('Cancel it'), danger: true }))) return
     await cancelShowtime(s.id)
     load()
   }
@@ -247,7 +308,10 @@ export default function ShowtimePage() {
         )}
       </section>
 
+      {next?.party && <PartyChat showtimeId={next.id} />}
+
       <BookFilm />
+      <JoinParty onJoined={load} />
 
       <section className="card sht-list">
         <h2>{t('Showtimes')}</h2>
@@ -263,9 +327,22 @@ export default function ShowtimePage() {
                   {s.preshowMin > 0 ? ` · ${t('{n} min pre-show', { n: s.preshowMin })}` : ''}
                   {s.state === 'playing' ? ` · ${t('playing')}` : s.state === 'preshow' ? ` · ${t('pre-show on')}` : s.state === 'done' ? ` · ${t('over')}` : ''}
                 </span>
+                {s.party && (
+                  <span className="sht-party">
+                    {(s.party.going ?? []).length > 0
+                      ? t('Watch party in Discord · going: {names}', { names: (s.party.going ?? []).join(', ') })
+                      : t('Watch party in Discord · nobody’s said I’m in yet')}{' '}
+                    · <Link to={`/showtime/chat/${s.id}`}>{t('Chat')}</Link>
+                  </span>
+                )}
               </div>
               {(s.mine || admin) && s.state !== 'done' && (
                 <span className="sht-row-btns">
+                  {communityOn && !s.party && s.state === 'booked' && (
+                    <button className="btn-sm" data-walk="showtime-share-later" onClick={() => void share(s)} title={t('Share it to Discord as a watch party')}>
+                      {t('Share')}
+                    </button>
+                  )}
                   <button className="btn-sm" onClick={() => void move(s, -15)} aria-label={t('15 minutes earlier')} title={t('15 minutes earlier')}>
                     −15
                   </button>

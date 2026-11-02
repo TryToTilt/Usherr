@@ -62,6 +62,13 @@ export const HOME_TOPICS: TopicDef[] = [
     sources: [{ file: 'home/preshow.md' }],
   },
   {
+    id: 'home-community',
+    title: 'Community (preview)',
+    summary: 'Your own Discord bot for watch parties and reviews with friends: making it in the Developer Portal, its token, Message Content, inviting it, the channel it posts in, a test card, and moving to another server.',
+    group: HOME_GROUP,
+    sources: [{ file: 'home/community.md' }],
+  },
+  {
     id: 'home-reposterr',
     title: 'Re-Posterr',
     summary: 'The posters, backgrounds and logos Jellyfin and Plex show: Usherr’s picks from TMDB and fanart.tv, posters made in your own style (season posters, title cards, backgrounds, overlays, a style per library, your own picture and words), TheTVDB and Posterizarr, asking first, choosing by hand, putting one back, and when it looks.',

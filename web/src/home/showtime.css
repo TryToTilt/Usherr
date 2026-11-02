@@ -48,7 +48,10 @@
 /* Usherr: Book a film, on the Showtime page. */
 .sht-book input[type='search'] { width: 100%; max-width: 420px; }
 .sht-found { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
-.sht-found button { display: grid; gap: 6px; width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+/* The column is the button's width: sized by the poster instead, a poster stored
+   bigger pushed out over its neighbours. */
+.sht-found li { min-width: 0; }
+.sht-found button { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit; }
 .sht-found img, .sht-noposter { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; background: var(--surface-2); display: block; }
 .sht-found button:hover img, .sht-found button:focus-visible img { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -57,3 +60,7 @@
 .sht-strip img { width: 32px; height: 48px; object-fit: cover; border-radius: 4px; }
 .sht-strip strong { font-variant-numeric: tabular-nums; }
 .sht-strip .sht-strip-main { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Usherr: Community, a showtime shared as a watch party */
+.sht-party { display: block; font-size: 0.82rem; color: #f2c14e; }
+.sht-join-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sht-join-row input { flex: 1 1 14rem; max-width: 20rem; font-family: var(--font-mono, monospace); text-transform: uppercase; }

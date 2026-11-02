@@ -3,6 +3,7 @@ import { useStreamed } from '../home/useHave' // Usherr
 import VoteButtons from '../home/VoteButtons' // home fork
 import StackButton from '../home/StackButton' // Usherr: your stack
 import ShowtimeButton from '../home/ShowtimeButton' // Usherr: Showtimes at home
+import CommunityReviews from '../home/CommunityReviews' // Usherr: Community, reviews
 import ArtworkButton from '../home/ArtworkButton' // Usherr: artwork picking
 import { WhatsItLike } from '../home/AIGuides' // home fork
 import { StreamingOn } from '../home/Recipes' // home fork
@@ -466,6 +467,7 @@ function MoviePage() {
         <ScoresLine kind="movie" tmdbId={movie.tmdbId} /> {/* home fork */}
         <StreamingOn kind="movie" tmdbId={movie.tmdbId} /> {/* home fork */}
         <InTheatersPanel tmdbId={movie.tmdbId} title={movie.title} year={movie.year} /> {/* Usherr */}
+        <CommunityReviews kind="movie" tmdbId={movie.tmdbId} /> {/* Usherr: Community */}
       </TitleHero>
 
       <CastCard cast={movie.cast ?? []} />

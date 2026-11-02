@@ -3,6 +3,7 @@ import VoteButtons from '../home/VoteButtons' // home fork
 import StackButton from '../home/StackButton' // Usherr: your stack
 import ArtworkButton from '../home/ArtworkButton' // Usherr: artwork picking
 import { StreamingOn } from '../home/Recipes' // home fork
+import CommunityReviews from '../home/CommunityReviews' // Usherr: Community, reviews
 import { ScoresLine } from '../home/scores' // home fork
 import { SkipGuide, WhatsItLike } from '../home/AIGuides' // home fork
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -519,6 +520,7 @@ function SeriesPage() {
         <WatchedLine kind="tv" id={seriesId} />
         <ScoresLine kind="tv" tmdbId={series.tmdbId} /> {/* home fork */}
         <StreamingOn kind="tv" tmdbId={series.tmdbId} /> {/* home fork */}
+        <CommunityReviews kind="tv" tmdbId={series.tmdbId} /> {/* Usherr: Community */}
       </TitleHero>
 
       {error && <p className="error-text">{error}</p>}

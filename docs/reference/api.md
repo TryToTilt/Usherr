@@ -397,6 +397,13 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/cinema` | any account | GET /api/home/cinema: the films in cinemas now, for the "In theaters now" row, with the household's cinema settings the links need. |
 | GET | `/api/home/cinema/settings` | admin | GET /api/home/cinema/settings (admin). |
 | PUT | `/api/home/cinema/settings` | admin | PUT /api/home/cinema/settings {on, region, zip, theatre, amcKey} (admin): only what's sent changes; an empty amcKey removes the key. |
+| GET | `/api/home/community` | admin | GET /api/home/community (admin): the bot and where it posts. |
+| PUT | `/api/home/community` | admin | PUT /api/home/community (admin): save, and connect (or not). |
+| GET | `/api/home/community/channels` | admin | GET /api/home/community/channels?server= (admin): where the bot can post. |
+| DELETE | `/api/home/community/link` | any account | DELETE /api/home/community/link (member): unlink your Discord account. |
+| POST | `/api/home/community/link` | any account | POST /api/home/community/link {"code"} (member): link the Discord account that asked for this code to your account. |
+| GET | `/api/home/community/me` | any account | GET /api/home/community/me (member): whether Community is on, and your linked Discord account. |
+| POST | `/api/home/community/test` | admin | POST /api/home/community/test (admin): post a hello in the chosen channel. |
 | GET | `/api/home/convert` | admin | GET /api/home/convert (administrators): who converts for the player. |
 | PUT | `/api/home/convert` | admin | PUT /api/home/convert {"with": "" \| "jellyfin" \| "plex" \| "usherr"}. |
 | GET | `/api/home/diary` | any account | GET /api/home/diary?year=&kind=: your Diary, newest first, and the years it covers. |
@@ -551,6 +558,9 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | DELETE | `/api/home/recipes/{id}` | any account | DELETE /api/home/recipes/{id}: its maker, or an administrator. |
 | PUT | `/api/home/recipes/{id}` | any account | PUT /api/home/recipes/{id}: only its maker changes it. |
 | POST | `/api/home/recipes/{id}/copy` | any account | POST /api/home/recipes/{id}/copy: a copy of someone's shared recipe, yours to change. |
+| DELETE | `/api/home/reviews` | any account | DELETE /api/home/reviews?kind=&tmdbId= (member): remove your review, and its card in Discord. |
+| GET | `/api/home/reviews` | any account | GET /api/home/reviews?kind=&tmdbId= (member): a film's reviews from the community, and whether you can post one. |
+| POST | `/api/home/reviews` | any account | POST /api/home/reviews {kind, tmdbId, stars, text} (member): post your review (or replace it) under your linked Discord name. |
 | GET | `/api/home/roulette` | any account | GET /api/home/roulette?kind=movie\|tv&source=here\|anywhere&who=a,b&mood=&minutes=&age= |
 | GET | `/api/home/schedules` | admin | GET/PUT /api/home/schedules: the schedules and the shared tasks' rules. |
 | PUT | `/api/home/schedules` | admin | GET/PUT /api/home/schedules: the schedules and the shared tasks' rules. |
@@ -561,8 +571,13 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/home/season-folder` | admin | GET/PUT /api/home/season-folder {"style":"plain"\|"padded"} |
 | GET | `/api/home/showtimes` | any account | GET /api/home/showtimes: the showtimes from a few hours ago on, with the server's clock (a Showtime screen counts down by it). |
 | POST | `/api/home/showtimes` | any account | POST /api/home/showtimes: book a film for a time. |
+| POST | `/api/home/showtimes/join` | any account | POST /api/home/showtimes/join {"code", "playOn"} (member): book the showtime a code is for, in this Usherr. |
 | DELETE | `/api/home/showtimes/{id}` | any account | DELETE /api/home/showtimes/{id}: cancel it. |
 | PUT | `/api/home/showtimes/{id}` | any account | PUT /api/home/showtimes/{id}: another time, pre-show or place. |
+| GET | `/api/home/showtimes/{id}/chat` | any account | GET /api/home/showtimes/{id}/chat (member): the party's chat so far, and whether you can post in it. |
+| POST | `/api/home/showtimes/{id}/chat` | any account | POST /api/home/showtimes/{id}/chat {"text"} (member): say something in the party's thread, under your linked Discord name. |
+| GET | `/api/home/showtimes/{id}/chat/events` | any account | GET /api/home/showtimes/{id}/chat/events (member): the chat, live. |
+| POST | `/api/home/showtimes/{id}/share` | any account | POST /api/home/showtimes/{id}/share (member): share a booked Showtime as a watch party. |
 | GET | `/api/home/sports` | any account | GET /api/home/sports: the Sports home. |
 | POST | `/api/home/sports/events/{id}/get` | signed in | POST /api/home/sports/events/{id}/get: watch for one game and search for it now. |
 | POST | `/api/home/sports/events/{id}/stream` | signed in | POST /api/home/sports/events/{id}/stream {quality}: the game's releases as stream options, best first (the same options as a film's). |
@@ -585,6 +600,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/home/streaming` | admin | PUT /api/home/streaming {engine, profiles}: only what is sent changes. |
 | POST | `/api/home/streaming/import` | admin | POST /api/home/streaming/import {config?, providers, indexers, profiles}: copies what was ticked. |
 | POST | `/api/home/streaming/import/preview` | admin | POST /api/home/streaming/import/preview {config?}: what StreamNZB has and what Usherr has of it already. |
+| GET | `/api/home/stubs` | any account | GET /api/home/stubs (member): your ticket stubs (through your linked Discord account). |
 | GET | `/api/home/taste` | any account | GET /api/home/taste?kind=: your taste in short: whether there's enough to go on, what it's built from, and what you lean towards and away from. |
 | POST | `/api/home/taste/scores` | any account | POST /api/home/taste/scores {kind, ids}: your match for each title, for the Library's "For you", and which of them you've seen (a title you've watched is par... |
 | GET | `/api/home/taste/title` | any account | GET /api/home/taste/title?kind=&id=: your match for one title, and why. |
@@ -1371,4 +1387,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-961 routes.
+977 routes.

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rdborg/mediarium/internal/animemap"
+	"github.com/rdborg/mediarium/internal/community/discord"
 	"github.com/rdborg/mediarium/internal/crypto"
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/metadata"
@@ -290,3 +291,23 @@ func (s *Server) TestSetAnimeServices(xemURL, listsURL, anilistURL string) {
 	svc.AniList.SetURL(anilistURL)
 	s.anime.svc = svc
 }
+
+// TestSetDiscord points the Community bot at a pretend Discord (its API and
+// gateway, on this machine) for home_community_test.go.
+func (s *Server) TestSetDiscord(api, gateway string, dial discord.DialFunc) {
+	s.communityL.mu.Lock()
+	s.communityL.api, s.communityL.gateway, s.communityL.dial = api, gateway, dial
+	s.communityL.mu.Unlock()
+}
+
+// TestShowtimeCode makes a watch party's showtime code (home_showtime_code.go).
+func (s *Server) TestShowtimeCode(tmdbID int, atMs int64, preshowMin int) string {
+	return encodeShowtimeCode(showtimeCode{TMDBID: tmdbID, AtMs: atMs, PreshowMin: preshowMin})
+}
+
+// TestShowtimeAt moves a showtime's start without the checks of the API (a
+// start in the past), and TestShowtimeJob runs the Showtime clock once.
+func (s *Server) TestShowtimeAt(id, atMs int64) {
+	_, _ = s.db.Exec(`UPDATE showtimes SET at_ms = ? WHERE id = ?`, atMs, id)
+}
+func (s *Server) TestShowtimeJob(ctx context.Context) { s.showtimeJob(ctx) }

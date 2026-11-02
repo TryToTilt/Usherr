@@ -19,6 +19,7 @@ import { locale, t } from '../i18n'
 import { TracksMenu, prefAudioLang, prefSubLang, pickSub, sameLang, type PlayTrack, type Tracks } from './playerTracks' // Usherr
 import { preshowApi, preshowBefore, type PlanAsk, type PreshowPlan } from './preshowApi' // Usherr
 import { browserCaps } from './browserCaps' // Usherr: what this browser decodes (the pre-show uses it too)
+import PartyOverlay from './PartyOverlay' // Usherr: Community, the watch party chat over the film
 
 const PreshowRun = lazy(() => import('./PreshowRun')) // Usherr: the pre-show before the film
 
@@ -50,6 +51,7 @@ type Request = {
   sport?: string // Usherr: which game a stream is (its id in Sports), for the Marquee
   resumedFrom?: number // Usherr: picked up where it was left (home_positions.go)
   noPreshow?: boolean // Usherr: its pre-show has played already (a Showtime)
+  party?: number // Usherr: the watch party (its showtime's id) whose chat can show over the film
 }
 
 // Usherr: the name a title's place is kept under (home_positions.go), or ''
@@ -76,13 +78,24 @@ function clockOf(secs: number): string {
   return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
 }
 
-export type StreamExtras = Pick<Request, 'onNext' | 'tvTitle' | 'watchIn' | 'startAt' | 'about' | 'sport' | 'noPreshow'>
+export type StreamExtras = Pick<Request, 'onNext' | 'tvTitle' | 'watchIn' | 'startAt' | 'about' | 'sport' | 'noPreshow' | 'party'>
 
 let show: ((r: Request | null) => void) | null = null
 
 // playTitle opens the player on a movie, an episode or a video.
-export function playTitle(kind: PlayKind, id: number, title: string, opts?: { noPreshow?: boolean }) {
-  show?.({ kind, id, title, noPreshow: opts?.noPreshow })
+export function playTitle(kind: PlayKind, id: number, title: string, opts?: { noPreshow?: boolean; party?: number }) {
+  show?.({ kind, id, title, noPreshow: opts?.noPreshow, party: opts?.party })
+}
+
+// Usherr: whether the watch party chat shows over the film, in this browser
+// (off until switched on: a TV shared by the room shouldn't surprise anyone).
+const PARTY_OVERLAY_KEY = 'usherr.partyOverlay'
+function partyOverlaySaved(): boolean {
+  try {
+    return localStorage.getItem(PARTY_OVERLAY_KEY) === '1'
+  } catch {
+    return false
+  }
 }
 
 // Usherr: the pre-show (home_preshow.go), full screen, then whatever comes
@@ -459,6 +472,24 @@ const nextLabel = (n: NextEp) => `${n.show} S${String(n.season).padStart(2, '0')
 
 function PlayerView({ req, onClose, inline = false, muted = false }: { req: Request; onClose: () => void; inline?: boolean; muted?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  // Usherr: the watch party chat over the film. With it on, fullscreen is the
+  // stage's (the video and the chat), not the video's alone, which would hide it.
+  const stageRef = useRef<HTMLDivElement>(null)
+  const [partyOn, setPartyOn] = useState(partyOverlaySaved)
+  const overlay = !!req.party && partyOn
+  const toggleParty = () => {
+    const on = !partyOn
+    setPartyOn(on)
+    try {
+      localStorage.setItem(PARTY_OVERLAY_KEY, on ? '1' : '0')
+    } catch {
+      // private browsing: it holds for this film only
+    }
+  }
+  const stageFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
+    else void stageRef.current?.requestFullscreen().catch(() => undefined)
+  }
   const [plan, setPlan] = useState<Plan | null>(null)
   const [error, setError] = useState('')
   const [failed, setFailed] = useState(false)
@@ -1215,6 +1246,16 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
               }}
             />
           )}
+          {req.party && (
+            <button type="button" className={`btn-sm btn-with-icon${partyOn ? ' primary' : ''}`} onClick={toggleParty} aria-pressed={partyOn} title={t('Show the watch party chat over the film: new messages fade in at a corner')} data-walk="player-party-chat">
+              <Icon name="chat" size={14} /> <span>{t('Chat')}</span>
+            </button>
+          )}
+          {overlay && (
+            <button type="button" className="btn-sm" onClick={stageFullscreen} aria-label={t('Full screen, with the chat')} title={t('Full screen, with the chat')}>
+              <Icon name="maximize" size={14} />
+            </button>
+          )}
           {posItem && plan && !error && (
             <button type="button" className="btn-sm btn-with-icon hp-startover" onClick={startOver} title={t('Start over')}>
               <Icon name="skip-prev" size={14} /> <span>{t('Start over')}</span>
@@ -1237,8 +1278,9 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
                 : t("This video couldn't be played here. The file itself is fine: it plays in Jellyfin, VLC or mpv.")}
           </p>
         ) : (
-          <div className="hp-stage">
-            <video ref={videoRef} controls autoPlay playsInline onEnded={() => req.onEnded?.()} onError={() => plan?.mode === 'direct' && !convertInstead() && !failOver() && setFailed(true)}>
+          <div className="hp-stage" ref={stageRef} onDoubleClick={overlay ? stageFullscreen : undefined}>
+            {overlay && req.party && <PartyOverlay showtimeId={req.party} />}
+            <video ref={videoRef} controls controlsList={overlay ? 'nofullscreen' : undefined} autoPlay playsInline onEnded={() => req.onEnded?.()} onError={() => plan?.mode === 'direct' && !convertInstead() && !failOver() && setFailed(true)}>
               {subSrc && <track key={subSrc} kind="subtitles" src={subSrc} srcLang={sub?.lang} label={sub?.lang ?? t('Subtitles')} default />}
             </video>
             {resumed && !!req.resumedFrom && (

@@ -2,6 +2,7 @@
 import { t } from '../../i18n'
 import type { SmhGroup, Walkthrough } from '../types'
 import { completeCollection } from './collection'
+import { communityBot, joinWatchParty, linkDiscord, partyChat, reviewInDiscord, ticketStubs } from './community'
 import { comicArcs, comicReview, comicWeek, readComic, setupComics } from './comics'
 import { askAi, completeLibrary, discover, followPerson, getShow, upcoming } from './discover'
 import { diary, familyMember, phone, roulette, stack, streamOrKeep, tonight, vote } from './everyday'
@@ -30,6 +31,12 @@ export const WALKS: Walkthrough[] = [
   diary,
   bookShowtime,
   setUpPreshow,
+  communityBot,
+  linkDiscord,
+  joinWatchParty,
+  partyChat,
+  reviewInDiscord,
+  ticketStubs,
   marquee,
   marqueeRemote,
   watchLiveTv,

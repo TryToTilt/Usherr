@@ -45,6 +45,8 @@ type showtime struct {
 	// played from it when there's no file.
 	StreamedFileID int64 `json:"streamedFileId,omitempty"`
 	Theme          int64 `json:"preshowTheme"` // Usherr: the pre-show theme (0: the schedule's)
+	// Usherr: Community. Shared as a watch party: who's going.
+	Party *partyInfo `json:"party,omitempty"`
 }
 
 const showtimeCols = `id, user_id, tmdb_id, title, year, poster_url, runtime, at_ms, preshow_min, play_on, state, preshow_theme`
@@ -94,7 +96,15 @@ func (s *Server) handleShowtimes(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "The showtimes couldn't be listed.")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"showtimes": s.withLibrary(list, requestUserID(r)), "nowMs": time.Now().UnixMilli(), "tv": s.tvReady()})
+	list = s.withLibrary(list, requestUserID(r))
+	parties := s.withParties(r.Context(), list) // Usherr: Community
+	for i := range list {
+		if p, ok := parties[list[i].ID]; ok {
+			list[i].Party = &p
+		}
+	}
+	_, _, canShare := s.communityCanShare()
+	writeJSON(w, http.StatusOK, map[string]any{"showtimes": list, "nowMs": time.Now().UnixMilli(), "tv": s.tvReady(), "community": canShare})
 }
 
 type showtimeBody struct {
@@ -107,6 +117,7 @@ type showtimeBody struct {
 	PreshowMin *int   `json:"preshowMin"`
 	PlayOn     string `json:"playOn"`
 	Theme      *int64 `json:"preshowTheme"` // Usherr: the pre-show theme
+	Share      bool   `json:"share"`        // Usherr: share it as a watch party (Community)
 }
 
 func (b *showtimeBody) check() string {
@@ -150,38 +161,71 @@ func (s *Server) handleAddShowtime(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Playing on the TV isn't set up here (Settings > Extras).")
 		return
 	}
-	// The film's length (when it ends: the next film of a double feature),
-	// poster and year from TMDB when the page didn't send them.
-	if (b.Runtime == 0 || b.PosterURL == "" || b.Year == 0) && s.TMDB().HasAPIKey() {
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-		if d, err := s.displayTMDB().GetMovieDetail(ctx, b.TMDBID); err == nil {
-			if b.Runtime == 0 {
-				b.Runtime = d.Runtime
-			}
-			if b.PosterURL == "" {
-				b.PosterURL = metadata.ImageURL("w500", d.PosterPath)
-			}
-			if b.Year == 0 {
-				b.Year = d.Year()
-			}
-		}
-		cancel()
-	}
-	var theme int64
-	if b.Theme != nil {
-		theme = max(*b.Theme, 0)
-	}
-	res, err := s.db.ExecContext(r.Context(), `INSERT INTO showtimes (user_id, tmdb_id, title, year, poster_url, runtime, at_ms, preshow_min, play_on, created_ms, preshow_theme)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, requestUserID(r), b.TMDBID, trimRunes(strings.TrimSpace(b.Title), 200), b.Year,
-		trimRunes(b.PosterURL, 500), b.Runtime, b.AtMs, pre, b.PlayOn, time.Now().UnixMilli(), theme)
+	id, err := s.saveShowtime(r.Context(), requestUserID(r), b, pre)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "The showtime couldn't be saved.")
 		return
 	}
+	answer := map[string]any{"id": id}
+	// Usherr: Community. The booking stands even when sharing fails; the
+	// page says why, and it can be shared again from the Showtime page.
+	if b.Share {
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		if st, ok := s.showtimeByID(ctx, id); ok {
+			if err := s.shareShowtime(ctx, st); err == errCommunityOff {
+				answer["shareError"] = "Community isn't connected, so it wasn't shared."
+			} else if err != nil {
+				answer["shareError"] = communityProblem(err, "in the Community channel")
+			}
+		}
+		cancel()
+	}
+	writeJSON(w, http.StatusCreated, answer)
+}
+
+// fillFilm adds the film's length (when it ends: the next film of a double
+// feature), title, poster and year from TMDB when they weren't sent.
+func (s *Server) fillFilm(ctx context.Context, b *showtimeBody) {
+	if (b.Runtime > 0 && b.PosterURL != "" && b.Year > 0 && b.Title != "") || !s.TMDB().HasAPIKey() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	d, err := s.displayTMDB().GetMovieDetail(ctx, b.TMDBID)
+	if err != nil {
+		return
+	}
+	if b.Runtime == 0 {
+		b.Runtime = d.Runtime
+	}
+	if b.PosterURL == "" {
+		b.PosterURL = metadata.ImageURL("w500", d.PosterPath)
+	}
+	if b.Year == 0 {
+		b.Year = d.Year()
+	}
+	if strings.TrimSpace(b.Title) == "" {
+		b.Title = d.Title
+	}
+}
+
+// saveShowtime books a checked showtime.
+func (s *Server) saveShowtime(ctx context.Context, userID int64, b showtimeBody, pre int) (int64, error) {
+	s.fillFilm(ctx, &b)
+	var theme int64
+	if b.Theme != nil {
+		theme = max(*b.Theme, 0)
+	}
+	res, err := s.db.ExecContext(ctx, `INSERT INTO showtimes (user_id, tmdb_id, title, year, poster_url, runtime, at_ms, preshow_min, play_on, created_ms, preshow_theme)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, userID, b.TMDBID, trimRunes(strings.TrimSpace(b.Title), 200), b.Year,
+		trimRunes(b.PosterURL, 500), b.Runtime, b.AtMs, pre, b.PlayOn, time.Now().UnixMilli(), theme)
+	if err != nil {
+		return 0, err
+	}
 	id, _ := res.LastInsertId()
 	go s.artForFilm(b.TMDBID) // Usherr: its artwork ready before the night
 	s.marqueeLive.send("", marqueeEvent{Type: "settings"})
-	writeJSON(w, http.StatusCreated, map[string]any{"id": id})
+	return id, nil
 }
 
 // showtimeFor reads a showtime the asker may change: their own, or any for
@@ -234,6 +278,9 @@ func (s *Server) handlePutShowtime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.marqueeLive.send("", marqueeEvent{Type: "settings"})
+	if st.AtMs != b.AtMs || st.PreshowMin != pre {
+		go s.partyMoved(st.ID) // Usherr: Community
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": st.ID})
 }
 
@@ -244,6 +291,7 @@ func (s *Server) handleDeleteShowtime(w http.ResponseWriter, r *http.Request) {
 		writeError(w, code, msg)
 		return
 	}
+	s.partyCancelled(r.Context(), st) // Usherr: Community, before the party's rows go with it
 	if _, err := s.db.ExecContext(r.Context(), `DELETE FROM showtimes WHERE id = ?`, st.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "The showtime couldn't be cancelled.")
 		return
@@ -265,6 +313,13 @@ func (s *Server) showtimeJob(ctx context.Context) {
 		at := time.UnixMilli(st.AtMs)
 		set := func(state string) {
 			_, _ = s.db.ExecContext(ctx, `UPDATE showtimes SET state = ? WHERE id = ?`, state, st.ID)
+			go s.partyStateChanged(st.ID, state, false) // Usherr: Community
+		}
+		// Usherr: Community, step 7. A party's credits: its stamp button.
+		if st.State == "playing" && now.UnixMilli() >= creditsAt(st) {
+			if p, ok := s.partyOf(ctx, st.ID); ok && p.Told != "credits" {
+				go s.partyCredits(st.ID)
+			}
 		}
 		switch {
 		case st.State == "done":
@@ -283,7 +338,8 @@ func (s *Server) showtimeJob(ctx context.Context) {
 			}
 			set("playing")
 		case (st.State == "booked" || st.State == "preshow") && !now.Before(at.Add(5*time.Minute)):
-			set("playing") // missed its moment (the server was off): not started late
+			_, _ = s.db.ExecContext(ctx, `UPDATE showtimes SET state = 'playing' WHERE id = ?`, st.ID) // missed its moment (the server was off): not started late
+			go s.partyStateChanged(st.ID, "playing", true)                                             // Usherr: nor announced late
 		}
 	}
 }

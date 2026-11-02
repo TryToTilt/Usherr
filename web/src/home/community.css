@@ -1,0 +1,21 @@
+/* Usherr: Community (preview) settings */
+.cm-page .card { margin-bottom: 1rem; }
+.cm-page h2 { margin: 0 0 0.5rem; font-size: 1.05rem; }
+.cm-preview { font-size: 0.7rem; font-weight: 500; vertical-align: middle; padding: 2px 8px; border-radius: 999px; background: rgba(242, 193, 78, 0.18); color: #f2c14e; }
+.cm-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; margin: 0.75rem 0; }
+.cm-row label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 16rem; min-width: 0; }
+.cm-status { display: flex; align-items: center; gap: 8px; margin: 0.5rem 0 0; }
+.cm-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; }
+.cm-dot.s-connected { background: #3ecf72; }
+.cm-dot.s-connecting { background: #f2c14e; }
+.cm-dot.s-error { background: #ff8a80; }
+.cm-invite { display: inline-block; margin: 0.25rem 0 0.75rem; text-decoration: none; }
+.cm-servers { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.cm-servers li { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border-radius: 999px; background: var(--surface-2, rgba(255, 255, 255, 0.06)); }
+.cm-servers img, .cm-noicon { width: 24px; height: 24px; border-radius: 50%; }
+.cm-noicon { display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; background: rgba(88, 101, 242, 0.35); }
+.cm-linked { display: flex; align-items: center; gap: 8px; margin: 0 0 0.5rem; }
+.cm-linked img, .cm-linked .cm-noicon { width: 28px; height: 28px; border-radius: 50%; }
+.cm-people { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cm-people li { display: flex; align-items: center; gap: 8px; }
+.cm-people img, .cm-people .cm-noicon { width: 24px; height: 24px; border-radius: 50%; }

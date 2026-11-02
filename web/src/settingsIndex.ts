@@ -31,6 +31,7 @@ interface Spec {
 // Words people use for each page, besides its name.
 const PAGE_WORDS: Record<string, string> = {
   general: 'preferences language theme dark light time zone address update',
+  community: 'discord bot token server channel watch party parties reviews friends social invite linked', // Usherr
   modules: 'movies tv shows music books ebooks audiobooks enable disable turn on off',
   media: 'paths directories library root storage movies tv music books downloads hardlinks',
   naming: 'rename naming format pattern template nfo artwork script import',
@@ -50,7 +51,7 @@ const PAGE_WORDS: Record<string, string> = {
   addons: 'links apps sidebar',
   profile: 'name email password api key avatar',
   security: 'passkey sessions devices api keys',
-  services: 'plex listenbrainz kobo e-reader hardcover',
+  services: 'plex listenbrainz kobo e-reader hardcover discord link code',
   accounts: 'users people roles admin member viewer invite',
   requests: 'quota limit approve problem reports',
   'sign-in': 'sso oidc ldap active directory login proxy',

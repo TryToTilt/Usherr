@@ -31,6 +31,8 @@ const MarqueeRemote = lazy(() => import('./home/MarqueeRemote')) // Usherr: the 
 const MarqueeHub = lazy(() => import('./home/MarqueeHub')) // Usherr: the Marquee's own page
 const PreshowSettings = lazy(() => import('./home/PreshowSettings')) // Usherr: the pre-show
 const ArtworkSettings = lazy(() => import('./home/ArtworkSettings')) // Usherr: Re-Posterr, artwork picking
+const CommunitySettings = lazy(() => import('./home/CommunitySettings')) // Usherr: Community (preview)
+const PartyChatPage = lazy(() => import('./home/PartyChat')) // Usherr: Community, the watch party chat on a phone
 const ShowtimePage = lazy(() => import('./home/ShowtimePage')) // Usherr: Showtimes at home
 const SportsPage = lazy(() => import('./home/Sports')) // Usherr: Sports
 const SportsLeaguePage = lazy(() => import('./home/Sports').then((m) => ({ default: m.SportsLeaguePage }))) // Usherr
@@ -249,10 +251,12 @@ function Gate() {
         <Route path="/marquee/manage" element={<AdminOnly><MarqueeHub /></AdminOnly>} /> {/* Usherr */}
         <Route path="/preshow/manage" element={<AdminOnly><PreshowSettings /></AdminOnly>} /> {/* Usherr */}
         <Route path="/showtime" element={<ShowtimePage />} /> {/* Usherr: Showtimes at home */}
+        <Route path="/showtime/chat/:id" element={<PartyChatPage />} /> {/* Usherr: Community, the watch party chat */}
         <Route path="/sports" element={<SportsPage />} /> {/* Usherr: Sports */}
         <Route path="/sports/league/:id" element={<SportsLeaguePage />} /> {/* Usherr */}
         <Route path="/you/diary" element={<You tab="diary" />} /> {/* home fork */}
         <Route path="/you/wrapped" element={<You tab="wrapped" />} /> {/* home fork */}
+        <Route path="/you/stubs" element={<You tab="stubs" />} /> {/* Usherr: ticket stubs */}
         <Route path="/queue" element={<Queue />} />
         {/* home fork: NSFW 18+ (administrators only), comics, Live TV, the streamed library */}
         <Route path="/nsfw" element={<NSFWOnly><Nsfw /></NSFWOnly>} />
@@ -284,6 +288,7 @@ function Gate() {
           <Route path="schedules" element={<AdminOnly><SchedulesSettings /></AdminOnly>} /> {/* home fork */}
           <Route path="extras" element={<AdminOnly><ExtrasSettings /></AdminOnly>} /> {/* home fork */}
           <Route path="re-posterr" element={<AdminOnly><ArtworkSettings /></AdminOnly>} /> {/* Usherr: Re-Posterr */}
+          <Route path="community" element={<AdminOnly><CommunitySettings /></AdminOnly>} /> {/* Usherr: Community (preview) */}
           <Route path="setup" element={<AdminOnly><SetupChecklist /></AdminOnly>} /> {/* home fork */}
           <Route path="subtitles" element={<AdminOnly><SubtitleSettings /></AdminOnly>} />
           <Route path="metadata" element={<AdminOnly><MetadataSettings /></AdminOnly>} />

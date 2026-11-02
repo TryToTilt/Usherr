@@ -20,6 +20,8 @@ import ListenBrainzCard from '../components/ListenBrainzCard'
 import RequestNoticesCard from '../components/RequestNoticesCard'
 import RequestSettingsCard from '../components/RequestSettingsCard'
 import EReaderCard from '../components/EReaderCard'
+import DiscordLinkCard from '../home/DiscordLinkCard' // Usherr: Community
+import '../home/community.css' // Usherr
 import { useToast } from '../components/Toast'
 import Icon from '../components/Icon'
 import * as check from '../validate'
@@ -760,6 +762,7 @@ export function ServicesSettings() {
       <PlexWatchlistCard />
       <ListenBrainzCard />
       <EReaderCard />
+      <DiscordLinkCard />
     </div>
   )
 }

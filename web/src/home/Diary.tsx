@@ -9,6 +9,8 @@ import { api, type TitleResult } from '../api'
 import Icon from '../components/Icon'
 import { currentLanguage, plural, t } from '../i18n'
 import Stars from './Stars'
+import { postReview } from './CommunityReviews' // Usherr: Community, reviews
+import { useToast } from '../components/Toast'
 import './news.css'
 
 interface Entry {
@@ -71,7 +73,8 @@ function dayLabel(day: string): { n: string; w: string } {
   return { n: String(d), w: new Date(y, m - 1, d).toLocaleDateString(currentLanguage(), { weekday: 'short' }) }
 }
 
-function Row({ e, onChange, onRemove }: { e: Entry; onChange: (e: Entry) => void; onRemove: (e: Entry) => void }) {
+function Row({ e, onChange, onRemove, canReview }: { e: Entry; onChange: (e: Entry) => void; onRemove: (e: Entry) => void; canReview?: boolean }) {
+  const toast = useToast()
   const [editing, setEditing] = useState(false)
   const [note, setNote] = useState(e.note ?? '')
   const save = (patch: Partial<Entry>) => {
@@ -133,6 +136,21 @@ function Row({ e, onChange, onRemove }: { e: Entry; onChange: (e: Entry) => void
           <button className="icon-btn" onClick={() => setEditing(true)} title={e.note ? t('Change the note') : t('Write a note')} aria-label={e.note ? t('Change the note') : t('Write a note')}>
             <Icon name="edit" size={14} />
           </button>
+          {canReview && (!!e.stars || !!e.note) && (
+            <button
+              className="icon-btn"
+              data-walk="diary-review"
+              onClick={() =>
+                postReview(e.kind, e.tmdbId, e.stars ?? 0, e.note ?? '')
+                  .then(() => toast.success(t('Your review of {title} is in Discord.', { title: e.title })))
+                  .catch((x: Error) => toast.error(x.message))
+              }
+              title={t('Post the stars and note to Discord as your review (it replaces an earlier one)')}
+              aria-label={t('Post to Discord as your review')}
+            >
+              <Icon name="chat" size={14} />
+            </button>
+          )}
           <button className="icon-btn" onClick={() => onRemove(e)} title={t('Take it out of the Diary')} aria-label={t('Take it out of the Diary')}>
             <Icon name="x" size={14} />
           </button>
@@ -309,6 +327,14 @@ export default function Diary() {
   const [logging, setLogging] = useState(false)
   const [importing, setImporting] = useState(false)
   const [imp, setImp] = useState<ImportState | null>(null)
+  // Usherr: Community. Reviews can be posted to Discord once your account is linked.
+  const [canReview, setCanReview] = useState(false)
+  useEffect(() => {
+    fetch('/api/home/community/me', { credentials: 'include' })
+      .then((r) => (r.ok ? (r.json() as Promise<{ on: boolean; link: unknown }>) : null))
+      .then((d) => setCanReview(!!d?.on && !!d.link))
+      .catch(() => undefined)
+  }, [])
 
   const load = useCallback(() => {
     const q = new URLSearchParams()
@@ -416,7 +442,7 @@ export default function Diary() {
             <h3>{monthTitle(m.key + '-01')}</h3>
             <ul>
               {m.list.map((e) => (
-                <Row key={e.id} e={e} onChange={change} onRemove={remove} />
+                <Row key={e.id} e={e} onChange={change} onRemove={remove} canReview={canReview} />
               ))}
             </ul>
           </div>

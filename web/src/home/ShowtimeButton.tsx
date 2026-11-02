@@ -51,6 +51,8 @@ export function ShowtimeDialog({ film, onClose }: { film: ShowtimeFilm; onClose:
   const [playOn, setPlayOn] = useState<PlayOn>('here')
   const [others, setOthers] = useState<Showtime[]>([])
   const [tv, setTv] = useState(false)
+  const [canShare, setCanShare] = useState(false) // Usherr: Community is connected
+  const [share, setShare] = useState(false)
   const [busy, setBusy] = useState(false)
   // Usherr: the pre-show's theme (0: whichever the schedule picks).
   const [themes, setThemes] = useState<{ id: number; name: string }[]>([])
@@ -66,6 +68,7 @@ export function ShowtimeDialog({ film, onClose }: { film: ShowtimeFilm; onClose:
       .then((d) => {
         setOthers(d.showtimes.filter((s) => s.state !== 'done' && showtimeEnds(s) > d.nowMs))
         setTv(d.tv)
+        setCanShare(!!d.community)
       })
       .catch(() => undefined)
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -78,7 +81,9 @@ export function ShowtimeDialog({ film, onClose }: { film: ShowtimeFilm; onClose:
   const book = async () => {
     setBusy(true)
     try {
-      await bookShowtime({ ...film, atMs: startMs, preshowMin: preshow, playOn, preshowTheme: theme })
+      const done = await bookShowtime({ ...film, atMs: startMs, preshowMin: preshow, playOn, preshowTheme: theme, share: canShare && share })
+      if (done.shareError) toast.error(done.shareError)
+      else if (canShare && share) toast.success(t('Shared to Discord as a watch party.'))
       toast.success(
         playOn === 'here'
           ? t('{title} is booked for {when}. Leave the Showtime page open on the TV.', { title: film.title, when: whenLabel(startMs) })
@@ -159,6 +164,12 @@ export function ShowtimeDialog({ film, onClose }: { film: ShowtimeFilm; onClose:
               <option value="none">{PLAY_ON_LABEL.none()}</option>
             </select>
           </label>
+          {canShare && (
+            <label className="cx-check" data-walk="showtime-share">
+              <input type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} /> {t('Share to Discord as a watch party')}
+            </label>
+          )}
+          {canShare && share && <p className="hint">{t('Usherr posts a card with the times and I’m in buttons, opens a thread for the chat, and puts it on the server’s calendar. Everyone watches in their own Usherr at the same time.')}</p>}
           <p className="hint">
             {playOn === 'here'
               ? t('Open the Showtime page in the browser on the TV and leave it there: it counts down and starts the film by itself.')

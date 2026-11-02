@@ -52,6 +52,9 @@ type Server struct {
 	libStats    libraryStatsCache  // the Statistics page's answer, kept for a few minutes (stats_library.go)
 	marqueeLive marqueeHub         // Usherr: the Marquee screens' live streams (home_marquee_screens.go)
 	marqueeMQTT marqueeBridge      // Usherr: the Marquee in Home Assistant (home_marquee_mqtt.go)
+	communityL  communityLink      // Usherr: the household's Discord bot (home_community.go)
+	linkC       linkCodes          // Usherr: /link codes waiting to be typed in (home_community_link.go)
+	chat        chatHub            // Usherr: watch party chats, live (home_community_chat.go)
 	mediaInfo   mediaInfoState     // what the video files hold, read from their headers (media_info.go)
 	appFrames   atomic.Value       // []string: the origins of add-ons shown in a frame, kept in memory so the security headers never wait for the database (app_links.go)
 	cfg         config.Config
@@ -637,32 +640,44 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/home/preshow/jellyfin/setup", s.handlePreshowJFSetup)
 	admin.HandleFunc("POST /api/home/preshow/jellyfin/restart", s.handlePreshowJFRestart)
 
-	admin.HandleFunc("GET /api/home/ai", s.handleGetAI)                                  // home fork
-	admin.HandleFunc("PUT /api/home/ai", s.handlePutAI)                                  // home fork
-	admin.HandleFunc("POST /api/home/ai/test", s.handleTestAI)                           // home fork
-	member.HandleFunc("GET /api/home/news", s.handleNews)                                // home fork: entertainment news
-	member.HandleFunc("GET /api/home/cinema", s.handleCinema)                            // Usherr: films in cinemas
-	member.HandleFunc("POST /api/home/playing", s.handleNowPlaying)                      // Usherr: what Usherr's player plays, for the Marquee
-	member.HandleFunc("DELETE /api/home/playing/{key}", s.handleNowPlayingStop)          // Usherr
-	member.HandleFunc("GET /api/home/position", s.handlePositionGet)                     // Usherr: where you got to (home_positions.go)
-	member.HandleFunc("PUT /api/home/position", s.handlePositionPut)                     // Usherr
-	member.HandleFunc("GET /api/home/showtimes", s.handleShowtimes)                      // Usherr: Showtimes at home
-	member.HandleFunc("POST /api/home/showtimes", s.handleAddShowtime)                   // Usherr
-	member.HandleFunc("PUT /api/home/showtimes/{id}", s.handlePutShowtime)               // Usherr
-	member.HandleFunc("DELETE /api/home/showtimes/{id}", s.handleDeleteShowtime)         // Usherr
-	member.HandleFunc("GET /api/home/stack", s.handleGetStack)                           // Usherr: your stack
-	member.HandleFunc("POST /api/home/stack", s.handleAddStack)                          // Usherr
-	member.HandleFunc("PUT /api/home/stack/order", s.handleOrderStack)                   // Usherr
-	member.HandleFunc("DELETE /api/home/stack/{kind}/{tmdbId}", s.handleRemoveStack)     // Usherr
-	member.HandleFunc("GET /api/home/link-logo/{name}", s.handleLinkLogo)                // Usherr: a site's logo on its links
-	member.HandleFunc("GET /api/home/marquee", s.handleMarquee)                          // Usherr: the lobby display
-	member.HandleFunc("GET /api/home/marquee/events", s.handleMarqueeEvents)             // Usherr: a screen's live stream
-	member.HandleFunc("POST /api/home/marquee/showing", s.handleMarqueeShowing)          // Usherr: what a screen shows
-	member.HandleFunc("GET /api/home/marquee/qr", s.handleMarqueeQR)                     // Usherr: a link as a QR code
-	member.HandleFunc("GET /api/home/marquee/theme/{kind}/{id}", s.handleMarqueeTheme)   // Usherr: theme music
-	member.HandleFunc("GET /api/home/marquee/media/{id}/file", s.handleMarqueeMediaFile) // Usherr: your slides and pre-show
-	member.HandleFunc("GET /api/home/moods", s.handleMoods)                              // home fork: Library shelves by mood
-	member.HandleFunc("GET /api/home/book-genres", s.handleBookGenres)                   // home fork: Library shelves by genre
+	admin.HandleFunc("GET /api/home/ai", s.handleGetAI)                                    // home fork
+	admin.HandleFunc("PUT /api/home/ai", s.handlePutAI)                                    // home fork
+	admin.HandleFunc("POST /api/home/ai/test", s.handleTestAI)                             // home fork
+	member.HandleFunc("GET /api/home/news", s.handleNews)                                  // home fork: entertainment news
+	member.HandleFunc("GET /api/home/cinema", s.handleCinema)                              // Usherr: films in cinemas
+	member.HandleFunc("POST /api/home/playing", s.handleNowPlaying)                        // Usherr: what Usherr's player plays, for the Marquee
+	member.HandleFunc("DELETE /api/home/playing/{key}", s.handleNowPlayingStop)            // Usherr
+	member.HandleFunc("GET /api/home/position", s.handlePositionGet)                       // Usherr: where you got to (home_positions.go)
+	member.HandleFunc("PUT /api/home/position", s.handlePositionPut)                       // Usherr
+	member.HandleFunc("GET /api/home/showtimes", s.handleShowtimes)                        // Usherr: Showtimes at home
+	member.HandleFunc("POST /api/home/showtimes", s.handleAddShowtime)                     // Usherr
+	member.HandleFunc("PUT /api/home/showtimes/{id}", s.handlePutShowtime)                 // Usherr
+	member.HandleFunc("DELETE /api/home/showtimes/{id}", s.handleDeleteShowtime)           // Usherr
+	member.HandleFunc("GET /api/home/stubs", s.handleStubs)                                // Usherr: your ticket stubs
+	member.HandleFunc("GET /api/home/reviews", s.handleReviews)                            // Usherr: reviews from the community
+	member.HandleFunc("POST /api/home/reviews", s.handlePostReview)                        // Usherr
+	member.HandleFunc("DELETE /api/home/reviews", s.handleDeleteReview)                    // Usherr
+	member.HandleFunc("GET /api/home/community/me", s.handleCommunityMe)                   // Usherr: your linked Discord account
+	member.HandleFunc("POST /api/home/showtimes/{id}/share", s.handleShareShowtime)        // Usherr: a watch party
+	member.HandleFunc("POST /api/home/showtimes/join", s.handleJoinShowtime)               // Usherr: join one by its code
+	member.HandleFunc("GET /api/home/showtimes/{id}/chat", s.handlePartyChat)              // Usherr: the watch party chat
+	member.HandleFunc("GET /api/home/showtimes/{id}/chat/events", s.handlePartyChatEvents) // Usherr
+	member.HandleFunc("POST /api/home/showtimes/{id}/chat", s.handlePartyChatSend)         // Usherr
+	member.HandleFunc("POST /api/home/community/link", s.handleCommunityLink)              // Usherr
+	member.HandleFunc("DELETE /api/home/community/link", s.handleCommunityUnlink)          // Usherr
+	member.HandleFunc("GET /api/home/stack", s.handleGetStack)                             // Usherr: your stack
+	member.HandleFunc("POST /api/home/stack", s.handleAddStack)                            // Usherr
+	member.HandleFunc("PUT /api/home/stack/order", s.handleOrderStack)                     // Usherr
+	member.HandleFunc("DELETE /api/home/stack/{kind}/{tmdbId}", s.handleRemoveStack)       // Usherr
+	member.HandleFunc("GET /api/home/link-logo/{name}", s.handleLinkLogo)                  // Usherr: a site's logo on its links
+	member.HandleFunc("GET /api/home/marquee", s.handleMarquee)                            // Usherr: the lobby display
+	member.HandleFunc("GET /api/home/marquee/events", s.handleMarqueeEvents)               // Usherr: a screen's live stream
+	member.HandleFunc("POST /api/home/marquee/showing", s.handleMarqueeShowing)            // Usherr: what a screen shows
+	member.HandleFunc("GET /api/home/marquee/qr", s.handleMarqueeQR)                       // Usherr: a link as a QR code
+	member.HandleFunc("GET /api/home/marquee/theme/{kind}/{id}", s.handleMarqueeTheme)     // Usherr: theme music
+	member.HandleFunc("GET /api/home/marquee/media/{id}/file", s.handleMarqueeMediaFile)   // Usherr: your slides and pre-show
+	member.HandleFunc("GET /api/home/moods", s.handleMoods)                                // home fork: Library shelves by mood
+	member.HandleFunc("GET /api/home/book-genres", s.handleBookGenres)                     // home fork: Library shelves by genre
 
 	// home fork: Discover recipes and the services each person pays for
 	member.HandleFunc("GET /api/home/recipes", s.handleListRecipes)
@@ -733,6 +748,10 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("GET /api/home/marquee/mqtt", s.handleGetMarqueeMQTT)                  // Usherr: Home Assistant
 	admin.HandleFunc("PUT /api/home/marquee/mqtt", s.handlePutMarqueeMQTT)                  // Usherr
 	admin.HandleFunc("POST /api/home/marquee/mqtt/test", s.handleTestMarqueeMQTT)           // Usherr
+	admin.HandleFunc("GET /api/home/community", s.handleGetCommunity)                       // Usherr: Community (preview)
+	admin.HandleFunc("PUT /api/home/community", s.handlePutCommunity)                       // Usherr
+	admin.HandleFunc("GET /api/home/community/channels", s.handleCommunityChannels)         // Usherr
+	admin.HandleFunc("POST /api/home/community/test", s.handleTestCommunity)                // Usherr
 	admin.HandleFunc("POST /api/home/marquee/screens/{id}/command", s.handleMarqueeCommand) // Usherr
 	admin.HandleFunc("GET /api/home/marquee/media", s.handleMarqueeMedia)                   // Usherr
 	admin.HandleFunc("POST /api/home/marquee/media", s.handleMarqueeMediaUpload)            // Usherr

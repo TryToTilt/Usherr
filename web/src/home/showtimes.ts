@@ -18,11 +18,13 @@ export interface Showtime {
   mine: boolean
   libraryId?: number // the film's file in the library
   streamedFileId?: number // Usherr: its saved release in Streams
+  party?: { going: string[] | null; cantMake: number } // Usherr: shared as a watch party (Community)
 }
 export interface ShowtimeList {
   showtimes: Showtime[]
   nowMs: number // the server's clock
   tv: boolean // Play on TV is set up
+  community?: boolean // Usherr: a showtime can be shared as a watch party
 }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -39,8 +41,19 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 }
 
 export const listShowtimes = () => call<ShowtimeList>('GET', '')
-export const bookShowtime = (b: { tmdbId: number; title: string; year?: number; posterUrl?: string; runtime?: number; atMs: number; preshowMin: number; playOn: PlayOn; preshowTheme?: number }) =>
-  call<{ id: number }>('POST', '', b)
+export const bookShowtime = (b: { tmdbId: number; title: string; year?: number; posterUrl?: string; runtime?: number; atMs: number; preshowMin: number; playOn: PlayOn; preshowTheme?: number; share?: boolean }) =>
+  call<{ id: number; shareError?: string }>('POST', '', b)
+// Usherr: Community. Join a watch party by the code on its card in Discord:
+// it books the same film for the same moment here.
+export const joinShowtime = (code: string, playOn: PlayOn) => call<{ id: number; title: string; atMs: number; already?: boolean }>('POST', '/join', { code, playOn })
+// Usherr: Community. Share a booked showtime as a watch party.
+export const shareShowtime = async (id: number) => {
+  const res = await fetch(`/api/home/showtimes/${id}/share`, { method: 'POST', credentials: 'include' })
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null
+    throw new Error(data?.error ?? t('Something went wrong (error {status}).', { status: res.status }))
+  }
+}
 export const moveShowtime = (id: number, b: { atMs: number; preshowMin: number; playOn: PlayOn }) => call<{ id: number }>('PUT', `/${id}`, b)
 export const cancelShowtime = (id: number) => fetch(`/api/home/showtimes/${id}`, { method: 'DELETE', credentials: 'include' })
 

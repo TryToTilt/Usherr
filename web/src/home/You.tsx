@@ -20,12 +20,14 @@ const AddonCard = lazy(() => import('./ExtrasSettings').then((m) => ({ default: 
 
 const Diary = lazy(() => import('./Diary'))
 const Wrapped = lazy(() => import('./Wrapped'))
+const Stubs = lazy(() => import('./Stubs')) // Usherr: Community, ticket stubs
 
-type YouTab = 'taste' | 'diary' | 'wrapped'
-const TABS: { key: YouTab; to: string; icon: 'heart' | 'calendar' | 'sparkles'; label: () => string }[] = [
+type YouTab = 'taste' | 'diary' | 'wrapped' | 'stubs'
+const TABS: { key: YouTab; to: string; icon: 'heart' | 'calendar' | 'sparkles' | 'film'; label: () => string }[] = [
   { key: 'taste', to: '/you', icon: 'heart', label: () => t('Taste and votes') },
   { key: 'diary', to: '/you/diary', icon: 'calendar', label: () => t('Diary') },
   { key: 'wrapped', to: '/you/wrapped', icon: 'sparkles', label: () => t('Wrapped') },
+  { key: 'stubs', to: '/you/stubs', icon: 'film', label: () => t('Ticket stubs') }, // Usherr
 ]
 
 interface Summary {
@@ -199,6 +201,7 @@ export default function You({ tab = 'taste' }: { tab?: YouTab }) {
           <Suspense fallback={null}>
             {tab === 'diary' && <Diary />}
             {tab === 'wrapped' && <Wrapped />}
+            {tab === 'stubs' && <Stubs />}
           </Suspense>
           {tab === 'taste' && (
             <>

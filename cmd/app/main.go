@@ -258,6 +258,9 @@ func run() error {
 	stopMarqueeMQTT := server.StartMarqueeMQTT() // Usherr: the Marquee in Home Assistant
 	defer stopMarqueeMQTT()
 
+	stopCommunity := server.StartCommunity() // Usherr: the household's Discord bot
+	defer stopCommunity()
+
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Handler: server.Routes(),

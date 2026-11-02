@@ -5,6 +5,22 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.37.0] - 2026-11-01
+
+### Added
+
+- **Community (preview): Usherr in your own Discord server.** Watch parties, a chat, reviews and ticket stubs with your friends, through your own Discord bot. Settings, Movie night, Community connects it: make the bot once in Discord's Developer Portal, paste its token (kept encrypted, never shown again), invite it with the link the page gives, and choose where it posts. It connects from your home to Discord, so nothing on your network is opened to the internet, and nothing it posts can ping anyone. Moving to another server later is only a setting. *Show me how* has *Connect Usherr to your Discord server*.
+- **Link your Discord account.** `/link` in your server answers with a code only you see; type it in Settings, Linked services, under Discord. Linking posts nothing, Unlink undoes it, and administrators see who is linked. *Show me how* has *Link your Discord account*.
+- **Watch parties.** Tick *Share to Discord as a watch party* when you book a Showtime (or press Share on the Showtime page). Usherr posts a card with the poster, the times in each reader's own time zone, a countdown, who's going and I'm in / Can't make it buttons; opens a thread for the chat; and puts the party on the server's calendar. The thread is told when the pre-show and the film start; moving the Showtime moves the card, the event and the thread with it, and cancelling it calls the party off (or ends it, during the film). The Showtime page shows who's going.
+- **Join a watch party from anyone's Usherr.** Each party's card has a showtime code like HXK4-7QPM-2RD9C. Pasted under *Join a watch party* on the Showtime page, it books the same film for the same moment, with a pre-show of the same length made of that Usherr's own clips and trailers; the two Usherrs never connect. A mistyped code is refused rather than booking the wrong film. *Show me how* has *Join a watch party from Discord*.
+- **The watch party chat in Usherr.** The party's thread shows live on the Showtime page under the countdown, with pictures, GIFs and spoilers hidden until tapped, and on a page of its own for your phone while the film plays on the TV. What you type is posted in the thread under your own Discord name and picture. Over the film, **Chat** on Usherr's player fades each new message in at a corner of the picture (off until switched on; full screen keeps it). *Show me how* has *Chat during a watch party*.
+- **Reviews.** One review each per film or show, stars and a few words: from a film's page (*From the community*) or a Diary entry in Usherr, with `/review` in Discord (the film suggested as you type; a form asks for the stars and words), or as `#review 4.5/5 …` in a watch party's thread. **Reviews go to** picks a text channel or a forum; in a forum each film gets its own post with every review of it as a reply, a party's #review is copied in with a link back, and other replies are just conversation. Posting again replaces your review, Remove works only for its writer, and every film's page shows its reviews. *Show me how* has *Review a film for your Discord*.
+- **Ticket stubs.** Like a cinema's: when a party's film starts, everyone who pressed I'm in (and the host) gets a stub at the door, with a seat in the order they said so; at the credits, **Get my stub stamped** in the thread (30 minutes) stamps it *Stayed to the end*. They show as tickets under **You → Ticket stubs**, and `/stubs` lists them in Discord. *Show me how* has *Collect ticket stubs*.
+
+### Fixed
+
+- **Book a film on the Showtime page**: the search results' posters spilled over each other, a poster stored at a bigger size the most. Each now fits its place in the grid.
+
 ## [2.36.2] - 2026-11-01
 
 ### Changed
