@@ -320,6 +320,7 @@ func (s *Server) showtimeJob(ctx context.Context) {
 			if p, ok := s.partyOf(ctx, st.ID); ok && p.Told != "credits" {
 				go s.partyCredits(st.ID)
 			}
+			s.guestCredits(ctx, st) // a party joined by its code: stamping opens here too
 		}
 		switch {
 		case st.State == "done":
@@ -337,6 +338,7 @@ func (s *Server) showtimeJob(ctx context.Context) {
 				cancel()
 			}
 			set("playing")
+			s.guestDoor(ctx, st) // Usherr: a party joined by its code gets its stub at the door
 		case (st.State == "booked" || st.State == "preshow") && !now.Before(at.Add(5*time.Minute)):
 			_, _ = s.db.ExecContext(ctx, `UPDATE showtimes SET state = 'playing' WHERE id = ?`, st.ID) // missed its moment (the server was off): not started late
 			go s.partyStateChanged(st.ID, "playing", true)                                             // Usherr: nor announced late

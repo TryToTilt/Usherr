@@ -654,6 +654,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("PUT /api/home/showtimes/{id}", s.handlePutShowtime)                 // Usherr
 	member.HandleFunc("DELETE /api/home/showtimes/{id}", s.handleDeleteShowtime)           // Usherr
 	member.HandleFunc("GET /api/home/stubs", s.handleStubs)                                // Usherr: your ticket stubs
+	member.HandleFunc("POST /api/home/stubs/{id}/stamp", s.handleStampStub)                // Usherr: a joined party's stub, stamped by hand (home_community_guest.go)
 	member.HandleFunc("GET /api/home/reviews", s.handleReviews)                            // Usherr: reviews from the community
 	member.HandleFunc("POST /api/home/reviews", s.handlePostReview)                        // Usherr
 	member.HandleFunc("DELETE /api/home/reviews", s.handleDeleteReview)                    // Usherr

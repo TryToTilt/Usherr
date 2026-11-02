@@ -600,7 +600,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/home/streaming` | admin | PUT /api/home/streaming {engine, profiles}: only what is sent changes. |
 | POST | `/api/home/streaming/import` | admin | POST /api/home/streaming/import {config?, providers, indexers, profiles}: copies what was ticked. |
 | POST | `/api/home/streaming/import/preview` | admin | POST /api/home/streaming/import/preview {config?}: what StreamNZB has and what Usherr has of it already. |
-| GET | `/api/home/stubs` | any account | GET /api/home/stubs (member): your ticket stubs (through your linked Discord account). |
+| GET | `/api/home/stubs` | any account | GET /api/home/stubs (member): your ticket stubs: the bot's (through your linked Discord account) and the ones for friends' parties you joined with a code, ne... |
+| POST | `/api/home/stubs/{id}/stamp` | any account | POST /api/home/stubs/{id}/stamp (member): stamp your own stub for a joined party yourself, in the half hour after its film ends. |
 | GET | `/api/home/taste` | any account | GET /api/home/taste?kind=: your taste in short: whether there's enough to go on, what it's built from, and what you lean towards and away from. |
 | POST | `/api/home/taste/scores` | any account | POST /api/home/taste/scores {kind, ids}: your match for each title, for the Library's "For you", and which of them you've seen (a title you've watched is par... |
 | GET | `/api/home/taste/title` | any account | GET /api/home/taste/title?kind=&id=: your match for one title, and why. |
@@ -1388,4 +1389,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-978 routes.
+979 routes.

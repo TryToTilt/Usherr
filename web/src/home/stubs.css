@@ -17,3 +17,4 @@
 .stub-no { font-family: var(--font-mono, monospace); font-size: 0.8rem; opacity: 0.7; }
 .stub-stamp { transform: rotate(-12deg); border: 2px solid #8a1e2e; color: #8a1e2e; border-radius: 6px; padding: 0.2rem 0.35rem; font-size: 0.66rem; font-weight: 800; text-transform: uppercase; text-align: center; letter-spacing: 0.04em; line-height: 1.15; }
 .stub:not(.stub-stamped) { filter: saturate(0.75); }
+.stub-none p { margin: 0 0 8px; }

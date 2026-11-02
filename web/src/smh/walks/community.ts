@@ -189,7 +189,7 @@ export const ticketStubs: Walkthrough = {
       title: t('On the way out'),
       text: t('At the credits, the party’s thread shows Get my stub stamped. Press it within 30 minutes: your stub says you stayed to the end.'),
     },
-    { kind: 'go', to: '/you/stubs', title: t('Your ticket stubs'), text: t('Under You. In Discord, /stubs lists them too.') },
+    { kind: 'go', to: '/you/stubs', title: t('Your ticket stubs'), text: t('Under You. In Discord, /stubs lists them too. A friend’s party joined with its showtime code gets a stub here as well, stamped when your player reaches the credits.') },
     { kind: 'done', title: t('Start a collection'), text: t('Every party you go to adds one.') },
   ],
 }

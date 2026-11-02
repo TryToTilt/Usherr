@@ -68,5 +68,6 @@ func (s *Server) handlePositionPut(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Couldn't keep the place.")
 		return
 	}
+	s.guestPlayed(r.Context(), user, body.Item, body.Position, body.Duration) // a joined party's stub, stamped at the credits
 	w.WriteHeader(http.StatusNoContent)
 }

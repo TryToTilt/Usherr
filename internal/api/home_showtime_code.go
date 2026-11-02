@@ -164,5 +164,6 @@ func (s *Server) handleJoinShowtime(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "The showtime couldn't be saved.")
 		return
 	}
+	s.markJoined(r.Context(), id, encodeShowtimeCode(c)) // a ticket stub here too (home_community_guest.go)
 	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "title": b.Title, "atMs": c.AtMs})
 }

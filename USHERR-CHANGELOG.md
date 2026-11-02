@@ -5,6 +5,17 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.39.0] - 2026-11-02
+
+### Added
+
+- **Ticket stubs for a friend's watch party, in your own Usherr.** Join a friend's party with its showtime code (Showtime, Join a watch party) and your own Usherr hands you a stub at the door when the film starts, with nothing to link: a friend's bot can't reach your Usherr. It's stamped by itself when Usherr's player reaches the credits; if the film played on the TV or the host ended it early, **Stamp it** on the stub works for half an hour after the film's end. The empty Ticket stubs page now says all of this instead of only pointing at linking.
+
+### Fixed
+
+- **`/link` says who it's for.** Its code works only in the Usherr the bot belongs to; someone running their own Usherr is told they don't need it (I'm in, then the showtime code).
+- **The update notice says how to update Usherr.** It called every Usherr "your home build of Mediarium" and gave no way to update. It now says to pull the new image and restart it, or build the new release if you build Usherr yourself.
+
 ## [2.38.0] - 2026-11-01
 
 ### Changed

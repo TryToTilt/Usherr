@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,6 +37,10 @@ type stub struct {
 	Guests     []string `json:"guests"`
 	AtMs       int64    `json:"atMs"`
 	Stamped    bool     `json:"stamped"` // stayed to the end
+	// Here: from a friend's party joined with its code, kept by this Usherr
+	// (home_community_guest.go). StampUntil: it can be stamped by hand until then.
+	Here       bool  `json:"here,omitempty"`
+	StampUntil int64 `json:"stampUntil,omitempty"`
 }
 
 // stampFor is how long the stamp button works after the credits.
@@ -181,9 +187,15 @@ func (s *Server) lateStub(ctx context.Context, st showtime, p party, who communi
 
 // stubsOf are someone's stubs, newest first.
 func (s *Server) stubsOf(ctx context.Context, externalID string) []stub {
+	return s.stubsFrom(ctx, "discord", externalID)
+}
+
+// stubsFrom are the stubs one backend keeps for someone: 'discord' (the
+// bot's), or 'here' (a guest's, by account id).
+func (s *Server) stubsFrom(ctx context.Context, backend, externalID string) []stub {
 	out := []stub{}
-	rows, err := s.db.QueryContext(ctx, `SELECT showtime_id, kind, tmdb_id, title, year, poster, host, seat, guests, at_ms, stamped_ms > 0
-		FROM community_stubs WHERE backend = 'discord' AND external_id = ? ORDER BY at_ms DESC`, externalID)
+	rows, err := s.db.QueryContext(ctx, `SELECT showtime_id, kind, tmdb_id, title, year, poster, host, seat, guests, at_ms, stamped_ms > 0, stamp_until
+		FROM community_stubs WHERE backend = ? AND external_id = ? ORDER BY at_ms DESC`, backend, externalID)
 	if err != nil {
 		return out
 	}
@@ -191,8 +203,15 @@ func (s *Server) stubsOf(ctx context.Context, externalID string) []stub {
 	for rows.Next() {
 		var sb stub
 		var guests string
-		if rows.Scan(&sb.ShowtimeID, &sb.Kind, &sb.TMDBID, &sb.Title, &sb.Year, &sb.Poster, &sb.Host, &sb.Seat, &guests, &sb.AtMs, &sb.Stamped) != nil {
+		var until int64
+		if rows.Scan(&sb.ShowtimeID, &sb.Kind, &sb.TMDBID, &sb.Title, &sb.Year, &sb.Poster, &sb.Host, &sb.Seat, &guests, &sb.AtMs, &sb.Stamped, &until) != nil {
 			continue
+		}
+		if backend == "here" {
+			sb.Here = true
+			if !sb.Stamped && until > time.Now().UnixMilli() {
+				sb.StampUntil = until
+			}
 		}
 		sb.Guests = []string{}
 		if guests != "" {
@@ -244,8 +263,9 @@ func (s *Server) stubsReply(ctx context.Context, who community.User) string {
 	return b.String()
 }
 
-// GET /api/home/stubs (member): your ticket stubs (through your linked
-// Discord account).
+// GET /api/home/stubs (member): your ticket stubs: the bot's (through your
+// linked Discord account) and the ones for friends' parties you joined with
+// a code, newest first.
 func (s *Server) handleStubs(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFromContext(r.Context())
 	if u == nil {
@@ -257,5 +277,7 @@ func (s *Server) handleStubs(w http.ResponseWriter, r *http.Request) {
 	if ext != "" {
 		list = s.stubsOf(r.Context(), ext)
 	}
+	list = append(list, s.stubsFrom(r.Context(), "here", strconv.FormatInt(u.ID, 10))...)
+	sort.SliceStable(list, func(i, j int) bool { return list[i].AtMs > list[j].AtMs })
 	writeJSON(w, http.StatusOK, map[string]any{"stubs": list, "linked": ext != "", "nowMs": time.Now().UnixMilli()})
 }

@@ -5,4 +5,6 @@ package api
 // over it by itself (that would drop every home feature).
 var homeForkBuild = true
 
-const homeForkUpdateNote = "This is your home build of Mediarium. New versions are merged into it by hand, so Update now is switched off here: installing the plain release would remove your home features."
+// Usherr: shown to everyone running Usherr, from its Docker image or built
+// from its source, so it says how to update either way.
+const homeForkUpdateNote = "Update now is switched off in Usherr. To update, pull the new image and restart it (docker compose pull, then docker compose up -d), or, if you build Usherr yourself, build the new release."

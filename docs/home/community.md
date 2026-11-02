@@ -165,6 +165,14 @@ Like a cinema's: a stub for each watch party you went to.
 - **Your stubs:** in Usherr under **You → Ticket stubs** (with your Discord
   account linked), drawn as tickets with the film, the night, your seat, the
   host and who else was there. In Discord, `/stubs` lists yours.
+- **A friend's party, in your own Usherr:** a friend's bot can't reach your
+  Usherr, and its `/link` codes only work in theirs. Paste the party's
+  showtime code under **Showtime → Join a watch party** instead: your own
+  Usherr gives you a stub at the door when the film starts, with nothing
+  linked. It's stamped by itself when Usherr's player reaches the credits. If
+  the film played somewhere else (the TV) or the host ended the party early,
+  press **Stamp it** on the stub in the half hour after the film's end. The
+  friend's bot keeps its own stub for you too: `/stubs` in their server.
 
 Nobody can prove from afar that someone really watched, since each Usherr is
 on its own. The stamp makes a stub mean something: it takes being there at the
