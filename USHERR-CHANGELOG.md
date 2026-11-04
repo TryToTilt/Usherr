@@ -5,6 +5,8 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.40.0] - 2026-11-04
+
 ### Added
 
 - **A new layout to try: Neu, new layout.** Settings → General → Look. It's Neu exactly, arranged differently: your libraries always in sight down the side, tabs along the bottom of a phone, a Home page for watching (the next showtime, Continue watching, Just added, Coming soon) and one Server area for admins with what needs you, the day-to-day pages and every settings group. A TV size makes everything bigger for the sofa, and turns on by itself in a TV's own browser. Kept per browser; Neu and Classic are unchanged.
