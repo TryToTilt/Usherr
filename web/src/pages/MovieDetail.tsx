@@ -32,6 +32,7 @@ import SubtitlesPanel from '../components/SubtitlesPanel'
 import Switch from '../components/Switch'
 import TitleHero, { TitleFacts } from '../components/TitleHero'
 import { useFilmPage } from '../home/filmLayout' // Usherr: the film page's layouts
+import { lobbyOn } from '../neu/look' // Usherr: the new layout
 import TitleLayout from '../home/TitleLayout' // Usherr: Cinema, Side by side, Streaming
 import { CastCard, PeopleLinks, titleLinks } from '../components/TitlePreview'
 import { crewWith } from '../people'
@@ -342,7 +343,10 @@ function MoviePage() {
   const directors = crewWith(movie.crew, 'Director')
   const writers = crewWith(movie.crew, 'Writer')
   const stateKey = !inLibrary ? (streamedHere ? 'streams' : null) : movie.status === 'downloaded' ? 'downloaded' : movie.status === 'downloading' ? 'downloading' : monitored === false ? 'added' : 'searching'
-  const state = stateKey ? describeState(stateKey) : null
+  // Usherr: in the new layout a member sees what it means for watching, never
+  // the file's quality or whether it's monitored.
+  const memberView = lobbyOn() && !admin
+  const state = !stateKey ? null : !memberView ? describeState(stateKey) : stateKey === 'downloaded' ? null : stateKey === 'downloading' ? { ...describeState('downloading'), label: t('On its way') } : stateKey === 'streams' ? describeState('streams') : { ...describeState('pending'), label: t('Not here yet'), hint: t('It’s on the list, and not here yet.') }
   const canPlayIt = movie.status === 'downloaded' && !!movie.libraryId && can(me, 'play')
   const play = canPlayIt ? () => playTitle('movie', movie.libraryId!, movie.title) : undefined /* play hook (home fork) */
 
@@ -354,21 +358,22 @@ function MoviePage() {
       ...(writers.length ? [{ label: writers.length > 1 ? t('Writers') : t('Writer'), value: <PeopleLinks people={writers} /> }] : []),
       ...releaseFacts(movie.releaseDates, movie.releaseDate),
       ...(movie.releaseStatus ? [{ label: t('Status'), value: movie.releaseStatus }] : []),
-      ...(inLibrary && movie.filePath && diskBytes > 0 ? [{ label: t('Size on disk'), value: formatBytes(diskBytes) }] : []),
+      ...(inLibrary && !memberView && movie.filePath && diskBytes > 0 ? [{ label: t('Size on disk'), value: formatBytes(diskBytes) }] : []),
     ],
     links: titleLinks('movie', movie.tmdbId, movie.imdbId, movie.homepage),
   }
   const statusTag = state && (
     <span className={`state-tag st-${state.key}`} title={state.hint}>
       <Icon name={state.icon} size={13} /> {state.label}
-      {movie.quality ? ` · ${qualityText(movie.quality)}` : ''}
+      {movie.quality && !memberView ? ` · ${qualityText(movie.quality)}` : ''}
     </span>
   )
 
   // Usherr: the film page's layouts (home/filmLayout.ts). The same pieces,
   // arranged three ways: everyday actions up top, everything that manages
   // the file and its downloads under Manage.
-  const hasManage = admin || (inLibrary && (can(me, 'manage') || can(me, 'releases')))
+  // Usherr: in the new layout Manage is for administrators only.
+  const hasManage = admin || (!memberView && inLibrary && (can(me, 'manage') || can(me, 'releases')))
   const filmItem = { tmdbId: movie.tmdbId, title: movie.title, year: movie.year, posterUrl: movie.posterUrl }
 
   // The everyday actions: play, plan, keep, rate.
@@ -389,7 +394,7 @@ function MoviePage() {
       ) : (
         <>
           <button className="primary btn-with-icon big" data-walk="title-add" onClick={() => setAdding(true)}>
-            <Icon name="plus" size={18} /> {t('Add to library')}
+            <Icon name="plus" size={18} /> {!lobbyOn() ? t('Add to library') : can(me, 'addDirect') ? t('Add it') : t('Ask for it')}
           </button>
           {can(me, 'play') && (
             // stream hook (home fork): watch it now, add it later if you like it

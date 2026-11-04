@@ -3,10 +3,14 @@
 // as Cinema (the hero, then tabs), Side by side (the title on the left, you
 // and the community on the right) or Streaming (a big backdrop, then rows).
 import { useState, type ReactNode } from 'react'
+import { isAdmin } from '../api'
+import { useAuth } from '../AuthContext'
 import Icon from '../components/Icon'
 import { t } from '../i18n'
+import { openReport } from '../report'
 import type { FilmLayout, FilmPageShows } from './filmLayout'
 import './filmpage.css'
+import './lobbyTitle.css'
 
 type Tab = 'episodes' | 'about' | 'reviews' | 'cast' | 'more' | 'manage'
 
@@ -34,6 +38,60 @@ export interface TitleBlocks {
 export default function TitleLayout(b: TitleBlocks) {
   const [tab, setTab] = useState<Tab>(b.episodes ? 'episodes' : 'about')
   const { layout, show, manage, manageOpen, setManageOpen } = b
+  const admin = isAdmin(useAuth().user)
+
+  // Usherr: the new layout's page (neu/look.ts). The title and one button up
+  // top, then the episodes, about and the people; Manage opens beside it.
+  if (layout === 'lobby') {
+    const managing = !!manage && manageOpen
+    return (
+      <div className={`fp fp-lobby${managing ? ' managing' : ''}`}>
+        <div className="fp-lobby-hero">{b.hero}</div>
+        {managing && (
+          <aside className="card fp-side-manage" aria-label={t('Manage')}>
+            <div className="fp-manage-head">
+              <h2>{t('Manage')}</h2>
+              {b.manageSummary && <p className="fp-sum">{b.manageSummary}</p>}
+              <button type="button" className="btn-sm" onClick={() => setManageOpen(false)}>
+                {t('Close')}
+              </button>
+            </div>
+            {manage}
+          </aside>
+        )}
+        <div className="fp-lobby-rest">
+          {b.episodes}
+          <div className="fp-lobby-pair">
+            <section className="card fp-about">
+              <h2>{t('About')}</h2>
+              {b.facts}
+              {b.scores}
+              {b.where}
+            </section>
+            {(b.you || b.requests) && (
+              <section className="card fp-you">
+                <h2>{t('You and your friends')}</h2>
+                {b.you}
+                {b.requests}
+              </section>
+            )}
+          </div>
+          {b.reviews}
+          {b.cast}
+          {b.more}
+          {!admin && (
+            <p className="fp-problem">
+              {t('Something wrong with it, like no sound or the wrong title?')}{' '}
+              <button type="button" className="link-button" onClick={() => openReport('problem')}>
+                {t('Tell an admin')}
+              </button>
+            </p>
+          )}
+        </div>
+        {b.dialogs}
+      </div>
+    )
+  }
 
   if (layout === 'side') {
     return (

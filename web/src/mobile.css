@@ -201,6 +201,16 @@
 @media (max-width: 900px) {
   .ep-table { display: block; position: relative; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
+/* Usherr: the everyday episode list (no Episode tools) fits a phone instead of
+   scrolling sideways, so Play is always in sight: the air date moves under the
+   title, and a downloaded episode's Play button stands in for its badge. */
+@media (max-width: 700px) {
+  .ep-table.ep-simple { display: table; width: 100%; overflow: visible; }
+  .ep-table.ep-simple .ep-air, .ep-table.ep-simple .ep-state-done .badge { display: none; }
+  .ep-table.ep-simple th, .ep-table.ep-simple td { white-space: normal; }
+  .ep-table.ep-simple td .badge, .ep-table.ep-simple td button { white-space: nowrap; }
+  .ep-table.ep-simple .ep-air-under { display: block; font-size: 0.8em; color: var(--text-dim); white-space: nowrap; }
+}
 @media (max-width: 700px) {
   /* the episode list scrolls sideways inside its own box instead of being cut off at the screen edge */
   .ep-table, .lib-list { display: block; position: relative; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }

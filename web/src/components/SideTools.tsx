@@ -236,7 +236,7 @@ export default function SideTools({ ebooksOn, audiobooksOn, musicOn, homes, apps
         <Icon name="github" size={16} />
       </Tool>
       {showSupport && (
-        <Tool label={t('Support {upstream}', { upstream: UPSTREAM })} onClick={() => setSupporting(true)} className="support" {...props}>
+        <Tool label={t('Support {upstream}, the project Usherr is built on', { upstream: UPSTREAM })} onClick={() => setSupporting(true)} className="support" {...props}>
           <Icon name="heart" size={16} />
         </Tool>
       )}

@@ -649,6 +649,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("DELETE /api/home/playing/{key}", s.handleNowPlayingStop)            // Usherr
 	member.HandleFunc("GET /api/home/position", s.handlePositionGet)                       // Usherr: where you got to (home_positions.go)
 	member.HandleFunc("PUT /api/home/position", s.handlePositionPut)                       // Usherr
+	member.HandleFunc("GET /api/home/continue", s.handleContinue)                          // Usherr: Continue watching (home_continue.go)
 	member.HandleFunc("GET /api/home/showtimes", s.handleShowtimes)                        // Usherr: Showtimes at home
 	member.HandleFunc("POST /api/home/showtimes", s.handleAddShowtime)                     // Usherr
 	member.HandleFunc("PUT /api/home/showtimes/{id}", s.handlePutShowtime)                 // Usherr

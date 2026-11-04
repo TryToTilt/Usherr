@@ -9,6 +9,7 @@ import { ModulesProvider } from './ModulesContext'
 import AppShell from './components/AppShell'
 import ErrorBoundary from './components/ErrorBoundary'
 import Dashboard from './pages/Dashboard'
+import { lobbyOn } from './neu/look' // Usherr: the new layout
 import Splash from './components/Splash'
 import Login from './pages/Login'
 import MusicAlbumRedirect from './pages/MusicAlbumRedirect'
@@ -33,6 +34,8 @@ const PreshowSettings = lazy(() => import('./home/PreshowSettings')) // Usherr: 
 const ArtworkSettings = lazy(() => import('./home/ArtworkSettings')) // Usherr: Re-Posterr, artwork picking
 const CommunitySettings = lazy(() => import('./home/CommunitySettings')) // Usherr: Community (preview)
 const PartyChatPage = lazy(() => import('./home/PartyChat')) // Usherr: Community, the watch party chat on a phone
+const LobbyHome = lazy(() => import('./pages/LobbyHome')) // Usherr: Home in the new layout
+const ServerHub = lazy(() => import('./pages/ServerHub')) // Usherr: the new layout's Server area
 const ShowtimePage = lazy(() => import('./home/ShowtimePage')) // Usherr: Showtimes at home
 const SportsPage = lazy(() => import('./home/Sports')) // Usherr: Sports
 const SportsLeaguePage = lazy(() => import('./home/Sports').then((m) => ({ default: m.SportsLeaguePage }))) // Usherr
@@ -220,7 +223,9 @@ function Gate() {
         }
       />
       <Route element={<AppShell />}>
-        <Route index element={<Dashboard />} />
+        <Route index element={lobbyOn() ? <LobbyHome /> : <Dashboard />} /> {/* Usherr: the new layout has its own Home */}
+        <Route path="/server" element={<AdminOnly fallback="/"><ServerHub /></AdminOnly>} /> {/* Usherr */}
+        <Route path="/server/overview" element={<AdminOnly fallback="/"><Dashboard /></AdminOnly>} /> {/* Usherr: the old dashboard, under Server */}
         <Route path="/search" element={<Search />} />
         <Route path="/search/releases" element={<ReleaseSearch />} />
         <Route path="/stats" element={<Navigate to="/settings/statistics" replace />} />

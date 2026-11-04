@@ -862,7 +862,7 @@ export default function Queue() {
           )}
           {admin && (
             <button aria-pressed={tab === 'blocklist'} className={tab === 'blocklist' ? 'active' : ''} onClick={() => setTab('blocklist')}>
-              {t('Blocklist')} <small>({blocklistTotal})</small>
+              {t('Blocklist')} {blocklistTotal > 0 && <small>({blocklistTotal})</small>}
             </button>
           )}
           {admin && (
@@ -904,7 +904,7 @@ export default function Queue() {
               <div className="ab-cell">
                 <a href="#act-problems" className={`ab-slot ab-bad${problems ? ' on' : ''}`}>
                   <b>{problems}</b>
-                  <span>{t('Problems')}</span>
+                  <span>{problems === 1 ? t('Problem') : t('Problems')}</span>
                 </a>
                 <InfoTip className="ab-tip" text={t('Downloads that failed, were stopped, or need you to decide something, such as a file that already exists. Open one to retry it or remove it.')} />
               </div>

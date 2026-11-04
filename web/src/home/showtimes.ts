@@ -1,7 +1,7 @@
 // Usherr: Showtimes at home — a film booked for a time. The Marquee counts
 // down to it and runs the pre-show; at showtime the film starts on the
 // Showtime screen (/showtime), on the TV, or nowhere (watched elsewhere).
-import { locale, t } from '../i18n'
+import { locale, plural, t } from '../i18n'
 
 export type PlayOn = 'here' | 'tv' | 'none'
 export interface Showtime {
@@ -75,12 +75,16 @@ export function whenLabel(ms: number): string {
   return `${d.toLocaleDateString(locale(), { weekday: 'short', month: 'short', day: 'numeric' })} ${time}`
 }
 
-// "in 1 h 05 min", "in 12 min", "now".
+// "in 1 h 05 min", "in 12 min", "now"; a day or more away, by the calendar:
+// "tomorrow", "in 4 days" (not "in 117 h 59 min").
 export function inLabel(ms: number, now: number): string {
   const m = Math.round((ms - now) / 60_000)
   if (m <= 0) return t('now')
   if (m < 60) return t('in {n} min', { n: m })
-  return t('in {h} h {m} min', { h: Math.floor(m / 60), m: String(m % 60).padStart(2, '0') })
+  if (m < 24 * 60) return t('in {h} h {m} min', { h: Math.floor(m / 60), m: String(m % 60).padStart(2, '0') })
+  const days = Math.round((new Date(new Date(ms).toDateString()).getTime() - new Date(new Date(now).toDateString()).getTime()) / 86_400_000)
+  if (days <= 1) return t('tomorrow')
+  return plural(days, 'in {n} day', 'in {n} days')
 }
 
 export const PLAY_ON_LABEL: Record<PlayOn, () => string> = {

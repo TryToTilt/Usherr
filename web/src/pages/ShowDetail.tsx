@@ -13,10 +13,11 @@ import Icon from '../components/Icon'
 import TitleHero, { TitleFacts } from '../components/TitleHero'
 import { useFilmPage } from '../home/filmLayout' // Usherr: the title page's layouts
 import TitleLayout from '../home/TitleLayout' // Usherr
+import { lobbyOn } from '../neu/look' // Usherr: the new layout
 import SimilarShows from '../home/SimilarShows' // Usherr
 import { CastCard, PeopleLinks, SeasonsCard, titleLinks } from '../components/TitlePreview'
 import { crewWith } from '../people'
-import { api, isAdmin, type DiscoverMovie, type TVDetail } from '../api'
+import { api, can, isAdmin, type DiscoverMovie, type TVDetail } from '../api'
 import { useAuth } from '../AuthContext'
 import ArtworkButton from '../home/ArtworkButton' // Usherr: Re-Posterr
 import { useDocumentTitle } from '../documentTitle'
@@ -33,7 +34,8 @@ export default function ShowDetail() {
   const { tmdbId } = useParams<{ tmdbId: string }>()
   const navigate = useNavigate()
   const id = Number(tmdbId)
-  const admin = isAdmin(useAuth().user) // Usherr: Re-Posterr
+  const me = useAuth().user
+  const admin = isAdmin(me) // Usherr: Re-Posterr
   const [show, setShow] = useState<TVDetail | null>(null)
   // Usherr: the layout this browser chose (Settings, General), and Manage.
   const { resolved: layout, show: shows } = useFilmPage()
@@ -91,7 +93,7 @@ export default function ShowDetail() {
         </button>
       )}
       <button className={`${streamedHere ? '' : 'primary '}btn-with-icon big`} data-walk="title-add" onClick={() => setAdding(true)}>
-        <Icon name="plus" size={18} /> {t('Add to library')}
+        <Icon name="plus" size={18} /> {!lobbyOn() ? t('Add to library') : can(me, 'addDirect') ? t('Add it') : t('Ask for it')}
       </button>
       <StackButton item={{ kind: 'tv', tmdbId: show.tmdbId, title: show.title, year: show.year, posterUrl: show.posterUrl }} /> {/* Usherr */}
       <VoteButtons kind="tv" refId={show.tmdbId} meta={{ title: show.title, year: show.year, image: show.posterUrl }} /> {/* home fork */}

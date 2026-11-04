@@ -179,6 +179,10 @@
   background: var(--surface);
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.4);
   animation: pop-in 0.14s ease;
+  /* Usherr: never taller than the screen; the rest scrolls, so Sign out stays reachable */
+  max-height: calc(100dvh - 90px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .menu-pop .menu-who { display: grid; padding: 10px 12px 12px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
@@ -3340,6 +3344,7 @@ img[data-broken] { visibility: hidden; }
 /* Episode list: dates, status, quality and size stay whole; only the title wraps. */
 .ep-table th, .ep-table td:not(:nth-child(3)) { white-space: nowrap; }
 .ep-table td:nth-child(3) { overflow-wrap: anywhere; }
+.ep-air-under { display: none; } /* Usherr: shown on a phone (mobile.css) */
 /* The buttons in the last column keep their words whole but may sit on two lines, so a long label (Link a file, in Russian) never pushes the table past the screen. */
 .ep-table td:last-child { white-space: normal; }
 .ep-table td:last-child button { white-space: nowrap; }

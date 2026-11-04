@@ -30,7 +30,7 @@ func (s *Server) hdhrBase(r *http.Request) string {
 
 // hdhrID is a device id that stays the same for this server's key.
 func (s *Server) hdhrID() string {
-	sum := sha1.Sum([]byte("usherr-tv:" + s.tvFeedKey()))
+	sum := sha1.Sum([]byte("usherr-tv:" + s.strmKey())) // the older key: Plex knows the tuner by this id
 	return strings.ToUpper(hex.EncodeToString(sum[:4]))
 }
 

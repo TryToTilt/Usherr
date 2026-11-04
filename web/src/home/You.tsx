@@ -213,10 +213,6 @@ export default function You({ tab = 'taste' }: { tab?: YouTab }) {
               <ForYouRail kind="movie" owned={owned} onAdd={setAdding} invite={false} />
               <ForYouRail kind="tv" owned={owned} onAdd={setAdding} invite={false} />
               <AutoStream />
-              {/* Usherr: each person's own add-on link for Stremio and Nuvio (members can't open Extras) */}
-              <Suspense fallback={null}>
-                <AddonCard />
-              </Suspense>
 
               <section className="card you-card">
                 <h2>{t('Your votes')}</h2>
@@ -333,6 +329,10 @@ export default function You({ tab = 'taste' }: { tab?: YouTab }) {
                     </ul>
                   ))}
               </section>
+              {/* Usherr: each person's own add-on link for Stremio and Nuvio (members can't open Extras), last: it's for the few who use those apps */}
+              <Suspense fallback={null}>
+                <AddonCard />
+              </Suspense>
             </>
           )}
         </>

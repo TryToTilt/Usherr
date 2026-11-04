@@ -34,6 +34,7 @@ import { PlayerHost } from '../home/Player' // play hook (home fork)
 import '../home/look.css' // home fork: its pages in the v3 look
 import OmniBar, { type OmniPage } from '../home/OmniBar' // Usherr: the header's search is the search and AI bar
 import './navDrawer.css' // Usherr: the menu as a drawer at every width
+import '../neu/lobby.css' // Usherr: the new layout
 import RouletteButton from '../home/RouletteButton' // Usherr
 import { TonightButton } from '../home/Tonight' // Usherr
 import { ShowtimeBookingHost, ShowtimePill } from '../home/ShowtimePill' // Usherr: Showtime from any page
@@ -45,6 +46,8 @@ import { t, tc } from '../i18n'
 import { useGuideShortcut } from '../guide/shortcut.ts'
 import AmbientBackdrop from './AmbientBackdrop'
 import SideStack from '../home/SideStack' // Usherr: your stack, under Settings
+import { lobbyOn } from '../neu/look' // Usherr: the new layout
+import { LobbyNav, LobbyTabs, useServerNeeds } from './LobbyNav'
 
 const NAV: { to: string; label: string; icon: IconName; sec: SectionKey; end?: boolean }[] = [
   { to: '/', label: t('Dashboard'), icon: 'grid', sec: 'dashboard', end: true },
@@ -217,6 +220,8 @@ function Shell() {
   const inUpcoming = location.pathname.startsWith('/wanted') || location.pathname.startsWith('/calendar') || location.pathname.startsWith('/following') /* home fork */
   // Errors from the last day that nobody has marked as read (administrators only).
   const unreadErrors = useUnreadErrors(admin)
+  const lobby = lobbyOn() // Usherr: the new layout, set before the first paint
+  const needs = useServerNeeds(admin && lobby, unreadErrors)
   const errorDot = <span className="nav-dot" role="img" aria-label={t('New errors')} title={t('New errors. See Settings, System, Logs and errors.')} />
 
   // Close the mobile drawer whenever the page changes (a Library line only changes the address's query).
@@ -465,110 +470,8 @@ function Shell() {
   useEffect(loadActive, [loadActive])
   useLive(loadActive, 5000)
 
-  return (
-    <div className="app-shell nav-drawer" data-section={sectionFor(location.pathname)}>
-      <a
-        className="skip-link"
-        href="#main"
-        onClick={(e) => {
-          e.preventDefault()
-          mainRef.current?.focus()
-        }}
-      >
-        {t('Skip to content')}
-      </a>
-      <PlayerHost /> {/* play hook (home fork) */}
-      <ShowtimeBookingHost /> {/* Usherr: "Book a showtime" from a card */}
-      <div className={`sidebar-backdrop${menuOpen ? ' open' : ''}`} onClick={() => setMenuOpen(false)} />
-      <nav id="main-menu" ref={navRef} className={`sidebar${menuOpen ? ' open' : ''}`} aria-label={tc('menu', 'Main')}>
-        <div className="brand">
-          {/* Usherr: the open menu covers the top bar's hamburger, so it has its own, in the same place */}
-          <button type="button" className="menu-button menu-close" onClick={() => setMenuOpen(false)} aria-controls="main-menu" aria-expanded={menuOpen} aria-label={t('Close menu')}>
-            <Icon name="menu" size={20} />
-          </button>
-          <BrandMark />
-          <span className="brand-text">
-            <span className="brand-name">{BRAND}</span>
-          </span>
-        </div>
-        <div className={`side-scroll${moreBelow ? ' more-below' : ''}`} ref={scrollRef}>
-        {nav.map((n) => {
-          const group: NavGroup | null = n.sec === 'library' || n.sec === 'settings' ? n.sec : null
-          const isOpen = group !== null && openGroup === group
-          const inside = group === 'library' ? inLibrary : inSettings
-          // From another page a click goes there and opens the sub menu; on one of its pages it only folds it up or down.
-          const press = () => {
-            if (!group) return
-            setOpenGroup(afterClick(openGroup, group, inside))
-            if (!inside) navigate(n.to)
-          }
-          return (
-          <Fragment key={n.to}>
-          <NavLink
-            to={n.to}
-            end={n.end}
-            id={group ? `sn-head-${group}` : undefined}
-            aria-expanded={group ? isOpen : undefined}
-            aria-controls={group ? `sn-${group}` : undefined}
-            style={{ ['--nc' as string]: `var(--c-${n.sec})` }}
-            className={({ isActive }) => (group === 'settings' ? (inSettings ? (isOpen ? 'active parent-open' : 'active') : '') : group === 'library' ? (isActive || inLibraryPages || libraryLines.some((l) => l.active) ? (isOpen ? 'active parent-open' : 'active') : '') : isActive || (n.sec === 'calendar' && inUpcoming) ? 'active' : '')}
-            onClick={group ? (e) => {
-              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return // open in a new tab as usual
-              if (inside) e.preventDefault()
-              setOpenGroup(afterClick(openGroup, group, inside))
-            } : undefined}
-            onKeyDown={group ? (e) => {
-              // A link answers Enter on its own; Space and the arrow keys are added here.
-              if (e.key === ' ') {
-                e.preventDefault()
-                press()
-                return
-              }
-              const next = afterKey(openGroup, group, e.key)
-              if (next !== undefined) {
-                e.preventDefault()
-                setOpenGroup(next)
-              } else if (e.key === 'ArrowDown' && isOpen) {
-                e.preventDefault()
-                document.querySelector<HTMLElement>(`#sn-${group} a[href]`)?.focus()
-              }
-            } : undefined}
-          >
-            <span className="nav-ico">
-              <Icon name={n.icon} size={17} />
-            </span>
-            <span className="nav-label">{n.label}</span>
-            {n.to === '/queue' && active > 0 && <span className="nav-count">{active}</span>}
-            {group && !isOpen && here[group] && <span className="nav-here">{here[group]}</span>}
-            {group && (
-              <span className="nav-chev" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }}>
-                <Icon name="open" size={12} />
-              </span>
-            )}
-          </NavLink>
-          {n.sec === 'library' && (
-            <div className={`sn-collapse${isOpen ? ' open' : ''}`} id="sn-library" onKeyDown={subMenuKeys('library')}>
-            <div className="sn-collapse-inner">
-            <div className="subnav subnav-library" aria-label={t('Library')} role="group">
-              {libraryLines.map((l) => {
-                const line = LIBRARY_LINE[l.tab]
-                return (
-                  <Link key={l.tab} to={l.to} style={{ ['--sc' as string]: line.color }} className={l.active ? 'active' : ''} aria-current={l.active ? 'page' : undefined}>
-                    <span className="nav-ico">
-                      <KindGlyph kind={line.glyph} size={15} />
-                    </span>
-                    <span className="nav-label">{line.label}</span>
-                  </Link>
-                )
-              })}
-            </div>
-            </div>
-            </div>
-          )}
-          </Fragment>
-          )
-        })}
-        {(
+  // The sub menu of Settings' groups and pages; the new layout shows it under Server.
+  const settingsSub = (
         <div className={`sn-collapse${openGroup === 'settings' ? ' open' : ''}`} id="sn-settings" onKeyDown={subMenuKeys('settings')}>
         <div className="sn-collapse-inner">
         <div className="subnav" style={{ ['--nc' as string]: 'var(--c-settings)' }}>
@@ -645,11 +548,135 @@ function Shell() {
         </div>
         </div>
         </div>
+  )
+  const tools = (
+    <>
+      <SideStack />
+      <SideTools ebooksOn={ebooksOn} audiobooksOn={audiobooksOn} musicOn={musicOn} homes={homes} apps={apps} showSupport={admin && showSupport} variant="side">
+        <ThemeToggle />
+      </SideTools>
+    </>
+  )
+
+  return (
+    <div className={`app-shell ${lobby ? 'nav-lobby' : 'nav-drawer'}`} data-section={sectionFor(location.pathname)}>
+      <a
+        className="skip-link"
+        href="#main"
+        onClick={(e) => {
+          e.preventDefault()
+          mainRef.current?.focus()
+        }}
+      >
+        {t('Skip to content')}
+      </a>
+      <PlayerHost /> {/* play hook (home fork) */}
+      <ShowtimeBookingHost /> {/* Usherr: "Book a showtime" from a card */}
+      <div className={`sidebar-backdrop${menuOpen ? ' open' : ''}`} onClick={() => setMenuOpen(false)} />
+      <nav id="main-menu" ref={navRef} className={`sidebar${menuOpen ? ' open' : ''}`} aria-label={tc('menu', 'Main')}>
+        <div className="brand">
+          {/* Usherr: the open menu covers the top bar's hamburger, so it has its own, in the same place */}
+          <button type="button" className="menu-button menu-close" onClick={() => setMenuOpen(false)} aria-controls="main-menu" aria-expanded={menuOpen} aria-label={t('Close menu')}>
+            <Icon name="menu" size={20} />
+          </button>
+          <BrandMark />
+          <span className="brand-text">
+            <span className="brand-name">{BRAND}</span>
+          </span>
+        </div>
+        <div className={`side-scroll${moreBelow ? ' more-below' : ''}`} ref={scrollRef}>
+        {lobby ? (
+          <LobbyNav
+            lines={libraryLines.map((l) => ({ ...LIBRARY_LINE[l.tab], to: l.to, active: l.active }))}
+            admin={admin}
+            sportsOn={sportsOn}
+            downloads={active}
+            needs={needs}
+            settingsMenu={settingsSub}
+            tools={tools}
+          />
+        ) : (
+        <>
+        {nav.map((n) => {
+          const group: NavGroup | null = n.sec === 'library' || n.sec === 'settings' ? n.sec : null
+          const isOpen = group !== null && openGroup === group
+          const inside = group === 'library' ? inLibrary : inSettings
+          // From another page a click goes there and opens the sub menu; on one of its pages it only folds it up or down.
+          const press = () => {
+            if (!group) return
+            setOpenGroup(afterClick(openGroup, group, inside))
+            if (!inside) navigate(n.to)
+          }
+          return (
+          <Fragment key={n.to}>
+          <NavLink
+            to={n.to}
+            end={n.end}
+            id={group ? `sn-head-${group}` : undefined}
+            aria-expanded={group ? isOpen : undefined}
+            aria-controls={group ? `sn-${group}` : undefined}
+            style={{ ['--nc' as string]: `var(--c-${n.sec})` }}
+            className={({ isActive }) => (group === 'settings' ? (inSettings ? (isOpen ? 'active parent-open' : 'active') : '') : group === 'library' ? (isActive || inLibraryPages || libraryLines.some((l) => l.active) ? (isOpen ? 'active parent-open' : 'active') : '') : isActive || (n.sec === 'calendar' && inUpcoming) ? 'active' : '')}
+            onClick={group ? (e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return // open in a new tab as usual
+              if (inside) e.preventDefault()
+              setOpenGroup(afterClick(openGroup, group, inside))
+            } : undefined}
+            onKeyDown={group ? (e) => {
+              // A link answers Enter on its own; Space and the arrow keys are added here.
+              if (e.key === ' ') {
+                e.preventDefault()
+                press()
+                return
+              }
+              const next = afterKey(openGroup, group, e.key)
+              if (next !== undefined) {
+                e.preventDefault()
+                setOpenGroup(next)
+              } else if (e.key === 'ArrowDown' && isOpen) {
+                e.preventDefault()
+                document.querySelector<HTMLElement>(`#sn-${group} a[href]`)?.focus()
+              }
+            } : undefined}
+          >
+            <span className="nav-ico">
+              <Icon name={n.icon} size={17} />
+            </span>
+            <span className="nav-label">{n.label}</span>
+            {n.to === '/queue' && active > 0 && <span className="nav-count">{active}</span>}
+            {group && !isOpen && here[group] && <span className="nav-here">{here[group]}</span>}
+            {group && (
+              <span className="nav-chev" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }}>
+                <Icon name="open" size={12} />
+              </span>
+            )}
+          </NavLink>
+          {n.sec === 'library' && (
+            <div className={`sn-collapse${isOpen ? ' open' : ''}`} id="sn-library" onKeyDown={subMenuKeys('library')}>
+            <div className="sn-collapse-inner">
+            <div className="subnav subnav-library" aria-label={t('Library')} role="group">
+              {libraryLines.map((l) => {
+                const line = LIBRARY_LINE[l.tab]
+                return (
+                  <Link key={l.tab} to={l.to} style={{ ['--sc' as string]: line.color }} className={l.active ? 'active' : ''} aria-current={l.active ? 'page' : undefined}>
+                    <span className="nav-ico">
+                      <KindGlyph kind={line.glyph} size={15} />
+                    </span>
+                    <span className="nav-label">{line.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
+            </div>
+            </div>
+          )}
+          </Fragment>
+          )
+        })}
+        {settingsSub}
+        {tools}
+        </>
         )}
-        <SideStack />
-        <SideTools ebooksOn={ebooksOn} audiobooksOn={audiobooksOn} musicOn={musicOn} homes={homes} apps={apps} showSupport={admin && showSupport} variant="side">
-          <ThemeToggle />
-        </SideTools>
         </div>
         {version && (
           <div className="side-version">
@@ -660,7 +687,7 @@ function Shell() {
                 {updateReady && <span className="version-dot" aria-label={t('A newer version is available')} />}
               </NavLink>
             ) : (
-              <span aria-label={t('Version {version}', { version: `v${version}` })} title={`Mediarium ${version}`}>
+              <span aria-label={t('Version {version}', { version: `v${version}` })} title={`${BRAND} ${version}`}>
                 <BrandMark className="ver-mark" />
                 v{version}
               </span>
@@ -680,7 +707,7 @@ function Shell() {
               <span>{t('Back')}</span>
             </button>
           )}
-          {pageHasHeading ? <p className="top-title" title={headingText}>{headingNode}</p> : <h1 className="top-title" title={headingText}>{headingNode}</h1>}
+          {lobby && pageHasHeading ? null : pageHasHeading ? <p className="top-title" title={headingText}>{headingNode}</p> : <h1 className="top-title" title={headingText}>{headingNode}</h1>}
           <div className={`top-search${searchOpen ? ' open' : ''}`}>
             {location.pathname === '/calendar' ? <CalendarHeaderSearch /> : <OmniBar key={omniPage} page={omniPage} header />} {/* Usherr: search or ask the AI, from any page, shaped by the page you are on; on the Calendar it searches the calendar */}
             <button type="button" className="icon-btn top-search-close" onClick={() => setSearchOpen(false)} aria-label={t('Close search')}>
@@ -720,6 +747,7 @@ function Shell() {
         <FeedbackNudge />
         <ReportHost />
       </div>
+      {lobby && <LobbyTabs admin={admin} needs={needs} />}
     </div>
   )
 }

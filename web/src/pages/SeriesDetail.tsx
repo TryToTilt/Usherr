@@ -21,6 +21,8 @@ import Switch from '../components/Switch'
 import MonitorModePicker from '../components/MonitorModePicker'
 import TitleHero, { TitleFacts } from '../components/TitleHero'
 import { useFilmPage } from '../home/filmLayout' // Usherr: the title page's layouts
+import LobbyEpisodes, { epCode, minutesLeft, useKeptPlaces } from '../home/LobbyEpisodes' // Usherr: the new layout
+import { lobbyOn } from '../neu/look' // Usherr: the new layout
 import TitleLayout from '../home/TitleLayout' // Usherr
 import SimilarShows from '../home/SimilarShows' // Usherr
 import WatchLinks from '../components/WatchLinks'
@@ -109,6 +111,7 @@ function SeriesPage() {
   const [manageOpen, setManageOpen] = useState(false)
   const [epTools, setEpTools] = useState(false)
   const tools = epTools || manageOpen
+  const places = useKeptPlaces() // Usherr: Resume, in the new layout
   const [similar, setSimilar] = useState<DiscoverMovie[]>([])
   // A refresh that fails while the show is already on screen is not worth an error message.
   const [loadError, setLoadError] = useState('')
@@ -441,7 +444,21 @@ function SeriesPage() {
   // Usherr: the title page's layouts (home/TitleLayout.tsx), as on a film's
   // page: everyday actions up top, everything that manages the show, its
   // files and its downloads under Manage.
-  const hasManage = admin || canManage || !viewer
+  // Usherr: in the new layout a member sees the show for watching: no
+  // monitoring, sizes, download counts or Manage. Resume picks up the
+  // episode this person is part way through in Usherr's own player.
+  const lobby = lobbyOn()
+  const memberView = lobby && !admin
+  const hasManage = admin || (!memberView && (canManage || !viewer))
+  const resume = (() => {
+    for (const p of places) {
+      const m = /^episode:(\d+)$/.exec(p.item)
+      const ep = m && series.episodes.find((e) => e.id === Number(m[1]) && e.status === 'downloaded')
+      if (ep) return { episode: ep, place: p }
+    }
+    return null
+  })()
+  const playEpisode = (e: Episode) => playTitle('episode', e.id, `${series.title} S${String(e.season).padStart(2, '0')}E${String(e.episode).padStart(2, '0')}${e.title ? ' - ' + e.title : ''}`)
   const info = {
     ...(tv ?? {}),
     kind: 'tv' as const,
@@ -455,13 +472,13 @@ function SeriesPage() {
       ...(creators.length ? [{ label: creators.length > 1 ? t('Creators') : t('Creator'), value: <PeopleLinks people={creators} /> }] : []),
       // home fork: in words from TMDB too, so a canceled show says Canceled
       ...(showStatusLabel(series.showStatus, tv?.releaseStatus) ? [{ label: t('Status'), value: showStatusLabel(series.showStatus, tv?.releaseStatus) ?? '' }] : []),
-      { label: t('Episodes'), value: t('{done} of {total} downloaded', { done: series.downloadedCount, total: series.episodeCount }) },
-      ...(diskBytes > 0 ? [{ label: t('Size on disk'), value: formatBytes(diskBytes) }] : []),
+      ...(!memberView ? [{ label: t('Episodes'), value: t('{done} of {total} downloaded', { done: series.downloadedCount, total: series.episodeCount }) }] : []),
+      ...(diskBytes > 0 && !memberView ? [{ label: t('Size on disk'), value: formatBytes(diskBytes) }] : []),
       ...(nextText ? [{ label: t('Next episode'), value: nextText }] : []),
       ...(tv?.networks?.length ? [{ label: t('Network'), value: tv.networks.join(', ') }] : []),
     ],
   }
-  const status = (
+  const status = !memberView && (
     <span className={`state-tag st-mon-${monitoring.kind === 'off' ? 'off' : 'on'}`} title={monitoring.detail}>
       <Icon name={monitoring.kind === 'off' ? 'eye-off' : 'eye'} size={13} /> {monitoring.text}
     </span>
@@ -470,6 +487,11 @@ function SeriesPage() {
   // The everyday actions: plan, keep, rate, catch up.
   const everyday = (
     <>
+      {lobby && resume && can(me, 'play') && (
+        <button className="primary btn-with-icon big" data-walk="title-play" onClick={() => playEpisode(resume.episode)} title={t('{n} min left', { n: minutesLeft(resume.place) })}>
+          <Icon name="play" size={18} /> {t('Resume {code}', { code: epCode(resume.episode.season, resume.episode.episode) })}
+        </button>
+      )}
       {series.downloadedCount > 0 && <WatchLinks tmdbId={series.tmdbId} kind="tv" />}
       <StackButton item={{ kind: 'tv', tmdbId: series.tmdbId, title: series.title, year: series.year, posterUrl: series.posterUrl }} /> {/* Usherr */}
       <VoteButtons kind="tv" refId={series.tmdbId} meta={{ title: series.title, year: series.year, image: series.posterUrl }} /> {/* home fork */}
@@ -546,7 +568,27 @@ function SeriesPage() {
 
   // The seasons and their episodes. Watching is everyday; monitoring,
   // searching and the files are the list's tools (with Manage, or on their own).
-  const episodes = seasons.length > 0 && (
+  const episodeTools = hasManage && (
+    <button className="btn-sm btn-with-icon" data-walk="title-episode-tools" aria-pressed={false} onClick={() => setEpTools(true)} title={t('Monitoring, searching, quality, size and the files of each episode')}>
+      <Icon name="sliders" size={14} /> {t('Episode tools')}
+    </button>
+  )
+  const episodes = seasons.length > 0 && lobby && !tools ? (
+    <LobbyEpisodes
+      seasons={seasons}
+      start={resume?.episode.season ?? [...seasons].reverse().find(([n, eps]) => n > 0 && eps.some((e) => e.status === 'downloaded'))?.[0] ?? attention}
+      today={today}
+      resume={resume}
+      canPlay={can(me, 'play')}
+      onPlay={playEpisode}
+      stream={(e) =>
+        can(me, 'play') && (
+          <StreamButton small target={{ kind: 'series', tmdbId: series.tmdbId, season: e.season, episode: e.episode, title: `${series.title} S${String(e.season).padStart(2, '0')}E${String(e.episode).padStart(2, '0')}` }} onKeep={() => keepEpisode(e.id, e.season, e.episode)} />
+        )
+      }
+      tools={episodeTools}
+    />
+  ) : seasons.length > 0 && (
     <div className="fp-episodes" data-walk="title-episodes">
       <div className="season-bar">
         <div className="chip-row" role="group" aria-label={t('Seasons')}>
@@ -677,7 +719,7 @@ function SeriesPage() {
                   </>
                 )}
               </div>
-              {open && <table className="ep-table" style={{ marginTop: 8 }}>
+              {open && <table className={`ep-table${tools ? '' : ' ep-simple'}`} style={{ marginTop: 8 }}>
                 <thead>
                   <tr>
                     {tools && (
@@ -687,8 +729,8 @@ function SeriesPage() {
                     )}
                     <th style={{ width: 48 }}>#</th>
                     <th>{t('Title')}</th>
-                    <th>{t('Air date')}</th>
-                    <th>{t('Status')}</th>
+                    <th className="ep-air">{t('Air date')}</th>
+                    <th className="ep-state">{t('Status')}</th>
                     {tools && <th>{t('Quality')}</th>}
                     {tools && <th>{t('Size')}</th>}
                     <th>
@@ -714,11 +756,12 @@ function SeriesPage() {
                         <td>{e.episode}</td>
                         <td>
                           {e.title || <span style={{ color: 'var(--text-dim)' }}>{t('TBA')}</span>}
+                          {e.airDate && <span className="ep-air-under">{e.airDate}</span>}
                           {tools && e.status === 'downloaded' && <FileChips info={e.fileInfo} className="compact" />}
                           {tools && e.status === 'downloaded' && <ShortFile compact note={e.shortFile} onRedo={admin ? () => void redoShortFile(e) : undefined} />}
                         </td>
-                        <td style={{ color: 'var(--text-dim)' }}>{e.airDate || '—'}</td>
-                        <td>
+                        <td className="ep-air" style={{ color: 'var(--text-dim)' }}>{e.airDate || '—'}</td>
+                        <td className={`ep-state${e.status === 'downloaded' ? ' ep-state-done' : ''}`}>
                           {e.status === 'missing' && unaired ? (
                             <span className="badge">{t('unaired')}</span>
                           ) : (

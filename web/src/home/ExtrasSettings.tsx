@@ -301,7 +301,7 @@ export function AddonCard() {
     <Card
       title={t('Stremio and Nuvio')}
       state={info ? 'ready' : 'setup'}
-      blurb={t("One add-on for both apps: your library and streamed titles, your watchlist (thumbs up), releases from your Usenet providers for any title, subtitles from your files, and your Live TV channels. Add the link once in each app; it stays.")}
+      blurb={t('Only if you watch in Stremio or Nuvio: one add-on for both apps, with your library, what streams here, your thumbs-up list, subtitles and your Live TV channels. Add the link once in each app; it stays.')}
       needs={error || undefined}
     >
       {info && (

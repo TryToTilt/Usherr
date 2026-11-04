@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { t } from '../i18n'
-import { chooseLook, savedLook, type Look } from './look'
+import { chooseLook, chooseTvSize, savedLook, tvSizeOn, type Look } from './look'
 
 // Usherr Neu or Usherr Classic, kept in this browser. Picking one reloads the
 // page so every icon and picture follows.
 export default function LookChoice() {
   const [look] = useState<Look>(savedLook)
+  const [tv, setTv] = useState(tvSizeOn)
   const looks: [Look, string][] = [
     ['neu', t('Usherr Neu')],
+    ['lobby', t('Neu, new layout')],
     ['classic', t('Usherr Classic')],
   ]
   return (
@@ -19,7 +21,20 @@ export default function LookChoice() {
           </button>
         ))}
       </div>
-      <span style={{ color: 'var(--text-dim)' }}>{t('Neu is Usherr’s own soft look; Classic is the look it has always had. Also kept in this browser.')}</span>
+      {look === 'lobby' && (
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={tv}
+            onChange={(e) => {
+              chooseTvSize(e.target.checked)
+              setTv(e.target.checked)
+            }}
+          />
+          {t('TV size: everything bigger, for the sofa')}
+        </label>
+      )}
+      <span style={{ color: 'var(--text-dim)' }}>{t('Neu is Usherr’s own soft look; Classic is the look it has always had. Neu, new layout is Neu with your libraries down the side, tabs along the bottom of a phone and a Server area for admins. Also kept in this browser.')}</span>
     </div>
   )
 }

@@ -63,7 +63,7 @@ export function TitleFacts({ info }: { info: HeroInfo }) {
 // layout (Usherr, the film page's layouts): the hero keeps to the title, the
 // plot (three lines, unless fullPlot), the trailer and the actions; the facts
 // and the cast are shown elsewhere on the page. Without it, the classic hero.
-export default function TitleHero({ info, status, actions, children, onPlay, layout, fullPlot }: { info: HeroInfo; status?: ReactNode; actions?: ReactNode; children?: ReactNode; onPlay?: () => void; layout?: 'cinema' | 'side' | 'stream'; fullPlot?: boolean }) {
+export default function TitleHero({ info, status, actions, children, onPlay, layout, fullPlot }: { info: HeroInfo; status?: ReactNode; actions?: ReactNode; children?: ReactNode; onPlay?: () => void; layout?: 'cinema' | 'side' | 'stream' | 'lobby'; fullPlot?: boolean }) {
   const [plotOpen, setPlotOpen] = useState(false)
   const side = useRef<HTMLDivElement>(null)
   // The poster turns a little towards the pointer and catches the light.

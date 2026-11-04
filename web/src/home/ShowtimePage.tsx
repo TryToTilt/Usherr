@@ -71,16 +71,27 @@ async function startFilm(s: Showtime, ahead?: Promise<StreamStart> | null) {
 function BookFilm() {
   const [q, setQ] = useState('')
   const [found, setFound] = useState<ImportCandidate[]>([])
+  // What the last search said: which words it was for, and its error if it
+  // failed (no TMDB key yet, say), so an empty list is never left unexplained.
+  const [said, setSaid] = useState<{ q: string; error: string } | null>(null)
   useEffect(() => {
     if (q.trim().length < 2) return
     const id = window.setTimeout(() => {
+      const words = q.trim()
       api
-        .tmdbSearch('movie', q.trim())
-        .then((r) => setFound(r.slice(0, 8)))
-        .catch(() => setFound([]))
+        .tmdbSearch('movie', words)
+        .then((r) => {
+          setFound(r.slice(0, 8))
+          setSaid({ q: words, error: '' })
+        })
+        .catch((e: unknown) => {
+          setFound([])
+          setSaid({ q: words, error: e instanceof Error && e.message ? e.message : t('The film search didn’t answer. Try again in a moment.') })
+        })
     }, 350)
     return () => window.clearTimeout(id)
   }, [q])
+  const answered = q.trim().length >= 2 && said?.q === q.trim()
   return (
     <section className="card sht-book">
       <h2>{t('Book a film')}</h2>
@@ -100,6 +111,8 @@ function BookFilm() {
           ))}
         </ul>
       )}
+      {answered && said?.error && <p className="notice notice-warn">{said.error}</p>}
+      {answered && !said?.error && found.length === 0 && <p className="hint">{t('No films found for “{q}”. Try fewer or different words.', { q: q.trim() })}</p>}
     </section>
   )
 }
@@ -344,10 +357,10 @@ export default function ShowtimePage() {
                     </button>
                   )}
                   <button className="btn-sm" onClick={() => void move(s, -15)} aria-label={t('15 minutes earlier')} title={t('15 minutes earlier')}>
-                    −15
+                    {t('−15 min')}
                   </button>
                   <button className="btn-sm" onClick={() => void move(s, 15)} aria-label={t('15 minutes later')} title={t('15 minutes later')}>
-                    +15
+                    {t('+15 min')}
                   </button>
                   <button className="icon-btn" onClick={() => void cancel(s)} aria-label={t('Cancel {title}', { title: s.title })}>
                     <Icon name="x" size={15} />

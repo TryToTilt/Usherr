@@ -1,6 +1,7 @@
 import { BRAND } from './brand' // Usherr
 import type { IconName } from './components/Icon'
 import { t, tc } from './i18n.ts'
+import { lobbyOn } from './neu/look.ts' // Usherr: the new layout
 
 // The settings pages, in the order they appear under Settings in the sidebar.
 // Each has its own soft colour so the list is easy to scan. Pages marked
@@ -130,7 +131,9 @@ export function pageHelp(pathname: string, admin = true): string {
 }
 
 export function pageTitle(pathname: string, admin = true): string {
-  if (pathname === '/') return t('Dashboard')
+  if (pathname === '/') return lobbyOn() ? t('Home') : t('Dashboard') // Usherr: the new layout's Home
+  if (pathname === '/server') return t('Server') // Usherr
+  if (pathname === '/server/overview') return t('Server · Overview')
   const group = groupFor(pathname, admin)
   if (group) {
     const page = group.pages.find((p) => inPage(pathname, p.to))

@@ -6,8 +6,11 @@
 // Side by side on a wide one, Cinema on a phone or a laptop. A few switches
 // say what the page shows, in every layout.
 import { useEffect, useState } from 'react'
+import { lobbyOn } from '../neu/look'
 
-export type FilmLayout = 'cinema' | 'side' | 'stream'
+// Usherr: 'lobby' is the new layout's own page (neu/look.ts), never a choice
+// of its own: with that look on it is always used.
+export type FilmLayout = 'cinema' | 'side' | 'stream' | 'lobby'
 export type FilmLayoutChoice = FilmLayout | 'auto'
 
 export interface FilmPageShows {
@@ -74,5 +77,5 @@ export function useFilmPage(): FilmPagePrefs & { resolved: FilmLayout } {
       window.removeEventListener('resize', onResize)
     }
   }, [])
-  return { ...prefs, resolved: prefs.layout === 'auto' ? autoLayout(width) : prefs.layout }
+  return { ...prefs, resolved: lobbyOn() ? 'lobby' : prefs.layout === 'auto' ? autoLayout(width) : prefs.layout }
 }

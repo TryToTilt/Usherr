@@ -404,6 +404,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/home/community/link` | any account | POST /api/home/community/link {"code"} (member): link the Discord account that asked for this code to your account. |
 | GET | `/api/home/community/me` | any account | GET /api/home/community/me (member): whether Community is on, and your linked Discord account. |
 | POST | `/api/home/community/test` | admin | POST /api/home/community/test (admin): post a hello in the chosen channel. |
+| GET | `/api/home/continue` | any account | GET /api/home/continue (member): what you're part way through. |
 | GET | `/api/home/convert` | admin | GET /api/home/convert (administrators): who converts for the player. |
 | PUT | `/api/home/convert` | admin | PUT /api/home/convert {"with": "" \| "jellyfin" \| "plex" \| "usherr"}. |
 | GET | `/api/home/diary` | any account | GET /api/home/diary?year=&kind=: your Diary, newest first, and the years it covers. |
@@ -1389,4 +1390,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-979 routes.
+980 routes.

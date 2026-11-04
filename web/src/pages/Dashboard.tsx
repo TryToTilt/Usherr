@@ -147,6 +147,37 @@ function RecentRow({ items, hide, when }: { items: DashRecent[]; hide?: DashRece
   )
 }
 
+// Usherr: Continue watching. What you stopped part way through in Usherr's
+// player (yours only, home_continue.go); each opens its page, where Play picks
+// up where you left off. Nothing started, no row.
+type ContinueItem = { item: string; kind: 'movie' | 'tv'; title: string; year?: number; episode?: string; posterUrl?: string; link: string; position: number; duration: number }
+
+function ContinueWatching() {
+  const [items, setItems] = useState<ContinueItem[]>([])
+  const row = useRef<HTMLDivElement>(null)
+  const cols = useGridColumns(row, 6)
+  useEffect(() => {
+    fetch('/api/home/continue', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((x) => setItems(Array.isArray(x) ? (x as ContinueItem[]) : []))
+      .catch(() => undefined)
+  }, [])
+  if (items.length === 0) return null
+  const left = (c: ContinueItem) => {
+    const mins = Math.max(1, Math.round((c.duration - c.position) / 60))
+    return plural(mins, '{n} min left', '{n} min left')
+  }
+  return (
+    <Tile icon="play" title={t('Continue watching')} tip={t('What you stopped part way through. Open one and press Play: it picks up where you left off.')}>
+      <div className="recent-row" ref={row}>
+        {items.slice(0, cols).map((c) => (
+          <PosterCard key={c.item} to={c.link} kind={c.kind} poster={c.posterUrl} title={c.title} meta={c.episode ? `${c.episode.split(' · ')[0]} · ${left(c)}` : left(c)} />
+        ))}
+      </div>
+    </Tile>
+  )
+}
+
 // Where the media shapes float behind the greeting.
 const DRIFT: { k: GlyphKind; c: string; x: string; y: string; s: number; far?: boolean }[] = [
   { k: 'movie', c: 'movie', x: '40%', y: '-8%', s: 120 },
@@ -321,6 +352,7 @@ export default function Dashboard() {
         </div>
       </section>
 
+      <ContinueWatching /> {/* Usherr: pick up where you left off */}
       <TwoStepTip />
       <InTheaters /> {/* Usherr: films in cinemas */}
 

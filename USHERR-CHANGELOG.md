@@ -5,6 +5,28 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+### Added
+
+- **A new layout to try: Neu, new layout.** Settings → General → Look. It's Neu exactly, arranged differently: your libraries always in sight down the side, tabs along the bottom of a phone, a Home page for watching (the next showtime, Continue watching, Just added, Coming soon) and one Server area for admins with what needs you, the day-to-day pages and every settings group. A TV size makes everything bigger for the sofa, and turns on by itself in a TV's own browser. Kept per browser; Neu and Classic are unchanged.
+- **Film and show pages in the new layout.** The title over its own backdrop with one button to press, then the episodes, About, you and your friends, the cast and more like this. Members see a page for watching: no quality, file sizes, monitoring or Manage, and a film or episode that isn't here says "On its way" or "Not here yet". A show's episodes come one season at a time, each with Play, Resume and the minutes left, or the day it arrives. A film you don't have says "Ask for it" (or "Add it" for those allowed to add straight away). Admins get Manage beside the page instead of under it, and Episode tools for the full episode table. Members get "Tell an admin" for a problem with a title.
+- **Continue watching on the Dashboard.** The films and episodes you stopped part way through in Usherr's player, newest first, with how much is left. Each opens its page, where Play picks up where you left off. Only your own, never someone else's.
+
+### Fixed
+
+- **Fixes from the AI testers' second round: wording, phones and screen readers.**
+  - A showtime code that doesn't work says why: too short or too long (with how many letters it has), or a typo.
+  - The help guide's own section is called "Usherr's own", not "Home fork".
+  - A few places still said Mediarium (the version's tooltip, the downloads list, the search box); the Support button says Mediarium is the project Usherr is built on.
+  - Members no longer see the note about setting TZ in the compose file.
+  - The Stremio and Nuvio card sits at the end of You and says it's only for those apps.
+  - On the downloads page: "1 Problem", not "1 Problems", and no "Blocklist ()".
+  - On a phone, the Book a showtime dialog fits the screen with room around its contents, the profile menu scrolls instead of cutting off Sign out, the "menu slides away" setting no longer squeezes to one letter a line, and a long status on a poster ends in dots instead of breaking in half.
+  - The −15 and +15 buttons on a showtime say "min", and a title's quality, source, upgrade and season-pack menus have clean names for screen readers.
+- **Plex's Live TV tuner no longer gives away the key to your streamed films.** Plex reads the tuner's channel list without signing in, so anyone on the network could read the key in it, and that key also played every streamed film and episode. Live TV now has a key of its own that opens Live TV only; the streamed films' pointer files keep theirs, so nothing needs rewriting, and Plex and Jellyfin keep working as they are. Keys are now compared in constant time.
+- **The Showtime page's Book a film search says why it found nothing.** It showed an empty box both when there were no matches and when the search failed (with no TMDB key yet, say). It now says "No films found" or what went wrong.
+- **A show's episodes fit a phone.** The everyday list (without Episode tools) no longer scrolls sideways off the screen: Play is always in sight, the air date sits under the title, and the status no longer breaks in half.
+- **A showtime days away counts down in days.** "Starts in 4 days" or "Starts tomorrow", not "Starts in 117 h 59 min". In the top bar a showtime this week shows as "Sat 7:30 PM", short enough for a phone, so it no longer pushes your profile button off the screen.
+
 ## [2.39.0] - 2026-11-02
 
 ### Added

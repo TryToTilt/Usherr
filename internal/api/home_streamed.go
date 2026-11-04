@@ -348,7 +348,7 @@ func (s *Server) writePointer(rel string, fileID int64) error {
 	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(full, []byte(fmt.Sprintf("%s/api/strm/%s/%d\n", base, s.tvFeedKey(), fileID)), 0o644)
+	return os.WriteFile(full, []byte(fmt.Sprintf("%s/api/strm/%s/%d\n", base, s.strmKey(), fileID)), 0o644)
 }
 
 // ---- playing ----
@@ -691,7 +691,7 @@ func (s *Server) registerStreamedRoutes(public *http.ServeMux) {
 // GET /api/strm/{key}/{file}: a pointer file being played (by Jellyfin, or a
 // player it hands the address to).
 func (s *Server) handleStrm(w http.ResponseWriter, r *http.Request) {
-	if !s.tvFeedOK(r) {
+	if !s.strmOK(r) {
 		http.NotFound(w, r)
 		return
 	}

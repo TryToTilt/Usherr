@@ -1,6 +1,14 @@
 /* Usherr: Showtimes at home — the booking dialog, the Showtime page, and
    the Marquee's countdown band. */
-.showtime-dialog { width: min(480px, calc(100vw - 32px)); display: grid; gap: 14px; }
+.showtime-dialog { width: min(480px, calc(100vw - 24px)); max-width: calc(100vw - 24px); box-sizing: border-box; padding: clamp(16px, 4vw, 24px); display: grid; gap: 14px; }
+/* it fits a phone: one column, nothing wider than the box */
+.showtime-dialog > *, .showtime-dialog .grid-form > * { min-width: 0; }
+.showtime-dialog select, .showtime-dialog input { max-width: 100%; min-width: 0; box-sizing: border-box; }
+@media (max-width: 560px) {
+  .showtime-dialog .grid-form { grid-template-columns: minmax(0, 1fr); }
+  .sht-btns { flex-wrap: wrap; }
+  .sht-btns > * { flex: 1 1 auto; }
+}
 .sht-head { display: flex; align-items: center; gap: 12px; }
 .sht-head img { width: 48px; height: 72px; object-fit: cover; border-radius: 6px; }
 .sht-head h2 { margin: 0; font-size: 1.15rem; }

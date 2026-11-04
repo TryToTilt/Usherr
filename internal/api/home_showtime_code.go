@@ -10,6 +10,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -111,6 +112,26 @@ func decodeShowtimeCode(s string) (showtimeCode, error) {
 	return c, nil
 }
 
+// badCodeMessage says what is wrong with a pasted code that didn't read: the
+// wrong length, or the right length with a letter mistyped.
+func badCodeMessage(pasted string) string {
+	const how = " Copy it again from the watch party's card in Discord."
+	n := 0
+	for _, r := range strings.TrimSpace(pasted) {
+		switch {
+		case r == '-' || r == ' ':
+		case r >= '0' && r <= '9', r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z':
+			n++
+		default:
+			return "That isn't a showtime code. A code is 13 letters and numbers in three groups, like HXK4-7QPM-2RD9C." + how
+		}
+	}
+	if n == codeDataChars+1 {
+		return "That code has a typo: one of its letters or numbers is wrong." + how
+	}
+	return fmt.Sprintf("That code has %d letters and numbers; a showtime code has 13, in three groups like HXK4-7QPM-2RD9C.", n) + how
+}
+
 // codeFor is a showtime's code.
 func codeFor(st showtime) string {
 	return encodeShowtimeCode(showtimeCode{TMDBID: st.TMDBID, AtMs: st.AtMs, PreshowMin: st.PreshowMin})
@@ -130,7 +151,7 @@ func (s *Server) handleJoinShowtime(w http.ResponseWriter, r *http.Request) {
 	}
 	c, err := findShowtimeCode(body.Code)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "That isn't a showtime code. Copy it from the watch party's card in Discord: three groups of letters and numbers, like HXK4-7QPM-2RD9C.")
+		writeError(w, http.StatusBadRequest, badCodeMessage(body.Code))
 		return
 	}
 	if c.AtMs < time.Now().Add(-time.Minute).UnixMilli() {

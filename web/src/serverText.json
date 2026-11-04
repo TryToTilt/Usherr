@@ -421,6 +421,7 @@
  "Couldn't read this artist from the music database.",
  "Couldn't read this title's files. Check the Mediarium log for details.",
  "Couldn't read what was sent.",
+ "Couldn't read where you got to.",
  "Couldn't read your e-reader settings.",
  "Couldn't read your library.",
  "Couldn't read your place.",

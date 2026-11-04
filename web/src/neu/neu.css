@@ -594,6 +594,11 @@
   box-shadow: var(--n-up-sm) !important;
   backdrop-filter: blur(6px);
   font-family: var(--font-body) !important;
+  /* a narrow poster cuts a long word with dots, never in half */
+  max-width: calc(100% - 12px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* The Library's kind picker and the compact bar. */

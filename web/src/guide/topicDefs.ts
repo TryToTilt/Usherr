@@ -32,7 +32,7 @@ export interface TopicDef {
   sources: SourceDef[]
 }
 
-export const GROUPS = ['Home fork', 'Start here', 'Your media', 'Downloading', 'People and apps', 'Looking after it', 'Installing'] as const
+export const GROUPS = ['Usherr’s own', 'Start here', 'Your media', 'Downloading', 'People and apps', 'Looking after it', 'Installing'] as const
 
 // Notes for people who script against the API and similar developer parts are
 // left out of the guide; they stay in the full documentation.

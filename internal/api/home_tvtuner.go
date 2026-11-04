@@ -17,6 +17,7 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/xml"
 	"fmt"
@@ -35,7 +36,8 @@ import (
 )
 
 const (
-	keyTVFeedKey  = "home.tv_feed_key"
+	keyTVFeedKey  = "home.tv_feed_key"  // now the .strm files' key (strmKey)
+	keyTVTunerKey = "home.tv_tuner_key" // the Live TV feeds' (tvFeedKey)
 	keyTVFeedBase = "home.tv_feed_base" // how Jellyfin reaches Mediarium
 	defaultTVBase = "http://localhost:8264"
 	maxTVStreams  = 4
@@ -44,21 +46,43 @@ const (
 
 var tvStreams atomic.Int32
 
-// tvFeedKey is the secret in the feeds' address, made on first use.
-func (s *Server) tvFeedKey() string {
-	if k, _ := s.Settings.Get(keyTVFeedKey); strings.TrimSpace(k) != "" {
+// tvFeedKey is the secret in the Live TV feeds' address, made on first use.
+// It's given out where a sign-in can't be: Plex's tuner lineup (open, so
+// anyone on the network can read it), the add-on, the M3U and guide links. So
+// it opens Live TV only. The streamed films' pointer files have a key of
+// their own (strmKey), which never leaves the server except in those files.
+func (s *Server) tvFeedKey() string { return s.feedSecret(keyTVTunerKey) }
+
+// strmKey is the secret in the .strm pointer files' address (/api/strm). It is
+// the key the feeds used to share, kept so the files already written still
+// play; the Live TV feeds still take it too, for players set up before the two
+// were split.
+func (s *Server) strmKey() string { return s.feedSecret(keyTVFeedKey) }
+
+func (s *Server) feedSecret(setting string) string {
+	if k, _ := s.Settings.Get(setting); strings.TrimSpace(k) != "" {
 		return strings.TrimSpace(k)
 	}
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	k := hex.EncodeToString(b)
-	_ = s.Settings.Set(keyTVFeedKey, k, false)
+	_ = s.Settings.Set(setting, k, false)
 	return k
 }
 
+func keyMatches(got, want string) bool {
+	return want != "" && subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
+}
+
+// tvFeedOK: the Live TV feeds, with the tuner's key (or the older shared one).
 func (s *Server) tvFeedOK(r *http.Request) bool {
-	k := s.tvFeedKey()
-	return k != "" && r.PathValue("key") == k
+	k := r.PathValue("key")
+	return keyMatches(k, s.tvFeedKey()) || keyMatches(k, s.strmKey())
+}
+
+// strmOK: a streamed film's pointer file, with its own key only.
+func (s *Server) strmOK(r *http.Request) bool {
+	return keyMatches(r.PathValue("key"), s.strmKey())
 }
 
 // tvFeedBase is the address the feeds give out: the one the request came in

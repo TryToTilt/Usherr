@@ -569,7 +569,7 @@ function AddAccountForm({ onAdded }: { onAdded: (a: Account) => void }) {
             <span>
               {t('Username')} <small style={{ color: 'var(--text-dim)' }}>{t('(what they sign in with)')}</small>
             </span>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="off" placeholder="mediarium" {...v.bind('username', username, setUsername)} />
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="off" placeholder={t('for example sam')} {...v.bind('username', username, setUsername)} />
             <FieldError v={v} name="username" />
           </label>
           <label>

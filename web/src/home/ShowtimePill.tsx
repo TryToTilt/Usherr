@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Icon from '../components/Icon'
 import type { CardAction } from '../components/PosterCard'
-import { t } from '../i18n'
+import { locale, t } from '../i18n'
 import { ShowtimeDialog, type ShowtimeFilm } from './ShowtimeButton'
 import { clockLabel, listShowtimes, showtimeEnds, whenLabel, type Showtime } from './showtimes'
 
@@ -33,7 +33,11 @@ export function showtimeStage(next: Showtime | undefined, now: number): Stage {
   if (now >= pre) return say('preshow', t('Show starting'), countdown(next.atMs - now))
   if (pre - now > HOUR) {
     const today = new Date(next.atMs).toDateString() === new Date(now).toDateString()
-    return say('booked', t('Showtime'), today ? clockLabel(next.atMs) : whenLabel(next.atMs))
+    // this week: the day's short name and the time ("Sat 7:30 PM"), short
+    // enough for a phone's top bar; the whole date is in the tooltip
+    const thisWeek = next.atMs - now < 6 * 24 * HOUR
+    const day = new Date(next.atMs).toLocaleDateString(locale(), { weekday: 'short' })
+    return say('booked', t('Showtime'), today ? clockLabel(next.atMs) : thisWeek ? `${day} ${clockLabel(next.atMs)}` : whenLabel(next.atMs))
   }
   if (next.preshowMin <= 0) return say('soon', t('Show starting'), countdown(next.atMs - now))
   return say('soon', t('Pre-show starts'), countdown(pre - now))

@@ -17,10 +17,10 @@ export default function MenuHideChoice() {
   }
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14, marginTop: 12 }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, maxWidth: '100%' }}>
         <span>{t('The menu slides away')}</span>
-        <input type="range" min={0} max={10} step={1} value={s} onChange={(e) => pick(Number(e.target.value))} aria-valuetext={say(s)} style={{ width: 180 }} />
-        <strong style={{ minWidth: 120 }}>{say(s)}</strong>
+        <input type="range" min={0} max={10} step={1} value={s} onChange={(e) => pick(Number(e.target.value))} aria-valuetext={say(s)} style={{ width: 180, maxWidth: '100%' }} />
+        <strong style={{ minWidth: 0 }}>{say(s)}</strong>
       </label>
       <span style={{ color: 'var(--text-dim)' }}>{t('On a wider screen, the open menu stays while your mouse is over it, and slides away this long after the mouse leaves. Kept in this browser.')}</span>
     </div>

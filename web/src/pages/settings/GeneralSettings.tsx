@@ -72,7 +72,7 @@ function LookCard() {
 
 // Dates and times are shown in the time zone of the browser. The server's own
 // time zone (for quiet hours, overnight updates and the like) is the TZ set on the container.
-function TimeZoneCard() {
+function TimeZoneCard({ admin }: { admin: boolean }) {
   const zone = (() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -87,7 +87,8 @@ function TimeZoneCard() {
       </legend>
       <p style={{ margin: 0, color: 'var(--text-dim)' }}>
         {zone ? t('Dates and times are shown in the time zone of this browser: {zone}.', { zone }) : t('Dates and times are shown in the time zone of this browser.')}{' '}
-        {t('Hours you set for quiet hours, overnight updates or download times follow the time zone of the server. You set it with TZ in your compose file.')}
+        {/* Usherr: how the server's zone is set is for whoever runs it */}
+        {admin && t('Hours you set for quiet hours, overnight updates or download times follow the time zone of the server. You set it with TZ in your compose file.')}
       </p>
     </fieldset>
   )
@@ -126,7 +127,7 @@ export default function GeneralSettings() {
       <LookCard />
       <FilmLayoutChoice /> {/* Usherr */}
       <NewsStyleCard /> {/* Usherr */}
-      <TimeZoneCard />
+      <TimeZoneCard admin={admin} />
       {admin && <PublicAddress />}
       {admin && (
         <details className="how-details span-all">

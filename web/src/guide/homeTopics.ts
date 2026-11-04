@@ -2,12 +2,12 @@
 // in docs/home. Kept apart from upstream's list so merges stay clean.
 import type { TopicDef } from './topicDefs.ts'
 
-export const HOME_GROUP = 'Home fork'
+export const HOME_GROUP = 'Usherr’s own'
 
 export const HOME_TOPICS: TopicDef[] = [
   {
     id: 'home-start',
-    title: 'Getting started with the home fork',
+    title: 'Getting started with Usherr’s own parts',
     summary: 'What the fork adds, what you need for it, the quickest way to a working server, and Usherr’s look (Neu, main colours, the menu).',
     group: HOME_GROUP,
     sources: [{ file: 'home/getting-started.md' }],

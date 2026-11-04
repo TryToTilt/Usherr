@@ -1,3 +1,4 @@
+import { BRAND } from '../brand' // Usherr
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useStreamed } from '../home/useHave' // Usherr
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -357,7 +358,7 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
 
   const kinds = [on('movies') && t('movies'), on('tv') && (on('movies') ? t('shows') : t('TV shows')), musicOn && t('artists'), booksOn && t('books')].filter((k): k is string => !!k)
   const placeholder = placeholderText ?? t('Search {what}', {
-    what: kinds.length > 1 ? t('{list} and {last}', { list: kinds.slice(0, -1).join(', '), last: kinds[kinds.length - 1] }) : kinds[0] || 'Mediarium',
+    what: kinds.length > 1 ? t('{list} and {last}', { list: kinds.slice(0, -1).join(', '), last: kinds[kinds.length - 1] }) : kinds[0] || BRAND,
   })
 
   return (

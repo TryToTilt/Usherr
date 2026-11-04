@@ -20,7 +20,12 @@ try {
 }
 // Usherr Neu (neu/look.ts), also before anything paints.
 try {
-  if (localStorage.getItem('usherr-look') === 'neu') document.documentElement.dataset.look = 'neu'
+  const look = localStorage.getItem('usherr-look')
+  if (look === 'neu' || look === 'lobby') document.documentElement.dataset.look = 'neu'
+  if (look === 'lobby') document.documentElement.dataset.layout = 'lobby' // Neu with the new layout
+  // and on a TV everything bigger: picked under You, or a TV's own browser
+  const tv = localStorage.getItem('usherr-tv')
+  if (tv === '1' || (tv === null && /SMART-TV|SmartTV|Tizen|Web0S|webOS|BRAVIA|AFT[A-Z]|CrKey|GoogleTV|Android TV|AppleTV/i.test(navigator.userAgent))) document.documentElement.dataset.tv = '1'
 } catch {
   // blocked storage: Classic
 }

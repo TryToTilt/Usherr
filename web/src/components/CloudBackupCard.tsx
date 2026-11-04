@@ -194,7 +194,7 @@ export default function CloudBackupCard() {
           <>
             <label>
               {t('Folder address')}
-              <input value={form.url} onChange={(e) => set('url', e.target.value)} placeholder="https://cloud.example.com/remote.php/dav/files/you/Mediarium/" autoComplete="off" spellCheck={false} />
+              <input value={form.url} onChange={(e) => set('url', e.target.value)} placeholder="https://cloud.example.com/remote.php/dav/files/you/Usherr/" autoComplete="off" spellCheck={false} />
             </label>
             <label>
               {t('User name')}

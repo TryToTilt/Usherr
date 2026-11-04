@@ -1,0 +1,79 @@
+/* Usherr: the new layout (the "lobby" look, look.ts). Neu exactly, as neu.css
+   draws it; this file only moves things. The menu stays in sight down the
+   side on a wider screen, phones get tabs along the bottom instead of the
+   hamburger, and a TV gets everything bigger. */
+
+@media (min-width: 901px) {
+  :root[data-layout='lobby'] .app-shell.nav-lobby { grid-template-columns: 236px minmax(0, 1fr); }
+}
+:root[data-layout='lobby'] .app-shell.nav-lobby .menu-button { display: none !important; }
+:root[data-layout='lobby'] .app-shell.nav-lobby .sidebar { box-shadow: 8px 0 22px -16px var(--n-lo) !important; }
+
+.lobby-nav { display: flex; flex-direction: column; gap: 2px; }
+.lobby-nav .lobby-head {
+  margin: 16px 0 4px;
+  padding: 0 14px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--n-faint);
+}
+.lobby-nav > a:first-child { margin-top: 4px; }
+.lobby-nav .nav-count { margin-left: auto; }
+.lobby-nav .nav-count.lobby-warn { color: var(--n-warn); }
+.lobby-admin { margin-top: 10px; padding-top: 6px; border-top: 1px solid var(--n-hair); }
+.lobby-server-pages { margin: 2px 0 6px 12px; display: flex; flex-direction: column; gap: 2px; }
+.lobby-server-pages > a { font-size: 0.92em; }
+/* under Server, Settings' groups are always open */
+.sidebar .lobby-server-pages .sn-collapse { grid-template-rows: 1fr; }
+.sidebar .lobby-server-pages .sn-collapse .sn-collapse-inner { visibility: visible; }
+
+/* ---- Phones and small tablets: tabs along the bottom -------------------- */
+
+.lobby-tabs { display: none; }
+@media (max-width: 900px) {
+  .lobby-tabs {
+    display: flex;
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 850;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: var(--n-bg);
+    box-shadow: 0 -10px 22px -14px var(--n-lo);
+  }
+  .lobby-tabs a {
+    flex: 1;
+    min-width: 0;
+    min-height: 54px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    color: var(--n-faint);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    border-radius: 14px;
+  }
+  .lobby-tabs a > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .lobby-tab-ico { position: relative; display: inline-grid; place-items: center; width: 46px; height: 30px; border-radius: 999px; }
+  .lobby-tabs a.active { color: var(--n-accent); }
+  .lobby-tabs a.active .lobby-tab-ico { background: var(--n-well); box-shadow: var(--n-in-sm); }
+  .lobby-tab-dot { position: absolute; top: 3px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--n-warn); }
+  /* room for the tabs under the page and the things that float over it */
+  :root[data-layout='lobby'] .app-shell.nav-lobby .content { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  :root[data-layout='lobby'] .app-shell.nav-lobby .to-top,
+  :root[data-layout='lobby'] .app-shell.nav-lobby .mini-player { bottom: calc(78px + env(safe-area-inset-bottom, 0px)) !important; }
+  /* a quieter top bar: the theme lives under You, Roulette on Home */
+  :root[data-layout='lobby'] .app-shell.nav-lobby .top-theme,
+  :root[data-layout='lobby'] .app-shell.nav-lobby .top-dice { display: none !important; }
+}
+
+/* ---- A TV: everything bigger for the sofa (TV size, or a TV's browser) --- */
+
+:root[data-layout='lobby'][data-tv] { zoom: 1.4; }
+:root[data-layout='lobby'][data-tv] .app-shell { height: calc(100dvh / 1.4); }
+:root[data-layout='lobby'][data-tv] :focus-visible { outline: 4px solid var(--n-accent) !important; outline-offset: 3px; }

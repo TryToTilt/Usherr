@@ -349,7 +349,7 @@ function UsenetJobRow({ job, label, reload }: { job: UsenetClientJob; label: str
         <div className="qtitle">
           <span className="client-name" title={job.name}>{job.name}</span>
           <span className={`badge ${job.stage === 'problem' ? 'failed' : job.stage === 'downloading' ? 'downloading' : ''}`}>{stageText(job.stage)}</span>
-          {job.mine && <span className="qproto">Mediarium</span>}
+          {job.mine && <span className="qproto">{BRAND}</span>}
           {job.category && !job.mine && <span className="qproto">{job.category}</span>}
         </div>
         {(active || job.stage === 'paused') && (

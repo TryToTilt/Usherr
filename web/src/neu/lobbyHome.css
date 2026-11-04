@@ -1,0 +1,156 @@
+/* Usherr: Home in the new layout (pages/LobbyHome.tsx), drawn in Neu's
+   tokens: raised tiles, pressed wells, the one accent colour. */
+
+.lobby-home { display: flex; flex-direction: column; gap: 28px; padding-bottom: 12px; }
+.lobby-greeting { margin: 4px 0 -8px; font-size: clamp(1.5rem, 3vw, 2.1rem); color: var(--n-text); }
+
+.lobby-needs {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--n-bg);
+  box-shadow: var(--n-up-sm);
+  color: var(--n-warn);
+  font-weight: 800;
+  text-decoration: none;
+}
+.lobby-needs:active { box-shadow: var(--n-in-sm); }
+
+.lobby-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 11px 22px;
+  border-radius: 999px;
+  background: var(--n-bg);
+  box-shadow: var(--n-up-sm);
+  color: var(--n-text);
+  font-weight: 800;
+  text-decoration: none;
+}
+.lobby-btn:active { box-shadow: var(--n-in-sm); }
+.lobby-btn.primary,
+.lobby-btn.primary:hover { background: var(--n-accent) !important; color: var(--n-on-accent) !important; }
+
+/* The hero: the poster's own colours, blurred, behind the poster itself. */
+.lobby-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  gap: 26px;
+  min-height: 300px;
+  padding: 28px;
+  border-radius: 28px;
+  background: var(--n-well);
+  box-shadow: var(--n-up);
+}
+.lobby-hero::before {
+  content: '';
+  position: absolute;
+  inset: -40px;
+  z-index: -2;
+  background: var(--art, none) center / cover;
+  filter: blur(38px) saturate(1.2);
+  opacity: 0.85;
+}
+.lobby-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(14, 18, 26, 0.78), rgba(14, 18, 26, 0.35) 70%, rgba(14, 18, 26, 0.15));
+}
+.lobby-hero-poster {
+  flex: none;
+  width: 170px;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 18px;
+  box-shadow: 0 24px 40px -14px rgba(0, 0, 0, 0.6);
+}
+.lobby-hero-text { display: flex; flex-direction: column; gap: 10px; min-width: 0; color: #fff; }
+.lobby-hero .lobby-btn:not(.primary) { color: #fff !important; }
+.lobby-eyebrow { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #9ff3e2; }
+.lobby-hero-title { margin: 0; font-size: clamp(1.7rem, 4vw, 2.6rem); line-height: 1.08; color: #fff; text-wrap: balance; }
+.lobby-hero-text p { margin: 0; max-width: 60ch; color: rgba(255, 255, 255, 0.88); }
+.lobby-hero-btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.lobby-hero .lobby-btn:not(.primary),
+.lobby-hero .lobby-btn:not(.primary):hover { background: rgba(255, 255, 255, 0.16); color: #fff; box-shadow: none; border: 1px solid rgba(255, 255, 255, 0.3); }
+
+.lobby-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.lobby-section-head h2 { margin: 0; font-size: 1.2rem; color: var(--n-text); }
+.lobby-more { display: inline-flex; align-items: center; gap: 2px; color: var(--n-accent); font-weight: 800; text-decoration: none; white-space: nowrap; }
+
+/* A row that scrolls sideways; the cards keep their own Neu tiles. */
+.lobby-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 158px;
+  gap: 18px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  padding: 8px 6px 18px;
+  margin: -8px -6px 0;
+  scrollbar-width: thin;
+}
+.lobby-row > * { scroll-snap-align: start; min-width: 0; }
+
+.lobby-list { list-style: none; margin: 0; padding: 6px; border-radius: 22px; background: var(--n-bg); box-shadow: var(--n-up-sm); }
+.lobby-list a { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 14px; padding: 12px 14px; border-radius: 16px; color: var(--n-text); text-decoration: none; }
+.lobby-list a:hover { box-shadow: var(--n-in-sm); }
+.lobby-list li + li a { border-top: 1px solid var(--n-hair); }
+.lobby-list-title { font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lobby-list-sub { grid-column: 1; color: var(--n-dim); font-size: 0.9em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lobby-list-day { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--n-faint); font-weight: 700; white-space: nowrap; }
+
+.lobby-empty { padding: 28px; border-radius: 24px; background: var(--n-bg); box-shadow: var(--n-up-sm); display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.lobby-empty h2, .lobby-empty p { margin: 0; }
+
+@media (max-width: 700px) {
+  .lobby-home { gap: 22px; }
+  .lobby-hero { min-height: 0; padding: 20px; gap: 16px; border-radius: 24px; }
+  .lobby-hero-poster { width: 92px; border-radius: 12px; }
+  .lobby-hero-text p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .lobby-row { grid-auto-columns: 118px; gap: 14px; }
+}
+@media (max-width: 460px) {
+  .lobby-hero { flex-direction: column; align-items: flex-start; }
+  .lobby-hero-poster { display: none; }
+}
+
+/* The Server area's page (pages/ServerHub.tsx). */
+.server-hub { display: flex; flex-direction: column; gap: 26px; }
+.server-hub h2 { margin: 0 0 12px; font-size: 1.2rem; }
+.server-needs { list-style: none; margin: 0; padding: 6px; border-radius: 22px; background: var(--n-bg); box-shadow: var(--n-up-sm); }
+.server-needs li { display: flex; align-items: center; gap: 14px; padding: 14px; }
+.server-needs li + li { border-top: 1px solid var(--n-hair); }
+.server-needs .grow { flex: 1; min-width: 0; }
+.server-needs b { display: block; }
+.server-needs small { display: block; color: var(--n-dim); margin-top: 2px; }
+.server-needs .lv-error b { color: var(--n-bad); }
+.server-needs .lv-warn b { color: var(--n-warn); }
+.server-ok { margin: 0; padding: 16px 18px; border-radius: 20px; box-shadow: var(--n-in-sm); color: var(--n-good); font-weight: 800; }
+.server-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+.server-tile {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: var(--n-bg);
+  box-shadow: var(--n-up-sm);
+  color: var(--n-text);
+  text-decoration: none;
+}
+.server-tile:active { box-shadow: var(--n-in-sm); }
+.server-tile .ico { flex: none; display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; box-shadow: var(--n-in-sm); color: var(--sc, var(--n-accent)); }
+.server-tile b { display: block; }
+.server-tile small { display: block; color: var(--n-dim); margin-top: 3px; line-height: 1.35; }
+.server-tile .count { margin-left: auto; color: var(--n-accent); font-weight: 800; }

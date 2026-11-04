@@ -157,7 +157,7 @@ function Picker({ kind, itemId, onMoved, children }: { kind: 'movie' | 'series';
           {t('Quality profile')}
           <HelpLink topic="quality" text={t('Decides which releases are good enough for this title. Moving it to a higher profile than the file you have makes Mediarium look for that quality straight away.')} />
         </span>
-        <select value={current} onChange={(e) => void chooseProfile(Number(e.target.value))}>
+        <select aria-label={t('Quality profile')} value={current} onChange={(e) => void chooseProfile(Number(e.target.value))}>
           <option value={0}>{t('Default ({name})', { name: defaultName })}</option>
           {profiles.map((p) => (
             <option key={p.id} value={p.id}>
@@ -171,7 +171,7 @@ function Picker({ kind, itemId, onMoved, children }: { kind: 'movie' | 'series';
           {t('Download from')}
           <InfoTip text={t('Which downloaders may fetch this title. "Default" follows your settings; Usenet only or Torrents only rules the other one out for this title alone.')} />
         </span>
-        <select value={sources} onChange={(e) => void chooseSources(e.target.value as SourcePref)}>
+        <select aria-label={t('Download from')} value={sources} onChange={(e) => void chooseSources(e.target.value as SourcePref)}>
           <option value="">{t('Default ({name})', { name: SOURCE_NAME[defaultSources] ?? t('Usenet and torrents') })}</option>
           <option value="both">{SOURCE_NAME.both}</option>
           <option value="usenet">{SOURCE_NAME.usenet}</option>
@@ -183,7 +183,7 @@ function Picker({ kind, itemId, onMoved, children }: { kind: 'movie' | 'series';
           {t('Better versions')}
           <InfoTip text={t("Look for better versions swaps the file for a better release when the quality profile allows it, until it reaches the profile's cutoff. Leave what I have alone keeps the file as it is.")} />
         </span>
-        <select value={noUpgrade ? 'leave' : 'look'} onChange={(e) => void chooseNoUpgrade(e.target.value === 'leave')}>
+        <select aria-label={t('Better versions')} value={noUpgrade ? 'leave' : 'look'} onChange={(e) => void chooseNoUpgrade(e.target.value === 'leave')}>
           <option value="look">{t('Look for better versions')}</option>
           <option value="leave">{t('Leave what I have alone')}</option>
         </select>
@@ -194,7 +194,7 @@ function Picker({ kind, itemId, onMoved, children }: { kind: 'movie' | 'series';
             {t('Season packs')}
             <InfoTip text={t('While a season is airing its episodes come one by one. Once every episode has aired, Mediarium can look for a season pack and take it when it is the same quality or better than the episodes you have.')} />
           </span>
-          <select value={seasonPack} onChange={(e) => void chooseSeasonPack(e.target.value as SeasonPackChoice)}>
+          <select aria-label={t('Season packs')} value={seasonPack} onChange={(e) => void chooseSeasonPack(e.target.value as SeasonPackChoice)}>
             <option value="">{t('Default ({name})', { name: defaultPacks ? t('prefer packs') : t('episode by episode') })}</option>
             <option value="on">{t('Prefer packs once a season has ended')}</option>
             <option value="off">{t('Episode by episode')}</option>
