@@ -32,6 +32,8 @@ const MarqueeRemote = lazy(() => import('./home/MarqueeRemote')) // Usherr: the 
 const MarqueeHub = lazy(() => import('./home/MarqueeHub')) // Usherr: the Marquee's own page
 const PreshowSettings = lazy(() => import('./home/PreshowSettings')) // Usherr: the pre-show
 const ArtworkSettings = lazy(() => import('./home/ArtworkSettings')) // Usherr: Re-Posterr, artwork picking
+const PushCollectionsSettings = lazy(() => import('./home/PushCollectionsSettings')) // Usherr: collections pushed to Jellyfin and Plex
+const PosterBadgesSettings = lazy(() => import('./home/PosterBadgesSettings')) // Usherr: badges on posters
 const CommunitySettings = lazy(() => import('./home/CommunitySettings')) // Usherr: Community (preview)
 const PartyChatPage = lazy(() => import('./home/PartyChat')) // Usherr: Community, the watch party chat on a phone
 const LobbyHome = lazy(() => import('./pages/LobbyHome')) // Usherr: Home in the new layout
@@ -89,6 +91,7 @@ const MusicImport = lazy(() => import('./pages/MusicImport'))
 const MusicPlaylists = lazy(() => import('./pages/MusicPlaylists').then((m) => ({ default: m.MusicPlaylists })))
 const MusicPlaylistPage = lazy(() => import('./pages/MusicPlaylists').then((m) => ({ default: m.MusicPlaylistPage })))
 const Statistics = lazy(() => import('./pages/Statistics'))
+const WatchActivity = lazy(() => import('./pages/WatchActivity')) // Usherr: watch history and stats
 const ManualImport = lazy(() => import('./pages/ManualImport'))
 const ReleaseSearch = lazy(() => import('./pages/ReleaseSearch'))
 const About = lazy(() => import('./pages/About'))
@@ -252,6 +255,7 @@ function Gate() {
         <Route path="/wanted" element={<Upcoming tab="wanted" />} />
         <Route path="/calendar" element={<Upcoming tab="calendar" />} />
         <Route path="/following" element={<Upcoming tab="following" />} /> {/* home fork */}
+        <Route path="/leaving-soon" element={<Upcoming tab="leaving" />} /> {/* Usherr: clean-up rules */}
         <Route path="/you" element={<You />} /> {/* home fork: your taste, votes and more */}
         <Route path="/marquee/remote" element={<AdminOnly><MarqueeRemote /></AdminOnly>} /> {/* Usherr */}
         <Route path="/marquee/manage" element={<AdminOnly><MarqueeHub /></AdminOnly>} /> {/* Usherr */}
@@ -294,6 +298,8 @@ function Gate() {
           <Route path="schedules" element={<AdminOnly><SchedulesSettings /></AdminOnly>} /> {/* home fork */}
           <Route path="extras" element={<AdminOnly><ExtrasSettings /></AdminOnly>} /> {/* home fork */}
           <Route path="re-posterr" element={<AdminOnly><ArtworkSettings /></AdminOnly>} /> {/* Usherr: Re-Posterr */}
+          <Route path="collections" element={<AdminOnly><PushCollectionsSettings /></AdminOnly>} /> {/* Usherr: collections in Jellyfin and Plex */}
+          <Route path="poster-badges" element={<AdminOnly><PosterBadgesSettings /></AdminOnly>} /> {/* Usherr: poster badges */}
           <Route path="community" element={<AdminOnly><CommunitySettings /></AdminOnly>} /> {/* Usherr: Community (preview) */}
           <Route path="setup" element={<AdminOnly><SetupChecklist /></AdminOnly>} /> {/* home fork */}
           <Route path="subtitles" element={<AdminOnly><SubtitleSettings /></AdminOnly>} />
@@ -317,6 +323,7 @@ function Gate() {
           <Route path="logs" element={<AdminOnly><LogsSettings /></AdminOnly>} />
           <Route path="about" element={<About />} />
           <Route path="statistics" element={<Statistics />} />
+          <Route path="watching" element={<WatchActivity />} /> {/* Usherr: watch history and stats */}
           {SETTINGS_REDIRECTS.map(([from, to]) => (
             <Route key={from} path={from.replace('/settings/', '')} element={<Navigate to={to} replace />} />
           ))}

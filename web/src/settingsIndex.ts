@@ -57,8 +57,11 @@ const PAGE_WORDS: Record<string, string> = {
   'sign-in': 'sso oidc ldap active directory login proxy',
   system: 'restart cleanup disk server health memory',
   'service-checks': 'uptime watchdog monitor down ping status alert kuma jellyfin', // Usherr
+  collections: 'kometa plex jellyfin boxset franchise trending smart list mdblist trakt', // Usherr
+  'poster-badges': 'kometa overlays 4k hdr dolby vision atmos dts rating poster', // Usherr
   backup: 'restore export cloud copy',
   statistics: 'stats charts numbers',
+  watching: 'now playing history sessions streamystats tautulli plays transcode watched who', // Usherr
   logs: 'errors problems debug support report',
   migrate: 'import radarr sonarr prowlarr sabnzbd move switch',
   about: 'version credits legal licence open source',

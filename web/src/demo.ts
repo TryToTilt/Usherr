@@ -24,6 +24,7 @@ import type {
 } from './api'
 
 import { demoAuthorWorks, demoBookCounts, demoBookList, demoBooks, demoBookSearch, demoProgress, demoTracks, demoWork } from './demoBooks'
+import { demoWatch } from './demoWatch' // Usherr
 
 const KEY = 'mediarium-demo'
 
@@ -314,8 +315,9 @@ function seriesDetail(id: number): SeriesDetail | null {
     status: i < seed.have ? 'downloaded' : 'missing',
     quality: i < seed.have ? '1080p WEB-DL' : undefined,
     sizeBytes: i < seed.have ? episodeBytes(i) : undefined,
-    // One demo show is set to "only episodes that haven't aired yet".
-    monitored: id === 102 ? -130 + i * 8 >= 0 : true,
+    // One demo show is set to "only episodes that haven't aired yet"; on
+    // another, season 2 wasn't asked for (Usherr: "Ask for more seasons").
+    monitored: id === 102 ? -130 + i * 8 >= 0 : id === 104 ? i < 10 : true,
   }))
   return { ...s, episodes: eps }
 }
@@ -633,6 +635,12 @@ export function installDemo() {
         return json([])
       case p === '/api/indexers':
         return json(demoIndexers)
+      // Usherr: the watch history (made-up people and titles)
+      case p === '/api/watch/now':
+      case p === '/api/watch/history':
+      case p === '/api/watch/stats':
+      case p === '/api/watch/title':
+        return json(demoWatch(p, u.searchParams))
       default:
         return real(input, init)
     }

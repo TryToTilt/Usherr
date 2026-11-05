@@ -63,6 +63,10 @@ type watchedStatus struct {
 // "never watched" rule only applies to such movies.
 const watchedHeld = "held"
 
+// watchedHeldShow marks a show that a media server has (TitleID is the
+// series id), watched or not: the clean-up rules' "never watched" for shows.
+const watchedHeldShow = "held-show"
+
 var watchedMu sync.Mutex // one sync or cleanup at a time
 
 func (s *Server) watchedSyncOn() bool { return s.settingOn(settings.KeyWatchedSync, false) }
@@ -104,6 +108,7 @@ func (s *Server) syncWatched(ctx context.Context) (watchedStatus, error) {
 	movies := map[int]mediaservers.Play{}
 	episodes := map[mediaservers.EpisodeKey]mediaservers.Play{}
 	held := map[int]bool{} // TMDB ids of the movies some server holds
+	heldShows := map[int]bool{}
 	read := 0
 	var problems []string
 	for _, srv := range servers {
@@ -124,6 +129,9 @@ func (s *Server) syncWatched(ctx context.Context) (watchedStatus, error) {
 		read++
 		for id := range state.Held {
 			held[id] = true
+		}
+		for id := range state.HeldShows {
+			heldShows[id] = true
 		}
 		for id, p := range state.Movies {
 			movies[id] = mergePlay(movies[id], p)
@@ -161,6 +169,9 @@ func (s *Server) syncWatched(ctx context.Context) (watchedStatus, error) {
 	byTMDB := map[int]int64{}
 	for _, sh := range shows {
 		byTMDB[sh.TMDBID] = sh.ID
+		if heldShows[sh.TMDBID] {
+			rows = append(rows, library.Watched{Kind: watchedHeldShow, TitleID: sh.ID})
+		}
 	}
 	nEpisodes := 0
 	for k, p := range episodes {
@@ -218,6 +229,7 @@ func (s *Server) watchedJob(ctx context.Context) {
 			slog.Info("cleanup: run failed", "err", err)
 		}
 	}
+	s.cleanupRulesJob() // Usherr: the rule sets (home_cleanup_rules.go)
 }
 
 // libraryCleanupItem is one title the rules would remove (or did).
@@ -323,7 +335,7 @@ func (s *Server) libraryCleanupCandidates(rules CleanupRules, now time.Time) ([]
 			movieWatch[w.TitleID] = w
 		} else if w.Kind == watchedHeld {
 			movieHeld[w.TitleID] = true
-		} else {
+		} else if w.Kind == "episode" {
 			epWatch[[3]int64{w.TitleID, int64(w.Season), int64(w.Episode)}] = w
 		}
 	}
@@ -698,7 +710,7 @@ func (s *Server) handleWatched(w http.ResponseWriter, r *http.Request) {
 		if !x.LastPlayed.IsZero() {
 			last = x.LastPlayed.Format(time.RFC3339)
 		}
-		if x.Kind == watchedHeld {
+		if x.Kind == watchedHeld || x.Kind == watchedHeldShow {
 			continue
 		}
 		if x.Kind == "movie" {

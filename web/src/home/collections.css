@@ -1,0 +1,28 @@
+/* Usherr: Settings > Re-Posterr > Collections and Poster badges (PushCollectionsSettings.tsx, PosterBadgesSettings.tsx). */
+.pcol-warn { padding: 8px 12px; border-radius: 10px; background: var(--surface-2); color: var(--text); }
+.pcol-form { margin-top: 10px; }
+.pcol-checks { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.pcol-checks legend { padding: 0; margin-bottom: 4px; }
+.pcol-checks label { display: flex; align-items: center; gap: 6px; }
+.pcol-pick { display: grid; gap: 8px; }
+.pcol-found { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 240px; overflow-y: auto; }
+.pcol-found li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); }
+.pcol-found small { color: var(--text-dim); }
+.pcol-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pcol-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; border-radius: 999px; background: var(--surface-2); font-size: 0.85rem; }
+.pcol-chip button { display: inline-flex; padding: 3px; border: 0; background: none; color: var(--text-dim); cursor: pointer; }
+.pcol-preview { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); }
+.pcol-preview p { margin: 0 0 4px; }
+.pcol-poster { width: 120px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; }
+.pcol-hours select { margin-left: 6px; }
+.badge-grid { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 18px; align-items: start; }
+.badge-preview { display: grid; gap: 8px; justify-items: center; }
+.badge-preview img { width: 100%; max-width: 240px; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 10px; background: var(--surface-2); }
+.badge-preview select { width: 100%; }
+.badge-libs { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.badge-libs label { display: flex; align-items: center; gap: 6px; }
+
+@media (max-width: 720px) {
+  .badge-grid { grid-template-columns: minmax(0, 1fr); }
+  .badge-preview img { max-width: 200px; }
+}

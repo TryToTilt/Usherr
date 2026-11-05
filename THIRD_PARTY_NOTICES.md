@@ -12,16 +12,22 @@ Mediarium is licensed under the GNU Affero General Public License v3.0 (see LICE
 
 ## Tools in the Docker images
 
-The images install these from Alpine Linux (the standard image) or Debian (the `-full` image) packages, unchanged. Their licence files are in the image under `/usr/share/licenses` (Alpine) or `/usr/share/doc/<package>/copyright` (Debian). The source of each package is available from the distribution: https://gitlab.alpinelinux.org/alpine/aports and https://sources.debian.org.
+Both images are built on Debian and install these from Debian packages, unchanged, except where the table says otherwise. Their licence files are in the image under `/usr/share/doc/<package>/copyright`. The source of each Debian package is available from https://sources.debian.org.
 
-| Tool | What Mediarium uses it for | Licence |
+| Tool | What Usherr uses it for | Licence |
 |---|---|---|
 | par2cmdline | checking and repairing Usenet downloads | GPL-2.0-or-later |
 | p7zip | unpacking .7z archives | LGPL-2.1-or-later, with the unRAR restriction for its RAR code |
 | tini (standard image), dumb-init (`-full`) | process 1 in the container | MIT |
-| su-exec | dropping to your PUID/PGID | MIT |
+| setpriv (util-linux) | dropping to your PUID/PGID | GPL-2.0-or-later |
 | ca-certificates | trusting https sites | MPL-2.0 |
 | tzdata | time zones | public domain |
+| jellyfin-ffmpeg (standard image; from Jellyfin's own Debian repository, https://github.com/jellyfin/jellyfin-ffmpeg) | TV channels, pre-shows, sound and video checks, encoding on the graphics card | GPL-3.0-or-later |
+| adb (android-tools) | starting playback on an Android TV | Apache-2.0 |
+| DejaVu and WenQuanYi Zen Hei fonts | text on posters, slates and pre-show cards | Bitstream Vera licence; GPL-2.0 with font exception |
+| yt-dlp and yt-dlp-ejs (standard image; from PyPI) | the pre-show's coming-soon trailers | Unlicense |
+| Deno (standard image; from the official denoland/deno image) | running yt-dlp's YouTube helper | MIT |
+| Python 3 (standard image) | running yt-dlp | PSF-2.0 |
 
 The `-full` image is built on the official FlareSolverr image (MIT), which brings Python, Chromium and their own licences: see https://github.com/FlareSolverr/FlareSolverr.
 

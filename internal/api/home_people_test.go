@@ -18,9 +18,9 @@ import (
 
 func TestPersonPartsAndMerge(t *testing.T) {
 	people := mergePeople([]jfPerson{
-		{ID: "abc", Name: "Chris", IsAdmin: true},
+		{ID: "abc", Name: "Taylor", IsAdmin: true},
 		{ID: "def", Name: "Sam"},
-		{ID: "plex:3:1", Name: "chris", IsAdmin: true},
+		{ID: "plex:3:1", Name: "taylor", IsAdmin: true},
 		{ID: "plex:3:7", Name: "Robin"},
 	})
 	if len(people) != 3 || people[0].ID != "abc,plex:3:1" || people[2].ID != "def" || people[1].ID != "plex:3:7" {

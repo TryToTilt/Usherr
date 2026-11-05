@@ -215,5 +215,9 @@ The keys the app stores in its settings table. You normally change these from th
 | `vpn.notice_acknowledged` |  |
 | `vpn.require_for_torrents` |  |
 | `vpn.route_indexers` | "1" sends searches, RSS, release downloads, IRC announces and debrid through the VPN, and they wait while it isn't up. Home-network addresses still connect directly |
+| `watch.keep_addresses` | Usherr: "1" keeps each player's IP address in the watch history; unset or "0" keeps only whether it was at home or away |
+| `watch.members_see_all` | Usherr: "1" lets every account see everyone's watch history and stats; unset or "0" shows each person only their own |
+| `watch.record` | Usherr: "0" stops keeping the watch history (who watched what on Plex, Jellyfin or Emby); unset or "1" keeps it |
+| `watch.retention_days` | Usherr: how many days of watch history to keep; unset = 365, "0" = forever |
 | `watched.status` | the last read and cleanup (JSON; set by the app, not user-editable) |
 | `watched.sync` | "1" reads what's been watched from Plex, Jellyfin and Emby every six hours; unset or "0" leaves it off |

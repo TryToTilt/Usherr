@@ -32,6 +32,10 @@ type WatchState struct {
 	// Held lists the TMDB ids of every movie the server has, watched or not.
 	// "Never watched" is only believable for a movie some server holds.
 	Held map[int]bool
+	// HeldShows lists the TMDB ids of the shows the server has, watched or
+	// not (for the clean-up rules' "never watched"). Jellyfin and Emby fill it
+	// in when they answer; a server that doesn't leaves it empty.
+	HeldShows map[int]bool
 	// Titles counts the movies and shows the server listed (for Jellyfin and
 	// Emby, the movies and the played episodes). Zero means the server
 	// answered but showed nothing: its drive may be unmounted, which says
@@ -40,7 +44,7 @@ type WatchState struct {
 }
 
 func newWatchState() WatchState {
-	return WatchState{Movies: map[int]Play{}, Episodes: map[EpisodeKey]Play{}, Held: map[int]bool{}}
+	return WatchState{Movies: map[int]Play{}, Episodes: map[EpisodeKey]Play{}, Held: map[int]bool{}, HeldShows: map[int]bool{}}
 }
 
 // add merges one play into a map: plays add up, the latest date wins.
@@ -114,6 +118,7 @@ func (c *Client) plexWatched(ctx context.Context, s Server) (WatchState, error) 
 				out.Titles++
 				if id, ok := tmdbOf(sh); ok {
 					showTMDB[sh.RatingKey] = id
+					out.HeldShows[id] = true
 				}
 			}
 			eps, err := c.plexGet(ctx, s, section, url.Values{"type": {"4"}})
@@ -165,6 +170,7 @@ func (c *Client) embyWatched(ctx context.Context, s Server) (WatchState, error) 
 	if err := c.do(ctx, s, http.MethodGet, "/Users", nil, nil, &users); err != nil {
 		return out, explain(s, err)
 	}
+	c.embyHeldShows(ctx, s, out.HeldShows)
 	showTMDB := map[string]int{}
 	for i, u := range users {
 		if i >= maxWatchUsers || u.ID == "" || u.Policy.IsDisabled {
@@ -225,6 +231,22 @@ func (c *Client) embyWatched(ctx context.Context, s Server) (WatchState, error) 
 		}
 	}
 	return out, nil
+}
+
+// embyHeldShows notes the TMDB ids of every show on the server. It is best
+// effort: a server that won't list them leaves held empty, and the clean-up
+// rules then never call a show "never watched".
+func (c *Client) embyHeldShows(ctx context.Context, s Server, held map[int]bool) {
+	var res embyPlayed
+	q := url.Values{"Recursive": {"true"}, "IncludeItemTypes": {"Series"}, "Fields": {"ProviderIds"}, "EnableImages": {"false"}, "EnableUserData": {"false"}}
+	if err := c.do(ctx, s, http.MethodGet, "/Items", q, nil, &res); err != nil {
+		return
+	}
+	for _, it := range res.Items {
+		if id, err := strconv.Atoi(providerID(it.ProviderIDs, "Tmdb")); err == nil && id > 0 {
+			held[id] = true
+		}
+	}
 }
 
 // embySeriesTMDB looks up a show's TMDB id (0 when it has none).

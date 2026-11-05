@@ -46,18 +46,41 @@ type plexSession struct {
 	Rating               float64    `json:"rating"`
 	Genre                []plexTag  `json:"Genre"`
 	Guids                []plexGuid `json:"Guid"`
-	Player               struct {
-		Title   string `json:"title"`
-		Device  string `json:"device"`
-		Product string `json:"product"`
-		State   string `json:"state"` // playing, paused, buffering
+	RatingKey            string     `json:"ratingKey"`  // Usherr: the watch history
+	SessionKey           string     `json:"sessionKey"` // Usherr
+	User                 struct {
+		ID    plexLooseID `json:"id"` // the plex.tv account
+		Title string      `json:"title"`
+	} `json:"User"` // Usherr
+	Session struct {
+		ID        string `json:"id"`
+		Bandwidth int    `json:"bandwidth"` // kbps
+		Location  string `json:"location"`  // lan, wan
+	} `json:"Session"` // Usherr
+	Player struct {
+		Title    string `json:"title"`
+		Device   string `json:"device"`
+		Product  string `json:"product"`
+		Platform string `json:"platform"` // Usherr
+		State    string `json:"state"`    // playing, paused, buffering
+		Address  string `json:"address"`  // Usherr
+		Local    *bool  `json:"local"`    // Usherr
 	} `json:"Player"`
 	TranscodeSession *struct {
-		VideoDecision string `json:"videoDecision"` // transcode, copy, directplay
-		AudioDecision string `json:"audioDecision"`
+		VideoDecision    string `json:"videoDecision"` // transcode, copy, directplay
+		AudioDecision    string `json:"audioDecision"`
+		VideoCodec       string `json:"videoCodec"`       // Usherr
+		AudioCodec       string `json:"audioCodec"`       // Usherr
+		SourceVideoCodec string `json:"sourceVideoCodec"` // Usherr
+		SourceAudioCodec string `json:"sourceAudioCodec"` // Usherr
+		Width            int    `json:"width"`            // Usherr
+		Height           int    `json:"height"`           // Usherr
 	} `json:"TranscodeSession"`
 	Media []struct {
 		AspectRatio float64 `json:"aspectRatio"`
+		VideoCodec  string  `json:"videoCodec"` // Usherr
+		AudioCodec  string  `json:"audioCodec"` // Usherr
+		Bitrate     int     `json:"bitrate"`    // Usherr: kbps
 		Part        []struct {
 			Stream []plexStream `json:"Stream"`
 		} `json:"Part"`
@@ -118,6 +141,7 @@ func (c *Client) plexNowPlaying(ctx context.Context, s Server) ([]Playing, error
 		if len(it.Media) > 0 {
 			describePlexStreams(&p, it.Media[0].Part, it.Media[0].AspectRatio)
 		}
+		p.Session = plexSessionInfo(it)
 		out = append(out, p)
 	}
 	return out, nil

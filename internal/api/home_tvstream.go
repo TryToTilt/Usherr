@@ -346,8 +346,17 @@ func releaseLine(text string) string {
 // to be converted is: the picture is kept when copyVideo (else it becomes
 // H.264 at its own size), and the sound becomes AAC with its channels.
 func tvBrowserArgs(u string, offset time.Duration, copyVideo bool) []string {
-	args := []string{"-hide_banner", "-loglevel", "error", "-nostdin",
-		"-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"}
+	return tvBrowserArgsWith(u, offset, copyVideo, encCPU)
+}
+
+// tvBrowserArgsWith is tvBrowserArgs with the video encoder enc (Usherr).
+func tvBrowserArgsWith(u string, offset time.Duration, copyVideo bool, enc string) []string {
+	e := tvEncoderFor(enc)
+	args := []string{"-hide_banner", "-loglevel", "error", "-nostdin"}
+	if !copyVideo {
+		args = append(args, e.hwInit...)
+	}
+	args = append(args, "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5")
 	if offset > time.Second {
 		args = append(args, "-ss", strconv.FormatFloat(offset.Seconds(), 'f', 3, 64))
 	}
@@ -356,7 +365,8 @@ func tvBrowserArgs(u string, offset time.Duration, copyVideo bool) []string {
 	if copyVideo {
 		args = append(args, "-c:v", "copy")
 	} else {
-		args = append(args, "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p")
+		args = append(args, "-vf", e.tail)
+		args = append(args, e.codec...)
 	}
 	args = append(args, aacArgs(6)...)
 	return append(args, "-movflags", "frag_keyframe+empty_moov+default_base_moof", "-f", "mp4", "pipe:1")
@@ -371,12 +381,22 @@ func (s *Server) handleStreamBrowser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	at, _ := strconv.ParseFloat(r.URL.Query().Get("at"), 64)
-	cmd := exec.CommandContext(r.Context(), "ffmpeg", tvBrowserArgs(ss.target, time.Duration(at*float64(time.Second)), r.URL.Query().Get("v") == "copy")...)
+	copyVideo := r.URL.Query().Get("v") == "copy"
+	enc := encCPU
+	if !copyVideo {
+		enc = s.tvVideoEncoder(r.Context()) // Usherr: the encoder from Settings
+	}
 	w.Header().Set("Content-Type", "video/mp4")
 	w.Header().Set("Cache-Control", "no-store")
-	cmd.Stdout = flushWriter{w: w}
+	out := &countingWriter{w: flushWriter{w: w}}
 	var stderr strings.Builder
-	cmd.Stderr = &stderr
+	run := func(enc string) error {
+		stderr.Reset()
+		cmd := exec.CommandContext(r.Context(), "ffmpeg", tvBrowserArgsWith(ss.target, time.Duration(at*float64(time.Second)), copyVideo, enc)...)
+		cmd.Stdout = out
+		cmd.Stderr = &stderr
+		return cmd.Run()
+	}
 	stop := make(chan struct{})
 	go func() { // keep the session alive while it plays
 		t := time.NewTicker(30 * time.Second)
@@ -390,11 +410,28 @@ func (s *Server) handleStreamBrowser(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
-	err := cmd.Run()
+	err := run(enc)
+	if err != nil && enc != encCPU && out.n == 0 && r.Context().Err() == nil {
+		// The encoder failed before anything was sent: the CPU instead.
+		tvEncoderFailed(enc, fmt.Errorf("%w: %s", err, firstLine(stderr.String())))
+		err = run(encCPU)
+	}
 	close(stop)
 	if err != nil && r.Context().Err() == nil {
 		slog.Info("tv: browser copy", "title", ss.title, "err", err, "ffmpeg", firstLine(stderr.String()))
 	}
+}
+
+// countingWriter counts what has been written.
+type countingWriter struct {
+	w io.Writer
+	n int64
+}
+
+func (c *countingWriter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.n += int64(n)
+	return n, err
 }
 
 // tvPrewarm gets a streamed episode ready: finds its stream and reads the

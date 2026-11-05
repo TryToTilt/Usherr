@@ -6,6 +6,7 @@ import Switch from './Switch'
 import { useToast } from './Toast'
 import { useConfirm } from './ConfirmProvider'
 import TipLabel from './TipLabel'
+import CleanupRuleSets from './CleanupRuleSets' // Usherr
 
 // Settings > Connections > Media servers: reading what's been watched from
 // Plex, Jellyfin and Emby, and the cleanup rules built on it. Both are off
@@ -260,6 +261,7 @@ export default function WatchedSettings() {
           </p>
         </fieldset>
       )}
+      {st.sync && <CleanupRuleSets />}
     </>
   )
 }

@@ -769,6 +769,9 @@ func (s *Server) artKeep(ctx context.Context, srv mediaservers.Server, id, typ s
 		return nil
 	}
 	old, oldMime, err := s.artGetImage(ctx, srv, id, typ, 0)
+	if orig, origMime, ok := s.badgeOriginalOf(id); ok && typ == "poster" {
+		old, oldMime, err = orig, origMime, nil // Usherr: the poster without its badges (home_badges.go)
+	}
 	if err != nil {
 		return nil // as before: Jellyfin didn't say; the picture still goes on
 	}

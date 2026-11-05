@@ -55,6 +55,9 @@ func TestPlexWatched(t *testing.T) {
 	if len(st.Episodes) != 1 || st.Episodes[EpisodeKey{1399, 1, 2}].Plays != 1 {
 		t.Fatalf("episodes (unwatched ones and shows without a TMDB id left out): %+v", st.Episodes)
 	}
+	if len(st.HeldShows) != 1 || !st.HeldShows[1399] {
+		t.Fatalf("held shows: %v", st.HeldShows)
+	}
 }
 
 func TestEmbyWatched(t *testing.T) {
@@ -75,6 +78,8 @@ func TestEmbyWatched(t *testing.T) {
 			_ = json.NewEncoder(w).Encode([]item{{"Id": "u1"}, {"Id": "u2"}, {"Id": "u3", "Policy": map[string]any{"IsDisabled": true}}})
 		case r.URL.Path == "/Users/u1/Items/s1":
 			_ = json.NewEncoder(w).Encode(item{"ProviderIds": map[string]string{"Tmdb": "1399"}})
+		case r.URL.Path == "/Items" && r.URL.Query().Get("IncludeItemTypes") == "Series":
+			_ = json.NewEncoder(w).Encode(item{"Items": []item{{"Id": "s1", "Type": "Series", "ProviderIds": map[string]string{"Tmdb": "1399"}}}})
 		case r.URL.Query().Get("IncludeItemTypes") != "":
 			user := r.URL.Path[len("/Users/") : len(r.URL.Path)-len("/Items")]
 			if user == "u3" {
@@ -99,5 +104,8 @@ func TestEmbyWatched(t *testing.T) {
 	}
 	if !st.Held[603] || st.Titles == 0 {
 		t.Fatalf("a movie the server lists counts as held: held %v titles %d", st.Held, st.Titles)
+	}
+	if !st.HeldShows[1399] {
+		t.Fatalf("a show the server lists counts as held: %v", st.HeldShows)
 	}
 }

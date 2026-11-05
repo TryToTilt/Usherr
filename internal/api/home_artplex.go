@@ -107,14 +107,20 @@ func (s *Server) artItems(ctx context.Context, srv mediaservers.Server, fresh bo
 
 // artSetImage puts a picture on one copy of a title, on its own server.
 func (s *Server) artSetImage(ctx context.Context, srv mediaservers.Server, id, typ string, data []byte, mime string) error {
+	var err error
 	if ref, ok := parseArtPlex(id); ok {
 		ps, ok := s.artPlexServer(ref.server)
 		if !ok {
 			return fmt.Errorf("the Plex server for this title isn't connected")
 		}
-		return s.mediaClient.PlexSetImage(ctx, ps, ref.key, ref.section, ref.kind, typ, data, mime)
+		err = s.mediaClient.PlexSetImage(ctx, ps, ref.key, ref.section, ref.kind, typ, data, mime)
+	} else {
+		err = jfSetImage(ctx, srv, id, typ, data, mime)
 	}
-	return jfSetImage(ctx, srv, id, typ, data, mime)
+	if err == nil && typ == "poster" {
+		s.badgeTookPoster(id) // Usherr: the new poster is the badges' new original (home_badges.go)
+	}
+	return err
 }
 
 // artGetImage is one copy's picture of the type, from its own server (nil:

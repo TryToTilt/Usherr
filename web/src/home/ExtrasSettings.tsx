@@ -18,6 +18,7 @@ import { sportsApi, type SportsSettings } from './sportsApi' // Usherr
 import { readToMeApi, type RtvSettings } from './readToMeApi'
 import { artApi, type ArtAll, type ArtSettings } from './artApi' // Usherr: Re-Posterr
 import DriveCard from './DriveCard' // Usherr: the virtual drive, for Plex
+import TVPictureCard from './TVPictureCard' // Usherr: Live TV's encoder and watermark
 
 interface Extras {
   server: { kind: '' | 'jellyfin' | 'emby'; name: string; plex: boolean }
@@ -133,6 +134,7 @@ export default function ExtrasSettings({ only }: { only?: string[] } = {}) {
       {show('streamed') && <StreamedCard x={x} save={save} act={act} server={server} />}
       {show('drive') && <DriveCard />}
       {show('livetv') && <LiveTVCard x={x} act={act} server={server} />}
+      {show('tvpicture') && <TVPictureCard />}
       {show('addon') && <AddonCard />}
       {show('playontv') && <PlayOnTVCard x={x} save={save} act={act} />}
       {show('ai') && <AICard />}

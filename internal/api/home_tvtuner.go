@@ -13,6 +13,7 @@ package api
 // air from the right second at real-time speed, then the next, and so on.
 // Video is copied as it is (no re-encoding); sound is turned into AAC
 // stereo so every program sounds alike. Timestamps carry on across programs.
+// Usherr: with the watermark on (home_tvvideo.go) the picture is encoded.
 
 import (
 	"context"
@@ -258,8 +259,19 @@ func tvXMLTV(chans []tv.Channel, progs map[int64][]tv.Program, plex bool) xmltvD
 // together: players such as Jellyfin's check the first seconds for both,
 // and give up when the sound comes late. audio is which sound track to play.
 func tvFFmpegArgs(file string, offset, d, tsOffset, burst time.Duration, audio int) []string {
+	return tvTunerArgs(file, offset, d, tsOffset, burst, audio, nil, "")
+}
+
+// tvTunerArgs is tvFFmpegArgs with a watermark (Usherr): with mark the
+// picture is drawn on and encoded with encoder enc at its own size; without
+// it the picture is copied as it is.
+func tvTunerArgs(file string, offset, d, tsOffset, burst time.Duration, audio int, mark *tvMark, enc string) []string {
 	sec := func(x time.Duration) string { return strconv.FormatFloat(x.Seconds(), 'f', 3, 64) }
 	args := []string{"-hide_banner", "-loglevel", "error", "-nostdin"}
+	e := tvEncoderFor(enc)
+	if mark != nil {
+		args = append(args, e.hwInit...)
+	}
 	if offset > time.Second {
 		args = append(args, "-noaccurate_seek", "-ss", sec(offset))
 	}
@@ -273,11 +285,18 @@ func tvFFmpegArgs(file string, offset, d, tsOffset, burst time.Duration, audio i
 	if burst > 0 {
 		args = append(args, "-readrate_initial_burst", sec(burst))
 	}
+	args = append(args, "-i", file)
+	if mark != nil && mark.image != "" {
+		args = append(args, "-i", mark.image)
+	}
+	args = append(args, "-t", sec(d))
+	if mark == nil {
+		args = append(args, "-map", "0:v:0", "-map", fmt.Sprintf("0:a:%d?", audio), "-c:v", "copy")
+	} else {
+		args = append(args, "-filter_complex", tvMarkGraph(*mark, e.tail), "-map", "[v]", "-map", fmt.Sprintf("0:a:%d?", audio))
+		args = append(args, e.codec...)
+	}
 	args = append(args,
-		"-i", file,
-		"-t", sec(d),
-		"-map", "0:v:0", "-map", fmt.Sprintf("0:a:%d?", audio),
-		"-c:v", "copy",
 		"-c:a", "aac", "-b:a", "192k", "-ac", "2",
 		"-output_ts_offset", sec(tsOffset),
 		"-muxdelay", "0", "-muxpreload", "0",
@@ -405,10 +424,11 @@ func (s *Server) handleTVStream(w http.ResponseWriter, r *http.Request) {
 			args = tvCardArgs(ch.Name, next, remaining, now.Sub(started))
 		}
 		if args == nil {
-			args = tvFFmpegArgs(src, offset, remaining, now.Sub(started), burst, tvAudioTrack(ctx, src))
+			err = s.playTVProgram(ctx, fw, *ch, p, src, offset, remaining, now.Sub(started), burst, started, clock)
+		} else {
+			err = s.runTVFFmpeg(ctx, fw, args)
 		}
 		burst = 0
-		err = s.runTVFFmpeg(ctx, fw, args)
 		if err == nil {
 			clock = p.End
 			continue
@@ -430,6 +450,37 @@ func (s *Server) handleTVStream(w http.ResponseWriter, r *http.Request) {
 		}
 		clock = p.End
 	}
+}
+
+// playTVProgram plays a program from a file or stream, with the watermark
+// when it's on (Usherr). When the chosen encoder fails, the rest of the
+// program is encoded on the CPU.
+func (s *Server) playTVProgram(ctx context.Context, w io.Writer, ch tv.Channel, p tv.Program, src string, offset, remaining, tsOffset, burst time.Duration, started, clock time.Time) error {
+	audio := tvAudioTrack(ctx, src)
+	var mark *tvMark
+	done := func() {}
+	if p.Kind != "filler" {
+		mark, done = s.tvMarkFor(ctx, ch, src)
+	}
+	defer done()
+	if mark == nil {
+		return s.runTVFFmpeg(ctx, w, tvFFmpegArgs(src, offset, remaining, tsOffset, burst, audio))
+	}
+	enc := s.tvVideoEncoder(ctx)
+	err := s.runTVFFmpeg(ctx, w, tvTunerArgs(src, offset, remaining, tsOffset, burst, audio, mark, enc))
+	if err == nil || enc == encCPU || ctx.Err() != nil {
+		return err
+	}
+	tvEncoderFailed(enc, err)
+	at := clock
+	if wall := time.Now(); wall.After(at) {
+		at = wall
+	}
+	rest := p.End.Sub(at)
+	if rest < time.Second {
+		return nil
+	}
+	return s.runTVFFmpeg(ctx, w, tvTunerArgs(src, at.Sub(p.Start)+p.Offset, rest, at.Sub(started), 0, audio, mark, encCPU))
 }
 
 func (s *Server) runTVFFmpeg(ctx context.Context, w io.Writer, args []string) error {

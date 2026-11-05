@@ -865,7 +865,7 @@ function SeriesPage() {
         scores={show.scores && <ScoresLine kind="tv" tmdbId={series.tmdbId} />}
         where={show.streaming && <StreamingOn kind="tv" tmdbId={series.tmdbId} />}
         you={show.you && <WatchedLine kind="tv" id={seriesId} />}
-        requests={!series.copyOf && <TitleRequestActions kind="tv" tmdbId={series.tmdbId} libraryId={series.id} title={series.title} />}
+        requests={!series.copyOf && <TitleRequestActions kind="tv" tmdbId={series.tmdbId} libraryId={series.id} title={series.title} openSeasons={seasonsNotAsked(series.episodes)} />}
         reviews={show.reviews && <CommunityReviews kind="tv" tmdbId={series.tmdbId} />}
         cast={show.cast && (tv?.cast ?? []).length > 0 && <CastCard cast={tv?.cast ?? []} />}
         more={show.similar && similar.length > 0 && <SimilarShows shows={similar} />}
@@ -879,4 +879,14 @@ function SeriesPage() {
       />
     </>
   )
+}
+
+// Usherr: the seasons with episodes that are neither downloaded nor wanted, so
+// a member can ask for them ("Ask for more seasons").
+function seasonsNotAsked(episodes: Episode[]): number[] {
+  const out: number[] = []
+  for (const e of episodes) {
+    if (!e.monitored && e.status !== 'downloaded' && !out.includes(e.season)) out.push(e.season)
+  }
+  return out.sort((a, b) => a - b)
 }

@@ -114,8 +114,12 @@ func artFont(id string) (*opentype.Font, error) {
 
 // The fonts a title falls back to when the chosen one lacks its letters
 // (Cyrillic, Greek, Japanese, Korean, Chinese...): the image's DejaVu and
-// WenQuanYi Zen Hei. A missing file is passed over.
-var artFallbackFiles = []string{"/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/wqy-zenhei/wqy-zenhei.ttc"}
+// WenQuanYi Zen Hei. A missing file is passed over (the first two are
+// where Alpine keeps them, the last two Debian).
+var artFallbackFiles = []string{
+	"/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/wqy-zenhei/wqy-zenhei.ttc",
+	"/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+}
 
 var artFallbacks = sync.OnceValue(func() []*opentype.Font {
 	var out []*opentype.Font

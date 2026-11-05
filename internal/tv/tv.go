@@ -75,6 +75,8 @@ type Rules struct {
 	// RealTV is where a Real TV channel's day comes from, so it can be
 	// refreshed each night with the day before.
 	RealTV *RealTVSource `json:"realTv,omitempty"`
+	// NoWatermark leaves this channel without Live TV's watermark (Usherr).
+	NoWatermark bool `json:"noWatermark,omitempty"`
 }
 
 // Daypart is a part of the day with a line-up of its own.

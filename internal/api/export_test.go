@@ -325,3 +325,14 @@ func (s *Server) TestFindJoined(showtimeID int64) bool {
 	st, ok := s.showtimeByID(context.Background(), showtimeID)
 	return ok && s.findJoinedParty(context.Background(), st)
 }
+
+// TestRunCleanupRulesAt runs the clean-up rule sets as if it were now, with
+// what's been watched read just then (so a run days ahead isn't stale).
+// It reports how many titles went on Leaving soon, were acted on, and came off.
+func (s *Server) TestRunCleanupRulesAt(now time.Time) (added, acted, dropped int, err error) {
+	st := s.watchedStatus()
+	st.LastFullSync = now.UTC().Format(time.RFC3339)
+	s.saveWatchedStatus(st)
+	res, err := s.runCleanupRuleSets(now, true)
+	return len(res.Added), len(res.Acted), len(res.Dropped), err
+}

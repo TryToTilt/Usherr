@@ -2468,6 +2468,109 @@ export interface ServiceSuggestion {
   from: string
 }
 
+// Usherr: watch history and stats (who watched what on Plex, Jellyfin and Emby).
+export interface WatchSession {
+  id: number
+  serverId: number
+  server: string
+  serverKind: string
+  user: string
+  userId?: number
+  kind: 'movie' | 'episode' | 'other'
+  title: string
+  series?: string
+  season?: number
+  episode?: number
+  year?: number
+  tmdbId?: number
+  libraryId?: number
+  client?: string
+  device?: string
+  playMethod?: string
+  transcodeReasons?: string[]
+  videoIn?: string
+  videoOut?: string
+  audioIn?: string
+  audioOut?: string
+  resolutionIn?: string
+  resolutionOut?: string
+  bandwidthKbps?: number
+  location?: 'lan' | 'remote'
+  address?: string
+  startedAt: string
+  endedAt?: string
+  watchedSec: number
+  progress: number
+  runtimeSec?: number
+  paused: boolean
+  completed: boolean
+}
+
+export interface WatchCount {
+  name: string
+  plays: number
+  hours: number
+  tmdbId?: number
+  libraryId?: number
+  episodes?: number
+}
+
+export interface WatchStatsData {
+  days: number
+  plays: number
+  hours: number
+  people: number
+  titles: number
+  finished: number
+  perDay: { day: string; hours: number }[]
+  users: WatchCount[]
+  movies: WatchCount[]
+  shows: WatchCount[]
+  clients: WatchCount[]
+  devices: WatchCount[]
+  methods: { direct: number; stream: number; transcode: number }
+  reasons: WatchCount[]
+  hourOfDay: number[]
+  dayOfWeek: number[]
+  locations: WatchCount[]
+}
+
+export interface WatchHistoryQuery {
+  user?: string
+  server?: number
+  q?: string
+  device?: string
+  method?: '' | 'direct' | 'stream' | 'transcode'
+  from?: string
+  to?: string
+  page?: number
+  size?: number
+}
+
+export interface WatchHistoryPage {
+  items: WatchSession[]
+  total: number
+  page: number
+  size: number
+  everyone: boolean
+  choices: { users: string[]; servers: { id: number; name: string }[] | null }
+}
+
+export interface WatchSettings {
+  record: boolean
+  retentionDays: number
+  membersSeeAll: boolean
+  keepAddresses: boolean
+  addresses: number
+}
+
+export interface WatchTitleSummary {
+  plays: number
+  finished: number
+  people: string[]
+  last?: string
+}
+
 export interface ImportCandidate {
   tmdbId: number
   title: string
@@ -3254,6 +3357,104 @@ export interface LibraryCleanupItem {
   seriesId?: number
   title: string
   reason: string
+}
+// Usherr: clean-up rule sets and Leaving soon (Settings > Media servers).
+export type CleanupConditionType =
+  | 'watchedDays'
+  | 'unwatchedDays'
+  | 'idleDays'
+  | 'watchedAll'
+  | 'sizeOverGB'
+  | 'yearBefore'
+  | 'hasTag'
+  | 'lacksTag'
+  | 'requestedBy'
+  | 'notRequested'
+  | 'quality'
+  | 'showEnded'
+export interface CleanupCondition {
+  type: CleanupConditionType
+  number?: number
+  text?: string
+}
+export interface CleanupRuleSet {
+  id: number
+  name: string
+  enabled: boolean
+  library: 'movies' | 'tv'
+  root: string // '' = every folder of that library
+  mode: 'simple' | 'advanced'
+  match: 'all' | 'any'
+  conditions: CleanupCondition[]
+  showScope: 'episodes' | 'season' | 'show'
+  action: 'delete-unmonitor' | 'unmonitor' | 'delete'
+  graceDays: number
+  keepTags: string[]
+}
+export interface CleanupOptions {
+  maxPerRun: number
+  membersKeep: boolean
+  collectionServers: number[]
+  collectionName: string
+  lastRun?: string
+  lastError?: string
+}
+export interface CleanupKept {
+  unit: string
+  kind: 'movie' | 'show'
+  titleId: number
+  title: string
+  byName?: string
+  atMs: number
+}
+export interface CleanupRulesState {
+  ruleSets: CleanupRuleSet[]
+  options: CleanupOptions
+  exempt: CleanupKept[]
+  movieFolders: string[]
+  tvFolders: string[]
+}
+export interface CleanupMatch {
+  unit: string
+  ruleSetId: number
+  ruleSet: string
+  kind: 'movie' | 'show' | 'season' | 'episode'
+  titleId: number
+  season?: number
+  title: string
+  reason: string
+  action: CleanupRuleSet['action']
+  actMs?: number
+}
+export interface LeavingEntry {
+  unit: string
+  ruleSetId: number
+  kind: 'movie' | 'show' | 'season' | 'episode'
+  titleId: number
+  season?: number
+  title: string
+  reason: string
+  firstMs: number
+  actMs: number
+  tmdbId?: number
+}
+export interface CleanupPlan {
+  newLeaving: CleanupMatch[]
+  due: CleanupMatch[]
+  waiting: CleanupMatch[]
+  dropped: LeavingEntry[]
+  more: number
+  skippedStreamed: number
+  skippedKept: number
+  limit: number
+  stale?: string
+}
+export interface CleanupRunResult {
+  added: CleanupMatch[]
+  acted: CleanupMatch[]
+  failed: CleanupMatch[]
+  dropped: LeavingEntry[]
+  more: number
 }
 export interface WatchedTitle {
   plays: number
@@ -4099,6 +4300,16 @@ export const api = {
   runLibraryCleanup: (items?: LibraryCleanupItem[]) =>
     post<{ removed: LibraryCleanupItem[]; failed: LibraryCleanupItem[]; more: number }>('/watched/cleanup/run', items ? { items: items.map((i) => ({ kind: i.kind, id: i.id })) } : {}),
   watched: () => get<{ movies: Record<string, WatchedTitle>; series: Record<string, WatchedTitle> }>('/watched'),
+  cleanupRuleSets: () => get<CleanupRulesState>('/cleanup/rule-sets'),
+  saveCleanupRuleSet: (rs: CleanupRuleSet) => (rs.id ? put<CleanupRuleSet>(`/cleanup/rule-sets/${rs.id}`, rs) : post<CleanupRuleSet>('/cleanup/rule-sets', rs)),
+  deleteCleanupRuleSet: (id: number) => del<null>(`/cleanup/rule-sets/${id}`),
+  putCleanupOptions: (o: CleanupOptions) => put<CleanupOptions>('/cleanup/options', o),
+  cleanupRulesPreview: (ruleSet?: number) => get<CleanupPlan>(`/cleanup/preview${ruleSet ? `?ruleSet=${ruleSet}` : ''}`),
+  runCleanupRules: () => post<CleanupRunResult>('/cleanup/run', {}),
+  keepCleanupTitle: (kind: 'movie' | 'show', id: number) => post<CleanupKept>('/cleanup/exemptions', { kind, id }),
+  unkeepCleanupTitle: (unit: string) => del<null>(`/cleanup/exemptions/${encodeURIComponent(unit)}`),
+  leavingSoon: () => get<{ items: LeavingEntry[]; canKeep: boolean }>('/leaving-soon'),
+  keepLeaving: (kind: 'movie' | 'show', id: number) => post<CleanupKept>('/leaving-soon/keep', { kind, id }),
   putProxySignIn: (header: string, addresses: string) => put<ProxySignIn>('/auth/proxy-signin', { header, addresses }),
   getIdleSignOut: () => get<IdleSignOut>('/auth/idle-signout'),
   putIdleSignOut: (days: number) => put<IdleSignOut>('/auth/idle-signout', { days }),
@@ -4172,6 +4383,19 @@ export const api = {
   deleteServiceCheck: (id: number) => del<null>(`/service-checks/${id}`),
   checkServiceNow: (id: number) => post<ServiceCheck>(`/service-checks/${id}/check`),
   tryServiceCheck: (data: ServiceCheckInput) => post<ServiceResult>('/service-checks/try', data),
+  // Usherr: watch history and stats
+  watchNow: () => get<{ playing: WatchSession[]; everyone: boolean; recording: boolean }>('/watch/now'),
+  watchHistory: (q: WatchHistoryQuery) => {
+    const p = new URLSearchParams()
+    for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== '' && v !== 0) p.set(k, String(v))
+    const qs = p.toString()
+    return get<WatchHistoryPage>(`/watch/history${qs ? `?${qs}` : ''}`)
+  },
+  watchStats: (days: number, user = '') => get<{ stats: WatchStatsData; everyone: boolean }>(`/watch/stats?days=${days}${user ? `&user=${encodeURIComponent(user)}` : ''}`),
+  watchTitle: (kind: 'movie' | 'tv', id: number) => get<WatchTitleSummary>(`/watch/title?kind=${kind}&id=${id}`),
+  watchSettings: () => get<WatchSettings>('/watch/settings'),
+  saveWatchSettings: (data: Partial<Omit<WatchSettings, 'addresses'>>) => put<WatchSettings>('/watch/settings', data),
+  clearWatchAddresses: () => del<{ cleared: number }>('/watch/addresses'),
   deleteNotificationTarget: (id: number) => del<null>(`/notifications/${id}`),
 
   calendar: () => request<CalendarEntry[]>('/calendar', { revalidate: true }),

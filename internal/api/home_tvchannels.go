@@ -61,6 +61,7 @@ func (s *Server) registerTVChannelRoutes(play, admin routeGroup) {
 	admin.HandleFunc("GET /api/tv/tuner", s.handleTVTunerInfo)
 	admin.HandleFunc("POST /api/tv/jellyfin", s.handleTVJellyfin)
 	admin.HandleFunc("POST /api/tv/plex", s.handleTVPlex) // Usherr: Live TV in Plex (home_tvplex.go)
+	s.registerTVVideoRoutes(admin)                        // Usherr: encoder and watermark (home_tvvideo.go)
 }
 
 // tvJob keeps every channel scheduled tv.Horizon ahead and forgets old
@@ -340,7 +341,9 @@ func (s *Server) handleTVSave(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	noMark := ch.Rules.NoWatermark // Usherr: set in Settings, not in the channel editor
 	ch.Name, ch.LogoURL, ch.Rules = req.Name, storedLogo(req.LogoURL, ch.LogoURL), req.Rules
+	ch.Rules.NoWatermark = noMark
 	if req.Number > 0 {
 		ch.Number = req.Number
 	}

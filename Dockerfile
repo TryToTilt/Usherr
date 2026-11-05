@@ -102,27 +102,45 @@ ENTRYPOINT ["/opt/mediarium/docker-entrypoint.sh"]
 CMD ["dumb-init", "--", "/opt/mediarium/run-full.sh", "/opt/mediarium/app"]
 
 # ---- Runtime stage ----
-FROM alpine:3.24
+# Usherr: Debian rather than Alpine, so Jellyfin's ffmpeg build can encode on
+# the graphics card (NVIDIA NVENC needs glibc; Intel Quick Sync and VAAPI work
+# too). Deno, which yt-dlp needs for YouTube, comes from its official image.
+FROM denoland/deno:bin-2.7.4 AS deno
+FROM debian:trixie-slim
 # Only the image label uses this; the binary's own version was settled in the
 # build stage. Release builds pass it explicitly, so the label is exact there.
 ARG VERSION=
+ARG YTDLP_VERSION=2026.10.21
 LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.source="https://github.com/TryToTilt/Usherr" \
       org.opencontainers.image.licenses="AGPL-3.0"
-# par2cmdline (PAR2 verify/repair) and p7zip are the tools internal/organizer
-# shells out to. p7zip is only used for .7z archives: RAR and
-# ZIP are unpacked natively in Go (Alpine's 7z has no RAR codec, so it could
-# not be relied on for RAR anyway).
-# tini runs as process 1 and cleans up processes that end without a parent
-# (for example ones a post-import script left behind).
-RUN apk add --no-cache ca-certificates tzdata su-exec par2cmdline p7zip tini
-# home fork: adb, to start playback on the living-room TV (Android TV / Shield)
-RUN apk add --no-cache android-tools
-# home fork: ffmpeg/ffprobe for Mediarium TV (program lengths; later the Live TV tuner)
-RUN apk add --no-cache ffmpeg font-dejavu font-wqy-zenhei
-# Usherr: yt-dlp fetches the pre-show's coming-soon trailers; YouTube needs
-# its JavaScript helper (yt-dlp-ejs) and Deno to run it.
-RUN apk add --no-cache yt-dlp yt-dlp-ejs deno
+# par2 (PAR2 verify/repair) and p7zip are the tools internal/organizer shells
+# out to (RAR and ZIP are unpacked natively in Go). tini runs as process 1 and
+# cleans up processes that end without a parent. adb starts playback on a
+# living-room TV (Android TV / Shield). The fonts are for the TV channels'
+# slates and watermarks. Jellyfin's ffmpeg brings NVENC, Quick Sync and VAAPI,
+# plus the GPU filters. yt-dlp fetches the pre-show's coming-soon trailers;
+# [default] brings its YouTube helper (yt-dlp-ejs), which runs on Deno.
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates curl gnupg tzdata par2 p7zip-full tini adb fonts-dejavu-core fonts-wqy-zenhei python3 python3-venv; \
+    install -d -m 0755 /etc/apt/keyrings; \
+    curl -fsSL https://repo.jellyfin.org/jellyfin_team.gpg.key | gpg --dearmor -o /etc/apt/keyrings/jellyfin.gpg; \
+    echo "deb [signed-by=/etc/apt/keyrings/jellyfin.gpg] https://repo.jellyfin.org/debian trixie main" > /etc/apt/sources.list.d/jellyfin.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends jellyfin-ffmpeg7; \
+    ln -s /usr/lib/jellyfin-ffmpeg/ffmpeg /usr/local/bin/ffmpeg; \
+    ln -s /usr/lib/jellyfin-ffmpeg/ffprobe /usr/local/bin/ffprobe; \
+    python3 -m venv /opt/yt-dlp; \
+    /opt/yt-dlp/bin/pip install --no-cache-dir "yt-dlp[default]==${YTDLP_VERSION}"; \
+    ln -s /opt/yt-dlp/bin/yt-dlp /usr/local/bin/yt-dlp; \
+    apt-get purge -y gnupg; \
+    apt-get autoremove -y; \
+    rm -rf /var/lib/apt/lists/*
+COPY --from=deno /deno /usr/local/bin/deno
+# NVIDIA: what the container runtime has to hand in for encoding (with
+# "gpus: all" or a device reservation in compose).
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
 
 # Default UID/GID, overridable via PUID/PGID at runtime
 ENV PUID=1000 \
@@ -149,7 +167,7 @@ EXPOSE 8264 58264/tcp 58264/udp
 # Lets Docker and NAS tools show healthy or unhealthy: the app answers on its
 # own address.
 HEALTHCHECK --interval=30s --timeout=8s --start-period=90s --retries=3 \
-  CMD wget -q -T 5 -O /dev/null "http://127.0.0.1:${APP_PORT:-8264}/api/version" || exit 1
+  CMD curl -fsS -o /dev/null --max-time 5 "http://127.0.0.1:${APP_PORT:-8264}/api/version" || exit 1
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["/sbin/tini", "--", "/app/app"]
+CMD ["/usr/bin/tini", "--", "/app/app"]

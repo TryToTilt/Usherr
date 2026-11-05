@@ -5,6 +5,44 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.51.0] - 2026-11-04
+
+### Added
+
+- **Collections** (Settings, Re-Posterr, Collections). Usherr makes collections in Jellyfin and Plex and keeps them up to date, so Kometa isn't needed for them. A collection's titles come from one of your import lists (Trakt, MDBList, TMDB lists, IMDb, Letterboxd), a TMDB collection (a film series, by name or number), TMDB's trending titles, a rule over your library (genres, years, a minimum rating, added in the last N days, or just the best rated few) or titles you pick. Titles are found in each server's library by their TMDB, IMDb or TheTVDB id; Jellyfin gets one collection (the kept copy of a film rather than its streamed one), and each Plex library with matching titles gets its own. Choose Jellyfin, Plex or both, a sort title, a poster (the server's own, one you upload, or one made in your Re-Posterr style), where Plex shows it (the library's Recommended tab, your Home, friends' Home), whether titles that no longer belong come out, and whether missing titles are added to Usherr as wanted. "See what's in it" shows the matches and what's missing before you save. Collections sync every 12 hours (or what you choose) and on "Sync now"; one of the same name already on a server, say one Kometa made, is taken over instead of made twice. Removing a collection asks whether to delete it from the servers too (the titles are never touched).
+- **Poster badges** (Settings, Re-Posterr, Poster badges; off until you switch them on). Small badges on the posters Jellyfin and Plex show: 4K, 1080p or 720p, HDR, HDR10+ or Dolby Vision, the best sound (Atmos, DTS:X, TrueHD, DTS-HD MA), 5.1 or 7.1, the rating (your media server's, or IMDb's from MDBList scores) and "New" for titles added lately. Choose which badges, the libraries that get them, the corners, a dark or colourful look and the size, with a live preview of one of your films. Usherr keeps every original poster and always draws on it, so badges never pile up; posters are drawn again when a file or a rating changes, and switching badges off (or unticking a library) puts the originals back. A poster changed another way, by hand or by Re-Posterr, becomes the new original, and Re-Posterr keeps the poster without badges when it replaces one. Picture and sound badges are for films; shows get the rating and New.
+
+## [2.50.0] - 2026-11-04
+
+### Added
+
+- **Clean-up rule sets** (Settings, Media servers, under What's been watched), so Maintainerr isn't needed. Make a rule set for the movies, the TV shows, or one library folder, with conditions joined by "all" or "any": watched more than so many days ago, never watched, nobody watched it lately, watched completely, files bigger than so many GB, released before a year, has or doesn't have a tag, added or requested by someone, nobody requested it, quality, and the show has ended. Simple shows the three common rules; Advanced shows every condition. For shows, pick whether a rule acts on each episode, a whole season once it's watched, or the whole show. Then pick what happens: delete the files and stop looking for the title (the default), only stop looking, or delete and download again later. The recycle bin applies when it's on.
+  - **Leaving soon** (Upcoming, Leaving soon): a title that matches goes on this list with a date first (14 days unless you change it), and is only acted on when that date comes, if it still matches then. Everyone can see the list. Administrators can let members press "Keep it", which keeps the movie or show for good; who kept it is shown and written to Activity. Leaving soon can also show as a collection on Plex, Jellyfin or Emby (a switch for each server, off unless you switch it on).
+  - Safe by default: every rule set is off until you switch it on, Preview lists exactly what would go on Leaving soon and what would be acted on now, with the reason for each; one run acts on at most 50 titles (a setting); titles with a keep tag and kept titles are never touched; streamed titles (.strm files, the Stream folders and links into the streaming drive) are never touched; nothing is done unless what's been watched was read from every media server in the last two days; and every action is listed under Activity. The basic cleanup rules keep working as they did.
+
+## [2.49.0] - 2026-11-04
+
+### Added
+
+- **Watching** (Settings, System, Watching): Usherr keeps its own watch history from Plex, Jellyfin and Emby, so a separate Streamystats is no longer needed. It asks the servers what is playing every half minute (every minute when nothing is) and keeps each playback: who (matched to their Usherr account when they sign in with Jellyfin or Plex, or have the same name), the film or episode, the app and device, at home or away, direct play, direct stream or transcode and why, the picture and sound before and after, how long it was actually watched (pauses don't count) and how far it got (90% counts as finished). Three tabs: Now playing (live, with progress, how it plays and the bandwidth), History (filter by person, server, title, device, how it played and dates) and Stats for 7, 30, 90 days or a year (hours per day, per person, top movies and shows, apps, devices, how much played directly and the most common reasons for transcoding, and the busiest hours and days). A film's or show's page adds who watched it to its "Watched" line. Members see only their own history unless you let them see everyone's. Settings: keep the history for a year by default (or 30 days to forever; older playbacks go once a day), and players' IP addresses are only kept if you switch that on, with a button to clear them.
+
+## [2.48.0] - 2026-11-04
+
+### Added
+
+- **Live TV picture** (Settings, Extras): choose the video encoder for Live TV channels: Automatic (the default), CPU (libx264), NVIDIA (NVENC), Intel Quick Sync or VAAPI. Automatic tries each with a one-second test and uses the first that works, in that order; the card shows which work and, for the others, why not, with a Test again button. If an encoder fails while a channel plays, the CPU takes over for that program. The encoder is used when a stream has to be converted for a web browser and when the watermark is on.
+- A watermark for Live TV channels, off by default: each channel's logo, a picture you upload (PNG, JPG or WebP), or the channel number or name, in the corner you pick, with its size, opacity and distance from the edge. A preview shows it on what a channel is playing now, and each channel can be left without it. With the watermark off, channels still send the picture as it is, as before. This does the job of ErsatzTV's watermark.
+
+### Changed
+
+- The Docker image is now built on Debian instead of Alpine, with Jellyfin's ffmpeg build, so Usherr can encode video on the graphics card: NVIDIA (NVENC) as well as Intel Quick Sync and VAAPI. To use an NVIDIA card, give the container the GPU in compose (`gpus: all`, or a device reservation). Everything else works as before; the image is somewhat larger.
+
+## [2.47.0] - 2026-11-04
+
+### Added
+
+- "Ask for more seasons" on a show's page (About tab). Anyone who isn't an administrator sees it when the show has seasons that aren't downloaded or wanted yet: pick seasons and they're asked for (or switched on and searched straight away, for an account that may add without asking). Administrators keep switching seasons on in the episode list.
+
 ## [2.46.0] - 2026-11-04
 
 ### Added

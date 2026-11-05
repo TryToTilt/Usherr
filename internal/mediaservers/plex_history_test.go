@@ -32,7 +32,7 @@ func TestPlexAccountsAndHistory(t *testing.T) {
 		send := func(c map[string]any) { _ = json.NewEncoder(w).Encode(map[string]any{"MediaContainer": c}) }
 		switch {
 		case r.URL.Path == "/accounts":
-			send(map[string]any{"Account": []map[string]any{{"id": 0, "name": ""}, {"id": 1, "name": "Chris"}, {"id": 5, "name": "Sam"}}})
+			send(map[string]any{"Account": []map[string]any{{"id": 0, "name": ""}, {"id": 1, "name": "Robin"}, {"id": 5, "name": "Sam"}}})
 		case r.URL.Path == "/status/sessions/history/all":
 			if r.URL.Query().Get("accountID") != "5" {
 				send(map[string]any{})
@@ -70,7 +70,7 @@ func TestPlexAccountsAndHistory(t *testing.T) {
 	s := Server{ID: 3, Name: "Plex", Kind: KindPlex, BaseURL: srv.URL, Token: "tok", Enabled: true}
 
 	accounts, err := c.PlexAccounts(context.Background(), s)
-	if err != nil || len(accounts) != 2 || accounts[0].Name != "Chris" || !accounts[0].Owner || accounts[1].ID != 5 || accounts[1].Owner {
+	if err != nil || len(accounts) != 2 || accounts[0].Name != "Robin" || !accounts[0].Owner || accounts[1].ID != 5 || accounts[1].Owner {
 		t.Fatalf("accounts: %+v, %v", accounts, err)
 	}
 

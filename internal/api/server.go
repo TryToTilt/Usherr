@@ -169,6 +169,7 @@ type Server struct {
 	bookWait     time.Duration      // how long a book release search may take; 0 means bookSearchWait (books_api.go)
 	clientWatch  notify.ClientWatch // when a download client goes down and comes back (client_watch.go)
 	serviceWatch serviceWatch       // Usherr: Service checks (home_service_checks.go)
+	watch        watchState         // Usherr: watch history and stats (home_watch_history.go)
 	usenetSlots  slotGate           // how many built-in Usenet downloads run at once (builtin_slots.go)
 	torrentSlots slotGate           // the same for built-in torrents
 
@@ -532,6 +533,8 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("GET /api/activity", revalidated(s.handleListActivity))
 	member.HandleFunc("GET /api/modules", s.handleModules)
 	member.HandleFunc("GET /api/watched", s.handleWatched)
+	member.HandleFunc("GET /api/leaving-soon", s.handleLeavingSoon)           // Usherr: clean-up rules
+	member.HandleFunc("POST /api/leaving-soon/keep", s.handleLeavingSoonKeep) // Usherr: "Keep it", when allowed
 	member.HandleFunc("GET /api/requests", s.handleListRequests)
 	member.HandleFunc("DELETE /api/requests/{id}", s.handleDeleteRequest)
 	member.HandleFunc("GET /api/requests/status", s.handleRequestStatus)
@@ -637,6 +640,21 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/home/drive/plex", s.handleDrivePlexLibraries)
 	admin.HandleFunc("POST /api/home/art/test-posterizarr", s.handleArtTestPosterizarr) // Usherr
 	member.HandleFunc("GET /api/home/art/poster/{id}", s.handleArtPoster)               // Usherr: Re-Posterr's posters on Usherr's pages
+	admin.HandleFunc("GET /api/home/collections", s.handlePushCollections)              // Usherr: collections pushed to Jellyfin and Plex (home_collections.go)
+	admin.HandleFunc("POST /api/home/collections", s.handleAddPushCollection)
+	admin.HandleFunc("PUT /api/home/collections/settings", s.handlePushCollectionSettings)
+	admin.HandleFunc("POST /api/home/collections/preview", s.handlePreviewPushCollection)
+	admin.HandleFunc("POST /api/home/collections/sync", s.handleSyncPushCollections)
+	admin.HandleFunc("GET /api/home/collections/titles", s.handlePushCollectionTitles)
+	admin.HandleFunc("PUT /api/home/collections/{id}", s.handleUpdatePushCollection)
+	admin.HandleFunc("DELETE /api/home/collections/{id}", s.handleDeletePushCollection)
+	admin.HandleFunc("POST /api/home/collections/{id}/sync", s.handleSyncPushCollection)
+	admin.HandleFunc("GET /api/home/collections/{id}/poster", s.handlePushCollectionPoster)
+	admin.HandleFunc("POST /api/home/collections/{id}/poster", s.handlePushCollectionPosterUpload)
+	admin.HandleFunc("GET /api/home/badges", s.handleBadges) // Usherr: poster badges (home_badges.go)
+	admin.HandleFunc("PUT /api/home/badges", s.handlePutBadges)
+	admin.HandleFunc("POST /api/home/badges/preview", s.handleBadgesPreview)
+	admin.HandleFunc("POST /api/home/badges/apply", s.handleBadgesApply)
 	admin.HandleFunc("PUT /api/home/preshow/jellyfin", s.handlePutPreshowJF)
 	admin.HandleFunc("GET /api/home/preshow/plex", s.handlePreshowPlex) // Usherr: the pre-show in Plex
 	admin.HandleFunc("PUT /api/home/preshow/plex", s.handlePutPreshowPlex)
@@ -907,6 +925,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	s.registerReadToMeRoutes(manage, admin)             // Usherr: Read-to-Me
 	s.registerStreamedAddRoutes(play, admin)            // Add as stream (home fork)
 	s.registerServiceCheckRoutes(admin)                 // Usherr: Service checks
+	s.registerWatchRoutes(member, admin)                // Usherr: watch history and stats
 
 	// "Watch in Plex/Jellyfin/Emby" and "Open my media server" links.
 	member.HandleFunc("GET /api/media-servers/links", s.handleMediaServerLinks)
@@ -1262,6 +1281,16 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/watched/sync", s.handleSyncWatched)
 	admin.HandleFunc("GET /api/watched/cleanup/preview", s.handleLibraryCleanupPreview)
 	admin.HandleFunc("POST /api/watched/cleanup/run", s.handleLibraryCleanupRun)
+	// Usherr: clean-up rule sets and Leaving soon (home_cleanup_rules.go)
+	admin.HandleFunc("GET /api/cleanup/rule-sets", s.handleCleanupRuleSets)
+	admin.HandleFunc("POST /api/cleanup/rule-sets", s.handleSaveCleanupRuleSet)
+	admin.HandleFunc("PUT /api/cleanup/rule-sets/{id}", s.handleSaveCleanupRuleSet)
+	admin.HandleFunc("DELETE /api/cleanup/rule-sets/{id}", s.handleDeleteCleanupRuleSet)
+	admin.HandleFunc("PUT /api/cleanup/options", s.handlePutCleanupOptions)
+	admin.HandleFunc("GET /api/cleanup/preview", s.handleCleanupRulesPreview)
+	admin.HandleFunc("POST /api/cleanup/run", s.handleCleanupRulesRun)
+	admin.HandleFunc("POST /api/cleanup/exemptions", s.handleAddCleanupExemption)
+	admin.HandleFunc("DELETE /api/cleanup/exemptions/{unit}", s.handleDeleteCleanupExemption)
 	admin.HandleFunc("GET /api/settings/hardcover", s.handleGetHardcover)
 	admin.HandleFunc("PUT /api/settings/hardcover", s.handlePutHardcover)
 	admin.HandleFunc("GET /api/settings/simkl", s.handleGetSimkl)

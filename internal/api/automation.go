@@ -47,6 +47,9 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 			automation.Job{Name: "speed-limit", Interval: speedCheck, Run: s.speedJob},
 			// Usherr: the service checks only ask and tell, so they run in safe mode too.
 			automation.Job{Name: "service-checks", Interval: serviceChecksEvery, Run: s.serviceChecksJob},
+			// Usherr: the watch history only reads what is playing.
+			automation.Job{Name: "watch-sessions", Interval: watchIdleEvery, IntervalFunc: s.watchInterval, InitialDelay: 15 * time.Second, Run: s.watchSessionsJob},
+			automation.Job{Name: "watch-prune", Interval: 24 * time.Hour, InitialDelay: 10 * time.Minute, Run: s.watchPruneJob},
 		)
 		sched.Start()
 		return sched
@@ -59,14 +62,18 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "download-line", Interval: downloadLineCheck, Run: func(context.Context) { s.kickDownloads() }},
 		automation.Job{Name: "rss-sync", Interval: s.releaseCheckInterval(), IntervalFunc: s.releaseCheckInterval, Run: s.heavy(s.rssSync)},
 		automation.Job{Name: "hunt", Interval: s.huntInterval(), IntervalFunc: s.huntInterval, Run: s.heavy(s.hunt)},
-		automation.Job{Name: "delayed-grabs", Interval: time.Minute, Run: s.delayedGrabsJob},                                // searches again when a held release has waited long enough
-		automation.Job{Name: "tv-reminders", Interval: time.Minute, Run: s.tvRemindJob},                                     // Usherr: Live TV reminders
-		automation.Job{Name: "service-checks", Interval: serviceChecksEvery, Run: s.serviceChecksJob},                       // Usherr: Service checks, down and back messages
-		automation.Job{Name: "showtimes", Interval: 15 * time.Second, InitialDelay: 5 * time.Second, Run: s.showtimeJob},    // Usherr: the pre-show and the film on time (soon after a restart, not the usual minute)
-		automation.Job{Name: "read-to-me", Interval: time.Hour, InitialDelay: 20 * time.Second, Run: s.readToMeJob},         // Usherr: audiobooks left to make from before a restart
-		automation.Job{Name: "tv-warm", Interval: 3 * time.Hour, InitialDelay: 90 * time.Second, Run: s.heavy(s.tvWarmJob)}, // Usherr: streamed programs looked up before they are tuned
+		automation.Job{Name: "delayed-grabs", Interval: time.Minute, Run: s.delayedGrabsJob},                                                                     // searches again when a held release has waited long enough
+		automation.Job{Name: "tv-reminders", Interval: time.Minute, Run: s.tvRemindJob},                                                                          // Usherr: Live TV reminders
+		automation.Job{Name: "service-checks", Interval: serviceChecksEvery, Run: s.serviceChecksJob},                                                            // Usherr: Service checks, down and back messages
+		automation.Job{Name: "watch-sessions", Interval: watchIdleEvery, IntervalFunc: s.watchInterval, InitialDelay: 15 * time.Second, Run: s.watchSessionsJob}, // Usherr: the watch history
+		automation.Job{Name: "watch-prune", Interval: 24 * time.Hour, InitialDelay: 10 * time.Minute, Run: s.watchPruneJob},                                      // Usherr: old watch history removed daily
+		automation.Job{Name: "showtimes", Interval: 15 * time.Second, InitialDelay: 5 * time.Second, Run: s.showtimeJob},                                         // Usherr: the pre-show and the film on time (soon after a restart, not the usual minute)
+		automation.Job{Name: "read-to-me", Interval: time.Hour, InitialDelay: 20 * time.Second, Run: s.readToMeJob},                                              // Usherr: audiobooks left to make from before a restart
+		automation.Job{Name: "tv-warm", Interval: 3 * time.Hour, InitialDelay: 90 * time.Second, Run: s.heavy(s.tvWarmJob)},                                      // Usherr: streamed programs looked up before they are tuned
 		// Usherr: coming-soon trailers fetched ahead, and rotated out.
-		automation.Job{Name: "artwork", Interval: time.Hour, InitialDelay: 10 * time.Minute, Run: s.heavy(s.artJob)}, // Usherr: artwork picked at night, when nobody is watching
+		automation.Job{Name: "artwork", Interval: time.Hour, InitialDelay: 10 * time.Minute, Run: s.heavy(s.artJob)},                        // Usherr: artwork picked at night, when nobody is watching
+		automation.Job{Name: "server-collections", Interval: time.Hour, InitialDelay: 12 * time.Minute, Run: s.heavy(s.collectionsPushJob)}, // Usherr: collections pushed to Jellyfin and Plex
+		automation.Job{Name: "poster-badges", Interval: badgeEvery, InitialDelay: 15 * time.Minute, Run: s.heavy(s.badgesJob)},              // Usherr: badges on posters (does nothing until switched on)
 		automation.Job{Name: "preshow-trailers", Interval: 4 * time.Hour, InitialDelay: 5 * time.Minute, Run: s.heavy(s.trailersJob)},
 		automation.Job{Name: "sports-sync", Interval: 6 * time.Hour, InitialDelay: 3 * time.Minute, Run: s.sportsSyncJob}, // Usherr: Sports' schedules and scores (Usherr's own engine)
 		automation.Job{Name: "real-tv-refresh", Interval: 20 * time.Minute, Run: s.realTVRefreshJob},                      // Usherr: Real TV's day before, each night

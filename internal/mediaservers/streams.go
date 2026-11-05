@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -70,6 +71,90 @@ type Playing struct {
 	Rating     float64  `json:"rating,omitempty"`
 	SeriesTMDB int      `json:"-"`
 	SeriesID   string   `json:"-"` // the media server's own id for the show
+	// Usherr (watch history): who plays it, where and how. Not sent to the
+	// Marquee.
+	Session SessionInfo `json:"-"`
+}
+
+// SessionInfo is the rest of what a media server says about one playback, for
+// the watch history (Usherr).
+type SessionInfo struct {
+	ID               string   // the server's id for this playback (a Jellyfin session, a Plex session key)
+	ItemID           string   // the server's id for what plays
+	UserID           string   // the server's id for the person (Jellyfin user id, plex.tv account id)
+	UserName         string   // their name on the server
+	Client           string   // the app ("Jellyfin Web", "Plex for Android (TV)")
+	PositionSec      float64  // how far in
+	RuntimeSec       float64  // how long it is
+	TranscodeReasons []string // why it isn't played directly, in plain words
+	VideoIn          string   // the file's video codec
+	VideoOut         string   // what is sent, the same when not transcoded
+	AudioIn          string
+	AudioOut         string
+	ResolutionOut    string // "1080p" and so on, when transcoded to another size
+	BandwidthKbps    int    // when the server says
+	Address          string // the player's IP address, when the server says
+	Location         string // "lan", "remote" or "" (unknown)
+	Audio            bool   // music or another sound-only item
+}
+
+// LocationOf says whether an address is on the home network ("lan") or not
+// ("remote"); "" when it isn't an address.
+func LocationOf(addr string) string {
+	host := strings.TrimSpace(addr)
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	ip := net.ParseIP(strings.Trim(host, "[]"))
+	if ip == nil {
+		return ""
+	}
+	if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+		return "lan"
+	}
+	return "remote"
+}
+
+// TranscodeReasonLabel turns Jellyfin's and Emby's reason names
+// ("ContainerNotSupported", "VideoBitrateNotSupported") into words
+// ("Container not supported").
+func TranscodeReasonLabel(code string) string {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return ""
+	}
+	var b strings.Builder
+	for i, r := range code {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			b.WriteByte(' ')
+			r += 'a' - 'A'
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// transcodeReasons reads Jellyfin's TranscodeReasons, a list on newer
+// servers and a comma-separated text on older ones.
+func transcodeReasons(raw json.RawMessage) []string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	var list []string
+	if err := json.Unmarshal(raw, &list); err != nil {
+		var one string
+		if json.Unmarshal(raw, &one) != nil {
+			return nil
+		}
+		list = strings.Split(one, ",")
+	}
+	var out []string
+	for _, c := range list {
+		if l := TranscodeReasonLabel(c); l != "" {
+			out = append(out, l)
+		}
+	}
+	return out
 }
 
 // mediaStream is one stream of what is playing.
@@ -213,9 +298,25 @@ func (c *Client) NowPlaying(ctx context.Context, s Server) ([]Playing, error) {
 		return nil, nil
 	}
 	var list []struct {
-		DeviceName     string
-		UserId         string // Usherr
+		DeviceName      string
+		UserId          string    // Usherr
+		Id              string    // Usherr: the session (watch history)
+		UserName        string    // Usherr
+		Client          string    // Usherr
+		RemoteEndPoint  string    // Usherr
+		TranscodingInfo *struct { // Usherr
+			VideoCodec       string
+			AudioCodec       string
+			Width            int
+			Height           int
+			Bitrate          int64
+			IsVideoDirect    bool
+			IsAudioDirect    bool
+			TranscodeReasons json.RawMessage
+		}
 		NowPlayingItem *struct {
+			Id                string // Usherr
+			MediaType         string // Usherr: "Video" or "Audio"
 			Name              string
 			SeriesName        string
 			Type              string
@@ -267,6 +368,33 @@ func (c *Client) NowPlaying(ctx context.Context, s Server) ([]Playing, error) {
 		if p.Kind == "episode" && n.SeriesId != "" && it.UserId != "" {
 			p.SeriesTMDB = c.seriesTMDBCached(ctx, s, it.UserId, n.SeriesId)
 		}
+		// Usherr: the watch history.
+		si := SessionInfo{ID: it.Id, ItemID: n.Id, UserID: it.UserId, UserName: it.UserName, Client: it.Client,
+			PositionSec: float64(it.PlayState.PositionTicks) / 1e7, RuntimeSec: float64(n.RunTimeTicks) / 1e7,
+			Address: it.RemoteEndPoint, Location: LocationOf(it.RemoteEndPoint), Audio: n.MediaType == "Audio"}
+		for _, st := range n.MediaStreams {
+			switch {
+			case st.Type == "Video" && si.VideoIn == "":
+				si.VideoIn = strings.ToLower(st.Codec)
+			case st.Type == "Audio" && (si.AudioIn == "" || st.Index == it.PlayState.AudioStreamIndex):
+				si.AudioIn = strings.ToLower(st.Codec)
+			}
+		}
+		si.VideoOut, si.AudioOut = si.VideoIn, si.AudioIn
+		if tc := it.TranscodingInfo; tc != nil && p.PlayMethod != "DirectPlay" {
+			if !tc.IsVideoDirect && tc.VideoCodec != "" {
+				si.VideoOut = strings.ToLower(tc.VideoCodec)
+				si.ResolutionOut = ResolutionLabel(tc.Width, tc.Height)
+			}
+			if !tc.IsAudioDirect && tc.AudioCodec != "" {
+				si.AudioOut = strings.ToLower(tc.AudioCodec)
+			}
+			if tc.Bitrate > 0 {
+				si.BandwidthKbps = int(tc.Bitrate / 1000)
+			}
+			si.TranscodeReasons = transcodeReasons(tc.TranscodeReasons)
+		}
+		p.Session = si
 		out = append(out, p)
 	}
 	return out, nil

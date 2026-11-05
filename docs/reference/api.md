@@ -49,6 +49,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/auth/login/code` | **public** | POST /api/auth/login/code {"challenge", "code"} or {"challenge", "recoveryCode"} |
 | POST | `/api/auth/logout` | **public** |  |
 | GET | `/api/auth/me` | any account |  |
+| GET | `/api/auth/media-signin` | **public** | GET /api/auth/media-signin (public): which buttons and hints the sign-in page shows. |
 | GET | `/api/auth/methods` | **public** | GET /api/auth/methods: public, so the sign-in page can show the buttons. |
 | GET | `/api/auth/oidc` | admin | GET /api/auth/oidc |
 | PUT | `/api/auth/oidc` | admin | PUT /api/auth/oidc saves the setup. |
@@ -64,6 +65,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/auth/passkeys/register/finish` | any account | POST /api/auth/passkeys/register/finish?c=<ceremony>&name=<label>  (body: the browser's answer) |
 | DELETE | `/api/auth/passkeys/{id}` | any account | DELETE /api/auth/passkeys/{id} |
 | PUT | `/api/auth/passkeys/{id}` | any account | PUT /api/auth/passkeys/{id} {"name"} |
+| POST | `/api/auth/plex/pin` | **public** | POST /api/auth/plex/pin (public): starts a Plex sign-in. |
+| POST | `/api/auth/plex/pin/{pinId}` | **public** | POST /api/auth/plex/pin/{pinId} (public): finishes a Plex sign-in once the person said yes on plex.tv. |
 | PUT | `/api/auth/profile` | any account | lets the logged-in user change their username, name and email, returning the updated account. |
 | GET | `/api/auth/proxy-signin` | admin |  |
 | PUT | `/api/auth/proxy-signin` | admin |  |
@@ -602,6 +605,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/home/streaming/import` | admin | POST /api/home/streaming/import {config?, providers, indexers, profiles}: copies what was ticked. |
 | POST | `/api/home/streaming/import/preview` | admin | POST /api/home/streaming/import/preview {config?}: what StreamNZB has and what Usherr has of it already. |
 | GET | `/api/home/stubs` | any account | GET /api/home/stubs (member): your ticket stubs: the bot's (through your linked Discord account) and the ones for friends' parties you joined with a code, ne... |
+| DELETE | `/api/home/stubs/{from}/{id}` | any account | DELETE /api/home/stubs/{from}/{id} (member): remove one of your ticket stubs. |
+| POST | `/api/home/stubs/{from}/{id}/restore` | any account | POST /api/home/stubs/{from}/{id}/restore (member): bring a removed stub back. |
 | POST | `/api/home/stubs/{id}/stamp` | any account | POST /api/home/stubs/{id}/stamp (member): stamp your own stub for a joined party yourself, in the half hour after its film ends. |
 | GET | `/api/home/taste` | any account | GET /api/home/taste?kind=: your taste in short: whether there's enough to go on, what it's built from, and what you lean towards and away from. |
 | POST | `/api/home/taste/scores` | any account | POST /api/home/taste/scores {kind, ids}: your match for each title, for the Library's "For you", and which of them you've seen (a title you've watched is par... |
@@ -741,6 +746,13 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/media-servers/{id}` | admin | edits a saved server; a blank token keeps the saved one. |
 | POST | `/api/media-servers/{id}/refresh` | admin | asks a saved server to scan all of its libraries now. |
 | POST | `/api/media-servers/{id}/test` | admin | tests a saved server and remembers the outcome (shown on the dashboard when it fails). |
+
+## media-signin
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/media-signin` | admin |  |
+| PUT | `/api/media-signin` | admin |  |
 
 ## metrics
 
@@ -980,6 +992,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 |---|---|---|---|
 | GET | `/api/quality-profiles` | any account |  |
 | POST | `/api/quality-profiles` | admin |  |
+| POST | `/api/quality-profiles/try` | any account |  |
 | DELETE | `/api/quality-profiles/{id}` | admin |  |
 | PUT | `/api/quality-profiles/{id}` | admin |  |
 
@@ -1076,6 +1089,18 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/series/{id}/sources` | admin |  |
 | PUT | `/api/series/{id}/tags` | any account |  |
 | PUT | `/api/series/{id}/type` | any account | PUT /api/series/{id}/type {"type": "standard" \| "anime" \| "daily"} |
+
+## service-checks
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/service-checks` | admin | GET /api/service-checks: every service with its state and history, and how many notification targets hear about outages. |
+| POST | `/api/service-checks` | admin | POST /api/service-checks adds a service; PUT /api/service-checks/{id} changes one. |
+| GET | `/api/service-checks/suggestions` | admin | GET /api/service-checks/suggestions: the services Usherr already knows about (media servers, download clients, Prowlarr, FlareSolverr, add-ons), with the add... |
+| POST | `/api/service-checks/try` | admin | POST /api/service-checks/try asks an address once, before it is saved. |
+| DELETE | `/api/service-checks/{id}` | admin | DELETE /api/service-checks/{id} removes a service and its history. |
+| PUT | `/api/service-checks/{id}` | admin | POST /api/service-checks adds a service; PUT /api/service-checks/{id} changes one. |
+| POST | `/api/service-checks/{id}/check` | admin | POST /api/service-checks/{id}/check checks one service now. |
 
 ## settings
 
@@ -1210,6 +1235,14 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/system/update/install` | admin | reports how "Update now" is going. |
 | POST | `/api/system/update/install` | admin | starts "Update now". |
 | GET | `/api/system/update/latest` | admin | returns what is known about the newest release. |
+
+## tag-rules
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/tag-rules` | admin |  |
+| PUT | `/api/tag-rules` | admin |  |
+| POST | `/api/tag-rules/apply` | admin | POST /api/tag-rules/apply: run the auto-tagging rules over the library now. |
 
 ## tags
 
@@ -1379,6 +1412,18 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 |---|---|---|---|
 | GET | `/api/wanted` | any account |  |
 
+## watch
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| DELETE | `/api/watch/addresses` | admin | DELETE /api/watch/addresses: forget every player's IP address. |
+| GET | `/api/watch/history` | any account | GET /api/watch/history: one page of playbacks, newest first. |
+| GET | `/api/watch/now` | any account | GET /api/watch/now: what is playing right now. |
+| GET | `/api/watch/settings` | admin |  |
+| PUT | `/api/watch/settings` | admin |  |
+| GET | `/api/watch/stats` | any account | GET /api/watch/stats?days=30: the numbers for a period. |
+| GET | `/api/watch/title` | any account | GET /api/watch/title?kind=movie&id=12: how often a library film or show was watched, and by whom. |
+
 ## watched
 
 | Method | Path | Access | What it does |
@@ -1390,4 +1435,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-980 routes.
+1005 routes.

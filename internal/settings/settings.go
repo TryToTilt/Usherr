@@ -64,6 +64,10 @@ const (
 	KeyPauseWhileStreaming   = "downloads.pause_while_streaming" // "1" pauses downloads while someone watches on Plex, Jellyfin or Emby
 	KeyResumeInterrupted     = "downloads.resume_interrupted"    // "0" leaves downloads that a restart interrupted paused; unset or "1" lets them carry on by themselves
 	KeyPausedForStreaming    = "downloads.paused_for_streaming"  // the ids of the downloads paused for a stream, as JSON
+	KeyWatchRecord           = "watch.record"                    // Usherr: "0" stops keeping the watch history (who watched what on Plex, Jellyfin or Emby); unset or "1" keeps it
+	KeyWatchRetentionDays    = "watch.retention_days"            // Usherr: how many days of watch history to keep; unset = 365, "0" = forever
+	KeyWatchMembersSeeAll    = "watch.members_see_all"           // Usherr: "1" lets every account see everyone's watch history and stats; unset or "0" shows each person only their own
+	KeyWatchKeepAddresses    = "watch.keep_addresses"            // Usherr: "1" keeps each player's IP address in the watch history; unset or "0" keeps only whether it was at home or away
 	KeyDebridPreferCached    = "debrid.prefer_cached"            // "0" stops asking TorBox or Premiumize which releases it already has (no tag, no ranking); "1" or unset (with TorBox or Premiumize as the service) asks and ranks a cached release ahead of an equal one that is not. Real-Debrid has no such check
 	KeyDebridCachedLower     = "debrid.cached_lower_score"       // "1" lets a cached release win over an uncached one of the same quality even when the profile's preferred terms score it lower; unset or "0" only breaks ties between equal scores
 

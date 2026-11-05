@@ -1,0 +1,39 @@
+/* Usherr: Settings > System > Watching (WatchActivity.tsx). */
+.watch-page > .seg { align-self: flex-start; flex-wrap: wrap; max-width: 100%; }
+.watch-dim { color: var(--text-dim); font-size: 0.85rem; }
+.watch-method { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
+.watch-method.stream { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.watch-method.transcode { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
+.watch-now { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.watch-now-card { padding: 12px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); display: grid; gap: 6px; min-width: 0; }
+.watch-now-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.watch-now-who, .watch-now-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.88rem; }
+.watch-now-who { color: var(--text-dim); }
+.watch-reasons { color: var(--warning); }
+.watch-progress { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.watch-progress span { display: block; height: 100%; background: var(--accent); }
+.watch-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); gap: 10px 12px; margin-bottom: 14px; }
+.watch-filters label { display: grid; gap: 4px; font-size: 0.85rem; color: var(--text-dim); }
+.watch-table-wrap { overflow-x: auto; }
+.watch-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.watch-table th { text-align: left; font-weight: 600; color: var(--text-dim); padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.watch-table td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.watch-table td:first-child { white-space: nowrap; }
+.watch-live { margin-left: 6px; }
+.watch-pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.watch-period { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.watch-period .seg { flex-wrap: wrap; max-width: 100%; }
+.watch-fill-direct { background: var(--success) !important; }
+.watch-fill-transcode { background: var(--warning) !important; }
+.watch-sub { margin: 16px 0 6px; font-size: 0.95rem; }
+.watch-reason-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.watch-reason-list small { color: var(--text-dim); margin-left: 6px; }
+.watch-cols { display: flex; align-items: stretch; gap: 3px; height: 140px; }
+.watch-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.watch-col-bar { width: 100%; max-width: 34px; border-radius: 3px 3px 0 0; background: var(--accent); }
+.watch-col small { font-size: 0.7rem; color: var(--text-dim); white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .watch-cols { gap: 1px; }
+  .watch-col small { font-size: 0.6rem; }
+}

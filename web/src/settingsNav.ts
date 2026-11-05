@@ -34,6 +34,8 @@ export const SETTINGS_NAV: { to: string; label: string; icon: IconName; color: s
   { to: '/settings/community', label: t('Community'), icon: 'chat', color: '#f2c14e', blurb: t('Watch parties and reviews with friends in your own Discord server, through your own bot. A preview.'), help: 'home-community' }, // Usherr: Community (preview)
   { to: '/preshow/manage', label: t('Pre-show'), icon: 'film', color: '#f2c14e', blurb: t('What plays before a film: welcome, trailers for films coming soon, your own clips, the countdown. With themes for holidays and nights.') }, // Usherr
   { to: '/settings/re-posterr', label: 'Re-Posterr', icon: 'image', color: '#f59e8b', blurb: t('The posters, backgrounds and logos Jellyfin and Plex show: Usherr’s picks from TMDB and fanart.tv, to approve, and every change can be put back.'), help: 'home-reposterr' }, // Usherr: Re-Posterr
+  { to: '/settings/collections', label: t('Collections'), icon: 'grid', color: '#f59e8b', blurb: t('Collections Usherr makes and keeps up to date in Jellyfin and Plex: from a list, a TMDB collection, trending titles, a rule, or titles you pick.') }, // Usherr: what Kometa did
+  { to: '/settings/poster-badges', label: t('Poster badges'), icon: 'star', color: '#f59e8b', blurb: t('4K, HDR, Atmos and rating badges on the posters Jellyfin and Plex show. The original posters are kept and put back when badges go off.') }, // Usherr: Kometa's overlays
   { to: '/settings/addons', label: t('Add-ons'), icon: 'grid', color: '#9fd4a8', blurb: t('Other programs you run next to Mediarium, with a link to each.'), help: 'media-servers#add-ons' },
   { to: '/settings/profile', label: t('Your profile'), icon: 'user', color: '#8fb8f5', blurb: t('Your name, email and password, and the messages you get about your requests.'), member: true },
   { to: '/settings/security', label: t('Security'), icon: 'shield', color: '#8fb8f5', blurb: t('Passkeys, two-step sign-in, a linked single sign-on account and your API keys.'), member: true, help: 'accounts#two-step-sign-in' },
@@ -45,6 +47,7 @@ export const SETTINGS_NAV: { to: string; label: string; icon: IconName; color: s
   { to: '/settings/service-checks', label: t('Service checks'), icon: 'activity', color: '#b4bfcc', blurb: t('Jellyfin, download clients and other programs: whether each is answering, and a message when one goes down or comes back.') }, // Usherr: Service checks
   { to: '/settings/backup', label: t('Backup and restore'), icon: 'hard', color: '#b4bfcc', blurb: t('Save a copy of everything, in the cloud too, and put it back.'), help: 'backups-updates#backup-and-restore' },
   { to: '/settings/statistics', label: t('Statistics'), icon: 'activity', color: '#8fe0c4', blurb: t('How big the library is and what was downloaded.'), member: true, help: 'library#statistics' },
+  { to: '/settings/watching', label: t('Watching'), icon: 'eye', color: '#8fe0c4', blurb: t('What is playing on Plex, Jellyfin and Emby now, who watched what, and how it played.'), member: true }, // Usherr: watch history and stats
   { to: '/settings/logs', label: t('Logs and errors'), icon: 'warning', color: '#f0a3a3', blurb: t('Errors Mediarium noticed, what to do about them, and a report to copy when you ask for help.'), help: 'problems' },
   { to: '/settings/migrate', label: t('Move from other apps'), icon: 'refresh', color: '#b4bfcc', blurb: t('Bring your library and settings over from Radarr, Sonarr and others.'), help: 'adding#moving-from-radarr-sonarr-and-other-apps' },
   { to: '/settings/about', label: t('About and credits'), icon: 'info', color: '#e7a6f2', blurb: t('Version, credits and the legal notice.'), member: true },
@@ -88,9 +91,9 @@ const GROUPS: { key: string; label: string; icon: IconName; color: string; pages
   { key: 'connections', label: t('Connections'), icon: 'monitor', color: '#f2c14e', pages: ['/settings/media-servers', '/settings/notifications', '/settings/other-apps', '/settings/addons'] },
   { key: 'extras', label: t('Extras'), icon: 'sparkles', color: '#6fd6c8', pages: ['/settings/extras'] }, // home fork
   { key: 'marquee', label: t('Movie night'), icon: 'monitor', color: '#f2c14e', pages: ['/marquee/manage', '/preshow/manage', '/settings/community'] }, // Usherr: the Marquee and the pre-show
-  { key: 'reposterr', label: 'Re-Posterr', icon: 'image', color: '#f59e8b', pages: ['/settings/re-posterr'] }, // Usherr: artwork picking
+  { key: 'reposterr', label: 'Re-Posterr', icon: 'image', color: '#f59e8b', pages: ['/settings/re-posterr', '/settings/collections', '/settings/poster-badges'] }, // Usherr: artwork picking, collections, poster badges
   { key: 'profile', label: t('Account & Access'), icon: 'user', color: '#8fb8f5', pages: ['/settings/profile', '/settings/security', '/settings/services', '/settings/accounts', '/settings/requests', '/settings/sign-in'] },
-  { key: 'system', label: t('System'), icon: 'hard', color: '#b4bfcc', pages: ['/settings/system', '/settings/service-checks', '/settings/backup', '/settings/statistics', '/settings/logs', '/settings/migrate', '/settings/about'] },
+  { key: 'system', label: t('System'), icon: 'hard', color: '#b4bfcc', pages: ['/settings/system', '/settings/service-checks', '/settings/backup', '/settings/statistics', '/settings/watching', '/settings/logs', '/settings/migrate', '/settings/about'] },
 ]
 
 export const inPage = (pathname: string, to: string) => pathname === to || pathname.startsWith(to + '/')
@@ -161,7 +164,7 @@ export function pageTitle(pathname: string, admin = true): string {
   if (pathname.startsWith('/music')) return t('Music')
   if (pathname.startsWith('/book/') || pathname.startsWith('/books/')) return t('Book')
   if (pathname.startsWith('/import')) return t('Import')
-  if (pathname.startsWith('/wanted') || pathname.startsWith('/calendar') || pathname.startsWith('/following')) return t('Upcoming') // home fork: Following
+  if (pathname.startsWith('/wanted') || pathname.startsWith('/calendar') || pathname.startsWith('/following') || pathname.startsWith('/leaving-soon')) return t('Upcoming') // home fork: Following
   if (pathname.startsWith('/queue')) return t('Activity')
   if (pathname.startsWith('/stats')) return t('Statistics')
   return BRAND // Usherr

@@ -217,7 +217,7 @@ function Shell() {
   const inLibraryPages = /^\/streamed(\/|$)/.test(location.pathname)
   // The lines under "Library": each kind that is switched on opens the Library on its tab.
   const libraryLines = libraryEntries(moduleOn, location.pathname, location.search, { comics: comicsOn, nsfw: nsfwOn })
-  const inUpcoming = location.pathname.startsWith('/wanted') || location.pathname.startsWith('/calendar') || location.pathname.startsWith('/following') /* home fork */
+  const inUpcoming = location.pathname.startsWith('/wanted') || location.pathname.startsWith('/calendar') || location.pathname.startsWith('/following') /* home fork */ || location.pathname.startsWith('/leaving-soon') /* Usherr */
   // Errors from the last day that nobody has marked as read (administrators only).
   const unreadErrors = useUnreadErrors(admin)
   const lobby = lobbyOn() // Usherr: the new layout, set before the first paint

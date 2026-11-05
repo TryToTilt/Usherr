@@ -236,7 +236,10 @@ func lastLines(s string, n int) string {
 
 // The fonts: Usherr's own display font (from the web app), else DejaVu.
 func (s *Server) preshowCardFonts(serif bool) (big, small string) {
-	const dejavu = "/usr/share/fonts/dejavu/"
+	dejavu := "/usr/share/fonts/truetype/dejavu/" // Debian
+	if fileExists("/usr/share/fonts/dejavu/DejaVuSans.ttf") {
+		dejavu = "/usr/share/fonts/dejavu/" // Alpine
+	}
 	small = dejavu + "DejaVuSans.ttf"
 	if serif {
 		return dejavu + "DejaVuSerif-Bold.ttf", small
