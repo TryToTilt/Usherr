@@ -41,6 +41,10 @@ func (s *Server) guestDoor(ctx context.Context, st showtime) {
 	_, _ = s.db.ExecContext(ctx, `INSERT OR IGNORE INTO community_stubs (backend, external_id, showtime_id, name, kind, tmdb_id, title, year, poster, host, seat, guests, at_ms)
 		VALUES ('here', ?, ?, '', 'movie', ?, ?, ?, ?, '', 1, '', ?)`,
 		strconv.FormatInt(st.UserID, 10), st.ID, st.TMDBID, st.Title, st.Year, st.PosterURL, st.AtMs)
+	s.guestStubPeople(ctx, st) // who hosted, who else: when found in the host's server
+	if _, ok := s.joinedOf(ctx, st.ID); ok {
+		go s.readJoinedCard(st.ID)
+	}
 }
 
 // guestCredits opens the stamping at a joined film's credits, for half an hour.

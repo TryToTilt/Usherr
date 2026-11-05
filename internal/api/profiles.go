@@ -145,17 +145,26 @@ func (ps profileSet) resolveTV(id int64) quality.Profile {
 	return ps.resolveWith(id, ps.def)
 }
 
+// languageFor is the audio languages a profile wants: its own (Usherr,
+// Advanced) or the setting's.
+func (ps profileSet) languageFor(p quality.Profile) string {
+	if p.AudioLanguage != "" {
+		return p.AudioLanguage
+	}
+	return ps.language
+}
+
 func (ps profileSet) resolveWith(id int64, def quality.Profile) quality.Profile {
 	p, ok := ps.byID[id]
 	if !ok {
 		p = def
 	}
 	p.FallbackProfiles = nil
-	p.Language, p.LanguageOnly = ps.language, ps.languageOnly
+	p.Language, p.LanguageOnly = ps.languageFor(p), ps.languageOnly
 	for _, fid := range p.Fallback {
 		if f, ok := ps.byID[fid]; ok && fid != p.ID {
 			f.FallbackProfiles = nil // a fallback's own fallbacks are not followed
-			f.Language, f.LanguageOnly = ps.language, ps.languageOnly
+			f.Language, f.LanguageOnly = ps.languageFor(f), ps.languageOnly
 			p.FallbackProfiles = append(p.FallbackProfiles, f)
 		}
 	}
@@ -220,6 +229,8 @@ type profilePayload struct {
 	// SkipBadReleases leaves out whole discs, 3D, upscales, burned-in
 	// subtitles and known low-quality re-encoders.
 	SkipBadReleases bool `json:"skipBadReleases"`
+	// Extras (Usherr) are the editor's Advanced options.
+	Extras quality.Extras `json:"extras"`
 }
 
 type formatScorePayload struct {
@@ -271,7 +282,7 @@ func toProfilePayload(p quality.Profile, inUse int) profilePayload {
 	return profilePayload{ID: p.ID, Name: p.Name, Allowed: allowed, Cutoff: string(p.Cutoff), UpgradeAllowed: p.UpgradeAllowed,
 		MustContain: must, MustNotContain: mustNot, Preferred: prefs, Fallback: fallback, InUse: inUse, MaxSizeGB: p.MaxSizeGB,
 		FormatScores: scores, MinFormatScore: p.MinFormatScore, CutoffFormatScore: p.CutoffFormatScore, NoSeasonPacks: p.NoSeasonPacks,
-		SkipBadReleases: p.SkipBadReleases, QualityOrder: toQualityItemPayloads(p.QualityOrder)}
+		SkipBadReleases: p.SkipBadReleases, QualityOrder: toQualityItemPayloads(p.QualityOrder), Extras: p.Extras}
 }
 
 type profileRequest struct {
@@ -300,6 +311,9 @@ type profileRequest struct {
 	NoSeasonPacks     *bool                `json:"noSeasonPacks"`
 	// SkipBadReleases: on for a new profile when left out.
 	SkipBadReleases *bool `json:"skipBadReleases"`
+	// Extras (Usherr): the Advanced options; left out, an update keeps the
+	// saved ones.
+	Extras *quality.Extras `json:"extras"`
 }
 
 func (req profileRequest) toProfile(id int64) quality.Profile {
@@ -339,6 +353,9 @@ func (req profileRequest) toProfile(id int64) quality.Profile {
 		p.NoSeasonPacks = *req.NoSeasonPacks
 	}
 	p.SkipBadReleases = req.SkipBadReleases == nil || *req.SkipBadReleases
+	if req.Extras != nil {
+		p.Extras = *req.Extras
+	}
 	return p
 }
 
@@ -400,7 +417,7 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := req.toProfile(id)
-	if req.QualityOrder == nil || req.Fallback == nil || req.MaxSizeGB == nil || req.FormatScores == nil || req.MinFormatScore == nil || req.CutoffFormatScore == nil || req.NoSeasonPacks == nil || req.SkipBadReleases == nil {
+	if req.QualityOrder == nil || req.Fallback == nil || req.MaxSizeGB == nil || req.FormatScores == nil || req.MinFormatScore == nil || req.CutoffFormatScore == nil || req.NoSeasonPacks == nil || req.SkipBadReleases == nil || req.Extras == nil {
 		saved, err := s.QualityRepo.Get(id)
 		if err != nil {
 			writeProfileError(w, err)
@@ -429,6 +446,9 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.SkipBadReleases == nil {
 			p.SkipBadReleases = saved.SkipBadReleases
+		}
+		if req.Extras == nil {
+			p.Extras = saved.Extras
 		}
 	}
 	if err := s.keepKnownFormats(&p); err != nil {

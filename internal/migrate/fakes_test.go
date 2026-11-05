@@ -88,6 +88,7 @@ func newFakeRadarr(t *testing.T, key string) *fakeApp {
 		"/api/v3/movie":          "radarr/movie.json",
 		"/api/v3/qualityprofile": "radarr/qualityprofile.json",
 		"/api/v3/rootfolder":     "radarr/rootfolder.json",
+		"/api/v3/customformat":   "radarr/customformat.json", // Usherr
 	})
 }
 

@@ -57,6 +57,41 @@ export default function Login() {
   const [idle] = useState(() => signedOutForIdle()) // the server ended the session for sitting unused
   const [skipAutoOnce] = useState(() => readStored(SKIP_ONCE_KEY) === '1') // the person just signed out
   const [redirecting, setRedirecting] = useState(false)
+  // Usherr: Sign in with Jellyfin or Plex (internal/api/media_signin.go).
+  const [media, setMedia] = useState<{ jellyfin: boolean; plex: boolean }>({ jellyfin: false, plex: false })
+  const [plexBusy, setPlexBusy] = useState(false)
+  useEffect(() => {
+    api.mediaSignInPublic().then(setMedia).catch(() => undefined)
+  }, [])
+  async function plexSignIn() {
+    setError('')
+    setPlexBusy(true)
+    // The window opens straight from the click, so browsers don't block it.
+    const win = window.open('', '_blank', 'width=600,height=700')
+    try {
+      const pin = await api.startPlexLogin()
+      if (win) win.location.href = pin.authUrl
+      else window.open(pin.authUrl, '_blank')
+      for (let i = 0; i < 150; i++) {
+        await new Promise((r) => setTimeout(r, 2000))
+        const res = await api.checkPlexLogin(pin.pinId)
+        if ('waiting' in res) continue
+        win?.close()
+        if (isTwoStepChallenge(res)) {
+          setChallenge(res.challenge)
+          return
+        }
+        await refresh()
+        return
+      }
+      setError(t('Plex didn’t answer in time. Try again.'))
+    } catch (err) {
+      win?.close()
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setPlexBusy(false)
+    }
+  }
   useEffect(() => {
     api
       .signInMethods()
@@ -219,13 +254,19 @@ export default function Login() {
         <FormProblem v={v} action="signin" />
           </>
         )}
-        {(methods.oidc || methods.passkeys) && (
+        {media.jellyfin && showForm && <p className="auth-sub">{t('Jellyfin users: sign in with your Jellyfin name and password.')}</p>}
+        {(methods.oidc || methods.passkeys || media.plex) && (
           <div className="auth-alt">
             {showForm && <span className="auth-or">{t('or')}</span>}
             {methods.oidc && (
               <a className="btn auth-alt-btn" href={withBase('/api/auth/oidc/start')}>
                 {t('Sign in with {name}', { name: methods.oidc.name })}
               </a>
+            )}
+            {media.plex && (
+              <button type="button" className="auth-alt-btn" onClick={() => void plexSignIn()} disabled={plexBusy}>
+                {plexBusy ? t('Waiting for Plex…') : t('Sign in with Plex')}
+              </button>
             )}
             {methods.passkeys && (
               <button type="button" className="auth-alt-btn" onClick={() => void passkeySignIn()} disabled={busy || !passkeysSupported()} title={passkeysSupported() ? undefined : t("This browser can't use passkeys on this page.")}>

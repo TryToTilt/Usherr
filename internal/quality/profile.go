@@ -209,6 +209,9 @@ type Profile struct {
 	// SkipBadReleases leaves out releases nobody wants (see badreleases.go)
 	// and prefers a group's PROPER/REPACK over its broken release.
 	SkipBadReleases bool
+
+	// Extras (Usherr) are the editor's Advanced options (extras.go).
+	Extras
 }
 
 // Chain is the profile followed by its resolved fallbacks, in the order an
@@ -310,15 +313,18 @@ func (p Profile) titleAllowed(l *lazyRel) (bool, string) {
 	if why := p.skipBadReason(l); why != "" {
 		return false, why
 	}
+	if why := p.neverGroupReason(l); why != "" { // Usherr
+		return false, why
+	}
 	norm := normalizeForMatch(title)
 	for _, term := range p.MustNotContain {
-		if containsTerm(norm, term) {
+		if matchTerm(title, norm, term) {
 			return false, fmt.Sprintf("contains %q, which the %q profile excludes", term, p.Name)
 		}
 	}
 	if len(p.MustContain) > 0 {
 		for _, term := range p.MustContain {
-			if containsTerm(norm, term) {
+			if matchTerm(title, norm, term) {
 				return true, ""
 			}
 		}
@@ -334,7 +340,7 @@ func (p Profile) Score(title string) int {
 	total, _ := p.FormatScore(title)
 	total += p.fixScore(title)
 	for _, pr := range p.Preferred {
-		if containsTerm(norm, pr.Term) {
+		if matchTerm(title, norm, pr.Term) {
 			total += pr.Score
 		}
 	}
@@ -348,7 +354,7 @@ func (p Profile) PreferredHits(title string) []Preferred {
 	norm := normalizeForMatch(title)
 	var hits []Preferred
 	for _, pr := range p.Preferred {
-		if containsTerm(norm, pr.Term) {
+		if matchTerm(title, norm, pr.Term) {
 			hits = append(hits, pr)
 		}
 	}
@@ -550,7 +556,8 @@ func sameDefinition(a, b Profile) bool {
 		len(a.MustContain) != 0 || len(a.MustNotContain) != 0 || len(a.Preferred) != 0 || len(a.Fallback) != 0 ||
 		len(b.MustContain) != 0 || len(b.MustNotContain) != 0 || len(b.Preferred) != 0 || len(b.Fallback) != 0 ||
 		len(a.QualityOrder) != 0 || len(b.QualityOrder) != 0 || len(a.FormatScores) != 0 || a.MinFormatScore != 0 || a.CutoffFormatScore != 0 || a.NoSeasonPacks ||
-		len(b.FormatScores) != 0 || b.MinFormatScore != 0 || b.CutoffFormatScore != 0 || b.NoSeasonPacks {
+		len(b.FormatScores) != 0 || b.MinFormatScore != 0 || b.CutoffFormatScore != 0 || b.NoSeasonPacks ||
+		encodeExtras(a.Extras) != "{}" || encodeExtras(b.Extras) != "{}" { // Usherr: Advanced options make it the user's
 		return false
 	}
 	set := func(ts []Tier) map[Tier]bool {

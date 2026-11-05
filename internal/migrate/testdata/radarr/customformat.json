@@ -1,0 +1,71 @@
+[
+  {
+    "id": 1,
+    "name": "DV",
+    "includeCustomFormatWhenRenaming": false,
+    "specifications": [
+      {
+        "name": "DV",
+        "implementation": "ReleaseTitleSpecification",
+        "negate": false,
+        "required": true,
+        "fields": [
+          {
+            "name": "value",
+            "value": "\\b(dv|dovi|dolby[ .]?vision)\\b"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "x265 (HD)",
+    "includeCustomFormatWhenRenaming": false,
+    "specifications": [
+      {
+        "name": "x265",
+        "implementation": "ReleaseTitleSpecification",
+        "negate": false,
+        "required": true,
+        "fields": [
+          {
+            "name": "value",
+            "value": "[xh][ ._-]?265|\\bHEVC(\\b|\\d)"
+          }
+        ]
+      },
+      {
+        "name": "Not 2160p",
+        "implementation": "ResolutionSpecification",
+        "negate": true,
+        "required": true,
+        "fields": [
+          {
+            "name": "value",
+            "value": 2160
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "name": "Unused",
+    "includeCustomFormatWhenRenaming": false,
+    "specifications": [
+      {
+        "name": "x",
+        "implementation": "ReleaseGroupSpecification",
+        "negate": false,
+        "required": false,
+        "fields": [
+          {
+            "name": "value",
+            "value": "^NOGRP$"
+          }
+        ]
+      }
+    ]
+  }
+]

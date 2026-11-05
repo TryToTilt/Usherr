@@ -135,6 +135,7 @@ func newHarness(t *testing.T) *harness {
 	defaultID := h.profiles["1080p"]
 	h.im = New(Deps{
 		Library: h.lib, Indexers: h.idx, Servers: h.servers, Profiles: qrepo,
+		Formats:          quality.NewFormatRepo(db), // Usherr
 		TMDB:             func() *metadata.Client { return tmdb },
 		MoviesRoot:       func() string { return h.moviesRoot },
 		TVRoot:           func() string { return h.tvRoot },

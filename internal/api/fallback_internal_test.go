@@ -89,7 +89,7 @@ func TestUpgradeAfterFallback(t *testing.T) {
 	for _, upgrades := range []bool{true, false} {
 		_, profile := profileChain(upgrades, quality.PresetCinema)
 		current := string(quality.TierPreRelease)
-		if !wantsUpgrade(profile, current, "") {
+		if !wantsUpgrade(profile, current, "", "") {
 			t.Fatalf("upgrades=%v: a cinema recording on a 1080p profile must be searched for a replacement", upgrades)
 		}
 		results := []indexers.Result{
@@ -102,14 +102,14 @@ func TestUpgradeAfterFallback(t *testing.T) {
 			t.Fatalf("upgrades=%v: want the 1080p release to replace the recording, got %+v", upgrades, best)
 		}
 		// Once replaced, the normal rules apply again.
-		if upgrades == false && wantsUpgrade(profile, string(quality.TierWebDL1080p), "") {
+		if upgrades == false && wantsUpgrade(profile, string(quality.TierWebDL1080p), "", "") {
 			t.Fatal("with upgrades off, a file the own profile allows is kept")
 		}
 	}
 	// Without a fallback, a file outside the profile is left alone as before
 	// (an imported 4K file under a 1080p profile is not "downgraded").
 	_, plain := profileChain(true)
-	if wantsUpgrade(plain, string(quality.TierWebDL2160p), "") {
+	if wantsUpgrade(plain, string(quality.TierWebDL2160p), "", "") {
 		t.Fatal("a 4K file on a 1080p profile without fallbacks must not be searched")
 	}
 }
@@ -146,7 +146,7 @@ func TestOutgrownFileIsReplaced(t *testing.T) {
 	if fourK.UpgradeAllowed {
 		t.Fatal("test expects the stock 4K preset to have upgrades off")
 	}
-	if !wantsUpgrade(fourK, string(quality.TierWebDL1080p), "") {
+	if !wantsUpgrade(fourK, string(quality.TierWebDL1080p), "", "") {
 		t.Fatal("a 1080p file on the 4K profile must be searched for a 4K release")
 	}
 	results := []indexers.Result{
@@ -158,7 +158,7 @@ func TestOutgrownFileIsReplaced(t *testing.T) {
 		t.Fatalf("want the 2160p release, got %+v", best)
 	}
 	hd := presets[quality.Preset1080p]
-	if wantsUpgrade(hd, string(quality.TierWebDL2160p), "") {
+	if wantsUpgrade(hd, string(quality.TierWebDL2160p), "", "") {
 		t.Fatal("a 4K file on the 1080p profile must be left alone")
 	}
 }

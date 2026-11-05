@@ -17,6 +17,7 @@ import (
 // Steps of an import, in order.
 const (
 	StepReading       = "reading"
+	StepFormats       = "customFormats" // Usherr: formats.go
 	StepMovies        = "movies"
 	StepSeries        = "series"
 	StepIndexers      = "indexers"
@@ -70,6 +71,7 @@ type Results struct {
 	Requests      Counts `json:"requests"`
 	// SubtitleLanguages: added 1 = the languages were replaced, existing 1 = already the same.
 	SubtitleLanguages Counts           `json:"subtitleLanguages"`
+	CustomFormats     Counts           `json:"customFormats"` // Usherr: formats.go
 	QualityProfiles   []ProfileMapping `json:"qualityProfiles"`
 }
 
@@ -182,10 +184,11 @@ func (im *Importer) run(ctx context.Context, opts Options) {
 	inc := opts.Include
 	src := opts.Sources
 	// Only read what is being imported.
-	if !on(inc.Movies) {
+	formats := optIn(inc.CustomFormats) // Usherr: Radarr and Sonarr are read for their formats even without their titles
+	if !on(inc.Movies) && !formats {
 		src.Radarr = nil
 	}
-	if !on(inc.Series) {
+	if !on(inc.Series) && !formats {
 		src.Sonarr = nil
 	}
 	if !on(inc.Indexers) {
@@ -217,7 +220,19 @@ func (im *Importer) run(ctx context.Context, opts Options) {
 		return
 	}
 
+	if !on(inc.Movies) {
+		p.movies = nil
+	}
+	if !on(inc.Series) {
+		p.series = nil
+	}
+	if !formats {
+		p.formats = nil
+	}
 	total := len(p.movies) + len(p.series) + len(p.indexers) + len(p.servers) + len(p.requests)
+	for _, fp := range p.formats {
+		total += len(fp.formats)
+	}
 	if p.subtitles != nil {
 		total++
 	}
@@ -237,6 +252,12 @@ func (im *Importer) run(ctx context.Context, opts Options) {
 		})
 	}
 
+	if len(p.formats) > 0 {
+		im.update(func(s *Status) { s.Step = StepFormats })
+		for _, fp := range p.formats {
+			im.importFormats(fp)
+		}
+	}
 	im.update(func(s *Status) { s.Step = StepMovies })
 	for _, mp := range p.movies {
 		if ctx.Err() != nil {

@@ -311,3 +311,17 @@ func (s *Server) TestShowtimeAt(id, atMs int64) {
 	_, _ = s.db.Exec(`UPDATE showtimes SET at_ms = ? WHERE id = ?`, atMs, id)
 }
 func (s *Server) TestShowtimeJob(ctx context.Context) { s.showtimeJob(ctx) }
+
+// ShowtimeCodeForTest is the showtime code another Usherr's card shows.
+func ShowtimeCodeForTest(tmdbID int, atMs int64, preshowMin int) string {
+	return encodeShowtimeCode(showtimeCode{TMDBID: tmdbID, AtMs: atMs, PreshowMin: preshowMin})
+}
+
+// TestFindJoined looks for a joined party in the bot's servers now.
+func (s *Server) TestFindJoined(showtimeID int64) bool {
+	joinedLooks.Lock()
+	delete(joinedLooks.at, showtimeID)
+	joinedLooks.Unlock()
+	st, ok := s.showtimeByID(context.Background(), showtimeID)
+	return ok && s.findJoinedParty(context.Background(), st)
+}

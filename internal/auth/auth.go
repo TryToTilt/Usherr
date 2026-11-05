@@ -82,6 +82,10 @@ const (
 	SourceLocal = "local"
 	SourceOIDC  = "oidc"
 	SourceLDAP  = "ldap"
+	// Usherr: accounts whose password lives on a Jellyfin server or plex.tv
+	// (internal/api/media_signin.go).
+	SourceJellyfin = "jellyfin"
+	SourcePlex     = "plex"
 )
 
 // Roles. is_admin in the users table is the source of truth for the
@@ -496,6 +500,8 @@ const (
 	MethodPassword = "password"
 	MethodOIDC     = "oidc"
 	MethodLDAP     = "ldap"
+	MethodJellyfin = "jellyfin" // Usherr
+	MethodPlex     = "plex"     // Usherr
 	MethodPasskey  = "passkey"
 	MethodProxy    = "proxy"
 )

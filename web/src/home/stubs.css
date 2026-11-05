@@ -18,3 +18,8 @@
 .stub-stamp { transform: rotate(-12deg); border: 2px solid #8a1e2e; color: #8a1e2e; border-radius: 6px; padding: 0.2rem 0.35rem; font-size: 0.66rem; font-weight: 800; text-transform: uppercase; text-align: center; letter-spacing: 0.04em; line-height: 1.15; }
 .stub:not(.stub-stamped) { filter: saturate(0.75); }
 .stub-none p { margin: 0 0 8px; }
+/* Remove: a quiet link first, then Remove? / Keep, then the dialog. */
+.stub-remove-btn { border: 0; background: none; padding: 0.25rem 0.4rem; min-height: 32px; color: inherit; opacity: 0.6; font: inherit; font-size: 0.75rem; text-decoration: underline; cursor: pointer; }
+.stub-remove-btn:hover, .stub-remove-btn:focus-visible { opacity: 1; }
+.stub-remove { display: flex; flex-direction: column; gap: 0.3rem; align-items: stretch; }
+.stub-undo { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }

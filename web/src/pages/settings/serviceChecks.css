@@ -1,0 +1,37 @@
+/* Usherr: Settings > System > Service checks (ServiceChecksSettings.tsx). */
+.svc-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 10px; }
+.svc-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 12px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); }
+.svc-row.down { border-color: var(--danger); }
+.svc-row.shaky { border-color: var(--warning); }
+.svc-dot { width: 12px; height: 12px; margin-top: 5px; border-radius: 50%; background: var(--text-dim); }
+.svc-row.up .svc-dot { background: var(--success); }
+.svc-row.down .svc-dot { background: var(--danger); }
+.svc-row.shaky .svc-dot { background: var(--warning); }
+.svc-row.paused { opacity: 0.7; }
+.svc-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.svc-head small { color: var(--text-dim); }
+.svc-main { min-width: 0; display: grid; gap: 6px; }
+.svc-main .link-btn { justify-self: start; font-size: 0.85rem; }
+.svc-strip { display: flex; align-items: flex-end; gap: 2px; height: 22px; max-width: 100%; overflow: hidden; }
+.svc-strip span { flex: 0 0 6px; border-radius: 2px; background: var(--success); }
+.svc-strip span.bad { background: var(--danger); }
+.svc-numbers { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--text-dim); font-size: 0.85rem; }
+.svc-numbers b { color: var(--text); font-weight: 600; }
+.svc-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.svc-changes { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 0.85rem; }
+.svc-changes li.down b { color: var(--danger); }
+.svc-changes li.up b { color: var(--success); }
+.svc-changes small { color: var(--text-dim); }
+.svc-form { margin-top: 10px; }
+.svc-tried.ok, .svc-alert-note.ok { color: var(--success); }
+.svc-tried.bad, .svc-alert-note.bad { color: var(--danger); }
+.svc-summary { font-weight: 600; }
+.svc-ideas { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.svc-ideas li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); }
+.svc-ideas small { color: var(--text-dim); }
+.svc-url { color: var(--text-dim); font-size: 0.85rem; overflow-wrap: anywhere; }
+
+@media (max-width: 640px) {
+  .svc-row { grid-template-columns: 14px minmax(0, 1fr); }
+  .svc-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}

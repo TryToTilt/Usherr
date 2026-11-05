@@ -155,9 +155,13 @@ func requestKey(kind, payload string) string {
 		AlbumMBID string `json:"albumMbid"`
 		OLKey     string `json:"olKey"`
 		FourK     bool   `json:"fourK"`
+		Seasons   []int  `json:"seasons"` // Usherr
 	}
 	if json.Unmarshal([]byte(payload), &v) != nil {
 		return ""
+	}
+	if kind == "tv" && v.TMDBID > 0 && len(v.Seasons) > 0 && !v.FourK { // Usherr: asking for seasons is its own request
+		return fmt.Sprintf("tv:tmdb:%d:s%s", v.TMDBID, seasonList(v.Seasons))
 	}
 	switch kind {
 	case "movie", "tv":
@@ -204,6 +208,14 @@ func (s *Server) fileRequest(w http.ResponseWriter, r *http.Request, kind string
 		tmdbID := payloadTMDBID(string(body))
 		if s.hasFourKCopy(kind, tmdbID) {
 			writeError(w, http.StatusConflict, "That already has a 4K copy.")
+			return
+		}
+		info, _ = s.describeLibraryTitle(kind, tmdbID)
+	} else if info.inLibrary && kind == "tv" && len(payloadSeasons(body)) > 0 {
+		// Usherr: a show that is here can still be asked for more seasons.
+		tmdbID := payloadTMDBID(string(body))
+		if missing := s.seasonsNotWanted(tmdbID, payloadSeasons(body)); len(missing) == 0 {
+			writeError(w, http.StatusConflict, "Those seasons are already in the library or on their way.")
 			return
 		}
 		info, _ = s.describeLibraryTitle(kind, tmdbID)

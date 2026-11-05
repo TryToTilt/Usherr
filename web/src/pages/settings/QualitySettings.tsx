@@ -9,6 +9,7 @@ import { AUDIO_LANGUAGES } from '../../languages'
 import { useAutosaveSetting } from '../../useAutosave'
 import QualityProfilesSection from '../../components/QualityProfiles'
 import SizeLimitsCard from '../../components/SizeLimitsCard'
+import TagRulesCard from '../../components/TagRulesCard'
 import MusicProfilesSection from '../../components/MusicProfiles'
 import MusicFiltersCard from '../../components/MusicFiltersCard'
 import QuietForAWhile from '../../components/QuietForAWhile'
@@ -155,22 +156,6 @@ function LanguageSection() {
   )
 }
 
-function AdvancedSection({ value, loaded, saving, change }: { value: boolean; loaded: boolean; saving: boolean; change: (v: boolean) => void }) {
-  return (
-    <section className="card">
-      <h2><TipLabel help="quality#custom-formats">{t('Advanced options')}</TipLabel></h2>
-      <Switch
-        checked={value}
-        onChange={change}
-        disabled={!loaded || saving}
-        label={t('Show advanced options')}
-        description={t("Custom formats and format scores, as in Radarr and Sonarr, with the TRaSH Guides. Most people don't need them: the quality and Skip bad releases already get good downloads.")}
-        showState
-      />
-    </section>
-  )
-}
-
 export default function QualitySettings() {
   // Bumped when formats or profiles change, so the other card reloads.
   const [profilesRev, setProfilesRev] = useState(0)
@@ -178,20 +163,19 @@ export default function QualitySettings() {
   const advanced = useAutosaveSetting<boolean>(
     (s) => s.showAdvanced ?? false,
     (v) => ({ showAdvanced: v }),
-    (saved) => (saved ? t('Saved: custom formats are shown.') : t('Saved: custom formats are hidden.')),
+    (saved) => (saved ? t('Saved: profiles open in Advanced, with custom formats.') : t('Saved: profiles open in Simple.')),
     false,
   )
   return (
     <div className="settings-stack">
       <div data-walk="quality-profiles">
-        <QualityProfilesSection rev={profilesRev} onChanged={() => setFormatsRev((n) => n + 1)} advanced={advanced.value} />
+        <QualityProfilesSection rev={profilesRev} onChanged={() => setFormatsRev((n) => n + 1)} advanced={advanced.value} onAdvanced={(v) => void advanced.change(v)} />
       </div>
       {advanced.value && <CustomFormatsSection rev={formatsRev} onChanged={() => setProfilesRev((n) => n + 1)} />}
       <LanguageSection />
       <SizeLimitsCard />
       <MusicProfilesSection />
       <MusicFiltersCard />
-      <AdvancedSection value={advanced.value} loaded={advanced.loaded} saving={advanced.saving} change={(v) => void advanced.change(v)} />
     </div>
   )
 }
@@ -203,6 +187,7 @@ export function AutomationSettings() {
     <div className="settings-stack">
       <AutomationSection />
       <DelayProfileCard />
+      <TagRulesCard />
     </div>
   )
 }

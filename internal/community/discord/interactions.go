@@ -102,6 +102,7 @@ type dUser struct {
 	Username string `json:"username"`
 	Global   string `json:"global_name"`
 	Avatar   string `json:"avatar"`
+	Bot      bool   `json:"bot"`
 }
 
 func (u dUser) user() community.User {

@@ -31,7 +31,7 @@ const (
 // button: the brand teal, or a warm colour for the messages about problems.
 func kindAccent(ev Event) string {
 	switch EventKind(ev.Type) {
-	case EventFailed, EventHealth, EventConflict, EventClientDown:
+	case EventFailed, EventHealth, EventConflict, EventClientDown, EventServiceDown: // Usherr: service down
 		return mailWarning
 	}
 	return brandTeal
@@ -226,9 +226,9 @@ func eventTag(ev Event) string {
 		return "warning"
 	case EventSubtitle:
 		return "speech_balloon"
-	case EventHealth, EventClientDown:
+	case EventHealth, EventClientDown, EventServiceDown: // Usherr: service down
 		return "rotating_light"
-	case EventClientUp:
+	case EventClientUp, EventServiceUp: // Usherr: service back
 		return "white_check_mark"
 	case EventUpdate:
 		return "package"
@@ -244,7 +244,7 @@ func eventTag(ev Event) string {
 // eventColor is the side stripe of a Discord embed.
 func eventColor(ev Event) int {
 	switch EventKind(ev.Type) {
-	case EventFailed, EventHealth, EventClientDown:
+	case EventFailed, EventHealth, EventClientDown, EventServiceDown: // Usherr: service down
 		return 0xc2410c
 	case EventConflict:
 		return 0xd97706

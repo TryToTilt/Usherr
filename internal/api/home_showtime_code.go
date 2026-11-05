@@ -163,6 +163,7 @@ func (s *Server) handleJoinShowtime(w http.ResponseWriter, r *http.Request) {
 		title string
 	}
 	if s.db.QueryRowContext(r.Context(), `SELECT id, title FROM showtimes WHERE tmdb_id = ? AND at_ms = ? AND state <> 'done'`, c.TMDBID, c.AtMs).Scan(&have.id, &have.title) == nil {
+		s.findJoinedSoon(have.id) // pasted again (the host has added this Usherr's bot since): look for its chat
 		writeJSON(w, http.StatusOK, map[string]any{"id": have.id, "title": have.title, "atMs": c.AtMs, "already": true})
 		return
 	}
@@ -186,5 +187,6 @@ func (s *Server) handleJoinShowtime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.markJoined(r.Context(), id, encodeShowtimeCode(c)) // a ticket stub here too (home_community_guest.go)
+	s.findJoinedSoon(id)                                 // and its chat, when this Usherr's bot is in the host's server (home_community_joined.go)
 	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "title": b.Title, "atMs": c.AtMs})
 }

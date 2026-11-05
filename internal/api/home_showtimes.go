@@ -322,6 +322,12 @@ func (s *Server) showtimeJob(ctx context.Context) {
 			}
 			s.guestCredits(ctx, st) // a party joined by its code: stamping opens here too
 		}
+		// Usherr: a friend's party joined by its code, not yet found in their server.
+		if st.State != "done" && s.isJoined(ctx, st.ID) {
+			if _, ok := s.joinedOf(ctx, st.ID); !ok {
+				s.findJoinedSoon(st.ID)
+			}
+		}
 		switch {
 		case st.State == "done":
 		case now.After(at.Add(time.Duration(max(st.Runtime, 90)+30) * time.Minute)):

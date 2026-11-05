@@ -115,6 +115,7 @@ func (p *PlexTV) WatchlistTitleIDs(ctx context.Context, accountToken, key string
 
 // PlexAccount is who a Plex account token belongs to.
 type PlexAccount struct {
+	ID       int64  `json:"id"` // Usherr: the account's own id (Sign in with Plex)
 	Username string `json:"username"`
 	Title    string `json:"title"`
 }

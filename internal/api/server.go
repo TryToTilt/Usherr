@@ -168,6 +168,7 @@ type Server struct {
 
 	bookWait     time.Duration      // how long a book release search may take; 0 means bookSearchWait (books_api.go)
 	clientWatch  notify.ClientWatch // when a download client goes down and comes back (client_watch.go)
+	serviceWatch serviceWatch       // Usherr: Service checks (home_service_checks.go)
 	usenetSlots  slotGate           // how many built-in Usenet downloads run at once (builtin_slots.go)
 	torrentSlots slotGate           // the same for built-in torrents
 
@@ -412,6 +413,9 @@ func (s *Server) Routes() http.Handler {
 	public.HandleFunc("POST /api/onboarding/admin", s.handleCreateAdmin)
 	public.HandleFunc("POST /api/auth/login", s.handleLogin)
 	public.HandleFunc("POST /api/auth/login/code", s.handleLoginCode)
+	public.HandleFunc("GET /api/auth/media-signin", s.handlePublicMediaSignIn) // Usherr: Sign in with Jellyfin or Plex
+	public.HandleFunc("POST /api/auth/plex/pin", s.handleStartPlexLogin)
+	public.HandleFunc("POST /api/auth/plex/pin/{pinId}", s.handleCheckPlexLogin)
 	public.HandleFunc("POST /api/auth/logout", s.handleLogout)
 	// Usherr: Forgot password? by email (home_password_reset.go); 404 while it's off.
 	public.HandleFunc("POST /api/auth/forgot", s.handleForgotPassword)
@@ -656,6 +660,8 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("DELETE /api/home/showtimes/{id}", s.handleDeleteShowtime)           // Usherr
 	member.HandleFunc("GET /api/home/stubs", s.handleStubs)                                // Usherr: your ticket stubs
 	member.HandleFunc("POST /api/home/stubs/{id}/stamp", s.handleStampStub)                // Usherr: a joined party's stub, stamped by hand (home_community_guest.go)
+	member.HandleFunc("DELETE /api/home/stubs/{from}/{id}", s.handleHideStub)              // Usherr: remove one of your stubs (kept hidden, can be brought back)
+	member.HandleFunc("POST /api/home/stubs/{from}/{id}/restore", s.handleRestoreStub)     // Usherr: bring a removed stub back
 	member.HandleFunc("GET /api/home/reviews", s.handleReviews)                            // Usherr: reviews from the community
 	member.HandleFunc("POST /api/home/reviews", s.handlePostReview)                        // Usherr
 	member.HandleFunc("DELETE /api/home/reviews", s.handleDeleteReview)                    // Usherr
@@ -900,6 +906,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	s.registerSportsRoutes(member, play, manage, admin) // Usherr: Sports
 	s.registerReadToMeRoutes(manage, admin)             // Usherr: Read-to-Me
 	s.registerStreamedAddRoutes(play, admin)            // Add as stream (home fork)
+	s.registerServiceCheckRoutes(admin)                 // Usherr: Service checks
 
 	// "Watch in Plex/Jellyfin/Emby" and "Open my media server" links.
 	member.HandleFunc("GET /api/media-servers/links", s.handleMediaServerLinks)
@@ -1084,6 +1091,12 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/quality-profiles", s.handleCreateProfile)
 	admin.HandleFunc("PUT /api/quality-profiles/{id}", s.handleUpdateProfile)
 	admin.HandleFunc("DELETE /api/quality-profiles/{id}", s.handleDeleteProfile)
+	member.HandleFunc("POST /api/quality-profiles/try", s.handleTryProfile) // Usherr: the editor's release tester
+	admin.HandleFunc("GET /api/tag-rules", s.handleGetTagRules)             // Usherr: auto-tagging and tag rules
+	admin.HandleFunc("PUT /api/tag-rules", s.handlePutTagRules)
+	admin.HandleFunc("POST /api/tag-rules/apply", s.handleApplyAutoTags)
+	admin.HandleFunc("GET /api/media-signin", s.handleGetMediaSignIn) // Usherr: Sign in with Jellyfin or Plex
+	admin.HandleFunc("PUT /api/media-signin", s.handlePutMediaSignIn)
 
 	// Custom formats and the TRaSH Guides import.
 	member.HandleFunc("GET /api/custom-formats", s.handleListCustomFormats)

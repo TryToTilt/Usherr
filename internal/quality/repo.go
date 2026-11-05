@@ -22,6 +22,8 @@ const (
 	maxTerms    = 50
 	maxTermLen  = 60
 	maxAbsScore = 10000
+	// maxPatternLen bounds a term written as a pattern (Usherr).
+	maxPatternLen = 200
 )
 
 // Repo stores user-editable profiles.
@@ -106,6 +108,9 @@ func Validate(p Profile) (Profile, error) {
 	if err := validateFormatScores(&p); err != nil {
 		return p, err
 	}
+	if p.Extras, err = cleanExtras(p.Extras); err != nil { // Usherr
+		return p, err
+	}
 	return p, nil
 }
 
@@ -186,7 +191,16 @@ func cleanTerms(what string, terms []string) ([]string, error) {
 		if t == "" || seen[strings.ToLower(t)] {
 			continue
 		}
-		if len(t) > maxTermLen || strings.ContainsAny(t, "|\n\r") {
+		// Usherr: a term between slashes is a pattern (extras.go): longer, and
+		// it may use '|'.
+		if isPattern(t) {
+			if len(t) > maxPatternLen || strings.ContainsAny(t, "\n\r") {
+				return nil, fmt.Errorf("%w: a %s pattern must be under %d characters", ErrInvalid, what, maxPatternLen)
+			}
+			if err := checkPattern(t); err != nil {
+				return nil, err
+			}
+		} else if len(t) > maxTermLen || strings.ContainsAny(t, "|\n\r") {
 			return nil, fmt.Errorf("%w: a %s term must be under %d characters and contain no '|' or line breaks", ErrInvalid, what, maxTermLen)
 		}
 		seen[strings.ToLower(t)] = true
@@ -218,10 +232,12 @@ func encodePreferred(prefs []Preferred) string {
 func decodePreferred(s string) []Preferred {
 	var out []Preferred
 	for _, line := range decodeLines(s) {
-		term, score, ok := strings.Cut(line, "|")
-		if !ok {
+		// The score is after the last '|': a pattern may hold '|' itself.
+		i := strings.LastIndexByte(line, '|')
+		if i < 0 {
 			continue
 		}
+		term, score := line[:i], line[i+1:]
 		n, _ := strconv.Atoi(score)
 		out = append(out, Preferred{Term: term, Score: n})
 	}
@@ -247,7 +263,7 @@ func decodeTiers(s string) []Tier {
 	return out
 }
 
-const selectProfile = `SELECT id, name, allowed_tiers, cutoff, upgrade_allowed, must_contain, must_not_contain, preferred, fallback, max_size_gb, format_scores, min_format_score, cutoff_format_score, no_season_packs, skip_bad, quality_order FROM quality_profiles`
+const selectProfile = `SELECT id, name, allowed_tiers, cutoff, upgrade_allowed, must_contain, must_not_contain, preferred, fallback, max_size_gb, format_scores, min_format_score, cutoff_format_score, no_season_packs, skip_bad, quality_order, extras FROM quality_profiles`
 
 func scanProfile(scan func(dest ...any) error) (Profile, error) {
 	var (
@@ -256,8 +272,9 @@ func scanProfile(scan func(dest ...any) error) (Profile, error) {
 		mustContain, mustNot, preferred string
 		fallback, scores                string
 		order                           sql.NullString
+		extras                          string
 	)
-	if err := scan(&p.ID, &p.Name, &allowed, &cutoff, &p.UpgradeAllowed, &mustContain, &mustNot, &preferred, &fallback, &p.MaxSizeGB, &scores, &p.MinFormatScore, &p.CutoffFormatScore, &p.NoSeasonPacks, &p.SkipBadReleases, &order); err != nil {
+	if err := scan(&p.ID, &p.Name, &allowed, &cutoff, &p.UpgradeAllowed, &mustContain, &mustNot, &preferred, &fallback, &p.MaxSizeGB, &scores, &p.MinFormatScore, &p.CutoffFormatScore, &p.NoSeasonPacks, &p.SkipBadReleases, &order, &extras); err != nil {
 		return Profile{}, err
 	}
 	p.Allowed = decodeTiers(allowed)
@@ -268,6 +285,7 @@ func scanProfile(scan func(dest ...any) error) (Profile, error) {
 	p.Preferred = decodePreferred(preferred)
 	p.Fallback = cleanFallback(p.ID, decodeFallback(fallback))
 	p.FormatScores = decodeFormatScores(scores)
+	p.Extras = decodeExtras(extras)
 	return p, nil
 }
 
@@ -309,10 +327,10 @@ func (r *Repo) Create(p Profile) (Profile, error) {
 		return Profile{}, err
 	}
 	res, err := r.db.Exec(
-		`INSERT INTO quality_profiles (name, allowed_tiers, cutoff, upgrade_allowed, must_contain, must_not_contain, preferred, fallback, max_size_gb, format_scores, min_format_score, cutoff_format_score, no_season_packs, skip_bad, quality_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO quality_profiles (name, allowed_tiers, cutoff, upgrade_allowed, must_contain, must_not_contain, preferred, fallback, max_size_gb, format_scores, min_format_score, cutoff_format_score, no_season_packs, skip_bad, quality_order, extras) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		p.Name, encodeTiers(p.Allowed), string(p.Cutoff), p.UpgradeAllowed,
 		encodeLines(p.MustContain), encodeLines(p.MustNotContain), encodePreferred(p.Preferred), encodeFallback(p.Fallback), p.MaxSizeGB,
-		encodeFormatScores(p.FormatScores), p.MinFormatScore, p.CutoffFormatScore, p.NoSeasonPacks, p.SkipBadReleases, encodeOrder(p.QualityOrder),
+		encodeFormatScores(p.FormatScores), p.MinFormatScore, p.CutoffFormatScore, p.NoSeasonPacks, p.SkipBadReleases, encodeOrder(p.QualityOrder), encodeExtras(p.Extras),
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
@@ -333,10 +351,10 @@ func (r *Repo) Update(p Profile) (Profile, error) {
 		return Profile{}, err
 	}
 	res, err := r.db.Exec(
-		`UPDATE quality_profiles SET name = ?, allowed_tiers = ?, cutoff = ?, upgrade_allowed = ?, must_contain = ?, must_not_contain = ?, preferred = ?, fallback = ?, max_size_gb = ?, format_scores = ?, min_format_score = ?, cutoff_format_score = ?, no_season_packs = ?, skip_bad = ?, quality_order = ? WHERE id = ?`,
+		`UPDATE quality_profiles SET name = ?, allowed_tiers = ?, cutoff = ?, upgrade_allowed = ?, must_contain = ?, must_not_contain = ?, preferred = ?, fallback = ?, max_size_gb = ?, format_scores = ?, min_format_score = ?, cutoff_format_score = ?, no_season_packs = ?, skip_bad = ?, quality_order = ?, extras = ? WHERE id = ?`,
 		p.Name, encodeTiers(p.Allowed), string(p.Cutoff), p.UpgradeAllowed,
 		encodeLines(p.MustContain), encodeLines(p.MustNotContain), encodePreferred(p.Preferred), encodeFallback(p.Fallback), p.MaxSizeGB,
-		encodeFormatScores(p.FormatScores), p.MinFormatScore, p.CutoffFormatScore, p.NoSeasonPacks, p.SkipBadReleases, encodeOrder(p.QualityOrder), p.ID,
+		encodeFormatScores(p.FormatScores), p.MinFormatScore, p.CutoffFormatScore, p.NoSeasonPacks, p.SkipBadReleases, encodeOrder(p.QualityOrder), encodeExtras(p.Extras), p.ID,
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {

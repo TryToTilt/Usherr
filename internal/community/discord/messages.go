@@ -45,9 +45,18 @@ type dMessage struct {
 		ContentType string `json:"content_type"`
 	} `json:"attachments"`
 	Embeds []struct {
-		Type      string    `json:"type"`
-		Image     *dPicture `json:"image"`
-		Thumbnail *dPicture `json:"thumbnail"`
+		Type        string    `json:"type"`
+		Title       string    `json:"title"`
+		Description string    `json:"description"`
+		Image       *dPicture `json:"image"`
+		Thumbnail   *dPicture `json:"thumbnail"`
+		Fields      []struct {
+			Name  string `json:"name"`
+			Value string `json:"value"`
+		} `json:"fields"`
+		Footer *struct {
+			Text string `json:"text"`
+		} `json:"footer"`
 	} `json:"embeds"`
 }
 
@@ -62,6 +71,7 @@ func (m dMessage) message(botID string) community.Message {
 			out.User.Name = m.Member.Nick
 		}
 		out.FromBot = m.Author.ID == botID && m.WebhookID == ""
+		out.ByBot = m.Author.Bot && m.WebhookID == ""
 	}
 	for _, a := range m.Attachments {
 		if strings.HasPrefix(a.ContentType, "image/") {
@@ -75,8 +85,31 @@ func (m dMessage) message(botID string) community.Message {
 		} else if e.Image != nil && e.Type != "rich" {
 			out.Images = append(out.Images, e.Image.src())
 		}
+		// A bot's card (another Usherr's watch party): its words, to read.
+		if e.Type == "rich" && out.Card == nil {
+			c := &community.Card{Title: e.Title, Description: e.Description}
+			for _, f := range e.Fields {
+				c.Fields = append(c.Fields, community.Field{Name: f.Name, Value: f.Value})
+			}
+			if e.Footer != nil {
+				c.Footer = e.Footer.Text
+			}
+			out.Card = c
+		}
 	}
 	return out
+}
+
+// ReadMessage reads one message, with its card.
+func (b *Bot) ReadMessage(ctx context.Context, ref community.Ref) (community.Message, error) {
+	var m dMessage
+	if err := b.rest.do(ctx, "GET", "/channels/"+ref.Channel+"/messages/"+ref.ID, nil, &m); err != nil {
+		return community.Message{}, err
+	}
+	b.mu.Lock()
+	botID := b.status.ID
+	b.mu.Unlock()
+	return m.message(botID), nil
 }
 
 // messageEvent reads MESSAGE_CREATE, MESSAGE_UPDATE and MESSAGE_DELETE.

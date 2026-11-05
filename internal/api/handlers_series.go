@@ -281,6 +281,10 @@ type addSeriesRequest struct {
 	// RootPath is the TV folder to keep it in; left out = where new shows go
 	// (Settings > Library > Folders).
 	RootPath string `json:"rootPath"`
+	// Seasons (Usherr) are the only seasons to monitor ([] = what Monitor
+	// says). For a show already in the library they are switched on and
+	// searched: "more seasons" (season_requests.go).
+	Seasons []int `json:"seasons"`
 }
 
 // handleAddSeries adds a show and its complete episode list (every real
@@ -307,6 +311,10 @@ func (s *Server) handleAddSeries(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	} else if ok {
+		if len(req.Seasons) > 0 { // Usherr: more seasons of a show that is here
+			s.addMoreSeasons(w, r, existing, req.Seasons)
+			return
+		}
 		writeError(w, http.StatusConflict, fmt.Sprintf("%s is already in your library", existing.Title))
 		return
 	}
@@ -348,6 +356,10 @@ func (s *Server) handleAddSeries(w http.ResponseWriter, r *http.Request) {
 				created.Monitored = true
 			}
 		}
+	}
+	if len(req.Seasons) > 0 { // Usherr: only the seasons asked for
+		s.monitorOnlySeasons(created.ID, req.Seasons)
+		created.Monitored = true
 	}
 	if req.ProfileID != 0 {
 		if err := s.MovieRepo.SetSeriesProfile(created.ID, req.ProfileID); err == nil {

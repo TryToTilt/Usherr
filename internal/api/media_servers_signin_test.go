@@ -206,7 +206,7 @@ func newFakeJellyfinLogin(t *testing.T) *fakeJellyfinLogin {
 	auth := func(w http.ResponseWriter) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"AccessToken": "jf-access", "ServerId": "jf-1",
-			"User": map[string]any{"Name": "ryan", "Policy": map[string]any{"IsAdministrator": true}},
+			"User": map[string]any{"Id": "jf-user-1", "Name": "ryan", "Policy": map[string]any{"IsAdministrator": true}},
 		})
 	}
 	f.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -222,6 +222,10 @@ func newFakeJellyfinLogin(t *testing.T) *fakeJellyfinLogin {
 		case "/Users/AuthenticateByName":
 			var body struct{ Username, Pw string }
 			_ = json.Unmarshal(b, &body)
+			if body.Username == "jamie" && body.Pw == "jamie-pw" { // Usherr: a friend signing in to Usherr with Jellyfin
+				_ = json.NewEncoder(w).Encode(map[string]any{"AccessToken": "jf-friend", "User": map[string]any{"Id": "jf-user-2", "Name": "jamie"}})
+				return
+			}
 			if body.Username != "ryan" || body.Pw != "pw" {
 				http.Error(w, "", http.StatusUnauthorized)
 				return

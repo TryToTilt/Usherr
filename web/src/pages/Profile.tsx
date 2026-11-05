@@ -29,6 +29,7 @@ import { FieldError, FormProblem, useValidation, type FieldProps } from '../useV
 import { useFocusTrap } from '../useFocusTrap'
 import { locale, plural, t, tx } from '../i18n'
 import TipLabel from '../components/TipLabel'
+import MediaSignInCard from '../components/MediaSignInCard'
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -794,6 +795,7 @@ export function SignInSettings() {
   return (
     <div className="settings-stack">
       <SignInMethods />
+      <MediaSignInCard />
       <ProxySignIn />
     </div>
   )

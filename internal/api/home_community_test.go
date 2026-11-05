@@ -34,6 +34,7 @@ type fakeDiscord struct {
 	wmu      sync.Mutex
 	replies  []map[string]any
 	calls    []fakeCall // every API call after connecting
+	hostCard string     // a friend's Usherr's party card, under thread 850…2 (TestCommunityJoinedParty)
 }
 
 type fakeCall struct {
@@ -84,6 +85,18 @@ func newFakeDiscord(t *testing.T) *fakeDiscord {
 	up := websocket.Upgrader{}
 	f.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		// A friend's watch party in their server: its open threads, and their cards.
+		case r.Method == "GET" && r.URL.Path == "/guilds/900000000000000001/threads/active":
+			_, _ = w.Write([]byte(`{"threads":[{"id":"850000000000000001","name":"Other film watch party","parent_id":"700000000000000002"},{"id":"850000000000000002","name":"Heat watch party","parent_id":"700000000000000002"}]}`))
+		case r.Method == "GET" && r.URL.Path == "/channels/700000000000000002/messages/850000000000000002":
+			f.mu.Lock()
+			card := f.hostCard
+			f.mu.Unlock()
+			_, _ = w.Write([]byte(card))
+		case r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/channels/700000000000000002/messages/"):
+			_, _ = w.Write([]byte(`{"id":"850000000000000001","channel_id":"700000000000000002","content":"","author":{"id":"77","username":"friendbot","bot":true},"embeds":[{"type":"rich","title":"Other","fields":[{"name":"Showtime code","value":"AAAA-AAAA-AAAAA"}]}]}`))
+		case r.Method == "GET" && r.URL.Path == "/channels/850000000000000002/messages":
+			_, _ = w.Write([]byte(`[]`))
 		// Step 5: the party thread's history, the channel's webhook, and
 		// posting through it.
 		case r.Method == "GET" && r.URL.Path == "/channels/800000000000000005/messages":

@@ -82,6 +82,17 @@ function AddForm({
   const [profileId, setProfileId] = useState(0)
   const [monitored, setMonitored] = useState(true)
   const [monitor, setMonitor] = useState<'all' | 'future' | 'none'>('all')
+  // Usherr: which seasons to ask for ([] = all, as monitor says).
+  const [seasonCount, setSeasonCount] = useState(0)
+  const [seasons, setSeasons] = useState<number[]>([])
+  useEffect(() => {
+    if (isMovie) return
+    api
+      .tmdbTVDetail(target.tmdbId)
+      .then((d) => setSeasonCount(d.seasons ?? 0))
+      .catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target.tmdbId])
   const [sources, setSources] = useState<SourcePref>('')
   const [searchNow, setSearchNow] = useState(true)
   // The library folders to choose from, when more than one is set up (the main one first).
@@ -158,7 +169,7 @@ function AddForm({
       let libraryId: number
       const res = isMovie
         ? await api.addMovie(target.tmdbId, { profileId: profileId || undefined, monitored, sources, searchNow: searchNow && !cannotSearch, noUpgrade: !keepBetter, rootPath: rootPath || undefined, fourK: fourKOffered && wantFourK ? true : undefined })
-        : await api.addSeries(target.tmdbId, { profileId: profileId || undefined, monitor, sources, searchNow: searchNow && !cannotSearch, noUpgrade: !keepBetter, rootPath: rootPath || undefined, fourK: fourKOffered && wantFourK ? true : undefined })
+        : await api.addSeries(target.tmdbId, { profileId: profileId || undefined, monitor, seasons: seasons.length > 0 ? seasons : undefined, sources, searchNow: searchNow && !cannotSearch, noUpgrade: !keepBetter, rootPath: rootPath || undefined, fourK: fourKOffered && wantFourK ? true : undefined })
       if (isRequested(res)) {
         toast.success(st(res.message))
         onClose()
@@ -268,6 +279,28 @@ function AddForm({
                 <option value="none">{t('None (add it, download nothing)')}</option>
               </select>
             </label>
+          )}
+          {!isMovie && seasonCount > 1 && monitor !== 'none' && (
+            <div className="add-seasons" role="group" aria-label={t('Seasons')}>
+              <span>{t('Seasons')}</span>
+              <div className="tr-chips">
+                <button type="button" className={`chip${seasons.length === 0 ? ' active' : ''}`} aria-pressed={seasons.length === 0} onClick={() => setSeasons([])}>
+                  {t('All')}
+                </button>
+                {Array.from({ length: seasonCount }, (_, i) => i + 1).map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className={`chip${seasons.includes(n) ? ' active' : ''}`}
+                    aria-pressed={seasons.includes(n)}
+                    onClick={() => setSeasons(seasons.includes(n) ? seasons.filter((x) => x !== n) : [...seasons, n].sort((a, b) => a - b))}
+                  >
+                    {t('Season {n}', { n })}
+                  </button>
+                ))}
+              </div>
+              {seasons.length > 0 && <small style={{ color: 'var(--text-dim)' }}>{asks ? t('Only these seasons are asked for.') : t('Only these seasons are monitored and searched for.')}</small>}
+            </div>
           )}
 
           <div className="add-tags">

@@ -5,6 +5,56 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.46.0] - 2026-11-04
+
+### Added
+
+- **Service checks** (Settings, System, Service checks; also a tile in the Server area). Usherr asks the addresses you list every so often (Jellyfin, Plex, your download clients, Prowlarr, or any web address) and shows whether each is answering, since when, its response time, the latest checks as a strip, uptime over the last 24 hours and 7 days, and its outages. For each: what counts as working (200 only, any 2xx or 3xx, or any answer), an optional word the page must contain, how often to check, and how many failed checks in a row before a message (3 by default, so a restart or a blip stays quiet). "Try it" tests an address before you save it, and Usherr suggests the media servers, download clients, Prowlarr, FlareSolverr and add-ons it already knows. Two new notification events, "Service down" and "Service back", send one message when a service stops answering and one when it is back; tick them on a notification to get them. This does the job of a separate watchdog container.
+
+## [2.45.0] - 2026-11-04
+
+### Added
+
+- Usherr plays saved NZBs again by itself, so StreamNZB isn't needed for them. A streamed movie or episode with a saved release is read straight from your Usenet servers: no search, and no NZB fetched from an indexer again. Before a saved release is offered, Usherr checks a sample of its articles on your servers (the answer is kept for 12 hours); one whose articles are gone is marked dead and the drive's search looks for another. When your first Usenet server is missing an article, the next one is asked, and Usherr never opens more connections than each server allows.
+  - The streamed library (Jellyfin's pointer files) plays the saved release first when Usherr's own engine is chosen (Settings, Extras, Streaming). With StreamNZB chosen, the saved release is still the last resort, now played by Usherr.
+  - The Stremio and Nuvio add-on offers a title's saved release as a "Saved" stream, above the releases found by search, so a Stremio install can point at Usherr's add-on address instead of StreamNZB's.
+
+## [2.44.0] - 2026-11-04
+
+### Added
+
+- Ask for some seasons of a show, as in Seerr. The add (or request) dialog lists the show's seasons: pick some and only those are monitored and searched for. Asking for more seasons of a show that's already here switches those seasons on and searches them; each set of seasons is its own request.
+- Friends sign in with the Jellyfin or Plex account they already have (Settings, Account & Access, Ways to sign in, "Sign in with Jellyfin or Plex"; off until switched on). Jellyfin names and passwords are checked by your Jellyfin server; "Sign in with Plex" lets in Plex accounts your Plex server is shared with. The first sign-in makes a member (or viewer) account, found again later by the Jellyfin or Plex account's own id. Names with a password here keep signing in here, and two-step sign-in still applies.
+
+### Fixed
+
+- The list of routes members may use now includes removing and restoring a ticket stub (2.41.0), so the routes check passes again.
+
+## [2.43.0] - 2026-11-04
+
+### Added
+
+- Tags that do something, as in Radarr and Sonarr (Settings, Library, the automation page, "Tags").
+  - Auto-tagging: a rule gives its tag to every movie or show that matches it, by genre, years, the language it was made in, movie or show, and library folder, and can take the tag off titles that stop matching. Rules run when saved, from "Tag the library now", and every six hours for new titles. Tags still become collections in Plex, Jellyfin and Emby.
+  - Tag rules: titles with a tag search only the indexers ticked for it, or only Usenet or torrents, in automatic searches. With a profile that limits indexers too, only indexers both allow are used.
+
+## [2.42.0] - 2026-11-04
+
+### Added
+
+- Quality profiles have a Simple and an Advanced mode (Settings, Quality, the switch beside "Quality profiles"; it replaces the "Show advanced options" switch).
+  - Simple: pick a quality (Save space, HD, Best HD, 4K, or 4K else HD), set the largest file with a slider or by typing any size up to 1000 GB (or no limit), and three switches. A list shows which example releases the profile would take, and why. Settings made in Advanced are kept and named.
+  - Advanced: everything a profile had, plus sizes per quality (smallest, preferred and largest), the smallest score gain worth an upgrade, stopping upgrades a number of days after release, TRaSH score sets added in one step, preferred and never-taken release groups, patterns between slashes in the release-name rules (like /AMZN|NF/), the profile's own audio languages, preferring English subtitles or x265, which indexers it searches, Usenet or torrents only, release age limits, and Export as JSON.
+  - Both: "Try a release name" judges any release name against the profile as it stands in the form, with the same checks a search makes.
+- Bring your custom formats over from Radarr and Sonarr (Settings, Import, "Custom formats"), ready to score in Usherr's own profiles. Their profiles stay behind. Importing again updates the copies instead of adding more. A format both apps have under one name keeps the two apart as "<name> (TV)".
+
+## [2.41.0] - 2026-11-04
+
+### Added
+
+- A friend's watch party, joined with its showtime code, now links up with the friend's Discord thread. Once your Usherr's own bot is in their server (they add it with your bot's invite link), Usherr finds the party by its code by itself. You see and join its chat on the Showtime page. Your ticket stub says who hosted and who else came. When you press the host's "Get my stub stamped", your stub here is stamped too. The Showtime page walks you through the steps and has a button to copy the invite link; so does Settings, Movie night, Community. (GitHub issue #2)
+- Remove a ticket stub (You, Ticket stubs). You confirm it twice, and Undo brings it back. (GitHub issue #3)
+
 ## [2.40.0] - 2026-11-04
 
 ### Added

@@ -85,6 +85,8 @@ var memberRoutes = []string{
 	"GET /api/search",
 	"POST /api/search/grab",
 	"GET /api/quality-profiles",
+	"POST /api/quality-profiles/try",                                                 // Usherr: the profile editor's release tester
+	"DELETE /api/home/stubs/{from}/{id}", "POST /api/home/stubs/{from}/{id}/restore", // Usherr: removing a ticket stub
 	"GET /api/custom-formats",
 	"GET /api/stats/history",
 	"POST /api/custom-formats/test",

@@ -21,6 +21,7 @@ func (s *Server) newMigrator() *migrate.Importer {
 		Indexers:           s.IndexerRepo,
 		Servers:            s.ClientRepo,
 		Profiles:           s.QualityRepo,
+		Formats:            s.FormatRepo, // Usherr: custom formats
 		TMDB:               s.TMDB,
 		MoviesRoot:         s.moviesRoot,
 		TVRoot:             s.tvRoot,

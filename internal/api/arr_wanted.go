@@ -86,7 +86,7 @@ func (s *Server) arrWantedCutoff(app arrApp) http.HandlerFunc {
 				if !m.Monitored || m.Status != library.StatusDownloaded || m.FilePath == "" {
 					continue
 				}
-				if !wantsUpgrade(s.profileForMovie(profiles, m), m.Quality, m.ReleaseTitle) {
+				if !wantsUpgrade(s.profileForMovie(profiles, m), m.Quality, m.ReleaseTitle, m.ReleaseDate) {
 					continue
 				}
 				list = append(list, s.toArrMovie(m, c))
@@ -113,7 +113,7 @@ func (s *Server) arrWantedCutoff(app arrApp) http.HandlerFunc {
 				if !se.series.Monitored || !se.ep.Monitored || se.ep.Status != library.StatusDownloaded {
 					continue
 				}
-				if !wantsUpgrade(s.profileForSeries(profiles, se.series), se.ep.Quality, se.ep.ReleaseTitle) {
+				if !wantsUpgrade(s.profileForSeries(profiles, se.series), se.ep.Quality, se.ep.ReleaseTitle, se.ep.AirDate) {
 					continue
 				}
 				if series[se.series.ID] == nil {

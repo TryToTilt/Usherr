@@ -236,7 +236,7 @@ func (d ircDecider) decideMovie(ctx context.Context, res indexers.Result, movies
 				why = fmt.Sprintf("%s is downloaded and set not to be upgraded.", movieLabel(m))
 				continue
 			}
-			if !wantsUpgrade(profile, m.Quality, m.ReleaseTitle) {
+			if !wantsUpgrade(profile, m.Quality, m.ReleaseTitle, m.ReleaseDate) {
 				why = fmt.Sprintf("%s is already at the quality its profile asks for.", movieLabel(m))
 				continue
 			}

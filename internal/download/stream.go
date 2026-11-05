@@ -356,6 +356,14 @@ type StreamFile struct {
 	Name  string
 	Size  int64
 	spans []span
+	ra    io.ReaderAt // Usherr: a stand-in's bytes (StreamFileFrom), in place of spans
+}
+
+// StreamFileFrom is a StreamFile read from r instead of from Usenet: for a
+// stand-in in tests, so code that serves streams can be tried without a
+// news server.
+func StreamFileFrom(name string, r io.ReaderAt, size int64) *StreamFile {
+	return &StreamFile{Name: name, Size: size, ra: r}
 }
 
 // span is a stretch of the video held in one NZB file.
@@ -378,6 +386,19 @@ func (f *StreamFile) Parts() []string {
 
 // ReadAt reads the video's bytes at off.
 func (f *StreamFile) ReadAt(p []byte, off int64) (int, error) {
+	if f.ra != nil {
+		if off >= f.Size {
+			return 0, io.EOF
+		}
+		if rest := f.Size - off; int64(len(p)) > rest {
+			n, err := f.ra.ReadAt(p[:rest], off)
+			if err == nil {
+				err = io.EOF
+			}
+			return n, err
+		}
+		return f.ra.ReadAt(p, off)
+	}
 	n := 0
 	for n < len(p) {
 		at := off + int64(n)

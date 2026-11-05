@@ -126,6 +126,7 @@ type plan struct {
 	subtitles *subtitlePlan
 	servers   []serverPlan
 	profiles  []ProfileMapping
+	formats   []*formatsPlan // Usherr: Radarr's and Sonarr's custom formats (formats.go)
 }
 
 // state is Mediarium as it is before the import.
@@ -271,6 +272,9 @@ func (im *Importer) plan(ctx context.Context, snap snapshot, opts Options) (*pla
 		if snap.radarrErr == nil {
 			tp.RootFolders = describeRoots(radarrRoots, effective, suggested)
 			im.planMovies(p, tp, snap.radarr, st, effective, opts.ProfileMapping, useProfiles)
+			fp := planFormats(quality.AppRadarr, "Radarr", snap.radarr.Formats)
+			tp.CustomFormats = fp.summary()
+			p.formats = append(p.formats, fp)
 		}
 		p.preview.Radarr = tp
 	}
@@ -279,6 +283,9 @@ func (im *Importer) plan(ctx context.Context, snap snapshot, opts Options) (*pla
 		if snap.sonarrErr == nil {
 			tp.RootFolders = describeRoots(sonarrRoots, effective, suggested)
 			im.planSeries(ctx, p, tp, snap.sonarr, st, effective, opts.ProfileMapping, useProfiles)
+			fp := planFormats(quality.AppSonarr, "Sonarr", snap.sonarr.Formats)
+			tp.CustomFormats = fp.summary()
+			p.formats = append(p.formats, fp)
 		}
 		p.preview.Sonarr = tp
 	}

@@ -57,6 +57,12 @@ type Backend interface {
 	// PostAs posts text in a thread of a channel under someone's own name and
 	// picture (what they typed in Usherr).
 	PostAs(ctx context.Context, channel, thread string, as User, text string) (Ref, error)
+	// ReadMessage reads one message, with its card (a friend's Usherr's
+	// watch party, read by a guest's Usherr).
+	ReadMessage(ctx context.Context, ref Ref) (Message, error)
+	// Threads lists a server's open threads ("thread" channels, with the
+	// channel each is under as Parent).
+	Threads(ctx context.Context, server string) ([]Channel, error)
 	// Close disconnects.
 	Close()
 }
@@ -143,7 +149,7 @@ type Server struct {
 type Channel struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
-	Kind     string `json:"kind"`             // "text", "forum", "announcement", "voice" or "category"
+	Kind     string `json:"kind"`             // "text", "forum", "announcement", "voice", "category" or "thread"
 	Parent   string `json:"parent,omitempty"` // the category it's in
 	Position int    `json:"position"`
 }
@@ -194,6 +200,10 @@ type Message struct {
 	At      time.Time `json:"at"`
 	Edited  bool      `json:"edited,omitempty"`
 	FromBot bool      `json:"fromBot,omitempty"` // the bot's own (the party's alerts)
+	// ByBot: a bot wrote it (this one or another, not through a webhook).
+	ByBot bool `json:"-"`
+	// Card: the card under it, when a bot posted one (ReadMessage, History).
+	Card *Card `json:"-"`
 }
 
 // MessageEvent is a message said, changed (Kind "edit") or taken back

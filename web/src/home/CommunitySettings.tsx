@@ -2,6 +2,7 @@
 // /settings/community). The household's own Discord bot: its token, whether
 // it's connected, the link that invites it to a server, and the channel
 // Usherr posts in. Watch parties and reviews build on this.
+import { copyText } from '../components/CopyBox'
 import { useCallback, useEffect, useState } from 'react'
 import Switch from '../components/Switch'
 import { useToast } from '../components/Toast'
@@ -209,6 +210,7 @@ export default function CommunitySettings() {
               {t('Invite the bot')}
             </a>
           )}
+          {a.inviteUrl && <FriendsInvite link={a.inviteUrl} />}
           {servers.length === 0 ? (
             <p className="hint">{t('The bot isn’t in a server yet. This page notices by itself once you’ve invited it.')}</p>
           ) : (
@@ -298,6 +300,23 @@ export default function CommunitySettings() {
           )}
         </section>
       )}
+    </div>
+  )
+}
+
+// Usherr: joining a friend's watch parties with their showtime codes. The
+// friend adds this bot to their server with the same link; then the party's
+// chat and the stamp reach this Usherr (home_community_joined.go).
+function FriendsInvite({ link }: { link: string }) {
+  const [copied, setCopied] = useState<boolean | null>(null)
+  return (
+    <div className="cm-friends">
+      <p className="hint">{t('Watching a friend’s parties from here, with their showtime codes? Send them this same link: they open it, choose their server and press Authorize. Then their party’s chat shows here, and their stamp reaches your stub.')}</p>
+      <button type="button" className="btn-sm" onClick={() => void copyText(link).then(setCopied)}>
+        {t('Copy the invite link')}
+      </button>
+      {copied === true && <span className="hint"> {t('Copied.')}</span>}
+      {copied === false && <input readOnly value={link} aria-label={t('The bot’s invite link')} onFocus={(e) => e.currentTarget.select()} />}
     </div>
   )
 }

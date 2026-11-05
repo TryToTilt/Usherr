@@ -121,6 +121,7 @@ const NotificationSettings = lazy(() => import('./pages/settings/NotificationSet
 const QualitySettings = lazy(() => import('./pages/settings/QualitySettings'))
 const SubtitleSettings = lazy(() => import('./pages/settings/SubtitleSettings'))
 const VPNSettings = lazy(() => import('./pages/settings/VPNSettings'))
+const ServiceChecksSettings = lazy(() => import('./pages/settings/ServiceChecksSettings')) // Usherr: Service checks
 // home fork: its own pages, loaded when opened
 const SchedulesSettings = lazy(() => import('./home/SchedulesSettings'))
 const ExtrasSettings = lazy(() => import('./home/ExtrasSettings'))
@@ -305,6 +306,7 @@ function Gate() {
           <Route path="notifications" element={<AdminOnly><NotificationSettings /></AdminOnly>} />
           <Route path="profile" element={<Profile />} />
           <Route path="system" element={<AdminOnly><SystemSettings /></AdminOnly>} />
+          <Route path="service-checks" element={<AdminOnly><ServiceChecksSettings /></AdminOnly>} /> {/* Usherr: Service checks */}
           <Route path="backup" element={<AdminOnly><BackupSettings /></AdminOnly>} />
           <Route path="accounts" element={<AdminOnly><AllAccounts /></AdminOnly>} />
           <Route path="requests" element={<AdminOnly><RequestsSettings /></AdminOnly>} />

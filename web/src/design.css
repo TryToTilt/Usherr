@@ -2313,6 +2313,77 @@ legend .srv-dot { margin-left: 6px; }
 .profiles-table tr.profile-edit-row > td { padding: 0 0 12px; }
 .music-profile-form { scroll-margin-top: 12px; }
 
+/* Usherr: the profile editor's Simple and Advanced modes, and its release tester. */
+.qp-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.qp-head h2 { margin: 0; }
+.ps-simple { display: grid; gap: 14px; min-width: 0; }
+.ps-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 104px), 1fr)); gap: 8px; }
+.settings-content .ps-choices .ps-choice, .ps-choices .ps-choice {
+  display: grid; gap: 3px; align-content: start; text-align: left; padding: 10px 12px; min-height: 0;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font: inherit; cursor: pointer;
+}
+.ps-choice small { color: var(--text-dim); font-size: 0.78rem; font-weight: 400; }
+.ps-choice:hover { border-color: var(--accent); }
+.settings-content .ps-choices .ps-choice.active, .ps-choices .ps-choice.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); box-shadow: inset 0 0 0 1px var(--accent); }
+.ps-sizer { display: flex; align-items: center; gap: 12px; }
+.ps-sizer input[type='range'] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.ps-sizebox, .grid-form label.ps-sizebox { display: flex; flex-direction: row; align-items: center; gap: 6px; flex: none; }
+.ps-sizebox input { width: 84px; }
+.ps-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.settings-content .ps-chips .chip, .ps-chips .chip { padding: 3px 12px; min-height: 0; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 0.8rem; cursor: pointer; }
+.ps-note { margin: 6px 0 0; color: var(--text-dim); font-size: 0.82rem; }
+.ps-kept { border-left: 3px solid var(--warning); background: var(--surface-2); border-radius: 0 6px 6px 0; padding: 8px 12px; font-size: 0.85rem; }
+.pt-samples { display: grid; gap: 8px; }
+.pt-sample { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: baseline; font-size: 0.85rem; }
+.pt-sample code { font-family: var(--font-mono); font-size: 0.78rem; overflow-wrap: anywhere; min-width: 0; }
+.pt-sample .pt-why { grid-column: 2; }
+.pt-why, .pt-hint, .pt-wait { color: var(--text-dim); font-size: 0.8rem; }
+.pt-hint { margin: 0; }
+.pt-pill { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: 0.74rem; font-weight: 700; border: 1px solid currentColor; }
+.pt-pill.take { color: var(--success); }
+.pt-pill.skip { color: var(--danger); }
+.pt-tester { display: grid; gap: 10px; }
+.pt-inputs { display: flex; flex-wrap: wrap; gap: 10px; }
+.pt-inputs > label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 260px; min-width: 0; }
+.pt-inputs > label.pt-size { flex: 0 1 140px; }
+.pt-inputs input { font-family: var(--font-mono); font-size: 0.85rem; }
+.pt-verdict { display: grid; gap: 4px; padding: 10px 12px; border-radius: 8px; background: var(--surface-2); font-size: 0.86rem; overflow-wrap: anywhere; }
+.pt-verdict ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+.pa-col { align-content: start; }
+.pa-hint { color: var(--text-dim); font-size: 0.8rem; margin: 0; }
+.pa-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 10px 14px; }
+.pa-two > label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pa-scroll { overflow-x: auto; }
+.settings-content .card table.pa-sizes { border-spacing: 0 2px; }
+.pa-sizes { font-variant-numeric: tabular-nums; }
+.settings-content .card table.pa-sizes td, .pa-sizes td { padding: 4px 6px; white-space: nowrap; font-size: 0.85rem; }
+.pa-sizes input { width: 68px; }
+/* The sizes table sits inside the profile list's table: undo that table's column rules. */
+.settings-content .profiles-table table.pa-sizes td, .settings-content .profiles-table table.pa-sizes td:first-child {
+  width: auto; min-width: 0; font-family: var(--font-body); font-weight: 400; font-size: 0.85rem; letter-spacing: 0; padding: 4px 6px; background: none;
+}
+.settings-content .profiles-table table.pa-sizes th { padding: 0 6px 2px; }
+.pa-langs { margin: 0; padding-left: 20px; display: grid; gap: 2px; font-size: 0.88rem; }
+.pa-langs li > button { margin-left: 6px; vertical-align: middle; }
+.pa-indexers { display: grid; gap: 6px; font-size: 0.86rem; }
+/* Usherr: Settings, Library, automation: tags. */
+.tag-rules { display: grid; gap: 14px; }
+.tag-rules .profile-fieldset { display: grid; gap: 10px; }
+.tr-rule { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.tr-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.tr-row > label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 140px; min-width: 0; }
+.tr-row > .check-hint { flex: 0 1 auto; flex-direction: row; }
+.tr-foot { align-items: center; }
+.tr-foot .icon-btn { margin-left: auto; }
+.tr-wide { display: flex; flex-direction: column; gap: 4px; }
+.tr-picks { display: grid; gap: 4px; font-size: 0.86rem; }
+.tr-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.settings-content .tr-chips .chip, .tr-chips .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; min-height: 0; border-radius: 999px; font-size: 0.8rem; cursor: pointer; }
+.tr-chips select { width: auto; }
+.tr-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Usherr: picking seasons when adding or asking for a show. */
+.add-seasons { display: grid; gap: 6px; }
+
 /* Custom format scores in the profile form, and the Custom formats card. */
 .format-scores { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 6px 14px; max-height: 320px; overflow-y: auto; padding-right: 4px; }
 .grid-form .format-score-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; color: var(--text); font-size: 0.85rem; }

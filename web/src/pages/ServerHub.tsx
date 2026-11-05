@@ -32,9 +32,14 @@ function Tile({ to, icon, title, sub, count, color }: { to: string; icon: IconNa
 export default function ServerHub() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [downloads, setDownloads] = useState(0)
+  const [servicesDown, setServicesDown] = useState(0) // Usherr: Service checks
   const unreadErrors = useUnreadErrors(true)
   const load = useCallback(() => {
     api.dashboard().then(setData).catch(() => undefined)
+    api
+      .serviceChecks()
+      .then((r) => setServicesDown(r.checks.filter((c) => c.enabled && c.state === 'down').length))
+      .catch(() => undefined)
     api
       .queueCount()
       .then((c) => setDownloads(c.active))
@@ -92,6 +97,7 @@ export default function ServerHub() {
           <Tile to="/queue" icon="download" title={t('Downloads')} sub={t('What’s downloading, what failed, and the history')} count={downloads} />
           <Tile to="/wanted" icon="bookmark" title={t('Wanted')} sub={t('Films and episodes still to find')} count={wanted} />
           <Tile to="/server/overview" icon="grid" title={t('Overview')} sub={t('The full dashboard: library size, folders, recent downloads')} />
+          <Tile to="/settings/service-checks" icon="activity" title={t('Service checks')} sub={t('Whether Jellyfin and your other programs are answering')} count={servicesDown} /> {/* Usherr */}
           <Tile to="/settings/accounts" icon="user" title={t('Accounts')} sub={t('Who can watch, ask for films, book movie nights, and delete')} />
           <Tile to="/marquee/manage" icon="monitor" title={t('Marquee')} sub={t('The lobby screen by the TV')} />
           <Tile to="/preshow/manage" icon="film" title={t('Pre-show')} sub={t('What plays before a showtime')} />

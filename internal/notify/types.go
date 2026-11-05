@@ -63,13 +63,17 @@ func EventKinds() []EventInfo {
 		{EventReminder, "TV reminders", "A Live TV show you asked to be reminded of starts in five minutes."}, // Usherr
 		// Usherr: Read-to-Me
 		{EventAudiobook, "Audiobooks made", "Read-to-Me finished making an audiobook of an ebook, or couldn't."},
+		// Usherr: Service checks
+		{EventServiceDown, "Service down", "A service on the Service checks list stopped answering."},
+		{EventServiceUp, "Service back", "A service that was down answers again."},
 	}
 }
 
 // OptIn reports whether a kind is only sent to targets that chose it. An empty
 // list of events (older targets) means every kind except these.
 func OptIn(kind string) bool {
-	return kind == EventClientDown || kind == EventClientUp || kind == EventTrashSync
+	return kind == EventClientDown || kind == EventClientUp || kind == EventTrashSync ||
+		kind == EventServiceDown || kind == EventServiceUp // Usherr: Service checks
 }
 
 // DefaultEvents is what a target subscribes to when it doesn't say.

@@ -24,6 +24,7 @@ import (
 
 	"github.com/rdborg/mediarium/internal/brand"
 	"github.com/rdborg/mediarium/internal/community"
+	"github.com/rdborg/mediarium/internal/community/discord"
 )
 
 type party struct {
@@ -35,6 +36,7 @@ type party struct {
 	EventID    string
 	Host       string
 	Told       string
+	joined     bool // a friend's party joined by its code (chatPartyOf): not ours to change
 }
 
 type partyPerson struct {
@@ -430,6 +432,18 @@ func (s *Server) partyButton(in community.Interaction) string {
 type partyInfo struct {
 	Going    []string `json:"going"`
 	CantMake int      `json:"cantMake"`
+	// Usherr: a friend's party joined by its code. Host: who hosts it, once
+	// found in their server; Waiting: not found there yet (this Usherr's bot
+	// isn't in their server, or the party isn't shared).
+	Joined  bool   `json:"joined,omitempty"`
+	Host    string `json:"host,omitempty"`
+	Waiting bool   `json:"waiting,omitempty"`
+	// What a joined party still needs here: Bot "off" (this Usherr has no
+	// bot connected yet) or "on"; Invite: the bot's invite link, to send the
+	// host; NeedLink: whoever booked it hasn't linked their Discord account.
+	Bot      string `json:"bot,omitempty"`
+	Invite   string `json:"invite,omitempty"`
+	NeedLink bool   `json:"needLink,omitempty"`
 }
 
 // withParties adds each shared Showtime's party: who's going.
@@ -437,6 +451,15 @@ func (s *Server) withParties(ctx context.Context, list []showtime) map[int64]par
 	out := map[int64]partyInfo{}
 	for _, st := range list {
 		if _, ok := s.partyOf(ctx, st.ID); !ok {
+			if j, ok := s.joinedOf(ctx, st.ID); ok {
+				out[st.ID] = partyInfo{Going: append([]string{}, j.Going...), Joined: true, Host: j.Host, NeedLink: s.communityLinkOf(st.UserID) == nil}
+			} else if s.isJoined(ctx, st.ID) {
+				info := partyInfo{Going: []string{}, Joined: true, Waiting: true, Bot: "off", NeedLink: s.communityLinkOf(st.UserID) == nil}
+				if b := s.community(); b != nil && b.Status().State == "connected" {
+					info.Bot, info.Invite = "on", discord.InviteURL(b.Status().AppID)
+				}
+				out[st.ID] = info
+			}
 			continue
 		}
 		info := partyInfo{Going: []string{}}
@@ -462,6 +485,10 @@ func (s *Server) handleShareShowtime(w http.ResponseWriter, r *http.Request) {
 	}
 	if st.State == "done" || st.State == "playing" {
 		writeError(w, http.StatusBadRequest, "That showtime has already started.")
+		return
+	}
+	if s.isJoined(r.Context(), st.ID) {
+		writeError(w, http.StatusBadRequest, "That's a friend's watch party, joined with its code: it's shared in their server already.")
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)

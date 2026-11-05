@@ -382,7 +382,7 @@ func (s *Server) wantedMovieItems(ctx context.Context, kind string, profiles pro
 		p := profiles.resolve(m.ProfileID)
 		switch {
 		case kind == "missing" && movieWantedMissing(m),
-			kind == "cutoff" && m.Status == library.StatusDownloaded && !m.NoUpgrade && wantsUpgrade(p, m.Quality, m.ReleaseTitle):
+			kind == "cutoff" && m.Status == library.StatusDownloaded && !m.NoUpgrade && wantsUpgrade(p, m.Quality, m.ReleaseTitle, m.ReleaseDate):
 			item := wantedItemPayload{Kind: "movie", ID: m.ID, MovieID: m.ID, TMDBID: m.TMDBID, Title: m.Title, Date: m.ReleaseDate, ProfileName: p.Name, Copy: m.CopyOf != 0, Year: m.Year, PosterURL: wantedPoster(m.PosterPath)}
 			if item.Copy {
 				item.Subtitle = "Second copy"
@@ -410,7 +410,7 @@ func (s *Server) wantedEpisodeItems(ctx context.Context, kind string, profiles p
 		if kind == "missing" && fileExists(ep.FilePath) {
 			continue // marked missing, but the file is there
 		}
-		if kind == "cutoff" && !wantsUpgrade(p, ep.Quality, ep.ReleaseTitle) {
+		if kind == "cutoff" && !wantsUpgrade(p, ep.Quality, ep.ReleaseTitle, ep.AirDate) {
 			continue
 		}
 		label := fmt.Sprintf("S%02dE%02d", ep.Season, ep.Episode.Episode)

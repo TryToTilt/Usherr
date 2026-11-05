@@ -206,6 +206,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if viaDirectory {
 		method = auth.MethodLDAP
 		user, err = s.directorySignIn(r.Context(), dirCfg, strings.TrimSpace(req.Username), req.Password)
+	} else if s.jellyfinSignInOn(req.Username) { // Usherr: a Jellyfin name and password
+		method = auth.MethodJellyfin
+		user, err = s.jellyfinSignIn(r.Context(), strings.TrimSpace(req.Username), req.Password)
+		if err == nil || errors.Is(err, auth.ErrInvalidCredentials) {
+			waitOutFailure(r.Context(), started)
+		}
 	} else {
 		if !s.localSignInOn() {
 			if dirOn {
@@ -243,6 +249,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, auth.ErrUsernameTaken):
 		slog.Warn("auth: directory sign-in refused, the user name is taken by another account", "user", typedName, "ip", ip)
 		writeError(w, http.StatusConflict, "An account with your user name already exists here and isn't linked to the directory. Ask an administrator.")
+		return
+	case errors.Is(err, errMediaUnreachable): // Usherr
+		slog.Error("auth: Jellyfin could not be used for a sign-in", "err", err)
+		writeError(w, http.StatusBadGateway, "Jellyfin couldn't be reached. Try again in a moment, or ask an administrator.")
 		return
 	case errors.Is(err, ldapauth.ErrUnavailable):
 		slog.Error("auth: the directory could not be used for a sign-in", "err", err)

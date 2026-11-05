@@ -22,8 +22,12 @@ import (
 // below everything else, so it is only picked when nothing alive is left, and
 // among two otherwise equal torrents the one with more seeders wins (see
 // preferOver). A release whose seeders are not known is never counted as dead.
+//
+// Usherr: the profile's Advanced options add hevc (x265 over x264 at the same
+// quality), group (a preferred release group), subs (English subtitles) and
+// size (near the preferred size, or smaller), all 0 when they are off.
 type pickKey struct {
-	alive, language, tier, sub, cached, score int
+	alive, language, tier, sub, hevc, cached, group, score, subs, size int
 }
 
 // above reports whether k beats other.
@@ -40,10 +44,22 @@ func (k pickKey) above(other pickKey) bool {
 	if k.sub != other.sub {
 		return k.sub > other.sub
 	}
+	if k.hevc != other.hevc {
+		return k.hevc > other.hevc
+	}
 	if k.cached != other.cached {
 		return k.cached > other.cached
 	}
-	return k.score > other.score
+	if k.group != other.group {
+		return k.group > other.group
+	}
+	if k.score != other.score {
+		return k.score > other.score
+	}
+	if k.subs != other.subs {
+		return k.subs > other.subs
+	}
+	return k.size > other.size
 }
 
 // keyFor is the pickKey of a release that profile accepts.
@@ -55,5 +71,16 @@ func keyFor(profile quality.Profile, rel parser.Release, res *indexers.Result) p
 	if res.Cached && cachedOverScore.Load() {
 		k.cached = 1
 	}
+	// Usherr: Advanced options (internal/quality/extras.go).
+	if profile.PreferHEVC && quality.HEVC(res.Title) {
+		k.hevc = 1
+	}
+	if profile.PreferredGroup(res.Title, rel) {
+		k.group = 1
+	}
+	if profile.WantSubs && quality.HasSubs(res.Title) {
+		k.subs = 1
+	}
+	k.size = profile.SizePreference(quality.Classify(rel), res.SizeBytes)
 	return k
 }

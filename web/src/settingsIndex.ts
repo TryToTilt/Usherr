@@ -56,6 +56,7 @@ const PAGE_WORDS: Record<string, string> = {
   requests: 'quota limit approve problem reports',
   'sign-in': 'sso oidc ldap active directory login proxy',
   system: 'restart cleanup disk server health memory',
+  'service-checks': 'uptime watchdog monitor down ping status alert kuma jellyfin', // Usherr
   backup: 'restore export cloud copy',
   statistics: 'stats charts numbers',
   logs: 'errors problems debug support report',

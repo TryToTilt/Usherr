@@ -49,6 +49,7 @@ type authResult struct {
 	AccessToken string `json:"AccessToken"`
 	ServerID    string `json:"ServerId"`
 	User        struct {
+		ID     string `json:"Id"` // Usherr: who signed in (SignInUser)
 		Name   string `json:"Name"`
 		Policy struct {
 			IsAdministrator bool `json:"IsAdministrator"`
@@ -159,6 +160,43 @@ func (c *Client) SignIn(ctx context.Context, kind Kind, baseURL, deviceID, usern
 		return Server{}, explain(s, err)
 	}
 	return serverFromAuth(kind, base, info, res)
+}
+
+// MediaUser (Usherr) is a person a Jellyfin or Emby server vouched for.
+type MediaUser struct {
+	ID   string
+	Name string
+}
+
+// SignInUser (Usherr) checks a person's name and password with a Jellyfin or
+// Emby server and says who they are, so they can sign in to Usherr with
+// them. The token the server hands back is not kept.
+func (c *Client) SignInUser(ctx context.Context, kind Kind, baseURL, deviceID, username, password string) (MediaUser, error) {
+	base, err := NormalizeURL(baseURL)
+	if err != nil {
+		return MediaUser{}, userErr(err, "The server address is not valid: %v", err)
+	}
+	if strings.TrimSpace(username) == "" {
+		return MediaUser{}, userErr(nil, "Wrong username or password.")
+	}
+	s := Server{Kind: kind, BaseURL: base}
+	var res authResult
+	err = c.mbCall(ctx, s, deviceID, http.MethodPost, "/Users/AuthenticateByName", nil,
+		map[string]string{"Username": strings.TrimSpace(username), "Pw": password}, &res)
+	if errors.Is(err, errUnauthorized) {
+		return MediaUser{}, userErr(err, "Wrong username or password.")
+	}
+	if err != nil {
+		return MediaUser{}, explain(s, err)
+	}
+	if res.User.ID == "" {
+		return MediaUser{}, errors.New("the server didn't say who signed in")
+	}
+	name := res.User.Name
+	if name == "" {
+		name = strings.TrimSpace(username)
+	}
+	return MediaUser{ID: res.User.ID, Name: name}, nil
 }
 
 var (

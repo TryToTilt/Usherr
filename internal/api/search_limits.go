@@ -86,6 +86,9 @@ func (s *Server) sizeRejections(table quality.SizeLimits, minutes float64, profi
 	if reason := table.Check(tier, size, minutes, episodes); reason != "" {
 		out = append(out, reason)
 	}
+	if reason := profile.TierSizeReason(tier, size, episodes); reason != "" { // Usherr
+		out = append(out, reason)
+	}
 	return out
 }
 
@@ -257,6 +260,12 @@ func (s *Server) limitMovieResults(ctx context.Context, m library.Movie, profile
 func (s *Server) limitMovie(ctx context.Context, m library.Movie, profile quality.Profile, mode limitMode, results []indexers.Result) ([]indexers.Result, limitReport) {
 	var rep limitReport
 	results, rep.size = s.applySizeTable("movie", results, func() float64 { return s.movieRuntime(ctx, m) }, func(indexers.Result) int { return 0 })
+	if mode != limitManual { // Usherr: the profile's Advanced options (profile_extras.go)
+		var why string
+		if results, why = s.applyProfileExtras(s.tagRulesFor(profile, library.TagMovie, m.ID), results, func(indexers.Result) int { return 0 }); rep.size == "" {
+			rep.size = why
+		}
+	}
 	if mode != limitDry {
 		results = s.markCached(ctx, results) // only reorders: see debrid_cache.go
 	}
@@ -293,6 +302,12 @@ func (s *Server) limitTV(series library.Series, season, episode int, profile qua
 	s.warmEpisodeRuntime(series, results)
 	results, rep.size = s.applySizeTable("tv", results, func() float64 { return s.episodeRuntime(context.Background(), series) },
 		func(res indexers.Result) int { return episodeCount(mapper, res.Parsed()) })
+	if mode != limitManual { // Usherr: the profile's Advanced options (profile_extras.go)
+		var why string
+		if results, why = s.applyProfileExtras(s.tagRulesFor(profile, library.TagSeries, series.ID), results, func(res indexers.Result) int { return episodeCount(mapper, res.Parsed()) }); rep.size == "" {
+			rep.size = why
+		}
+	}
 	if mode != limitDry {
 		results = s.markCached(context.Background(), results) // only reorders: see debrid_cache.go
 	}

@@ -42,6 +42,7 @@ export const SETTINGS_NAV: { to: string; label: string; icon: IconName; color: s
   { to: '/settings/requests', label: t('Requests and reports'), icon: 'chat', color: '#8fb8f5', blurb: t('What people may ask for, how many requests they get, and problem reports.'), help: 'accounts#requests' },
   { to: '/settings/sign-in', label: t('Ways to sign in'), icon: 'key', color: '#8fb8f5', blurb: t('Passwords, passkeys, single sign-on, a directory, or a login proxy in front of Mediarium.'), help: 'accounts#ways-to-sign-in' },
   { to: '/settings/system', label: t('Server'), icon: 'hard', color: '#b4bfcc', blurb: t('How the server is doing, restarting it and cleaning up leftovers.'), help: 'problems' },
+  { to: '/settings/service-checks', label: t('Service checks'), icon: 'activity', color: '#b4bfcc', blurb: t('Jellyfin, download clients and other programs: whether each is answering, and a message when one goes down or comes back.') }, // Usherr: Service checks
   { to: '/settings/backup', label: t('Backup and restore'), icon: 'hard', color: '#b4bfcc', blurb: t('Save a copy of everything, in the cloud too, and put it back.'), help: 'backups-updates#backup-and-restore' },
   { to: '/settings/statistics', label: t('Statistics'), icon: 'activity', color: '#8fe0c4', blurb: t('How big the library is and what was downloaded.'), member: true, help: 'library#statistics' },
   { to: '/settings/logs', label: t('Logs and errors'), icon: 'warning', color: '#f0a3a3', blurb: t('Errors Mediarium noticed, what to do about them, and a report to copy when you ask for help.'), help: 'problems' },
@@ -89,7 +90,7 @@ const GROUPS: { key: string; label: string; icon: IconName; color: string; pages
   { key: 'marquee', label: t('Movie night'), icon: 'monitor', color: '#f2c14e', pages: ['/marquee/manage', '/preshow/manage', '/settings/community'] }, // Usherr: the Marquee and the pre-show
   { key: 'reposterr', label: 'Re-Posterr', icon: 'image', color: '#f59e8b', pages: ['/settings/re-posterr'] }, // Usherr: artwork picking
   { key: 'profile', label: t('Account & Access'), icon: 'user', color: '#8fb8f5', pages: ['/settings/profile', '/settings/security', '/settings/services', '/settings/accounts', '/settings/requests', '/settings/sign-in'] },
-  { key: 'system', label: t('System'), icon: 'hard', color: '#b4bfcc', pages: ['/settings/system', '/settings/backup', '/settings/statistics', '/settings/logs', '/settings/migrate', '/settings/about'] },
+  { key: 'system', label: t('System'), icon: 'hard', color: '#b4bfcc', pages: ['/settings/system', '/settings/service-checks', '/settings/backup', '/settings/statistics', '/settings/logs', '/settings/migrate', '/settings/about'] },
 ]
 
 export const inPage = (pathname: string, to: string) => pathname === to || pathname.startsWith(to + '/')

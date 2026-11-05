@@ -382,13 +382,18 @@ type streamedFileRow struct {
 	title           string
 	season, episode int
 	release, nzb    string
+	size            int64  // Usherr: the saved release's video size (0 when unknown)
+	health          string // Usherr: the saved release: '' unchecked, ok, dead
+	healthAt        string
 }
 
 func (s *Server) streamedFile(ctx context.Context, id int64) (streamedFileRow, error) {
 	var f streamedFileRow
-	err := s.db.QueryRowContext(ctx, `SELECT f.id, f.title_id, t.kind, t.tmdb_id, t.imdb_id, t.title, f.season, f.episode, f.release, f.nzb
+	err := s.db.QueryRowContext(ctx, `SELECT f.id, f.title_id, t.kind, t.tmdb_id, t.imdb_id, t.title, f.season, f.episode, f.release, f.nzb,
+		f.size, f.health, f.health_at
 		FROM streamed_files f JOIN streamed_titles t ON t.id = f.title_id WHERE f.id = ?`, id).
-		Scan(&f.id, &f.titleID, &f.kind, &f.tmdb, &f.imdb, &f.title, &f.season, &f.episode, &f.release, &f.nzb)
+		Scan(&f.id, &f.titleID, &f.kind, &f.tmdb, &f.imdb, &f.title, &f.season, &f.episode, &f.release, &f.nzb,
+			&f.size, &f.health, &f.healthAt)
 	return f, err
 }
 
@@ -467,6 +472,18 @@ func (s *Server) streamedSourceFor(ctx context.Context, id int64, quality string
 	defer cancel()
 	var p *streamedPlay
 	var serr error
+	// Usherr: the saved release goes first with Usherr's own engine: it is
+	// read from Usenet as it is, with no search and no NZB fetched from an
+	// indexer (their daily limits are precious).
+	triedSaved := false
+	if len(skip) == 0 && f.nzb != "" && s.streamEngine() == engineUsherr && savedSuits(f, quality, s.streamProfile(quality)) {
+		triedSaved = true
+		if sp, e := s.ownSavedSource(ctx, f); e == nil {
+			p = sp
+		} else {
+			slog.Info("streamed: saved release won't play", "title", f.title, "release", f.release, "err", e)
+		}
+	}
 	byNZB := func() {
 		if p == nil && c != nil {
 			var e error
@@ -490,7 +507,7 @@ func (s *Server) streamedSourceFor(ctx context.Context, id int64, quality string
 		byNZB()
 		byOwn()
 	}
-	if p == nil && len(skip) == 0 && c != nil {
+	if p == nil && len(skip) == 0 && !triedSaved {
 		p = s.savedSource(ctx, c, f)
 	}
 	if p == nil {
@@ -591,9 +608,17 @@ func (s *Server) searchedSource(ctx context.Context, c *streamNZB, f streamedFil
 	return nil, errors.New("StreamNZB found nothing playable for this right now")
 }
 
-// savedSource plays the NZB saved when the title was collected, if any.
+// savedSource plays the NZB saved when the title was collected, if any:
+// with Usherr's own engine (Usherr: StreamNZB isn't needed for it), and
+// through StreamNZB only when the own engine has no Usenet server to read
+// from.
 func (s *Server) savedSource(ctx context.Context, c *streamNZB, f streamedFileRow) *streamedPlay {
 	if f.nzb == "" {
+		return nil
+	}
+	if p, err := s.ownSavedSource(ctx, f); err == nil {
+		return p
+	} else if !errors.Is(err, errNoOwnServers) || c == nil {
 		return nil
 	}
 	data, err := os.ReadFile(filepath.Join(s.streamedNZBDir(), filepath.Base(f.nzb)))

@@ -147,7 +147,7 @@ func (s *Server) tvWants(profiles profileSet, scope tvScope) (wants []tvWant, up
 				if monitored && ep.Status == library.StatusMissing && aired {
 					missing = append(missing, ep)
 				}
-				if monitored && !sr.NoUpgrade && ep.Status == library.StatusDownloaded && wantsUpgrade(profile, ep.Quality, ep.ReleaseTitle) {
+				if monitored && !sr.NoUpgrade && ep.Status == library.StatusDownloaded && wantsUpgrade(profile, ep.Quality, ep.ReleaseTitle, ep.AirDate) {
 					withNames()
 					upgrades = append(upgrades, tvUpgrade{profile: profile, series: sr, episode: ep})
 				}
@@ -233,7 +233,7 @@ func pickTVResultFor(results []indexers.Result, series library.Series, season, e
 		if eps == 0 {
 			eps = quality.SeasonPack
 		}
-		if !builtinSizeOK(quality.Classify(rel), results[i].SizeBytes, eps, knownEpisodeMinutes(series)) || !profile.SizeAllowed(results[i].SizeBytes) {
+		if !builtinSizeOK(quality.Classify(rel), results[i].SizeBytes, eps, knownEpisodeMinutes(series)) || !profile.SizeFits(quality.Classify(rel), results[i].SizeBytes, eps) {
 			continue
 		}
 		key := keyFor(profile, rel, &results[i])

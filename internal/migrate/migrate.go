@@ -19,6 +19,7 @@ type Deps struct {
 	Indexers *indexers.Repo
 	Servers  *download.Repo
 	Profiles *quality.Repo
+	Formats  *quality.FormatRepo // Usherr: custom formats (formats.go); nil: not brought over
 
 	// TMDB returns the current metadata client (the key can change while
 	// the app runs).
@@ -100,6 +101,10 @@ type Include struct {
 	// Bazarr's. Unlike the others it is off unless set to true, since it
 	// overwrites a setting.
 	SubtitleLanguages *bool `json:"subtitleLanguages,omitempty"`
+	// CustomFormats (Usherr) copies Radarr's and Sonarr's custom formats into
+	// Usherr's format list (formats.go); their profiles never come over. Off
+	// unless set to true.
+	CustomFormats *bool `json:"customFormats,omitempty"`
 }
 
 func on(b *bool) bool { return b == nil || *b }
@@ -180,6 +185,9 @@ type TitlesPreview struct {
 	RootFolders []RootFolder     `json:"rootFolders"`
 	Profiles    []ProfileMapping `json:"profiles"`
 	Items       []TitleItem      `json:"items"`
+	// CustomFormats (Usherr): the app's custom formats, which an import can
+	// copy (formats.go).
+	CustomFormats *FormatsSummary `json:"customFormats,omitempty"`
 }
 
 // IndexerItem is one Prowlarr, Jackett or NZBHydra2 indexer.

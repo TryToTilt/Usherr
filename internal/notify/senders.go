@@ -17,6 +17,8 @@ func newHTTPClient() *http.Client { return netguard.Client(10 * time.Second) }
 // agree closely enough): problems are louder than good news.
 func priorityFor(ev Event) int {
 	switch EventKind(ev.Type) {
+	case EventServiceDown: // Usherr: a service down rings, like the watchdog it replaces
+		return 5
 	case EventFailed, EventHealth, EventConflict, EventClientDown:
 		return 4
 	default:

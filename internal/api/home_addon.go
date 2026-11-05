@@ -10,8 +10,9 @@ package api
 //   - catalogs: the library's movies and shows (and the streamed ones), the
 //     person's thumbs-up titles as a watchlist, and the Live TV channels;
 //   - streams for any title the app asks about (by IMDb id): the library's
-//     own file first, then releases found by Usherr's streaming engine,
-//     best first, opened when one is chosen;
+//     own file first, then the streamed library's saved release (its
+//     articles checked first), then releases found by Usherr's streaming
+//     engine, best first, opened when one is chosen;
 //   - subtitles from the library file (text subtitles in it or next to it);
 //   - Live TV channels, played through the same address the tuner uses.
 
@@ -59,6 +60,7 @@ func (s *Server) addonRoutes(root *http.ServeMux) {
 	root.HandleFunc("GET /addon/{key}/subtitles/{type}/{rest...}", s.handleAddonSubtitles)
 	root.HandleFunc("GET /addon/{key}/file/{kind}/{id}", s.handleAddonFile)
 	root.HandleFunc("GET /addon/{key}/play/{token}", s.handleAddonPlay)
+	root.HandleFunc("GET /addon/{key}/saved/{id}", s.handleAddonSaved) // Usherr: a saved NZB, played again (home_saved_nzb.go)
 	root.HandleFunc("GET /addon/{key}/subs/{kind}/{id}", s.handleAddonSubs)
 }
 
@@ -624,6 +626,11 @@ func (s *Server) handleAddonStream(w http.ResponseWriter, r *http.Request) {
 			label += " · " + quality
 		}
 		streams = append(streams, addonStream{Name: "Usherr\nLibrary", Title: label, Description: label, URL: fmt.Sprintf("%s/addon/%s/file/%s/%d", base, key, kind, id), BehaviorHints: map[string]any{"bingeGroup": "usherr-library"}})
+	}
+	// Usherr: then the saved release, played again from Usenet with no
+	// search and no NZB fetched.
+	if tmdb, err := s.addonTMDB(ctx, ref); err == nil {
+		streams = append(streams, s.addonSavedStreams(ctx, ref, tmdb, base, key)...)
 	}
 	// Then what the streaming engine finds, best first.
 	if s.ownProblem() == "" {

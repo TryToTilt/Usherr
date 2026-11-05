@@ -114,6 +114,15 @@ func (s *Server) stampButton(ctx context.Context, in community.Interaction) stri
 		return "The stamping is over for this film: the button works for 30 minutes after the credits."
 	}
 	_, _ = s.db.ExecContext(ctx, `UPDATE community_stubs SET stamped_ms = ? WHERE backend = 'discord' AND external_id = ? AND showtime_id = ?`, time.Now().UnixMilli(), in.User.ID, id)
+	// Said in the thread too, so a guest's own Usherr (joined by the code, its
+	// bot in this server) stamps their stub there (home_community_joined.go).
+	if p, ok := s.partyOf(ctx, id); ok {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			s.partySay(ctx, p, stampLine(in.User.ID))
+		}()
+	}
 	return fmt.Sprintf("Stamped! ✅ Your **%s** stub says you stayed to the end. /stubs shows them all.", title)
 }
 
@@ -195,7 +204,7 @@ func (s *Server) stubsOf(ctx context.Context, externalID string) []stub {
 func (s *Server) stubsFrom(ctx context.Context, backend, externalID string) []stub {
 	out := []stub{}
 	rows, err := s.db.QueryContext(ctx, `SELECT showtime_id, kind, tmdb_id, title, year, poster, host, seat, guests, at_ms, stamped_ms > 0, stamp_until
-		FROM community_stubs WHERE backend = ? AND external_id = ? ORDER BY at_ms DESC`, backend, externalID)
+		FROM community_stubs WHERE backend = ? AND external_id = ? AND hidden_ms = 0 ORDER BY at_ms DESC`, backend, externalID)
 	if err != nil {
 		return out
 	}
@@ -280,4 +289,59 @@ func (s *Server) handleStubs(w http.ResponseWriter, r *http.Request) {
 	list = append(list, s.stubsFrom(r.Context(), "here", strconv.FormatInt(u.ID, 10))...)
 	sort.SliceStable(list, func(i, j int) bool { return list[i].AtMs > list[j].AtMs })
 	writeJSON(w, http.StatusOK, map[string]any{"stubs": list, "linked": ext != "", "nowMs": time.Now().UnixMilli()})
+}
+
+// myStub is the stub a request is about: one of yours, by where it's kept
+// ("here": a friend's party joined by its code; "discord": this Usherr's
+// bot's, through your linked Discord account) and its party's showtime.
+func (s *Server) myStub(w http.ResponseWriter, r *http.Request) (backend, externalID string, id int64, ok bool) {
+	u := auth.UserFromContext(r.Context())
+	if u == nil {
+		writeError(w, http.StatusUnauthorized, "Sign in first.")
+		return "", "", 0, false
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "That ticket stub isn't known.")
+		return "", "", 0, false
+	}
+	switch r.PathValue("from") {
+	case "here":
+		return "here", strconv.FormatInt(u.ID, 10), id, true
+	case "discord":
+		if ext := s.myDiscordID(r.Context(), u.ID); ext != "" {
+			return "discord", ext, id, true
+		}
+	}
+	writeError(w, http.StatusNotFound, "That ticket stub isn't known.")
+	return "", "", 0, false
+}
+
+// DELETE /api/home/stubs/{from}/{id} (member): remove one of your ticket
+// stubs. It's kept, hidden (from here and from /stubs), so it can be brought
+// back.
+func (s *Server) handleHideStub(w http.ResponseWriter, r *http.Request) {
+	s.setStubHidden(w, r, time.Now().UnixMilli())
+}
+
+// POST /api/home/stubs/{from}/{id}/restore (member): bring a removed stub back.
+func (s *Server) handleRestoreStub(w http.ResponseWriter, r *http.Request) {
+	s.setStubHidden(w, r, 0)
+}
+
+func (s *Server) setStubHidden(w http.ResponseWriter, r *http.Request, hiddenMs int64) {
+	backend, ext, id, ok := s.myStub(w, r)
+	if !ok {
+		return
+	}
+	res, err := s.db.ExecContext(r.Context(), `UPDATE community_stubs SET hidden_ms = ? WHERE backend = ? AND external_id = ? AND showtime_id = ?`, hiddenMs, backend, ext, id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "The ticket stub couldn't be changed.")
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		writeError(w, http.StatusNotFound, "That ticket stub isn't known.")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

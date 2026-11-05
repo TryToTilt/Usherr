@@ -93,7 +93,7 @@ export default function MigrateSettings() {
   const [pathMap, setPathMap] = useState<PathMapping[]>([])
   const [profileMapping, setProfileMapping] = useState<Record<string, number>>({})
   const [profiles, setProfiles] = useState<QualityProfile[]>([])
-  const [include, setInclude] = useState({ movies: true, series: true, indexers: true, usenetServers: true, requests: true, subtitleLanguages: false })
+  const [include, setInclude] = useState({ movies: true, series: true, indexers: true, usenetServers: true, requests: true, subtitleLanguages: false, customFormats: false })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState<MigrateStatus | null>(null)
@@ -429,6 +429,9 @@ export default function MigrateSettings() {
                   </SimpleCard>
                 )
               })}
+              {(preview.radarr?.customFormats || preview.sonarr?.customFormats) && (
+                <FormatsCard apps={[['Radarr', preview.radarr?.customFormats], ['Sonarr', preview.sonarr?.customFormats]]} on={include.customFormats} onToggle={(v) => setInclude({ ...include, customFormats: v })} />
+              )}
               {preview.bazarr && <BazarrCard p={preview.bazarr} on={include.subtitleLanguages} onToggle={(v) => setInclude({ ...include, subtitleLanguages: v })} />}
             </div>
 
@@ -567,6 +570,31 @@ function SimpleCard({ label, ok, error, summary, on, onToggle, children }: { lab
   )
 }
 
+// Usherr: Radarr's and Sonarr's custom formats, copied into Usherr's format
+// list; their profiles never come over (internal/migrate/formats.go).
+function FormatsCard({ apps, on, onToggle }: { apps: [string, MigrateTitlesPreview['customFormats']][]; on: boolean; onToggle: (v: boolean) => void }) {
+  const found = apps.filter(([, f]) => f)
+  return (
+    <div className={`mig-card${on ? '' : ' off'}`}>
+      <label className="mig-card-head">
+        <input type="checkbox" checked={on} onChange={(e) => onToggle(e.target.checked)} /> <strong>{t('Custom formats')}</strong>
+      </label>
+      <ul className="mig-list">
+        {found.map(([app, f]) => (
+          <li key={app}>
+            {f!.problem ? (
+              <span className="act-skip">{`${app}: ${st(f!.problem)}`}</span>
+            ) : (
+              t('{app}: {n} custom formats', { app, n: f!.formats })
+            )}
+          </li>
+        ))}
+      </ul>
+      <small className="mig-hint">{t('Copies the formats into Usherr’s list, to score in Usherr’s own profiles. Their profiles stay behind. Importing again updates the copies.')}</small>
+    </div>
+  )
+}
+
 // Bazarr: only its language choice can move over, and it replaces the
 // subtitle languages in Mediarium, so it starts switched off.
 function BazarrCard({ p, on, onToggle }: { p: MigrateBazarr; on: boolean; onToggle: (v: boolean) => void }) {
@@ -615,6 +643,7 @@ function Progress({ status }: { status: MigrateStatus }) {
     [t('Usenet servers'), r.usenetServers],
     [t('Requests'), r.requests],
     [t('Subtitle languages'), r.subtitleLanguages],
+    [t('Custom formats'), r.customFormats],
   ]
   return (
     <fieldset className="group folders span-all">

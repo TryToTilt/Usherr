@@ -17,6 +17,7 @@ import { rememberedQuality, streamApi, type StreamStart } from './streamApi'
 import { api, type ImportCandidate } from '../api'
 import { openShowtimeBooking } from './ShowtimePill' // Usherr: book from here
 import { PartyChat } from './PartyChat' // Usherr: Community, the watch party chat
+import { JoinedSetup } from './JoinedSetup' // Usherr: a friend's party, not linked yet
 import { Link } from 'react-router-dom'
 import './showtime.css'
 
@@ -274,7 +275,7 @@ export default function ShowtimePage() {
     }
   }
   const cancel = async (s: Showtime) => {
-    if (!(await confirm({ title: t('Cancel {title}?', { title: s.title }), body: s.party ? t('The Marquee stops counting down to it, and the watch party in Discord is called off.') : t('The Marquee stops counting down to it.'), confirmLabel: t('Cancel it'), danger: true }))) return
+    if (!(await confirm({ title: t('Cancel {title}?', { title: s.title }), body: s.party?.joined ? t('The Marquee stops counting down to it. Your friend’s watch party goes on.') : s.party ? t('The Marquee stops counting down to it, and the watch party in Discord is called off.') : t('The Marquee stops counting down to it.'), confirmLabel: t('Cancel it'), danger: true }))) return
     await cancelShowtime(s.id)
     load()
   }
@@ -321,7 +322,12 @@ export default function ShowtimePage() {
         )}
       </section>
 
-      {next?.party && <PartyChat showtimeId={next.id} />}
+      {next?.party && !next.party.waiting && <PartyChat showtimeId={next.id} />}
+      {(() => {
+        // Usherr: the first friend's party still to set up (any of them, not only the next on screen)
+        const j = (list ?? []).find((s) => s.party?.joined && (s.party.waiting || s.party.needLink) && s.state !== 'done')
+        return j?.party ? <JoinedSetup party={j.party} title={j.title} admin={admin} /> : null
+      })()}
 
       <BookFilm />
       <JoinParty onJoined={load} />
@@ -340,8 +346,10 @@ export default function ShowtimePage() {
                   {s.preshowMin > 0 ? ` · ${t('{n} min pre-show', { n: s.preshowMin })}` : ''}
                   {s.state === 'playing' ? ` · ${t('playing')}` : s.state === 'preshow' ? ` · ${t('pre-show on')}` : s.state === 'done' ? ` · ${t('over')}` : ''}
                 </span>
-                {s.party && (
+                {s.party?.waiting && <span className="sht-party">{t('A friend’s watch party · its chat isn’t linked here yet')}</span>}
+                {s.party && !s.party.waiting && (
                   <span className="sht-party">
+                    {s.party.joined && s.party.host ? `${t('Hosted by {host}', { host: s.party.host })} · ` : ''}
                     {(s.party.going ?? []).length > 0
                       ? t('Watch party in Discord · going: {names}', { names: (s.party.going ?? []).join(', ') })
                       : t('Watch party in Discord · nobody’s said I’m in yet')}{' '}

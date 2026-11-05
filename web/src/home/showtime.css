@@ -72,3 +72,7 @@
 .sht-party { display: block; font-size: 0.82rem; color: #f2c14e; }
 .sht-join-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .sht-join-row input { flex: 1 1 14rem; max-width: 20rem; font-family: var(--font-mono, monospace); text-transform: uppercase; }
+/* Usherr: a friend's watch party, not linked to its thread yet (JoinedSetup) */
+.joined-setup ol { margin: 0.5rem 0; padding-left: 1.3rem; display: grid; gap: 0.6rem; }
+.joined-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }
+.joined-copy input { flex: 1 1 16rem; min-width: 0; }

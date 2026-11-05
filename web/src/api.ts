@@ -1220,6 +1220,65 @@ export interface QualityProfileInput {
   // Leaves out whole discs, 3D, upscales, burned-in subtitles and known
   // low-quality re-encoders (on unless switched off).
   skipBadReleases?: boolean
+  // Usherr: the editor's Advanced options; left out on a save, the saved ones are kept.
+  extras?: ProfileExtras
+}
+
+// Usherr: a profile's own size range for one quality, in GB (per episode for a show). 0 = no limit.
+export interface TierSize {
+  minGB?: number
+  preferredGB?: number
+  maxGB?: number
+}
+
+// Usherr: the profile editor's Advanced options (internal/quality/extras.go).
+export interface ProfileExtras {
+  kind?: '' | 'movies' | 'tv' | 'anime'
+  tierSizes?: Record<string, TierSize>
+  preferSmaller?: boolean
+  preferHevc?: boolean
+  minUpgradeGain?: number
+  upgradeDays?: number
+  preferGroups?: string[]
+  neverGroups?: string[]
+  audioLanguage?: string
+  wantSubs?: boolean
+  indexers?: number[]
+  protocol?: '' | 'usenet' | 'torrent'
+  minAgeMinutes?: number
+  maxAgeDays?: number
+}
+
+// Usherr: auto-tagging rules and tag rules (internal/api/tag_rules.go).
+export interface AutoTagRule {
+  tag: string
+  kind: '' | 'movie' | 'tv'
+  genres: string[]
+  languages: string[]
+  yearFrom: number
+  yearTo: number
+  rootPath: string
+  remove: boolean
+  enabled: boolean
+}
+export interface TagRule {
+  tag: string
+  indexers: number[]
+  protocol: '' | 'usenet' | 'torrent'
+}
+export interface TagRulesConfig {
+  autoTags: AutoTagRule[]
+  tagRules: TagRule[]
+}
+
+// Usherr: one release judged by the profile editor's tester.
+export interface ProfileTry {
+  title: string
+  take: boolean
+  quality: string
+  score: number
+  skip: string[]
+  counts: string[]
 }
 
 export interface StatsDay {
@@ -1438,6 +1497,9 @@ export interface AddMovieOptions {
 
 export interface AddSeriesOptions {
   profileId?: number
+  // Usherr: only these seasons ([] or left out = what monitor says). For a show
+  // already in the library, these seasons are switched on and searched.
+  seasons?: number[]
   monitor?: 'all' | 'future' | 'none'
   sources?: SourcePref
   searchNow?: boolean
@@ -1831,6 +1893,8 @@ export interface MigrateTitlesPreview {
   rootFolders: MigrateRootFolder[]
   profiles: MigrateProfile[]
   items: MigrateTitle[]
+  // Usherr: its custom formats
+  customFormats?: { formats: number; problem?: string }
 }
 export interface MigrateIndexer {
   name: string
@@ -1912,7 +1976,7 @@ export interface MigratePreview {
 export type MigrateRequest = { [A in ArrApp]?: ArrConnection } & {
   pathMap?: PathMapping[]
   profileMapping?: Record<string, number>
-  include?: { movies?: boolean; series?: boolean; indexers?: boolean; usenetServers?: boolean; qualityProfiles?: boolean; requests?: boolean; subtitleLanguages?: boolean }
+  include?: { movies?: boolean; series?: boolean; indexers?: boolean; usenetServers?: boolean; qualityProfiles?: boolean; requests?: boolean; subtitleLanguages?: boolean; customFormats?: boolean }
 }
 export interface MigrateCounts {
   added: number
@@ -1929,7 +1993,7 @@ export interface MigrateStatus {
   total: number
   startedAt?: string
   finishedAt?: string
-  results?: { movies?: MigrateCounts; series?: MigrateCounts; indexers?: MigrateCounts; usenetServers?: MigrateCounts; requests?: MigrateCounts; subtitleLanguages?: MigrateCounts; qualityProfiles?: MigrateProfile[] }
+  results?: { movies?: MigrateCounts; series?: MigrateCounts; indexers?: MigrateCounts; usenetServers?: MigrateCounts; requests?: MigrateCounts; subtitleLanguages?: MigrateCounts; customFormats?: MigrateCounts; qualityProfiles?: MigrateProfile[] }
   items?: { kind: string; name: string; outcome: 'added' | 'exists' | 'skipped' | 'failed'; reason?: string }[]
   errors?: string[]
   notes?: string[]
@@ -2352,6 +2416,56 @@ export interface MonitorStatus {
   checkedAt: string
   error?: string
   hint?: string
+}
+
+// Usherr: Service checks (Settings > System > Service checks).
+export type ServiceExpect = '200' | 'ok' | 'any'
+
+export interface ServiceCheckInput {
+  name: string
+  url: string
+  expect: ServiceExpect
+  keyword: string
+  intervalSec: number
+  failAfter: number
+  enabled: boolean
+}
+
+export interface ServiceResult {
+  at: string
+  ok: boolean
+  ms: number
+  code: number
+  error?: string
+}
+
+export interface ServiceUptime {
+  checks: number
+  percent: number
+  avgMs: number
+}
+
+export interface ServiceCheck extends ServiceCheckInput {
+  id: number
+  state: 'unknown' | 'up' | 'down'
+  fails: number
+  failSince?: string
+  changed?: string
+  checked?: string
+  lastMs: number
+  lastCode: number
+  lastError?: string
+  uptime24h: ServiceUptime
+  uptime7d: ServiceUptime
+  recent: ServiceResult[]
+  changes: { at: string; state: 'up' | 'down'; detail: string }[]
+}
+
+export interface ServiceSuggestion {
+  name: string
+  url: string
+  expect: ServiceExpect
+  from: string
 }
 
 export interface ImportCandidate {
@@ -3458,6 +3572,12 @@ export const api = {
   updateAccount: (data: { username: string; name: string; email: string }) => put<User>('/auth/profile', data),
 
   login: (username: string, password: string) => post<User | TwoStepChallenge>('/auth/login', { username, password }),
+  // Usherr: Sign in with Jellyfin or Plex.
+  mediaSignInPublic: () => get<{ jellyfin: boolean; plex: boolean }>('/auth/media-signin'),
+  startPlexLogin: () => post<{ pinId: number; authUrl: string }>('/auth/plex/pin', {}),
+  checkPlexLogin: (pinId: number) => post<User | TwoStepChallenge | { waiting: true }>(`/auth/plex/pin/${pinId}`, {}),
+  getMediaSignIn: () => get<{ jellyfin: boolean; plex: boolean; role: 'member' | 'viewer' }>('/media-signin'),
+  putMediaSignIn: (c: { jellyfin: boolean; plex: boolean; role: 'member' | 'viewer' }) => put<{ jellyfin: boolean; plex: boolean; role: 'member' | 'viewer' }>('/media-signin', c),
   loginCode: (challenge: string, answer: { code?: string; recoveryCode?: string }) => post<User & { recoveryLeft?: number }>('/auth/login/code', { challenge, ...answer }),
   twoStep: () => get<TwoStepStatus>('/auth/two-step'),
   twoStepSetup: () => post<TwoStepSetup>('/auth/two-step/setup', {}),
@@ -3618,6 +3738,13 @@ export const api = {
   listProfiles: () => get<{ profiles: QualityProfile[]; tiers: string[]; defaultId: number; defaultTvId: number; defaultSources?: SourcePref }>('/quality-profiles'),
   createProfile: (data: QualityProfileInput) =>
     post<QualityProfile>('/quality-profiles', data),
+  // Usherr: auto-tagging and tag rules.
+  getTagRules: () => get<TagRulesConfig>('/tag-rules'),
+  putTagRules: (c: TagRulesConfig) => put<TagRulesConfig>('/tag-rules', c),
+  applyAutoTags: () => post<{ started: boolean }>('/tag-rules/apply', {}),
+  // Usherr: judges release names against a profile as it stands in the editor.
+  tryProfile: (profile: QualityProfileInput, releases: { title: string; sizeGB?: number; episodes?: number }[]) =>
+    post<{ results: ProfileTry[] }>('/quality-profiles/try', { profile, releases }),
   updateProfile: (id: number, data: QualityProfileInput) =>
     put<QualityProfile>(`/quality-profiles/${id}`, data),
   deleteProfile: (id: number) => del<null>(`/quality-profiles/${id}`),
@@ -4037,6 +4164,14 @@ export const api = {
   testNotification: (data: Record<string, unknown>) => post<{ sent: boolean; error?: string; steps?: NotifyTestStep[] }>('/notifications/test', data),
   monitorStatus: () => get<MonitorStatus[]>('/monitor/status'),
   runMonitor: () => post<null>('/monitor/run'),
+  // Usherr: Service checks
+  serviceChecks: () => get<{ checks: ServiceCheck[]; alertTargets: number }>('/service-checks'),
+  serviceCheckSuggestions: () => get<ServiceSuggestion[]>('/service-checks/suggestions'),
+  addServiceCheck: (data: ServiceCheckInput) => post<ServiceCheck>('/service-checks', data),
+  updateServiceCheck: (id: number, data: ServiceCheckInput) => put<ServiceCheck>(`/service-checks/${id}`, data),
+  deleteServiceCheck: (id: number) => del<null>(`/service-checks/${id}`),
+  checkServiceNow: (id: number) => post<ServiceCheck>(`/service-checks/${id}/check`),
+  tryServiceCheck: (data: ServiceCheckInput) => post<ServiceResult>('/service-checks/try', data),
   deleteNotificationTarget: (id: number) => del<null>(`/notifications/${id}`),
 
   calendar: () => request<CalendarEntry[]>('/calendar', { revalidate: true }),

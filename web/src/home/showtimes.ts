@@ -18,7 +18,9 @@ export interface Showtime {
   mine: boolean
   libraryId?: number // the film's file in the library
   streamedFileId?: number // Usherr: its saved release in Streams
-  party?: { going: string[] | null; cantMake: number } // Usherr: shared as a watch party (Community)
+  // Usherr: shared as a watch party (Community), or a friend's joined by its
+  // code (joined: host once found in their server; waiting: not found yet)
+  party?: { going: string[] | null; cantMake: number; joined?: boolean; host?: string; waiting?: boolean; bot?: 'on' | 'off'; invite?: string; needLink?: boolean }
 }
 export interface ShowtimeList {
   showtimes: Showtime[]

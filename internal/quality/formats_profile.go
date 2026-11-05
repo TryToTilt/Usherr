@@ -151,7 +151,7 @@ func (p Profile) IsUpgradeOverRel(currentTier Tier, currentRelease, candidateTit
 	}
 	current, _ := p.FormatScore(currentRelease)
 	next, _ := p.FormatScoreRel(candidateTitle, candidate)
-	return next > current
+	return next > current && next-current >= p.MinUpgradeGain // Usherr: the smallest gain worth it
 }
 
 // --- storage ---

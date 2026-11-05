@@ -98,12 +98,27 @@ func (s *Server) communityMessage(ev community.MessageEvent) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	id, ok := s.partyOfThread(ctx, ev.Channel)
+	joined := false
 	if !ok {
+		// A friend's party joined by its code, in their server (home_community_joined.go).
+		id, joined = s.joinedOfThread(ctx, ev.Channel)
+		ok = joined
+	}
+	if !ok {
+		if s.joinedCardChanged(ctx, ev) {
+			return
+		}
 		s.reviewsForumMessage(ctx, ev) // Usherr: step 6, a #review in a film's post (home_community_review.go)
 		return
 	}
-	// Usherr: step 6, a #review in the party's thread is a review of its film.
-	if st, ok := s.showtimeByID(ctx, id); ok {
+	if joined {
+		// The host's bot's alerts look like this bot's own; its reviews are the host's.
+		if ev.Kind == "new" {
+			s.joinedStamp(ctx, id, ev.Message)
+		}
+		ev.FromBot = ev.ByBot
+	} else if st, ok := s.showtimeByID(ctx, id); ok {
+		// Usherr: step 6, a #review in the party's thread is a review of its film.
 		s.typedReview(ctx, "movie", st.TMDBID, st.Title, st.Year, st.PosterURL, "the "+st.Title+" watch party", ev)
 	}
 	switch ev.Kind {
@@ -184,6 +199,10 @@ func (s *Server) syncChat(ctx context.Context, showtimeID int64, p party) {
 			if m.At.IsZero() {
 				m.At = time.Now()
 			}
+			if p.joined {
+				s.joinedStamp(ctx, showtimeID, m) // stamped while this Usherr wasn't listening
+				m.FromBot = m.ByBot
+			}
 			_ = s.keepMessage(ctx, showtimeID, m)
 			if discord.SnowflakeLess(last, m.ID) {
 				last = m.ID
@@ -203,7 +222,7 @@ func (s *Server) chatParty(w http.ResponseWriter, r *http.Request) (showtime, pa
 		return showtime{}, party{}, false
 	}
 	st, ok := s.showtimeByID(r.Context(), id)
-	p, ok2 := s.partyOf(r.Context(), id)
+	p, ok2 := s.chatPartyOf(r.Context(), id) // Usherr: or a friend's, joined by its code
 	if !ok || !ok2 {
 		writeError(w, http.StatusNotFound, "That showtime isn't shared as a watch party.")
 		return showtime{}, party{}, false

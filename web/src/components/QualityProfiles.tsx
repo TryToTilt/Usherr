@@ -3,7 +3,11 @@ import FallbackEditor from './FallbackEditor'
 import Icon from './Icon'
 import { useToast } from './Toast'
 import { profileBlurb, sortProfiles } from './qualityBlurb'
-import { api, type CustomFormat, type PreferredTerm, type QualityProfile } from '../api'
+import { api, type CustomFormat, type PreferredTerm, type QualityProfile, type QualityProfileInput } from '../api'
+import { advancedCount, extrasDraft, extrasFrom, extrasProblem, SIMPLE_QUALITIES, simpleQualityOf, type ExtrasDraft } from '../profileExtras'
+import ProfileSimple from './ProfileSimple'
+import ProfileAdvancedExtras from './ProfileAdvancedExtras'
+import { ReleaseTester } from './ProfileTester'
 import { addAnimeTerms } from '../animeGroups'
 import { hasScore, syncFormatScores, withoutScore } from '../profileScoreSync'
 import { useConfirm } from './ConfirmProvider'
@@ -52,6 +56,8 @@ interface Draft {
   cutoffFormatScore: string
   noSeasonPacks: boolean
   skipBad: boolean
+  // Usherr: the Advanced options (profileExtras.ts).
+  x: ExtrasDraft
 }
 
 const linesOf = (text: string) => text.split('\n').map((l) => l.trim()).filter(Boolean)
@@ -91,6 +97,17 @@ function formatScoreProblem(d: Draft | null, formats: CustomFormat[]): string | 
 const MAX_TERMS = 50
 const MAX_TERM_LEN = 60
 const MAX_SCORE = 10000
+// Usherr: a term between slashes is a pattern: longer, and it may use |.
+const MAX_PATTERN_LEN = 200
+const isPattern = (l: string) => l.length >= 3 && l.startsWith('/') && l.endsWith('/')
+function patternProblem(l: string): string | null {
+  try {
+    new RegExp(l.slice(1, -1), 'i')
+    return null
+  } catch {
+    return t('{pattern} isn’t a pattern Usherr can read. Check its brackets and backslashes.', { pattern: l })
+  }
+}
 
 // The "line too long" message for each kind of term list.
 const tooLong: Record<'required' | 'excluded' | 'preferred', (start: string) => string> = {
@@ -103,9 +120,15 @@ const tooLong: Record<'required' | 'excluded' | 'preferred', (start: string) => 
 function termLines(text: string, what: 'required' | 'excluded' | 'preferred'): string | null {
   const lines = linesOf(text)
   if (lines.length > MAX_TERMS) return t('Use at most {max} lines here. You have {n}.', { max: MAX_TERMS, n: lines.length })
-  const long = lines.find((l) => l.length > MAX_TERM_LEN)
+  // A preferred line's term is before its " = score".
+  const term = (l: string) => (what === 'preferred' && l.lastIndexOf('=') > 0 ? l.slice(0, l.lastIndexOf('=')).trim() : l)
+  const long = lines.find((l) => (isPattern(term(l)) ? term(l).length > MAX_PATTERN_LEN : l.length > MAX_TERM_LEN))
   if (long) return tooLong[what](long.slice(0, 24))
-  if (lines.some((l) => l.includes('|'))) return t("Terms can't contain the | character. Put each term on its own line instead.")
+  for (const l of lines) if (isPattern(term(l))) {
+    const bad = patternProblem(term(l))
+    if (bad) return bad
+  }
+  if (lines.some((l) => !isPattern(term(l)) && l.includes('|'))) return t("Terms can't contain the | character. Put each term on its own line instead, or write a pattern between slashes, like /AMZN|NF/.")
   return null
 }
 
@@ -142,6 +165,7 @@ const draftFrom = (p: QualityProfile, ladder: string[]): Draft => ({
   cutoffFormatScore: p.cutoffFormatScore ? String(p.cutoffFormatScore) : '',
   noSeasonPacks: !!p.noSeasonPacks,
   skipBad: p.skipBadReleases !== false,
+  x: extrasDraft(p.extras),
 })
 
 const blankDraft = (tiers: string[]): Draft => ({
@@ -160,6 +184,7 @@ const blankDraft = (tiers: string[]): Draft => ({
   cutoffFormatScore: '',
   noSeasonPacks: false,
   skipBad: true,
+  x: extrasDraft(undefined),
 })
 
 // "1080p copy", or "1080p copy 2" when that name is taken.
@@ -184,7 +209,47 @@ function orderSummary(order: OrderRow[] | null): string {
 // acceptable, the cutoff at which upgrading stops, and whether upgrades
 // happen at all (off unless switched on). The default profile applies to
 // anything without its own.
-export default function QualityProfilesSection({ rev = 0, onChanged, advanced = false }: { rev?: number; onChanged?: () => void; advanced?: boolean }) {
+// What a save sends for a form.
+function bodyOf(draft: Draft): QualityProfileInput {
+  return {
+    name: draft.name.trim(),
+    allowed: draft.allowed,
+    cutoff: draft.cutoff,
+    // [] goes back to the built-in order.
+    qualityOrder: draft.order ? orderFromRows(draft.order) : [],
+    upgradeAllowed: draft.upgradeAllowed,
+    mustContain: linesOf(draft.mustContain),
+    mustNotContain: linesOf(draft.mustNotContain),
+    preferred: parsePreferred(draft.preferred),
+    fallback: draft.fallback,
+    maxSizeGB: draft.maxSize.trim() === '' || !(Number(draft.maxSize) > 0) ? 0 : Number(draft.maxSize),
+    formatScores: Object.entries(draft.formatScores)
+      .filter(([, s]) => s.trim() !== '' && wholeNumber(s))
+      .map(([id, s]) => ({ formatId: Number(id), score: Number(s) })),
+    minFormatScore: draft.minFormatScore.trim() === '' || !wholeNumber(draft.minFormatScore) ? 0 : Number(draft.minFormatScore),
+    cutoffFormatScore: draft.cutoffFormatScore.trim() === '' || !wholeNumber(draft.cutoffFormatScore) ? 0 : Number(draft.cutoffFormatScore),
+    noSeasonPacks: draft.noSeasonPacks,
+    skipBadReleases: draft.skipBad,
+    extras: extrasFrom(draft.x),
+  }
+}
+
+// What the Simple mode doesn't show but keeps (Usherr).
+function keptOf(d: Draft): string[] {
+  const out: string[] = []
+  if (d.order) out.push(t('its own quality order'))
+  const terms = linesOf(d.mustContain).length + linesOf(d.mustNotContain).length + linesOf(d.preferred).length
+  if (terms > 0) out.push(plural(terms, '{n} release-name rule', '{n} release-name rules'))
+  const scores = Object.values(d.formatScores).filter((s) => s.trim() !== '').length
+  if (scores > 0) out.push(plural(scores, '{n} custom format score', '{n} custom format scores'))
+  if (d.fallback.length > 0) out.push(t('a fallback'))
+  if (d.noSeasonPacks) out.push(t('no season packs'))
+  const extra = advancedCount(d.x)
+  if (extra > 0) out.push(plural(extra, '{n} more Advanced option', '{n} more Advanced options'))
+  return out
+}
+
+export default function QualityProfilesSection({ rev = 0, onChanged, advanced = false, onAdvanced }: { rev?: number; onChanged?: () => void; advanced?: boolean; onAdvanced?: (on: boolean) => void }) {
   const confirm = useConfirm()
   const [profiles, setProfiles] = useState<QualityProfile[]>([])
   const [formats, setFormats] = useState<CustomFormat[]>([])
@@ -220,6 +285,13 @@ export default function QualityProfilesSection({ rev = 0, onChanged, advanced = 
     preferred: preferredLines(draft?.preferred ?? ''),
     maxSize: draft && draft.maxSize.trim() !== '' && !(Number(draft.maxSize) > 0 && Number(draft.maxSize) <= 1000) ? t('Write a size from 0.1 to 1000 GB, or leave it empty for no limit.') : null,
     formatScores: formatScoreProblem(draft, formats),
+    extras: draft
+      ? extrasProblem(draft.x, {
+          size: (tier) => t('Sizes for {tier} must be 0 to 1000 GB.', { tier }),
+          order: (tier) => t('For {tier}, the smallest size must be below the largest, with the preferred size between them.', { tier }),
+          whole: () => t('Upgrade limits and release ages must be whole numbers, like 100 or 30.'),
+        })
+      : null,
   }
   const v = useValidation(errors)
   // The custom format scores are folded away until wanted; adding a format opens them.
@@ -272,26 +344,7 @@ export default function QualityProfilesSection({ rev = 0, onChanged, advanced = 
     setError('')
     setSaving(true)
     try {
-      const body = {
-        name: draft.name.trim(),
-        allowed: draft.allowed,
-        cutoff: draft.cutoff,
-        // [] goes back to the built-in order.
-        qualityOrder: draft.order ? orderFromRows(draft.order) : [],
-        upgradeAllowed: draft.upgradeAllowed,
-        mustContain: linesOf(draft.mustContain),
-        mustNotContain: linesOf(draft.mustNotContain),
-        preferred: parsePreferred(draft.preferred),
-        fallback: draft.fallback,
-        maxSizeGB: draft.maxSize.trim() === '' ? 0 : Number(draft.maxSize),
-        formatScores: Object.entries(draft.formatScores)
-          .filter(([, s]) => s.trim() !== '')
-          .map(([id, s]) => ({ formatId: Number(id), score: Number(s) })),
-        minFormatScore: draft.minFormatScore.trim() === '' ? 0 : Number(draft.minFormatScore),
-        cutoffFormatScore: draft.cutoffFormatScore.trim() === '' ? 0 : Number(draft.cutoffFormatScore),
-        noSeasonPacks: draft.noSeasonPacks,
-        skipBadReleases: draft.skipBad,
-      }
+      const body = bodyOf(draft)
       if (draft.id) await api.updateProfile(draft.id, body)
       else await api.createProfile(body)
       openDraft(null)
@@ -365,15 +418,59 @@ export default function QualityProfilesSection({ rev = 0, onChanged, advanced = 
   }
   const defaultProfile = profiles.find((p) => p.id === defaultId)
 
-  const form = draft && (
+  const nameField = draft && (
+    <label>
+      {t('Name')}
+      <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} {...v.bind('name', draft.name, (name) => setDraft({ ...draft, name }))} />
+      <FieldError v={v} name="name" />
+    </label>
+  )
+  const actions = draft && (
+    <div className="profile-form-actions">
+      <button className="primary" onClick={save} disabled={saving}>
+        {t('Save profile')}
+      </button>
+      <button onClick={() => openDraft(null)}>{t('Cancel')}</button>
+      <FormProblem v={v} action="saveProfile" />
+    </div>
+  )
+  const simpleForm = draft && !advanced && (
     <div className="profile-form" ref={formRef}>
       <h3>{draft.id ? t('Edit profile') : t('New profile')}</h3>
       <div className="grid-form profile-form-col">
-        <label>
-          {t('Name')}
-          <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} {...v.bind('name', draft.name, (name) => setDraft({ ...draft, name }))} />
-          <FieldError v={v} name="name" />
-        </label>
+        <ProfileSimple
+          nameField={nameField}
+          quality={simpleQualityOf(draft.allowed, !!draft.order)}
+          onQuality={(q) => {
+            const s = SIMPLE_QUALITIES[q]
+            setDraft({ ...draft, allowed: tiers.filter((x) => s.allowed.includes(x)), cutoff: s.cutoff, order: null, upgradeAllowed: s.upgrades ? true : draft.upgradeAllowed })
+          }}
+          maxSize={draft.maxSize}
+          onMaxSize={(maxSize) => setDraft({ ...draft, maxSize })}
+          upgradeAllowed={draft.upgradeAllowed}
+          onUpgrade={(upgradeAllowed) => setDraft({ ...draft, upgradeAllowed })}
+          skipBad={draft.skipBad}
+          onSkipBad={(skipBad) => setDraft({ ...draft, skipBad })}
+          x={draft.x}
+          onX={(x) => setDraft({ ...draft, x })}
+          kept={keptOf(draft)}
+          onShowAdvanced={() => onAdvanced?.(true)}
+          body={bodyOf(draft)}
+        />
+        <FieldError v={v} name="maxSize" />
+      </div>
+      <div className="grid-form profile-form-col">
+        <ReleaseTester body={bodyOf(draft)} />
+      </div>
+      {actions}
+    </div>
+  )
+
+  const form = draft && !advanced ? simpleForm : draft && (
+    <div className="profile-form" ref={formRef}>
+      <h3>{draft.id ? t('Edit profile') : t('New profile')}</h3>
+      <div className="grid-form profile-form-col">
+        {nameField}
         {!draft.order && <fieldset className="profile-fieldset">
           <legend><TipLabel text={t('Only releases in these qualities are downloaded. A release in any other quality is skipped.')}>{t('Accepted qualities')}</TipLabel></legend>
           <div className="profile-tiers">
@@ -563,22 +660,49 @@ export default function QualityProfilesSection({ rev = 0, onChanged, advanced = 
             </div>
           )}
         </Collapsible>}
+        <ReleaseTester body={bodyOf(draft)} />
       </div>
-      <div className="profile-form-actions">
-        <button className="primary" onClick={save} disabled={saving}>
-          {t('Save profile')}
-        </button>
-        <button onClick={() => openDraft(null)}>{t('Cancel')}</button>
-        <FormProblem v={v} action="saveProfile" />
+      <div className="grid-form profile-form-col pa-col">
+        <ProfileAdvancedExtras
+          x={draft.x}
+          onX={(x) => setDraft({ ...draft, x })}
+          qualities={[...(draft.order ? draft.order.filter((r) => r.allowed).flatMap((r) => r.tiers) : orderedAllowed)].reverse()}
+          tierLabel={tierLabel}
+          onScores={(scores) => {
+            setScoresSignal((n) => n + 1)
+            setAddedFormats((cur) => new Set([...cur, ...Object.keys(scores).map(Number)]))
+            setDraft((cur) => (cur ? { ...cur, formatScores: { ...cur.formatScores, ...scores } } : cur))
+          }}
+          onFormatsChanged={() => {
+            api.listCustomFormats().then((r) => setFormats(r.formats)).catch(() => {})
+            onChanged?.()
+          }}
+          body={bodyOf(draft)}
+          problem={errors.extras}
+        />
       </div>
+      {actions}
     </div>
   )
 
   return (
     <section className="card wide">
-      <h2><TipLabel help="quality">{t('Quality profiles')}</TipLabel></h2>
+      <div className="qp-head">
+        <h2><TipLabel help="quality">{t('Quality profiles')}</TipLabel></h2>
+        {onAdvanced && (
+          <div className="seg" role="group" aria-label={t('Profile mode')}>
+            <button type="button" className={advanced ? '' : 'active'} aria-pressed={!advanced} onClick={() => onAdvanced(false)}>
+              {t('Simple')}
+            </button>
+            <button type="button" className={advanced ? 'active' : ''} aria-pressed={advanced} onClick={() => onAdvanced(true)}>
+              {t('Advanced')}
+            </button>
+          </div>
+        )}
+      </div>
       <p style={{ color: 'var(--text-dim)' }}>
-        {t('A profile sets which releases are acceptable and whether Mediarium keeps looking for a better version. Movies and shows use the default unless you pick another on their page.')}
+        {t('A profile sets which releases are acceptable and whether Mediarium keeps looking for a better version. Movies and shows use the default unless you pick another on their page.')}{' '}
+        {onAdvanced && (advanced ? t('Advanced shows every option a profile has, with custom formats.') : t('Simple shows the few choices most people need. Switching never changes a profile.'))}
       </p>
       {error && <p className="error-text">{error}</p>}
 
@@ -602,6 +726,7 @@ export default function QualityProfilesSection({ rev = 0, onChanged, advanced = 
                 {p.name}{' '}
                 {p.id === defaultId && <span className="badge downloaded">{defaultTvId === 0 ? t('default') : t('default for movies')}</span>}{' '}
                 {defaultTvId !== 0 && p.id === defaultTvId && <span className="badge downloaded">{t('default for TV')}</span>}
+                {p.extras?.kind && <span className="badge">{({ movies: t('movies'), tv: t('TV'), anime: t('anime') } as Record<string, string>)[p.extras.kind]}</span>}
                 {p.inUse > 0 && <div style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>{t('used by {n}', { n: p.inUse })}</div>}
                 <div style={{ color: 'var(--text-dim)', fontSize: '0.8rem', maxWidth: 320 }}>{profileBlurb(p)}</div>
                 {(p.fallback ?? []).length > 0 && (

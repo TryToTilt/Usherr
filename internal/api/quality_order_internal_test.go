@@ -102,7 +102,7 @@ func TestWantsUpgradeWithGroups(t *testing.T) {
 		{"", false},
 	}
 	for _, tc := range cases {
-		if got := wantsUpgrade(grouped, tc.quality, ""); got != tc.want {
+		if got := wantsUpgrade(grouped, tc.quality, "", ""); got != tc.want {
 			t.Errorf("wantsUpgrade(%q) = %v, want %v", tc.quality, got, tc.want)
 		}
 	}

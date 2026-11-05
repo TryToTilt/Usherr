@@ -20,6 +20,25 @@ func (b *Bot) StartThread(ctx context.Context, under community.Ref, name string)
 	return out.ID, nil
 }
 
+// Threads lists a server's open threads the bot can see.
+func (b *Bot) Threads(ctx context.Context, server string) ([]community.Channel, error) {
+	var raw struct {
+		Threads []struct {
+			ID     string `json:"id"`
+			Name   string `json:"name"`
+			Parent string `json:"parent_id"`
+		} `json:"threads"`
+	}
+	if err := b.rest.do(ctx, "GET", "/guilds/"+server+"/threads/active", nil, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]community.Channel, 0, len(raw.Threads))
+	for _, t := range raw.Threads {
+		out = append(out, community.Channel{ID: t.ID, Name: t.Name, Kind: "thread", Parent: t.Parent})
+	}
+	return out, nil
+}
+
 // StartForumPost opens a post in a forum channel with its first message. It
 // stays open a week after the last message in it, and opens again by itself
 // when something is posted in it.

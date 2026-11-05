@@ -167,7 +167,7 @@ func (s *Server) linkReply(u community.User) string {
 	shown := code[:3] + " " + code[3:]
 	// Usherr: whose Usherr, and that someone with their own needn't link at all
 	// (a friend's code only works on the server whose bot gave it).
-	where := "It's for an account on the " + brand.Name + " this bot belongs to: signed in there, open Settings, then Linked services, and type it under Discord. Running your own " + brand.Name + "? You don't need this: press I'm in on a watch party's card, and paste its showtime code under Showtime, Join a watch party."
+	where := "It's for an account on the " + brand.Name + " this bot belongs to: signed in there, open Settings, then Linked services, and type it under Discord. Running your own " + brand.Name + "? Press I'm in on a watch party's card and paste its showtime code under Showtime, Join a watch party; for its chat and stamp there, use the /link of your own " + brand.Name + "'s bot instead (Discord shows each bot's name beside its commands)."
 	if name := s.linkedUsername(u.ID); name != "" {
 		return fmt.Sprintf("Your Discord account is linked to **%s** in %s. To link it to another account instead, sign in as that account and type this code: **%s**. %s It works for 10 minutes, and only you can see this.", name, brand.Name, shown, where)
 	}

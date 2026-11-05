@@ -193,6 +193,7 @@ type radarrData struct {
 	Movies      []arrMovie
 	Profiles    []arrProfile
 	RootFolders []arrRootFolder
+	Formats     json.RawMessage // Usherr: its custom formats, as its API writes them (formats.go)
 }
 
 func fetchRadarr(ctx context.Context, hc *http.Client, c Conn) (radarrData, error) {
@@ -216,6 +217,7 @@ func fetchRadarr(ctx context.Context, hc *http.Client, c Conn) (radarrData, erro
 	if err := get(ctx, hc, c, "/api/v3/rootfolder", nil, false, &d.RootFolders); err != nil {
 		return d, fmt.Errorf("read root folders: %w", err)
 	}
+	_ = get(ctx, hc, c, "/api/v3/customformat", nil, false, &d.Formats) // an old Radarr has none: not a failure
 	return d, nil
 }
 
@@ -224,6 +226,7 @@ type sonarrData struct {
 	Series      []arrSeries
 	Profiles    []arrProfile
 	RootFolders []arrRootFolder
+	Formats     json.RawMessage // Usherr: its custom formats (formats.go)
 }
 
 func fetchSonarr(ctx context.Context, hc *http.Client, c Conn) (sonarrData, error) {
@@ -247,6 +250,7 @@ func fetchSonarr(ctx context.Context, hc *http.Client, c Conn) (sonarrData, erro
 	if err := get(ctx, hc, c, "/api/v3/rootfolder", nil, false, &d.RootFolders); err != nil {
 		return d, fmt.Errorf("read root folders: %w", err)
 	}
+	_ = get(ctx, hc, c, "/api/v3/customformat", nil, false, &d.Formats) // Sonarr v3 has none: not a failure
 	return d, nil
 }
 

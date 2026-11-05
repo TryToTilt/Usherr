@@ -147,7 +147,7 @@ func planSeasonPackFor(profile quality.Profile, sr library.Series, eps []library
 			if releaseIsPack(ep.ReleaseTitle) {
 				return packPlan{}, false // a pack was taken for this season already
 			}
-			if !sr.NoUpgrade && wantsUpgrade(profile, ep.Quality, ep.ReleaseTitle) {
+			if !sr.NoUpgrade && wantsUpgrade(profile, ep.Quality, ep.ReleaseTitle, ep.AirDate) {
 				candidates = append(candidates, ep)
 			}
 		}

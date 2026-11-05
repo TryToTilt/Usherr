@@ -45,6 +45,8 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 			automation.Job{Name: "download-line", Interval: downloadLineCheck, Run: func(context.Context) { s.kickDownloads() }},
 			automation.Job{Name: "music-import-wait", Interval: musicWaitJobTick, Run: s.retryMusicWaits}, // tries the imports that were waiting for MusicBrainz
 			automation.Job{Name: "speed-limit", Interval: speedCheck, Run: s.speedJob},
+			// Usherr: the service checks only ask and tell, so they run in safe mode too.
+			automation.Job{Name: "service-checks", Interval: serviceChecksEvery, Run: s.serviceChecksJob},
 		)
 		sched.Start()
 		return sched
@@ -59,6 +61,7 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "hunt", Interval: s.huntInterval(), IntervalFunc: s.huntInterval, Run: s.heavy(s.hunt)},
 		automation.Job{Name: "delayed-grabs", Interval: time.Minute, Run: s.delayedGrabsJob},                                // searches again when a held release has waited long enough
 		automation.Job{Name: "tv-reminders", Interval: time.Minute, Run: s.tvRemindJob},                                     // Usherr: Live TV reminders
+		automation.Job{Name: "service-checks", Interval: serviceChecksEvery, Run: s.serviceChecksJob},                       // Usherr: Service checks, down and back messages
 		automation.Job{Name: "showtimes", Interval: 15 * time.Second, InitialDelay: 5 * time.Second, Run: s.showtimeJob},    // Usherr: the pre-show and the film on time (soon after a restart, not the usual minute)
 		automation.Job{Name: "read-to-me", Interval: time.Hour, InitialDelay: 20 * time.Second, Run: s.readToMeJob},         // Usherr: audiobooks left to make from before a restart
 		automation.Job{Name: "tv-warm", Interval: 3 * time.Hour, InitialDelay: 90 * time.Second, Run: s.heavy(s.tvWarmJob)}, // Usherr: streamed programs looked up before they are tuned
@@ -80,6 +83,7 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "watched", Interval: watchedJobTick, Run: s.heavy(s.watchedJob)},              // does nothing until switched on
 		automation.Job{Name: "plex-watchlist", Interval: watchlistInterval, Run: s.heavy(s.watchlistJob)},  // does nothing until an account connects one
 		automation.Job{Name: "import-lists", Interval: listsCheckInterval, Run: s.heavy(s.importListsJob)}, // does nothing until a list is added
+		automation.Job{Name: "auto-tags", Interval: 6 * time.Hour, Run: s.heavy(s.autoTagJob)},             // Usherr: does nothing until a rule is switched on
 		automation.Job{Name: "trash-formats", Interval: time.Hour, Run: s.heavy(s.trashFormatsJob)},        // does nothing until switched on; reads the guides once a day
 		automation.Job{Name: "genre-backfill", Interval: genreBackfillInterval, Run: s.heavy(s.backfillGenres)},
 		automation.Job{Name: "country-backfill", Interval: countryBackfillInterval, Run: s.heavy(s.backfillCountries)},
@@ -147,14 +151,17 @@ func outgrown(profile quality.Profile, t quality.Tier) bool {
 // replacement, even with upgrades off.
 // release is the release the file came from ("" when unknown): a file below
 // the profile's custom-format cutoff is searched for a better-scoring one.
-func wantsUpgrade(profile quality.Profile, q, release string) bool {
+//
+// Usherr: released is the title's release or air date ("YYYY-MM-DD", "" when
+// unknown); a profile with an upgrade window stops upgrading once it is past.
+func wantsUpgrade(profile quality.Profile, q, release, released string) bool {
 	if !tierKnown(q) {
 		return false
 	}
 	if profile.OnFallback(quality.Tier(q)) || outgrown(profile, quality.Tier(q)) {
 		return true
 	}
-	return profile.UpgradeAllowed && (!profile.ReachedCutoffTier(quality.Tier(q)) || profile.WantsFormatUpgrade(release))
+	return profile.UpgradeAllowed && profile.WithinUpgradeWindow(released, today()) && (!profile.ReachedCutoffTier(quality.Tier(q)) || profile.WantsFormatUpgrade(release))
 }
 
 // hunt actively searches by title for every monitored movie that's either
@@ -247,7 +254,7 @@ func huntWantsMovie(m library.Movie, profile quality.Profile) bool {
 	case library.StatusMissing:
 		return !unreleased(m.ReleaseDate)
 	case library.StatusDownloaded:
-		return !m.NoUpgrade && wantsUpgrade(profile, m.Quality, m.ReleaseTitle)
+		return !m.NoUpgrade && wantsUpgrade(profile, m.Quality, m.ReleaseTitle, m.ReleaseDate)
 	}
 	return false
 }
@@ -295,7 +302,7 @@ func (s *Server) huntMovie(ctx context.Context, m library.Movie, instances []ind
 		s.noteFallbackGrab(m.ID, 0, m.Title, profile, best.Title)
 		return true
 	case library.StatusDownloaded:
-		if m.NoUpgrade || !wantsUpgrade(profile, m.Quality, m.ReleaseTitle) {
+		if m.NoUpgrade || !wantsUpgrade(profile, m.Quality, m.ReleaseTitle, m.ReleaseDate) {
 			return false // left alone, upgrades off, unknown baseline, or already at/above cutoff: skip the search entirely
 		}
 		currentTier := quality.Tier(m.Quality)
@@ -363,7 +370,7 @@ func (s *Server) rssSync(ctx context.Context) {
 				missing = append(missing, m)
 			}
 		case library.StatusDownloaded:
-			if !m.NoUpgrade && wantsUpgrade(profiles.resolve(m.ProfileID), m.Quality, m.ReleaseTitle) {
+			if !m.NoUpgrade && wantsUpgrade(profiles.resolve(m.ProfileID), m.Quality, m.ReleaseTitle, m.ReleaseDate) {
 				upgradeCandidates = append(upgradeCandidates, m)
 			}
 		}
@@ -460,7 +467,7 @@ func pickBestFor(results []indexers.Result, profile quality.Profile, wantYear in
 		if wantYear != 0 && release.Year != 0 && release.Year != wantYear {
 			continue
 		}
-		if !builtinSizeOK(quality.Classify(release), results[i].SizeBytes, 0, 0) || !profile.SizeAllowed(results[i].SizeBytes) {
+		if !builtinSizeOK(quality.Classify(release), results[i].SizeBytes, 0, 0) || !profile.SizeFits(quality.Classify(release), results[i].SizeBytes, 0) {
 			continue
 		}
 		key := keyFor(profile, release, &results[i])
@@ -491,7 +498,7 @@ func pickUpgradeResult(results []indexers.Result, profile quality.Profile, curre
 		if wantYear != 0 && release.Year != 0 && release.Year != wantYear {
 			continue
 		}
-		if !builtinSizeOK(quality.Classify(release), results[i].SizeBytes, 0, 0) || !profile.SizeAllowed(results[i].SizeBytes) {
+		if !builtinSizeOK(quality.Classify(release), results[i].SizeBytes, 0, 0) || !profile.SizeFits(quality.Classify(release), results[i].SizeBytes, 0) {
 			continue
 		}
 		key := keyFor(profile, release, &results[i])

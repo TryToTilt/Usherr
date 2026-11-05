@@ -119,7 +119,7 @@ type ExternalProfile struct {
 // already has it, gets a number added: the new account never takes over an
 // existing one.
 func (s *Service) CreateExternalUser(p ExternalProfile) (*User, error) {
-	if p.Provider != SourceOIDC && p.Provider != SourceLDAP {
+	if p.Provider != SourceOIDC && p.Provider != SourceLDAP && p.Provider != SourceJellyfin && p.Provider != SourcePlex {
 		return nil, fmt.Errorf("create external user: unknown provider %q", p.Provider)
 	}
 	if p.Subject == "" {
