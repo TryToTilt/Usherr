@@ -428,19 +428,33 @@ func (s *Server) huntMusic(ctx context.Context, instances []indexers.Instance) {
 	s.music.mu.Lock()
 	start := s.music.huntOffset % len(wanted)
 	n := min(len(wanted), maxMusicSearchesPerHunt)
-	s.music.huntOffset = start + n
 	s.music.mu.Unlock()
 
 	blocked := s.searchSkipKeys()
-	for i := 0; i < n; i++ {
+	// Usherr: up to n searches, skipping the albums not due yet (by their
+	// age, music_cadence.go); the offset moves past everything looked at.
+	searched, looked := 0, 0
+	defer func() {
+		s.music.mu.Lock()
+		s.music.huntOffset = start + looked
+		s.music.mu.Unlock()
+	}()
+	for ; looked < len(wanted) && searched < n; looked++ {
 		if ctx.Err() != nil {
 			return
 		}
-		wa := wanted[(start+i)%len(wanted)]
+		wa := wanted[(start+looked)%len(wanted)]
+		now := time.Now()
+		if !s.albumSearchDue(wa.album.ID, now) {
+			continue
+		}
 		if busy, err := s.QueueRepo.HasActiveForAlbum(wa.album.ID); err != nil || busy {
 			continue
 		}
+		searched++
+		s.albumSearched(wa.album.ID, wa.album.ReleaseDate, now)
 		if s.huntAlbum(ctx, wa.artist, wa.album, wa.profile, instances, blocked, false) && !s.autoGrabRoom() {
+			looked++
 			holdBack("hunt")
 			return
 		}

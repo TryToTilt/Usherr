@@ -323,6 +323,9 @@ var mustBeAdmin = []string{
 	"POST /api/indexers/{id}/resume", "GET /api/stats/indexers",
 	"GET /api/irc-announce", "POST /api/irc-announce", "POST /api/irc-announce/test", "PUT /api/irc-announce/{id}", "DELETE /api/irc-announce/{id}", "PUT /api/irc-announce/{id}/enabled", "GET /api/irc-announce/{id}/log",
 	"PUT /api/music/player-settings", "PUT /api/music/filters",
+	// Usherr: tidying the music folder changes everyone's files
+	"GET /api/music/tidy", "POST /api/music/tidy/check", "POST /api/music/tidy/stop", "GET /api/music/tidy/plans/{id}", "POST /api/music/tidy/plans/{id}/apply",
+	"POST /api/music/tidy/plans/{id}/undo", "POST /api/music/tidy/recycle/empty", "GET /api/music/tidy/acoustid", "PUT /api/music/tidy/acoustid",
 	"GET /api/cleanup/rule-sets", "POST /api/cleanup/rule-sets", "PUT /api/cleanup/rule-sets/{id}", "DELETE /api/cleanup/rule-sets/{id}", "PUT /api/cleanup/options", // Usherr: clean-up rules
 	"GET /api/cleanup/preview", "POST /api/cleanup/run", "POST /api/cleanup/exemptions", "DELETE /api/cleanup/exemptions/{unit}",
 	"PUT /api/apps", "GET /api/automation/quiet", "PUT /api/automation/quiet", "POST /api/notifications/digest", "POST /api/books/import/retry", "POST /api/books/import/match",

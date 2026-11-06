@@ -24,6 +24,15 @@ func (s *Server) TestSetMusicBrainz(baseURL string) {
 		musicbrainz.WithBackoff(func(int) time.Duration { return 0 }), musicbrainz.WithPatientWaits(0, 0, 0, 0, 0))
 }
 
+// TestSetAcoustID points the tidy check's AcoustID lookups at a fake.
+func (s *Server) TestSetAcoustID(baseURL string) {
+	c := s.tidyAcoustID()
+	c.BaseURL = baseURL
+}
+
+// RunTidyRecycleJob runs the daily job that removes old kept originals.
+func (s *Server) RunTidyRecycleJob() { s.tidyRecycleJob(context.Background()) }
+
 // TestSetMusicWaits changes how long an import waits for MusicBrainz between
 // tries and before it gives up (0 keeps the default).
 func (s *Server) TestSetMusicWaits(every, giveUp time.Duration) {

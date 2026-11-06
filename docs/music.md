@@ -299,6 +299,32 @@ If your music is already in the music folder as `Artist/Album/tracks` (a year in
 
 `GET /api/music/import/scan/{id}` answers `{id, root, phase: "scanning"|"matching"|"done"|"failed"|"stopped", done, total, current, summary: {artists, albums, imported, already, unmatched, failed}, results: [{artist, album, folder, files, status: "imported"|"already"|"unmatched"|"failed", message, note, artistId, albumId, quality, tracks}], error?}`. `GET /api/music/import/scan` answers the latest scan the same way (`{"id": ""}` when none has run since the server started), and `DELETE /api/music/import/scan/{id}` stops a running one. Starting a scan while one is running returns the running one.
 
+## Tidying up your music
+
+An administrator can have Usherr give the music folder neat names and correct tags, the way MusicBrainz Picard does: **Tidy up** on the Music page (or `/music/tidy`). It is off until you start it, and nothing changes until you say so.
+
+1. **Check my music** looks at every album folder and works out what it really is. Nothing is changed.
+   - An album already in your library uses its tracklist.
+   - A folder Usherr doesn't know is recognised by its sound, when you have an [AcoustID key](https://acoustid.org/new-application) (free; paste it on the Tidy up page). Three files of the album are enough to find it, and a match needs a score of at least 70%.
+   - Without a key, or when AcoustID can't be reached, the tags and names are used instead.
+2. The list shows each album with its new folder, new file names and the tags that change. Open an album to see old and new side by side. An album is **only offered when every file in it is matched with confidence**. Anything unsure is listed under **Left alone**, with the reason.
+3. Pick the albums and press **Tidy**. Files go to `Artist/Album (Year)/NN - Title.ext`, and they get the title, artist, album, album artist, track and disc numbers, date and MusicBrainz ids. A cover from the Cover Art Archive is embedded when the file has none (not in Ogg and Opus files). Lyrics (`.lrc`) files move along with their track. The other files in the folder go along with it.
+
+What keeps your music safe:
+
+- The audio is never re-encoded: each file is copied with new tags, then checked (same length, same format, every old tag still there, new tags read back) before anything else happens. A copy that fails the check is thrown away and the album is left as it was.
+- The original goes to `.usherr-recycle` in your music folder, which media servers don't read. It is kept for **30 days**, then removed by a daily job. **Empty now** removes it sooner. The page shows how much space it takes.
+- **Undo** puts every original back where it was and removes the tidied copy. A file you changed since stays as it is, and the page says so. Once the originals are gone, Undo leaves those files tidied.
+- A file that changed after the check makes its album **stale**: check again. Nothing ever overwrites a file that is already there: an album that would is left alone.
+- Only one check, tidy or undo runs at a time, and nothing outside the music folder is touched.
+
+Good to know:
+
+- Another folder holding the same album is reported, with which copy is better (FLAC over MP3, and so on). The other copy is left alone. Usherr never deletes a copy by itself.
+- Compilations (Various Artists), audio files loose in an artist folder and folders of links are left alone.
+- MP3 files with embedded lyrics are left alone, because ffmpeg can't write those back. ffmpeg also can't write MusicBrainz ids into M4A files, or the recording id into MP3 files, so those stay as they are. Rare tags ffmpeg can't read (an MP3's rating, say) don't survive, and the check can't see them.
+- `.m3u` playlist files in your music folder name files by their path, so they stop matching once an album moves. Playlists in Usherr are not affected.
+
 ## Rescanning an album's folder and deleting a file
 
 The import above skips albums that are already in your library. When you change an album's folder by hand (you copy in the tracks that are missing, replace a damaged file, or remove one), press **Rescan album folder** on the album's card (administrators only). Mediarium reads the audio files in the album's folder again and matches them to the album's tracks the same way the import and a download do: by the tags, the track numbers and the titles. Then:

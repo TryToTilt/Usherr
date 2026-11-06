@@ -351,6 +351,11 @@ export default function MusicLibrary({
                 <Icon name="folder" size={16} /> {t('Import existing')}
               </button>
             )}
+            {admin && (
+              <button className="btn-with-icon" onClick={() => navigate('/music/tidy')}>
+                <Icon name="sparkles" size={16} /> {t('Tidy up')}
+              </button>
+            )}
           </>
         }
         chips={<ActiveChips filters={activeFilters} onClearAll={clearFilters} />}

@@ -58,6 +58,43 @@ type Release struct {
 	Country string   `json:"country"`
 	Date    string   `json:"date"` // "YYYY", "YYYY-MM" or "YYYY-MM-DD"
 	Media   []Medium `json:"media"`
+	// Usherr: who the release is credited to (GetRelease asks for it).
+	ArtistCredit []ArtistCredit `json:"artist-credit"`
+}
+
+// ArtistCredit is one artist named in a credit, with the words that join it
+// to the next ("Robin feat. Sam").
+type ArtistCredit struct {
+	Name       string `json:"name"`
+	JoinPhrase string `json:"joinphrase"`
+	Artist     struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"artist"`
+}
+
+// CreditName is a credit as printed: each name with its join phrase.
+func CreditName(credit []ArtistCredit) string {
+	var b strings.Builder
+	for _, c := range credit {
+		name := c.Name
+		if name == "" {
+			name = c.Artist.Name
+		}
+		b.WriteString(name + c.JoinPhrase)
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// CreditIDs are the artist ids of a credit, in order.
+func CreditIDs(credit []ArtistCredit) []string {
+	var ids []string
+	for _, c := range credit {
+		if c.Artist.ID != "" {
+			ids = append(ids, c.Artist.ID)
+		}
+	}
+	return ids
 }
 
 // Medium is one disc (or side, or file set) of a release.
@@ -77,6 +114,8 @@ type Track struct {
 	Title     string    `json:"title"`
 	Length    int       `json:"length"` // milliseconds, 0 if unknown
 	Recording Recording `json:"recording"`
+	// Usherr: the track's own credit (GetRelease asks for it).
+	ArtistCredit []ArtistCredit `json:"artist-credit"`
 }
 
 // Recording is the recorded performance a track is an instance of.
@@ -84,6 +123,8 @@ type Recording struct {
 	ID     string `json:"id"`
 	Title  string `json:"title"`
 	Length int    `json:"length"`
+	// Usherr: the recording's credit, used when the track has none.
+	ArtistCredit []ArtistCredit `json:"artist-credit"`
 }
 
 // TrackRef is one track of a release, flattened: which disc, its position on
@@ -93,6 +134,12 @@ type TrackRef struct {
 	Position int
 	Title    string
 	LengthMs int
+	// Usherr: the ids and credit tidying writes into the file's tags; empty
+	// when the release was fetched without them.
+	TrackID     string // the release track
+	RecordingID string
+	Artist      string   // the track's credit as printed, "" when unknown
+	ArtistIDs   []string // the credited artists' ids
 }
 
 // Tracklist flattens a release's media into one list, disc by disc.
@@ -116,7 +163,12 @@ func (r Release) Tracklist() []TrackRef {
 			if length == 0 {
 				length = t.Recording.Length
 			}
-			out = append(out, TrackRef{Disc: disc, Position: pos, Title: title, LengthMs: length})
+			credit := t.ArtistCredit
+			if len(credit) == 0 {
+				credit = t.Recording.ArtistCredit
+			}
+			out = append(out, TrackRef{Disc: disc, Position: pos, Title: title, LengthMs: length,
+				TrackID: t.ID, RecordingID: t.Recording.ID, Artist: CreditName(credit), ArtistIDs: CreditIDs(credit)})
 		}
 	}
 	return out
@@ -245,7 +297,7 @@ func (c *Client) HasOfficialRelease(ctx context.Context, releaseGroupID string) 
 // GetRelease looks up one release with its tracklist.
 func (c *Client) GetRelease(ctx context.Context, releaseID string) (Release, error) {
 	var r Release
-	q := url.Values{"inc": {"recordings+media"}}
+	q := url.Values{"inc": {"recordings+media+artist-credits"}}
 	if err := c.get(ctx, "/ws/2/release/"+url.PathEscape(releaseID), q, &r); err != nil {
 		return Release{}, fmt.Errorf("get release %s: %w", releaseID, err)
 	}

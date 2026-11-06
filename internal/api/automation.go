@@ -80,6 +80,7 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "music-import-wait", Interval: musicWaitJobTick, Run: s.retryMusicWaits},                                        // tries the imports that were waiting for MusicBrainz
 		automation.Job{Name: "music-playlist-files", Interval: time.Hour, InitialDelay: 20 * time.Minute, Run: s.heavy(s.playlistImportJob)}, // Usherr: .m3u files read again daily (off until switched on)
 		automation.Job{Name: "music-scrobble-retry", Interval: scrobbleRetryEvery, InitialDelay: 11 * time.Minute, Run: s.scrobbleRetryJob},  // Usherr: plays kept while ListenBrainz or Last.fm was away
+		automation.Job{Name: "music-tidy-recycle", Interval: 24 * time.Hour, InitialDelay: 25 * time.Minute, Run: s.tidyRecycleJob},          // Usherr: originals kept 30 days after tidying music
 		automation.Job{Name: "speed-limit", Interval: speedCheck, Run: s.speedJob},
 		automation.Job{Name: "quiet-hours", Interval: speedCheck, Run: s.quietHoursJob},
 		automation.Job{Name: "cleanup", Interval: cleanupCheckInterval, Run: s.cleanupJob},

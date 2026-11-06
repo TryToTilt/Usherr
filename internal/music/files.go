@@ -103,6 +103,7 @@ type FileInfo struct {
 	Disc        int
 	Track       int
 	Title       string
+	TitleTagged bool   // Usherr: Title came from the file's title tag, not its name
 	Artist      string // the track artist tag
 	AlbumArtist string
 	Album       string
@@ -152,7 +153,7 @@ func IdentifyFile(path string, tags TagReader) FileInfo {
 				info.Track = t.Track
 			}
 			if strings.TrimSpace(t.Title) != "" {
-				info.Title = t.Title
+				info.Title, info.TitleTagged = t.Title, true
 			}
 			info.Artist, info.AlbumArtist, info.Album = t.Artist, t.AlbumArtist, t.Album
 			info.Year, info.HasPicture, info.FileType = t.Year, t.HasPicture, t.FileType
@@ -303,7 +304,9 @@ func MatchTracks(files []FileInfo, slots []TrackSlot) (matches []Match, unmatche
 		if fileDone[fi] {
 			continue
 		}
-		if si, ok := numbered(f); ok && !slotDone[si] && lengthsAgree(f.DurationSec, slots[si].LengthMs) {
+		// Number and length alone, unless a real title tag names another
+		// track (DroppedNeedle's title-conflict veto).
+		if si, ok := numbered(f); ok && !slotDone[si] && lengthsAgree(f.DurationSec, slots[si].LengthMs) && !(f.TitleTagged && titleTagConflicts(f.Title, slots[si].Title)) {
 			take(fi, si)
 		}
 	}

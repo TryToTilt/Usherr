@@ -965,6 +965,15 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/music/subsonic` | any account | PUT /api/music/subsonic {enabled} |
 | DELETE | `/api/music/subsonic/password` | any account | DELETE /api/music/subsonic/password: no app password any more (e-reader apps stop working too). |
 | POST | `/api/music/subsonic/password` | any account | POST /api/music/subsonic/password: a new app password for reading and music apps (it replaces the e-reader password too), shown once. |
+| GET | `/api/music/tidy` | admin | GET /api/music/tidy: the page: the running or last job, the plans so far and the space the kept originals take. |
+| GET | `/api/music/tidy/acoustid` | admin | GET /api/music/tidy/acoustid: whether the AcoustID key is set (the key itself is never sent back). |
+| PUT | `/api/music/tidy/acoustid` | admin | PUT /api/music/tidy/acoustid {key}: saves the AcoustID application key; an empty one removes it. |
+| POST | `/api/music/tidy/check` | admin | POST /api/music/tidy/check: starts a check of the music folder. |
+| GET | `/api/music/tidy/plans/{id}` | admin | GET /api/music/tidy/plans/{id}: a plan's albums. |
+| POST | `/api/music/tidy/plans/{id}/apply` | admin | POST /api/music/tidy/plans/{id}/apply {albums: [ids]}: tidies the chosen albums of a check. |
+| POST | `/api/music/tidy/plans/{id}/undo` | admin | POST /api/music/tidy/plans/{id}/undo: puts a plan's albums back. |
+| POST | `/api/music/tidy/recycle/empty` | admin | POST /api/music/tidy/recycle/empty: removes the kept originals now. |
+| POST | `/api/music/tidy/stop` | admin | POST /api/music/tidy/stop: stops the running job. |
 | GET | `/api/music/tiers` | any account | lists the music quality tiers, worst to best, for building a profile. |
 | GET | `/api/music/tracks/{id}/gain` | signed in | GET /api/music/tracks/{id}/gain: the ReplayGain tags of a track's file, null for the ones it doesn't have. |
 | GET | `/api/music/tracks/{id}/lyrics` | signed in | GET /api/music/tracks/{id}/lyrics |
@@ -1546,4 +1555,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-1096 routes.
+1105 routes.

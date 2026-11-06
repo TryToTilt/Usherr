@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rdborg/mediarium/internal/listenbrainz"
 	"github.com/rdborg/mediarium/internal/lrclib"
@@ -16,11 +17,12 @@ import (
 // musicState is the music module's in-memory state.
 type musicState struct {
 	mu         sync.Mutex
-	huntOffset int         // where the next scheduled album search starts (see huntMusic)
-	covers     coverLocks  // one cover download per album at a time (music_cover.go)
-	scans      musicScans  // existing-library scans (music_import.go)
-	checks     groupChecks // bootleg look-ups waiting to run (music_filters.go)
-	waits      musicWaits  // imports waiting for MusicBrainz (music_import_wait.go)
+	huntOffset int                 // where the next scheduled album search starts (see huntMusic)
+	nextSearch map[int64]time.Time // Usherr: when the hunt next looks for each album (music_cadence.go)
+	covers     coverLocks          // one cover download per album at a time (music_cover.go)
+	scans      musicScans          // existing-library scans (music_import.go)
+	checks     groupChecks         // bootleg look-ups waiting to run (music_filters.go)
+	waits      musicWaits          // imports waiting for MusicBrainz (music_import_wait.go)
 
 	lbMu sync.Mutex
 	lb   *listenbrainz.Client // Discover lists (music_discover.go); created on first use
@@ -32,6 +34,7 @@ type musicState struct {
 	scrobbleAt keyedLocks              // one send of kept plays per account at a time
 
 	importMu sync.Mutex // one playlist import at a time (music_playlist_import.go)
+	tidy     tidyState  // Usherr: "Tidy up your music" (music_tidy.go)
 
 	// Last.fm (music_lastfm.go): sign-ins waiting for Last.fm to come back,
 	// and the test server.

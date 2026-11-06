@@ -89,6 +89,7 @@ const Onboarding = lazy(() => import('./pages/Onboarding'))
 const Profile = lazy(() => import('./pages/Profile'))
 const ImportLibrary = lazy(() => import('./pages/ImportLibrary'))
 const MusicImport = lazy(() => import('./pages/MusicImport'))
+const MusicTidy = lazy(() => import('./pages/MusicTidy'))
 const MusicPlaylists = lazy(() => import('./pages/MusicPlaylists').then((m) => ({ default: m.MusicPlaylists })))
 const MusicPlaylistPage = lazy(() => import('./pages/MusicPlaylists').then((m) => ({ default: m.MusicPlaylistPage })))
 const Statistics = lazy(() => import('./pages/Statistics'))
@@ -250,6 +251,7 @@ function Gate() {
         <Route path="/book/:id" element={<BookDetail />} />
         <Route path="/books/work/:key" element={<BookWork />} />
         <Route path="/music/import" element={<AdminOnly fallback="/library"><MusicImport /></AdminOnly>} />
+        <Route path="/music/tidy" element={<AdminOnly fallback="/library"><MusicTidy /></AdminOnly>} />
         <Route path="/title/:tmdbId" element={<MovieDetail />} />
         <Route path="/series/:id" element={<SeriesDetail />} />
         <Route path="/show/:tmdbId" element={<ShowDetail />} />

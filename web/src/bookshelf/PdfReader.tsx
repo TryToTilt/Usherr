@@ -66,7 +66,7 @@ export default function PdfReader({ book, at = 0 }: { book: Book; at?: number })
         if (cancelled) return
         const d = await pdfjs.getDocument({ data: new Uint8Array(data) }).promise
         if (cancelled) {
-          void d.destroy()
+          void d.loadingTask.destroy()
           return
         }
         doc.current = d
@@ -92,7 +92,7 @@ export default function PdfReader({ book, at = 0 }: { book: Book; at?: number })
       window.removeEventListener('pagehide', onHide)
       save(true)
       task.current?.cancel()
-      void doc.current?.destroy()
+      void doc.current?.loadingTask.destroy()
       doc.current = null
     }
   }, [book.id, save, at])

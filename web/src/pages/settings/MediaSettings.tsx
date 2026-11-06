@@ -237,6 +237,9 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
                 <div>
                   <button className="btn-sm btn-with-icon" onClick={() => navigate('/music/import')}>
                     <Icon name="folder" size={15} /> {t('Import my existing collection')}
+                  </button>{' '}
+                  <button className="btn-sm btn-with-icon" onClick={() => navigate('/music/tidy')}>
+                    <Icon name="sparkles" size={15} /> {t('Tidy up my music')}
                   </button>
                 </div>
               </>

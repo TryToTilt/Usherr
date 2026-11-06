@@ -5,6 +5,24 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.57.0] - 2026-11-06
+
+### Added
+
+- **Tidy up your music** (Music page > Tidy up, for administrators): Usherr checks your music folder and shows the new folder and file names, tags, covers and any albums you have twice, before anything changes. You pick the albums. Originals are kept for 30 days and it can all be undone. Add a free AcoustID key and it also recognises albums by their sound.
+
+### Changed
+
+- **Music downloads are matched more carefully** (following DroppedNeedle):
+  - A file whose title tag names another song is no longer filed as a track just because its number and length fit (a live or bonus track in the wrong place). Files without a title tag are matched as before.
+  - When a download is another edition of the album (a deluxe with bonus tracks, or a shorter original), Usherr switches to the edition with that many tracks, so the extra songs are imported instead of left out. It only does this while none of the album is in your library yet.
+  - The scheduled search looks for new albums more often and old ones less: every 2 days in an album's first month, then every 4, 7 and finally 14 days.
+
+### Security
+
+- The torrent engine is updated past a flaw in how it read torrent files (GO-2026-6894).
+- The PDF reader is updated past a flaw that let a malicious PDF run code when it was opened (GHSA-hq66-cqwq-w95j).
+
 ## [2.56.0] - 2026-11-06
 
 ### Changed

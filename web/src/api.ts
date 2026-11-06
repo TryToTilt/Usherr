@@ -3330,6 +3330,61 @@ export interface MusicImportJob {
   error?: string
 }
 
+// Usherr: "Tidy up your music" (music_tidy.go).
+export interface TidyJob {
+  kind: 'check' | 'apply' | 'undo'
+  phase: 'running' | 'done' | 'failed' | 'stopped'
+  planId: number
+  done: number
+  total: number
+  current?: string
+  error?: string
+  undo?: { albumRow: number; title: string; status: string; problems?: string[] }[]
+}
+export interface TidyPlan {
+  id: number
+  root: string
+  status: 'preview' | 'applied' | 'undone'
+  createdAt: string
+  appliedAt?: string
+  undoneAt?: string
+  recycled: boolean
+  applied: number
+}
+export interface TidyOverview {
+  root: string
+  hasKey: boolean
+  toolsReady: boolean
+  plans: TidyPlan[]
+  recycleBytes: number
+  recycleDays: number
+  job?: TidyJob
+}
+export interface TidyAlbum {
+  id: number
+  albumId?: number
+  artist: string
+  title: string
+  oldFolder: string
+  newFolder: string
+  status: 'eligible' | 'unchanged' | 'blocked' | 'stale' | 'applying' | 'applied' | 'failed' | 'undone'
+  reason?: string
+  detail: {
+    source?: string
+    quality?: string
+    releaseGroupId?: string
+    score?: number
+    cover?: boolean
+    copies?: { folder: string; quality: string; better: boolean }[]
+  }
+  items: { oldName: string; newName: string; changes?: { tag: string; old: string; new: string }[]; cover?: boolean }[]
+}
+export interface TidyPlanDetail {
+  plan: TidyPlan
+  albums: TidyAlbum[]
+  unchanged: number
+}
+
 // Changes to many titles at once (the Library page's select mode). Every
 // answer says how many were done and, for the rest, why not.
 export interface BulkTitle {
@@ -4300,6 +4355,14 @@ export const api = {
   // The latest scan, running or finished; id is empty when none has run.
   latestMusicScan: () => get<MusicImportJob | { id: '' }>('/music/import/scan'),
   stopMusicScan: (id: string) => del<MusicImportJob>(`/music/import/scan/${id}`),
+  tidy: () => get<TidyOverview>('/music/tidy'),
+  tidyCheck: () => post<TidyJob>('/music/tidy/check'),
+  tidyStop: () => post<TidyJob>('/music/tidy/stop'),
+  tidyPlan: (id: number) => get<TidyPlanDetail>(`/music/tidy/plans/${id}`),
+  tidyApply: (id: number, albums: number[]) => post<TidyJob>(`/music/tidy/plans/${id}/apply`, { albums }),
+  tidyUndo: (id: number) => post<TidyJob>(`/music/tidy/plans/${id}/undo`),
+  tidyEmptyRecycle: () => post<{ freedBytes: number; recycleBytes: number }>('/music/tidy/recycle/empty'),
+  saveAcoustID: (key: string) => put<{ hasKey: boolean }>('/music/tidy/acoustid', { key }),
 
   searchTV: (q: string) => get<DiscoverMovie[]>(`/tv/search?q=${encodeURIComponent(q)}`),
   listSeries: () => request<Series[]>('/series?brief=1', { revalidate: true }),

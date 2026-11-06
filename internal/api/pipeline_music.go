@@ -281,6 +281,52 @@ func (s *Server) ensureTracks(ctx context.Context, album music.Album) ([]music.T
 	return s.MusicRepo.ListTracks(album.ID)
 }
 
+// tryEdition looks for the edition of album whose track count fits a
+// download of infos and adopts its tracklist when it matches more files than
+// the current one. Only while none of the album's tracks has a file yet, so
+// an album already in the library never changes under its files.
+func (s *Server) tryEdition(ctx context.Context, album music.Album, tracks []music.Track, infos []music.FileInfo, matched int) ([]music.Track, []music.TrackSlot, []music.Match, []int, bool) {
+	for _, t := range tracks {
+		if t.FilePath != "" {
+			return nil, nil, nil, nil, false
+		}
+	}
+	rel, err := s.MusicBrainz().EditionTracklist(ctx, album.MBID, len(infos))
+	if err != nil || rel.ID == "" || rel.ID == album.ReleaseMBID {
+		return nil, nil, nil, nil, false
+	}
+	list := rel.Tracklist()
+	slots := make([]music.TrackSlot, len(list))
+	for i, t := range list {
+		slots[i] = music.TrackSlot{Disc: t.Disc, Position: t.Position, Title: t.Title, LengthMs: t.LengthMs}
+	}
+	matches, unmatched := music.MatchTracks(infos, slots)
+	if len(matches) <= matched {
+		return nil, nil, nil, nil, false
+	}
+	fresh := make([]music.Track, len(list))
+	for i, t := range list {
+		fresh[i] = music.Track{Disc: t.Disc, Position: t.Position, Title: t.Title, LengthMs: t.LengthMs}
+	}
+	if err := s.MusicRepo.ReplaceTracks(album.ID, fresh); err != nil {
+		return nil, nil, nil, nil, false
+	}
+	if err := s.MusicRepo.SetAlbumRelease(album.ID, rel.ID); err != nil {
+		return nil, nil, nil, nil, false
+	}
+	stored, err := s.MusicRepo.ListTracks(album.ID)
+	if err != nil || len(stored) != len(fresh) {
+		return nil, nil, nil, nil, false
+	}
+	slots = make([]music.TrackSlot, len(stored)) // matched again in the stored order
+	for i, t := range stored {
+		slots[i] = music.TrackSlot{Disc: t.Disc, Position: t.Position, Title: t.Title, LengthMs: t.LengthMs}
+	}
+	matches, unmatched = music.MatchTracks(infos, slots)
+	slog.Info("music: the download is another edition", "album", album.Title, "release", rel.ID, "tracks", len(fresh), "matched", len(matches))
+	return stored, slots, matches, unmatched, true
+}
+
 // importAlbumFiles places a finished download's audio files in the music
 // library: matched to the tracklist, named "NN - Title.ext" (or
 // "D-NN - Title.ext" on a several-disc album) in <Artist>/<Album> (<Year>)/,
@@ -321,6 +367,18 @@ func (s *Server) importAlbumFiles(ctx context.Context, artist music.Artist, albu
 		multiDisc = multiDisc || t.Disc > 1
 	}
 	matches, unmatched := music.MatchTracks(infos, slots)
+	if len(files) != len(tracks) && (len(unmatched) > 0 || len(matches) < len(tracks)) {
+		// Usherr: the download may be another edition (a deluxe with bonus
+		// tracks, a shorter original); switch to the one whose track count
+		// fits, when it matches more of the files.
+		if t2, s2, m2, u2, ok := s.tryEdition(musicbrainz.Patient(ctx), album, tracks, infos, len(matches)); ok {
+			tracks, slots, matches, unmatched = t2, s2, m2, u2
+			multiDisc = false
+			for _, t := range tracks {
+				multiDisc = multiDisc || t.Disc > 1
+			}
+		}
+	}
 	if len(matches) == 0 {
 		return albumImport{}, badRelease(fmt.Errorf("none of the %d audio files could be matched to the %d tracks of %q", len(files), len(tracks), album.Title))
 	}

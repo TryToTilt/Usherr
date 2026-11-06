@@ -55,6 +55,9 @@ func (s *Server) musicPlayerRoutes(member, play, admin routeGroup) {
 	member.HandleFunc("POST /api/music/subsonic/password", s.handleNewAppPassword)
 	member.HandleFunc("DELETE /api/music/subsonic/password", s.handleRemoveAppPassword)
 
+	// Usherr: tidying the music folder (music_tidy.go).
+	s.musicTidyRoutes(admin)
+
 	// Usherr: likes (music_favorites.go).
 	member.HandleFunc("GET /api/music/favorites", s.handleListFavorites)
 	member.HandleFunc("PUT /api/music/favorites/{kind}/{id}", s.handleSetFavorite)

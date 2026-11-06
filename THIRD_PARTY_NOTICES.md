@@ -5,7 +5,7 @@ Mediarium is licensed under the GNU Affero General Public License v3.0 (see LICE
 ## Contents
 
 - [Go modules compiled into the program](#go-modules) (109)
-- [Packages bundled into the web app](#web-app-packages) (57)
+- [Packages bundled into the web app](#web-app-packages) (56)
 - [Fonts](#fonts) (7)
 - [Tools in the Docker images](#tools-in-the-docker-images)
 - [Data from other services](#data-from-other-services)
@@ -10727,9 +10727,8 @@ SOFTWARE.
 | @fontsource/oswald | 5.3.0 | OFL-1.1 |
 | @fontsource/playfair-display | 5.3.0 | OFL-1.1 |
 | @fontsource/righteous | 5.3.0 | OFL-1.1 |
-| @napi-rs/canvas | 0.1.100 | MIT |
-| @napi-rs/canvas-linux-x64-gnu | 0.1.100 | MIT |
-| @napi-rs/canvas-linux-x64-musl | 0.1.100 | MIT |
+| @napi-rs/canvas | 1.1.0 | MIT |
+| @napi-rs/canvas-linux-x64-gnu | 1.1.0 | MIT |
 | @types/localforage | 0.0.34 | MIT |
 | @types/react | 19.3.0 | MIT |
 | @xmldom/xmldom | 0.8.15 | MIT |
@@ -10760,7 +10759,7 @@ SOFTWARE.
 | page-flip | 2.0.7 | MIT |
 | pako | 1.0.11 | (MIT AND Zlib) |
 | path-webpack | 0.0.3 | MIT |
-| pdfjs-dist | 5.7.284 | Apache-2.0 |
+| pdfjs-dist | 6.5.438 | Apache-2.0 |
 | process-nextick-args | 2.0.1 | MIT |
 | react | 19.3.0 | MIT |
 | react-dom | 19.3.0 | MIT |
@@ -11765,7 +11764,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
 
 
-### @napi-rs/canvas 0.1.100
+### @napi-rs/canvas 1.1.0
 
 ```text
 MIT License
@@ -11789,17 +11788,44 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+src/svg_doc/broken_image.png is Chromium's broken-image icon
+(third_party/blink/public/default_100_percent/blink/broken_image.png),
+used under the Chromium license:
+
+Copyright 2015 The Chromium Authors
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google LLC nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 
-### @napi-rs/canvas-linux-x64-gnu 0.1.100
-
-```text
-Licensed under MIT (the package ships no licence file).
-```
-
-
-### @napi-rs/canvas-linux-x64-musl 0.1.100
+### @napi-rs/canvas-linux-x64-gnu 1.1.0
 
 ```text
 Licensed under MIT (the package ships no licence file).
@@ -13318,7 +13344,7 @@ Licensed under MIT (the package ships no licence file).
 ```
 
 
-### pdfjs-dist 5.7.284
+### pdfjs-dist 6.5.438
 
 ```text
 Apache License

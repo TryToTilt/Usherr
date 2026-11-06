@@ -29,6 +29,8 @@
   music section. Its Python logic was re-written in Go; each ported file names the DroppedNeedle file it follows.
   - Last.fm scrobbling (`internal/lastfm`, `internal/api/music_lastfm.go`): the signed calls, the web sign-in
     and sending each play to Last.fm and ListenBrainz side by side.
+  - Tidying the music folder (`internal/musictidy`, `internal/api/music_tidy*.go`, migration 9110): the AcoustID
+    lookup and its score limit, the preview, apply and undo flow with its journal, and the tag names per format.
   - Likes and play history (`internal/api/music_favorites.go`, migration 9091): its favourites and play history tables.
   - Converting music while streaming (`internal/api/music_transcode.go`): when to convert, the bitrate rules,
     the ffmpeg command lines and the limit on conversions at once.
