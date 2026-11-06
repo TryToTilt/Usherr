@@ -261,6 +261,9 @@ func run() error {
 	stopCommunity := server.StartCommunity() // Usherr: the household's Discord bot
 	defer stopCommunity()
 
+	stopLink := server.StartLink() // Usherr: linked Usherrs, only when switched on
+	defer stopLink()
+
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Handler: server.Routes(),

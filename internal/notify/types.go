@@ -38,6 +38,10 @@ const (
 // Usherr: Read-to-Me made an audiobook (or couldn't).
 const EventAudiobook = "audiobook"
 
+// Usherr: a linked Usherr invited this one to a screening, moved it or
+// called it off.
+const EventScreening = "screening"
+
 // EventInfo describes one subscribable event for the UI.
 type EventInfo struct {
 	ID    string `json:"id"`
@@ -63,6 +67,8 @@ func EventKinds() []EventInfo {
 		{EventReminder, "TV reminders", "A Live TV show you asked to be reminded of starts in five minutes."}, // Usherr
 		// Usherr: Read-to-Me
 		{EventAudiobook, "Audiobooks made", "Read-to-Me finished making an audiobook of an ebook, or couldn't."},
+		// Usherr: linked screenings
+		{EventScreening, "Linked screenings", "A linked Usherr invited you to a screening, moved it or called it off."},
 		// Usherr: Service checks
 		{EventServiceDown, "Service down", "A service on the Service checks list stopped answering."},
 		{EventServiceUp, "Service back", "A service that was down answers again."},

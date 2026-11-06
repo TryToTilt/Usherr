@@ -21,12 +21,16 @@ export interface Showtime {
   // Usherr: shared as a watch party (Community), or a friend's joined by its
   // code (joined: host once found in their server; waiting: not found yet)
   party?: { going: string[] | null; cantMake: number; joined?: boolean; host?: string; waiting?: boolean; bot?: 'on' | 'off'; invite?: string; needLink?: boolean }
+  // Usherr: linked screenings. Shared with linked Usherrs: how many are
+  // invited, how many said they're coming, and how many people they bring.
+  linked?: { invited: number; going: number; people: number }
 }
 export interface ShowtimeList {
   showtimes: Showtime[]
   nowMs: number // the server's clock
   tv: boolean // Play on TV is set up
   community?: boolean // Usherr: a showtime can be shared as a watch party
+  linkOn?: boolean // Usherr: linked Usherrs can be invited
 }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -58,6 +62,75 @@ export const shareShowtime = async (id: number) => {
 }
 export const moveShowtime = (id: number, b: { atMs: number; preshowMin: number; playOn: PlayOn }) => call<{ id: number }>('PUT', `/${id}`, b)
 export const cancelShowtime = (id: number) => fetch(`/api/home/showtimes/${id}`, { method: 'DELETE', credentials: 'include' })
+
+// Usherr: linked screenings, step 2 (internal/api/home_link_screenings.go).
+export type ScreeningAnswer = 'going' | 'not' | 'maybe'
+export type HasFilm = 'yes' | 'getting' | 'no'
+// One linked Usherr in the host's invite picker.
+export interface LinkedGuest {
+  id: number // the link
+  name: string
+  invited: boolean
+  answer?: ScreeningAnswer
+  count?: number // how many from that household
+  has?: HasFilm
+  runtime?: number // minutes of its copy
+  differentCut?: boolean
+  seen: boolean // it has the screening as it is now
+}
+export interface LinkedAnswer {
+  on: boolean // linking is on here
+  peers: LinkedGuest[]
+  runtime: number
+}
+// A screening a linked Usherr invited this one to.
+export interface LinkedScreening {
+  id: number
+  host: string // the linked Usherr
+  hostName?: string // the person hosting
+  tmdbId: number
+  title: string
+  year?: number
+  posterUrl?: string
+  runtime?: number
+  edition?: string
+  atMs: number
+  preshowMin: number
+  mine?: ScreeningAnswer // this person's answer
+  people: { name: string; answer: ScreeningAnswer }[] // this household
+  roster: { name: string; answer?: ScreeningAnswer; count?: number }[] // who's coming, from the host
+  has?: HasFilm
+  myRuntime?: number
+  differentCut?: boolean
+}
+
+// The summary on a booking shared with linked Usherrs.
+export function linkedSummary(s: Showtime): string {
+  const l = s.linked
+  if (!l) return ''
+  const invited = plural(l.invited, 'Shared with {n} linked Usherr', 'Shared with {n} linked Usherrs')
+  if (l.going === 0) return `${invited} · ${t('nobody’s said I’m in yet')}`
+  return `${invited} · ${plural(l.people, '{n} person coming', '{n} people coming')}`
+}
+
+export const linkedFor = (id: number) => call<LinkedAnswer>('GET', `/${id}/linked`)
+export const inviteLinked = (id: number, peers: number[]) => call<LinkedAnswer>('PUT', `/${id}/linked`, { peers })
+
+async function screeningsCall<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`/api/home/screenings${path}`, {
+    method,
+    credentials: 'include',
+    cache: 'no-store',
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  const data = (await res.json().catch(() => null)) as (T & { error?: string }) | null
+  if (!res.ok) throw new Error(data?.error ?? t('Something went wrong (error {status}).', { status: res.status }))
+  return data as T
+}
+export const listScreenings = () => screeningsCall<{ screenings: LinkedScreening[]; on: boolean }>('GET', '')
+export const answerScreening = (id: number, answer: ScreeningAnswer) => screeningsCall<{ screenings: LinkedScreening[] }>('PUT', `/${id}/rsvp`, { answer })
+export const checkScreening = (id: number) => screeningsCall<{ screenings: LinkedScreening[] }>('POST', `/${id}/check`)
 
 // When a showtime is over: its film's length (two hours when unknown).
 export const showtimeEnds = (s: Showtime) => s.atMs + (s.runtime && s.runtime > 0 ? s.runtime : 120) * 60_000

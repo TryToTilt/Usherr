@@ -205,7 +205,11 @@
    scrolling sideways, so Play is always in sight: the air date moves under the
    title, and a downloaded episode's Play button stands in for its badge. */
 @media (max-width: 700px) {
-  .ep-table.ep-simple { display: table; width: 100%; overflow: visible; }
+  .ep-table.ep-simple { display: table; width: 100%; overflow: visible; table-layout: fixed; }
+  /* fixed columns, so the table can't grow past the screen; the title takes what's left */
+  .ep-table.ep-simple th:first-child { width: 2.6em !important; }
+  .ep-table.ep-simple th.ep-state { width: 6.5em; }
+  .ep-table.ep-simple th:last-child { width: 7.5em; }
   .ep-table.ep-simple .ep-air, .ep-table.ep-simple .ep-state-done .badge { display: none; }
   .ep-table.ep-simple th, .ep-table.ep-simple td { white-space: normal; }
   .ep-table.ep-simple td .badge, .ep-table.ep-simple td button { white-space: nowrap; }

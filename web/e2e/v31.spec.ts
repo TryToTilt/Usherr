@@ -64,6 +64,8 @@ test('the weekly summary day and hour are saved', async ({ page }) => {
 test('quiet for a while starts and ends', async ({ page }) => {
   const errors = watchErrors(page)
   await page.goto('/settings/automation')
+  // Settings cards start folded; the quiet buttons are inside Automation.
+  await page.getByRole('button', { name: 'Open all' }).click()
   await page.getByRole('button', { name: '1 hour' }).click()
   await expect(page.getByText(/heavy background work waits until/i)).toBeVisible()
   await page.getByRole('button', { name: 'Back to normal' }).click()

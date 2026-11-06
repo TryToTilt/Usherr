@@ -53,6 +53,7 @@ type Server struct {
 	marqueeLive marqueeHub         // Usherr: the Marquee screens' live streams (home_marquee_screens.go)
 	marqueeMQTT marqueeBridge      // Usherr: the Marquee in Home Assistant (home_marquee_mqtt.go)
 	communityL  communityLink      // Usherr: the household's Discord bot (home_community.go)
+	linkS       linkState          // Usherr: linked Usherrs through the Usherr Link Relay (home_link.go)
 	linkC       linkCodes          // Usherr: /link codes waiting to be typed in (home_community_link.go)
 	chat        chatHub            // Usherr: watch party chats, live (home_community_chat.go)
 	mediaInfo   mediaInfoState     // what the video files hold, read from their headers (media_info.go)
@@ -689,6 +690,11 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("GET /api/home/showtimes/{id}/chat", s.handlePartyChat)              // Usherr: the watch party chat
 	member.HandleFunc("GET /api/home/showtimes/{id}/chat/events", s.handlePartyChatEvents) // Usherr
 	member.HandleFunc("POST /api/home/showtimes/{id}/chat", s.handlePartyChatSend)         // Usherr
+	member.HandleFunc("GET /api/home/showtimes/{id}/linked", s.handleShowtimeLinked)       // Usherr: linked screenings, the host's invite picker
+	member.HandleFunc("PUT /api/home/showtimes/{id}/linked", s.handlePutShowtimeLinked)    // Usherr
+	member.HandleFunc("GET /api/home/screenings", s.handleScreeningsIn)                    // Usherr: screenings linked Usherrs invited this one to
+	member.HandleFunc("PUT /api/home/screenings/{id}/rsvp", s.handleScreeningRSVP)         // Usherr
+	member.HandleFunc("POST /api/home/screenings/{id}/check", s.handleScreeningCheck)      // Usherr
 	member.HandleFunc("POST /api/home/community/link", s.handleCommunityLink)              // Usherr
 	member.HandleFunc("DELETE /api/home/community/link", s.handleCommunityUnlink)          // Usherr
 	member.HandleFunc("GET /api/home/stack", s.handleGetStack)                             // Usherr: your stack
@@ -778,6 +784,14 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("PUT /api/home/community", s.handlePutCommunity)                       // Usherr
 	admin.HandleFunc("GET /api/home/community/channels", s.handleCommunityChannels)         // Usherr
 	admin.HandleFunc("POST /api/home/community/test", s.handleTestCommunity)                // Usherr
+	admin.HandleFunc("GET /api/link", s.handleGetLink)                                      // Usherr: linked Usherrs (home_link.go)
+	admin.HandleFunc("PUT /api/link/settings", s.handlePutLinkSettings)                     // Usherr
+	admin.HandleFunc("POST /api/link/invites", s.handleCreateLinkInvite)                    // Usherr
+	admin.HandleFunc("DELETE /api/link/invites/{id}", s.handleDeleteLinkInvite)             // Usherr
+	admin.HandleFunc("POST /api/link/join", s.handleLinkJoin)                               // Usherr
+	admin.HandleFunc("GET /api/link/peers", s.handleLinkPeers)                              // Usherr
+	admin.HandleFunc("PUT /api/link/peers/{id}", s.handleRenameLinkPeer)                    // Usherr
+	admin.HandleFunc("DELETE /api/link/peers/{id}", s.handleUnlinkPeer)                     // Usherr
 	admin.HandleFunc("POST /api/home/marquee/screens/{id}/command", s.handleMarqueeCommand) // Usherr
 	admin.HandleFunc("GET /api/home/marquee/media", s.handleMarqueeMedia)                   // Usherr
 	admin.HandleFunc("POST /api/home/marquee/media", s.handleMarqueeMediaUpload)            // Usherr

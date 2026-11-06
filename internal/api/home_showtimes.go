@@ -47,6 +47,8 @@ type showtime struct {
 	Theme          int64 `json:"preshowTheme"` // Usherr: the pre-show theme (0: the schedule's)
 	// Usherr: Community. Shared as a watch party: who's going.
 	Party *partyInfo `json:"party,omitempty"`
+	// Usherr: linked screenings. Shared with linked Usherrs: who's coming.
+	Linked *linkedSummary `json:"linked,omitempty"`
 }
 
 const showtimeCols = `id, user_id, tmdb_id, title, year, poster_url, runtime, at_ms, preshow_min, play_on, state, preshow_theme`
@@ -103,8 +105,9 @@ func (s *Server) handleShowtimes(w http.ResponseWriter, r *http.Request) {
 			list[i].Party = &p
 		}
 	}
+	s.withLinked(r.Context(), list) // Usherr: linked screenings
 	_, _, canShare := s.communityCanShare()
-	writeJSON(w, http.StatusOK, map[string]any{"showtimes": list, "nowMs": time.Now().UnixMilli(), "tv": s.tvReady(), "community": canShare})
+	writeJSON(w, http.StatusOK, map[string]any{"showtimes": list, "nowMs": time.Now().UnixMilli(), "tv": s.tvReady(), "community": canShare, "linkOn": s.linkedPeersOn(r.Context())})
 }
 
 type showtimeBody struct {
@@ -279,7 +282,8 @@ func (s *Server) handlePutShowtime(w http.ResponseWriter, r *http.Request) {
 	}
 	s.marqueeLive.send("", marqueeEvent{Type: "settings"})
 	if st.AtMs != b.AtMs || st.PreshowMin != pre {
-		go s.partyMoved(st.ID) // Usherr: Community
+		go s.partyMoved(st.ID)     // Usherr: Community
+		go s.screeningMoved(st.ID) // Usherr: linked screenings
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": st.ID})
 }
@@ -291,7 +295,8 @@ func (s *Server) handleDeleteShowtime(w http.ResponseWriter, r *http.Request) {
 		writeError(w, code, msg)
 		return
 	}
-	s.partyCancelled(r.Context(), st) // Usherr: Community, before the party's rows go with it
+	s.partyCancelled(r.Context(), st)        // Usherr: Community, before the party's rows go with it
+	s.screeningCalledOff(r.Context(), st.ID) // Usherr: linked screenings, likewise
 	if _, err := s.db.ExecContext(r.Context(), `DELETE FROM showtimes WHERE id = ?`, st.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "The showtime couldn't be cancelled.")
 		return

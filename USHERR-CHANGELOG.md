@@ -5,6 +5,22 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.53.0] - 2026-11-06
+
+### Added
+
+- **Linked screenings** (Showtime; needs Linked Usherrs switched on). Share a showtime with linked Usherrs: press Invite on a booking and tick who to invite. A linked Usherr only sees screenings it's invited to. They see it in their own Showtime under "From linked Usherrs" with your name, the film, the start time and the pre-show length, and their people answer I'm in, Can't make it or Maybe. You see who's coming from each house, how many, and whether they have the film; everyone at the screening sees who's coming. Their Usherr checks its library, saved streams, downloads and requests for the film: if it isn't there, "Get it before showtime" asks for it, and if their copy runs more than two minutes longer or shorter than yours, they're told it may be a different cut. Moving or calling off a showtime follows to every invited Usherr, taking someone off the list tells them, and unlinking removes shared screenings on both sides. A new notification kind, "Linked screenings", covers invites, moves and cancellations. Each screening has its own key, and the relay hands one message to everyone at a screening at once, so a screening can have 50 or more linked Usherrs.
+
+### Fixed
+
+- On a phone, the episode list on a show's page no longer pushes the page a few pixels wider than the screen.
+
+## [2.52.0] - 2026-11-05
+
+### Added
+
+- **Linked Usherrs** (Settings, Movie night, Linked Usherrs; off until you switch on "Link with other Usherrs"). The first step of watching together with friends who run their own Usherr, without Discord. "Invite a friend's Usherr" makes a one-time code (USH-XXXX-XXXX-XXXX-XXXX-XXXX-X, works once, for 24 hours, can be cancelled); your friend pastes it under "Join with a code" and the two Usherrs are linked. A mistyped, used, cancelled or expired code says so. Each link shows its name, its fingerprint (to compare if you want to be sure), when it was last heard from, Rename (here only) and Unlink, which tells the other Usherr and stops the link on both sides at once. Linked Usherrs talk through the Usherr Link Relay, a postman run by the Usherr project at relay.usherr.app: every Usherr keeps one outgoing connection, so no port is opened and nobody sees your home address, and everything is encrypted and signed end to end, so the relay can't read any of it. The page shows whether the relay is connected and warns when the server's clock is off. "My own relay" lets you use a relay you run yourself (the small usherr-relay program; codes then carry its address). Screenings, synced playback, chat and rewards over the link come next. This Usherr's keys are kept in link-identity.key in the settings folder, not in the database or its backups.
+
 ## [2.51.0] - 2026-11-04
 
 ### Added

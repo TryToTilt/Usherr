@@ -35,6 +35,7 @@ const ArtworkSettings = lazy(() => import('./home/ArtworkSettings')) // Usherr: 
 const PushCollectionsSettings = lazy(() => import('./home/PushCollectionsSettings')) // Usherr: collections pushed to Jellyfin and Plex
 const PosterBadgesSettings = lazy(() => import('./home/PosterBadgesSettings')) // Usherr: badges on posters
 const CommunitySettings = lazy(() => import('./home/CommunitySettings')) // Usherr: Community (preview)
+const LinkedUsherrs = lazy(() => import('./home/LinkedUsherrs')) // Usherr: linked Usherrs
 const PartyChatPage = lazy(() => import('./home/PartyChat')) // Usherr: Community, the watch party chat on a phone
 const LobbyHome = lazy(() => import('./pages/LobbyHome')) // Usherr: Home in the new layout
 const ServerHub = lazy(() => import('./pages/ServerHub')) // Usherr: the new layout's Server area
@@ -301,6 +302,7 @@ function Gate() {
           <Route path="collections" element={<AdminOnly><PushCollectionsSettings /></AdminOnly>} /> {/* Usherr: collections in Jellyfin and Plex */}
           <Route path="poster-badges" element={<AdminOnly><PosterBadgesSettings /></AdminOnly>} /> {/* Usherr: poster badges */}
           <Route path="community" element={<AdminOnly><CommunitySettings /></AdminOnly>} /> {/* Usherr: Community (preview) */}
+          <Route path="linked" element={<AdminOnly><LinkedUsherrs /></AdminOnly>} /> {/* Usherr: linked Usherrs */}
           <Route path="setup" element={<AdminOnly><SetupChecklist /></AdminOnly>} /> {/* home fork */}
           <Route path="subtitles" element={<AdminOnly><SubtitleSettings /></AdminOnly>} />
           <Route path="metadata" element={<AdminOnly><MetadataSettings /></AdminOnly>} />

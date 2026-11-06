@@ -72,6 +72,16 @@
 .sht-party { display: block; font-size: 0.82rem; color: #f2c14e; }
 .sht-join-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .sht-join-row input { flex: 1 1 14rem; max-width: 20rem; font-family: var(--font-mono, monospace); text-transform: uppercase; }
+/* Usherr: linked screenings (LinkedScreenings.tsx): the host's invite picker
+   under a booking, and the screenings linked Usherrs invited this one to. */
+.sht-row:has(.sht-pick), .sht-linked .sht-row { flex-wrap: wrap; }
+.sht-pick { flex: 1 1 100%; display: grid; gap: 8px; justify-items: start; margin: 4px 0 6px 48px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; min-width: 0; }
+.sht-pick ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sht-pick li { display: grid; gap: 2px; }
+.sht-pick-state { padding-left: 1.7rem; color: var(--text-dim); font-size: 0.85rem; }
+.sht-pick .hint { margin: 0; }
+.sht-row > div .sht-warn { color: #f2c14e; }
+@media (max-width: 560px) { .sht-pick { margin-left: 0; } }
 /* Usherr: a friend's watch party, not linked to its thread yet (JoinedSetup) */
 .joined-setup ol { margin: 0.5rem 0; padding-left: 1.3rem; display: grid; gap: 0.6rem; }
 .joined-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }

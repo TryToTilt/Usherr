@@ -23,7 +23,7 @@ func TestPersonPartsAndMerge(t *testing.T) {
 		{ID: "plex:3:1", Name: "taylor", IsAdmin: true},
 		{ID: "plex:3:7", Name: "Robin"},
 	})
-	if len(people) != 3 || people[0].ID != "abc,plex:3:1" || people[2].ID != "def" || people[1].ID != "plex:3:7" {
+	if len(people) != 3 || people[0].ID != "plex:3:7" || people[1].ID != "def" || people[2].ID != "abc,plex:3:1" {
 		t.Fatalf("merged: %+v", people)
 	}
 	jf, plex := personParts("abc,plex:3:1")

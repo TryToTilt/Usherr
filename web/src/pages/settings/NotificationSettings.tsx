@@ -30,6 +30,7 @@ const EVENTS: { key: string; label: string; hint: string }[] = [
   { key: 'trashsync', label: t('TRaSH Guides sync applied'), hint: t('The update from the TRaSH Guides changed custom formats or profile scores. Tick the box under it to also hear when a check found nothing to change. A check that failed is always sent') },
   { key: 'reminder', label: t('TV reminders'), hint: t('A Live TV show you asked to be reminded of starts in five minutes') }, // Usherr
   { key: 'audiobook', label: t('Audiobooks made'), hint: t('Read-to-Me finished making an audiobook of an ebook, or couldn’t') }, // Usherr
+  { key: 'screening', label: t('Linked screenings'), hint: t('A linked Usherr invited you to a screening, moved it or called it off') }, // Usherr
   // Usherr: Service checks (Settings > System > Service checks)
   { key: 'servicedown', label: t('Service down'), hint: t('A service on the Service checks list stopped answering, for example Jellyfin or a download client') },
   { key: 'serviceup', label: t('Service back'), hint: t('A service that was down answers again') },

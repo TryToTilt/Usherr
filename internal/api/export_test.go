@@ -9,6 +9,7 @@ import (
 	"github.com/rdborg/mediarium/internal/community/discord"
 	"github.com/rdborg/mediarium/internal/crypto"
 	"github.com/rdborg/mediarium/internal/library"
+	"github.com/rdborg/mediarium/internal/link"
 	"github.com/rdborg/mediarium/internal/metadata"
 	"github.com/rdborg/mediarium/internal/notify"
 	"github.com/rdborg/mediarium/internal/settings"
@@ -299,6 +300,30 @@ func (s *Server) TestSetDiscord(api, gateway string, dial discord.DialFunc) {
 	s.communityL.api, s.communityL.gateway, s.communityL.dial = api, gateway, dial
 	s.communityL.mu.Unlock()
 }
+
+// TestLinkNode is the running link node (home_link.go), or nil.
+func (s *Server) TestLinkNode() *link.Node { return s.linkNode() }
+
+// TestSetLinkJoinWait sets how long a join waits for the other Usherr.
+func (s *Server) TestSetLinkJoinWait(d time.Duration) { s.linkS.joinWait = d }
+
+// TestScreeningSID is the id linked Usherrs know a shared showtime by
+// (home_link_screenings.go), "" when it isn't shared.
+func (s *Server) TestScreeningSID(showtimeID int64) string {
+	var sid string
+	_ = s.db.QueryRow(`SELECT sid FROM link_screenings_out WHERE showtime_id = ?`, showtimeID).Scan(&sid)
+	return sid
+}
+
+// TestScreeningJob runs the linked screenings' job once.
+func (s *Server) TestScreeningJob() { s.screeningJob(context.Background()) }
+
+// SetScreeningRosterWaitForTest sets how long answers are gathered before the
+// roster goes out.
+func SetScreeningRosterWaitForTest(d time.Duration) { screeningRosterWait = d }
+
+// DifferentCutForTest is differentCut (home_link_screenings.go).
+func DifferentCutForTest(a, b int) bool { return differentCut(a, b) }
 
 // TestShowtimeCode makes a watch party's showtime code (home_showtime_code.go).
 func (s *Server) TestShowtimeCode(tmdbID int, atMs int64, preshowMin int) string {

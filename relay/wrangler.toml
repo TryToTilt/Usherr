@@ -1,0 +1,28 @@
+# The Usherr Link Relay on Cloudflare Workers (see README.md).
+# No account id here on purpose: `wrangler login` picks the account.
+name = "usherr-relay"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# The production address (usherr.app is on the project's Cloudflare account).
+routes = [
+  { pattern = "relay.usherr.app", custom_domain = true }
+]
+# (As a plain route instead of a custom domain: relay.usherr.app/*)
+
+[[durable_objects.bindings]]
+name = "INBOX"
+class_name = "Inbox"
+
+[[durable_objects.bindings]]
+name = "BOX"
+class_name = "Box"
+
+# SQLite-backed Durable Objects work on the free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Inbox", "Box"]
+
+[observability]
+enabled = false # no request logs: the relay keeps nothing about who talks to whom

@@ -12,12 +12,13 @@ import { useDocumentTitle } from '../documentTitle'
 import { t } from '../i18n'
 import { playStream, playTitle, playWithPreshow } from './Player'
 import { preshowApi } from './preshowApi' // Usherr
-import { cancelShowtime, clockLabel, inLabel, joinShowtime, listShowtimes, moveShowtime, PLAY_ON_LABEL, shareShowtime, showtimeEnds, whenLabel, type PlayOn, type Showtime } from './showtimes'
+import { cancelShowtime, clockLabel, inLabel, joinShowtime, linkedSummary, listShowtimes, moveShowtime, PLAY_ON_LABEL, shareShowtime, showtimeEnds, whenLabel, type PlayOn, type Showtime } from './showtimes'
 import { rememberedQuality, streamApi, type StreamStart } from './streamApi'
 import { api, type ImportCandidate } from '../api'
 import { openShowtimeBooking } from './ShowtimePill' // Usherr: book from here
 import { PartyChat } from './PartyChat' // Usherr: Community, the watch party chat
 import { JoinedSetup } from './JoinedSetup' // Usherr: a friend's party, not linked yet
+import { InviteLinked, LinkedScreenings } from './LinkedScreenings' // Usherr: linked screenings
 import { Link } from 'react-router-dom'
 import './showtime.css'
 
@@ -173,6 +174,8 @@ export default function ShowtimePage() {
   const admin = isAdmin(useAuth().user)
   const [list, setList] = useState<Showtime[] | null>(null)
   const [communityOn, setCommunityOn] = useState(false) // Usherr: showtimes can be shared to Discord
+  const [linkOn, setLinkOn] = useState(false) // Usherr: linked Usherrs can be invited
+  const [picking, setPicking] = useState<number | null>(null) // Usherr: the booking whose invite picker is open
   const [offset, setOffset] = useState(0) // the server's clock minus this one
   const [now, setNow] = useState(() => Date.now())
   const [ready, setReady] = useState(false) // pressed: allowed to start with sound
@@ -184,6 +187,7 @@ export default function ShowtimePage() {
       .then((d) => {
         setList(d.showtimes)
         setCommunityOn(!!d.community)
+        setLinkOn(!!d.linkOn)
         setOffset(d.nowMs - Date.now())
       })
       .catch((e: Error) => setError(e.message))
@@ -329,6 +333,7 @@ export default function ShowtimePage() {
         return j?.party ? <JoinedSetup party={j.party} title={j.title} admin={admin} /> : null
       })()}
 
+      <LinkedScreenings />
       <BookFilm />
       <JoinParty onJoined={load} />
 
@@ -356,9 +361,15 @@ export default function ShowtimePage() {
                     · <Link to={`/showtime/chat/${s.id}`}>{t('Chat')}</Link>
                   </span>
                 )}
+                {s.linked && <span className="sht-party">{linkedSummary(s)}</span>}
               </div>
               {(s.mine || admin) && s.state !== 'done' && (
                 <span className="sht-row-btns">
+                  {linkOn && !s.party?.joined && (
+                    <button className="btn-sm" aria-expanded={picking === s.id} onClick={() => setPicking(picking === s.id ? null : s.id)} title={t('Invite linked Usherrs')}>
+                      {t('Invite')}
+                    </button>
+                  )}
                   {communityOn && !s.party && s.state === 'booked' && (
                     <button className="btn-sm" data-walk="showtime-share-later" onClick={() => void share(s)} title={t('Share it to Discord as a watch party')}>
                       {t('Share')}
@@ -375,6 +386,7 @@ export default function ShowtimePage() {
                   </button>
                 </span>
               )}
+              {picking === s.id && (s.mine || admin) && s.state !== 'done' && <InviteLinked showtime={s} onChanged={load} />}
             </li>
           ))}
         </ul>

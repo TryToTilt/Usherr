@@ -234,6 +234,8 @@ func eventTag(ev Event) string {
 		return "package"
 	case EventAudiobook:
 		return "headphones"
+	case EventScreening:
+		return "clapper"
 	}
 	if ev.Type == "test" {
 		return "bell"
