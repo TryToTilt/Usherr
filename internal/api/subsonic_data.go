@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rdborg/mediarium/internal/mediafiles"
 	"github.com/rdborg/mediarium/internal/subsonic"
@@ -303,11 +304,9 @@ func indexLetter(name string) string {
 			break
 		}
 	}
-	for _, r := range strings.ToUpper(n) {
-		if r >= 'A' && r <= 'Z' {
-			return string(r)
-		}
-		break
+	// Only the first letter counts.
+	if r, _ := utf8.DecodeRuneInString(strings.ToUpper(n)); r >= 'A' && r <= 'Z' {
+		return string(r)
 	}
 	return "#"
 }
