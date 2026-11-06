@@ -70,6 +70,7 @@
 .sht-strip .sht-strip-main { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Usherr: Community, a showtime shared as a watch party */
 .sht-party { display: block; font-size: 0.82rem; color: #f2c14e; }
+.sht-host-rsvp { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; font-size: 0.82rem; } /* Usherr: linked screenings, the host's household */
 .sht-join-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .sht-join-row input { flex: 1 1 14rem; max-width: 20rem; font-family: var(--font-mono, monospace); text-transform: uppercase; }
 /* Usherr: linked screenings (LinkedScreenings.tsx): the host's invite picker

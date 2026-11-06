@@ -111,7 +111,7 @@ func TestLinkScreenings(t *testing.T) {
 
 	// Sam's Showtime has it, with Robin's name; Alex's doesn't (only
 	// screenings it's invited to).
-	linkWait(t, "Sam gets the screening", func() bool { return len(sam.screenings(t)) == 1 })
+	linkWait(t, "Sam gets the screening", func() bool { x := sam.screenings(t); return len(x) == 1 && x[0]["has"] != nil }) // looked for in the library just after
 	x := sam.screenings(t)[0]
 	if x["host"] != "Robin's Usherr" || x["hostName"] != "Ryan" || x["title"] != "The Matrix" || x["atMs"].(float64) != float64(at) || x["preshowMin"].(float64) != 10 ||
 		x["posterUrl"] != "https://image.tmdb.org/t/p/w500/m.jpg" || x["has"] != "no" {
@@ -145,10 +145,11 @@ func TestLinkScreenings(t *testing.T) {
 	if l := list["showtimes"].([]any)[0].(map[string]any)["linked"].(map[string]any); l["invited"] != float64(1) || l["going"] != float64(1) || l["people"] != float64(1) {
 		t.Fatalf("the showtime's summary: %v", l)
 	}
-	// Who's coming reaches everyone at the screening (fanned out).
+	// Who's coming reaches everyone at the screening (fanned out), the
+	// host's own household first.
 	linkWait(t, "the roster reaches Sam", func() bool {
 		r := sam.screenings(t)[0]["roster"].([]any)
-		return len(r) == 1 && r[0].(map[string]any)["answer"] == "going" && r[0].(map[string]any)["name"] == "Sam's Usherr"
+		return len(r) == 2 && r[0].(map[string]any)["name"] == "Robin's Usherr" && r[1].(map[string]any)["answer"] == "going" && r[1].(map[string]any)["name"] == "Sam's Usherr"
 	})
 
 	// Alex isn't invited: its answer is refused.

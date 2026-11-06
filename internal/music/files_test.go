@@ -122,7 +122,7 @@ func TestMatchTracks(t *testing.T) {
 	})
 
 	t.Run("two discs", func(t *testing.T) {
-		two := []TrackSlot{{1, 1, "One"}, {1, 2, "Two"}, {2, 1, "Three"}, {2, 2, "Four"}}
+		two := []TrackSlot{{1, 1, "One", 0}, {1, 2, "Two", 0}, {2, 1, "Three", 0}, {2, 2, "Four", 0}}
 		got, _ := matched(identifyAll(filepath.Join("CD1", "01 - One.flac"), filepath.Join("CD1", "02 - Two.flac"), filepath.Join("CD2", "01 - Three.flac"), "2-02 - Four.flac"), two)
 		if len(got) != 4 || got["01 - Three.flac"] != "Three" || got["2-02 - Four.flac"] != "Four" {
 			t.Fatalf("got %v", got)

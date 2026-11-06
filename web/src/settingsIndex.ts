@@ -51,7 +51,7 @@ const PAGE_WORDS: Record<string, string> = {
   addons: 'links apps sidebar',
   profile: 'name email password api key avatar',
   security: 'passkey sessions devices api keys',
-  services: 'plex listenbrainz kobo e-reader hardcover discord link code',
+  services: 'plex listenbrainz lastfm last.fm scrobble subsonic phone apps symfonium app password kobo e-reader hardcover discord link code',
   accounts: 'users people roles admin member viewer invite',
   requests: 'quota limit approve problem reports',
   'sign-in': 'sso oidc ldap active directory login proxy',

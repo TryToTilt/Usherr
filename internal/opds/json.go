@@ -118,6 +118,8 @@ func (f Feed) JSON() ([]byte, error) {
 			switch l.Rel {
 			case RelImage, RelThumbnail:
 				p.Images = append(p.Images, jsonImage{Href: l.Href, Type: l.Type})
+			case RelPSEStream:
+				// Page streaming is an OPDS 1.2 extension; OPDS 2.0 has no such link.
 			default:
 				jl := toJSONLink(l)
 				if l.Rel == RelAcquisition {

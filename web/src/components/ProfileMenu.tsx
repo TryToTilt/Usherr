@@ -48,6 +48,8 @@ export default function ProfileMenu() {
   async function signOut() {
     try {
       await api.logout()
+      // Books kept on this device for reading offline go with the account.
+      void import('../bookshelf/offline').then((m) => m.forgetAllBooks())
       // If the sign-in page sends people to single sign-on by itself, it
       // should not do that right after they chose to sign out.
       try {

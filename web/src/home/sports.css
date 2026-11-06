@@ -47,3 +47,20 @@
 }
 .sp-more { justify-self: center; }
 .sp-scores { justify-self: end; display: inline-flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 0.88rem; }
+
+/* Usherr's own engine gets games: a league's Downloads, Pick a release. */
+.sp-get { display: grid; gap: 10px; }
+.sp-get-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.sp-get-head h2 { margin: 0; }
+.sp-check { display: inline-flex; align-items: center; gap: 8px; }
+.sp-field { display: grid; gap: 4px; max-width: 420px; }
+.sp-parts { display: flex; flex-wrap: wrap; gap: 6px 16px; border: 0; margin: 0; padding: 0; }
+.sp-parts legend { padding: 0; margin-bottom: 4px; color: var(--text-dim); }
+.sp-small { margin: 0; font-size: 0.86rem; }
+.sp-picker { width: min(860px, calc(100vw - 32px)); max-height: calc(100vh - 64px); overflow: auto; display: grid; gap: 10px; align-content: start; }
+.sp-picker > .sp-dim { margin: 0; }
+.sp-releases li { align-items: flex-start; }
+.sp-releases .sp-game-main strong { white-space: normal; overflow-wrap: anywhere; font-weight: 500; font-size: 0.92rem; }
+.sp-why { white-space: normal !important; color: var(--warning, var(--text-dim)) !important; font-size: 0.82rem !important; }
+.sp-off-match { opacity: 0.75; }
+.icon-btn.sp-on { color: var(--accent); }

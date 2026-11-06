@@ -313,10 +313,11 @@ func (s *Server) importAlbumFiles(ctx context.Context, artist music.Artist, albu
 	for i, f := range files {
 		infos[i] = music.IdentifyFile(f, musicTagReader)
 	}
+	music.WithDurations(infos) // Usherr: a download's files must also be the tracks' length
 	slots := make([]music.TrackSlot, len(tracks))
 	multiDisc := false
 	for i, t := range tracks {
-		slots[i] = music.TrackSlot{Disc: t.Disc, Position: t.Position, Title: t.Title}
+		slots[i] = music.TrackSlot{Disc: t.Disc, Position: t.Position, Title: t.Title, LengthMs: t.LengthMs}
 		multiDisc = multiDisc || t.Disc > 1
 	}
 	matches, unmatched := music.MatchTracks(infos, slots)

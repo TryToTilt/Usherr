@@ -20,6 +20,8 @@ import { TracksMenu, prefAudioLang, prefSubLang, pickSub, sameLang, type PlayTra
 import { preshowApi, preshowBefore, type PlanAsk, type PreshowPlan } from './preshowApi' // Usherr
 import { browserCaps } from './browserCaps' // Usherr: what this browser decodes (the pre-show uses it too)
 import PartyOverlay from './PartyOverlay' // Usherr: Community, the watch party chat over the film
+import type { RoomLink } from './roomLink' // Usherr: linked screenings, step 3
+import { RoomBar, RoomPaused, useRoomFollow } from './RoomFollow' // Usherr: ... the player follows the host
 
 const PreshowRun = lazy(() => import('./PreshowRun')) // Usherr: the pre-show before the film
 
@@ -52,6 +54,7 @@ type Request = {
   resumedFrom?: number // Usherr: picked up where it was left (home_positions.go)
   noPreshow?: boolean // Usherr: its pre-show has played already (a Showtime)
   party?: number // Usherr: the watch party (its showtime's id) whose chat can show over the film
+  sync?: RoomLink // Usherr: linked screenings, the screening this film follows (the host's, or this Usherr's own when it hosts)
 }
 
 // Usherr: the name a title's place is kept under (home_positions.go), or ''
@@ -78,13 +81,13 @@ function clockOf(secs: number): string {
   return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
 }
 
-export type StreamExtras = Pick<Request, 'onNext' | 'tvTitle' | 'watchIn' | 'startAt' | 'about' | 'sport' | 'noPreshow' | 'party'>
+export type StreamExtras = Pick<Request, 'onNext' | 'tvTitle' | 'watchIn' | 'startAt' | 'about' | 'sport' | 'noPreshow' | 'party' | 'sync'>
 
 let show: ((r: Request | null) => void) | null = null
 
 // playTitle opens the player on a movie, an episode or a video.
-export function playTitle(kind: PlayKind, id: number, title: string, opts?: { noPreshow?: boolean; party?: number }) {
-  show?.({ kind, id, title, noPreshow: opts?.noPreshow, party: opts?.party })
+export function playTitle(kind: PlayKind, id: number, title: string, opts?: { noPreshow?: boolean; party?: number; sync?: RoomLink; startAt?: number }) {
+  show?.({ kind, id, title, noPreshow: opts?.noPreshow, party: opts?.party, sync: opts?.sync, startAt: opts?.startAt })
 }
 
 // Usherr: whether the watch party chat shows over the film, in this browser
@@ -100,7 +103,8 @@ function partyOverlaySaved(): boolean {
 
 // Usherr: the pre-show (home_preshow.go), full screen, then whatever comes
 // next (the film). Nothing to show goes straight on.
-let preshow: ((p: { plan: PreshowPlan; then: () => void } | null) => void) | null = null
+type PreshowShown = { plan: PreshowPlan; then: () => void; clock?: () => number | null; lead?: () => void }
+let preshow: ((p: PreshowShown | null) => void) | null = null
 export async function playWithPreshow(ask: PlanAsk, then: () => void) {
   const plan = await preshowApi.plan(ask).catch(() => null)
   if (!plan || plan.steps.length === 0 || !preshow) {
@@ -108,6 +112,21 @@ export async function playWithPreshow(ask: PlanAsk, then: () => void) {
     return
   }
   preshow({ plan, then })
+}
+
+// Usherr: linked screenings, step 3. A linked screening's pre-show runs by
+// the clock: clock says how many seconds in it is (the same moment at every
+// Usherr), so each piece starts on time and a late joiner comes in where
+// it's got to. lead is the host's "Start the film now", for everyone.
+export function playPreshowTimeline(plan: PreshowPlan, clock: () => number | null, then: () => void, lead?: () => void): boolean {
+  if (plan.steps.length === 0 || !preshow) return false
+  preshow({ plan, then, clock, lead })
+  return true
+}
+
+// endPreshow closes the pre-show without going on to the film.
+export function endPreshow() {
+  preshow?.(null)
 }
 
 // playStream opens the player on a started stream. onKeep, when given, is
@@ -124,7 +143,7 @@ export function playChannel(id: number, name: string) {
 
 export function PlayerHost() {
   const [req, setReq] = useState<Request | null>(null)
-  const [pre, setPre] = useState<{ plan: PreshowPlan; then: () => void } | null>(null)
+  const [pre, setPre] = useState<PreshowShown | null>(null)
   useEffect(() => {
     preshow = setPre
     return () => {
@@ -166,6 +185,8 @@ export function PlayerHost() {
       <Suspense fallback={null}>
         <PreshowRun
           plan={pre.plan}
+          clock={pre.clock}
+          lead={pre.lead}
           onDone={() => {
             const then = pre.then
             setPre(null)
@@ -521,6 +542,9 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
     })
     return true
   }
+  // Usherr: linked screenings, step 3. In a linked screening, the film
+  // follows the host (and the host's own controls go to everyone).
+  const follow = useRoomFollow(videoRef, req.sync, !!plan, plan?.converted ? (plan.shift ?? 0) : 0, !!plan?.converted, (at) => setRedo((r) => ({ ...r, at })))
   const convertInstead = () => {
     if (retried.current || plan?.mode !== 'direct' || plan.converted || !titled) return false
     retried.current = true
@@ -1256,7 +1280,7 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
               <Icon name="maximize" size={14} />
             </button>
           )}
-          {posItem && plan && !error && (
+          {posItem && plan && !error && !req.sync && (
             <button type="button" className="btn-sm btn-with-icon hp-startover" onClick={startOver} title={t('Start over')}>
               <Icon name="skip-prev" size={14} /> <span>{t('Start over')}</span>
             </button>
@@ -1291,7 +1315,8 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
                 </button>
               </div>
             )}
-            {inIntro && (
+            {req.sync && <RoomPaused link={req.sync} follow={follow} />}
+            {inIntro && !req.sync && (
               <button className="hp-skip primary btn-with-icon" onClick={skipIntro}>
                 <Icon name="chevron-right" size={16} /> {t('Skip intro')}
               </button>
@@ -1315,6 +1340,7 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
             )}
           </div>
         )}
+        {req.sync && !error && !failed && <RoomBar link={req.sync} follow={follow} position={fileTime} />}
         {!plan && !error && <p className="hp-note">{t('Getting ready…')}</p>}
         {note && <p className="hp-note">{note}</p>}
         {tvNote && <p className="hp-note">{tvNote}</p>}

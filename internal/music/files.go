@@ -107,8 +107,19 @@ type FileInfo struct {
 	AlbumArtist string
 	Album       string
 	Year        int
-	HasPicture  bool   // a cover picture is embedded
-	FileType    string // FLAC, MP3, M4A, ALAC, OGG, ... as the tag reader names it
+	HasPicture  bool    // a cover picture is embedded
+	FileType    string  // FLAC, MP3, M4A, ALAC, OGG, ... as the tag reader names it
+	DurationSec float64 // Usherr: from the file's header (WithDurations), 0 when unknown
+}
+
+// WithDurations reads each file's length from its audio header, for the
+// duration gate in MatchTracks. A file that can't be read keeps 0.
+func WithDurations(infos []FileInfo) {
+	for i := range infos {
+		if ai, err := ReadAudioInfo(infos[i].Path); err == nil {
+			infos[i].DurationSec = ai.DurationSec
+		}
+	}
 }
 
 // TagReader reads the tags embedded in an audio file. ok is false when the
@@ -189,6 +200,23 @@ type TrackSlot struct {
 	Disc     int
 	Position int
 	Title    string
+	LengthMs int // Usherr: the track's length, 0 when unknown (no duration check then)
+}
+
+// lengthsAgree is the duration gate (Usherr; adapted from DroppedNeedle,
+// AGPL-3.0, backend/services/native/file_processor.py): a file whose length
+// is more than 15 seconds, or 10%, away from the track's is another
+// recording, whatever its name or number says. Unknown lengths always agree.
+func lengthsAgree(fileSec float64, trackMs int) bool {
+	if fileSec < 1 || trackMs <= 0 {
+		return true // a header that gives no real length says nothing
+	}
+	want := float64(trackMs) / 1000
+	diff := fileSec - want
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff <= max(15, want*0.10)
 }
 
 // Match pairs a file with a track slot (both by index).
@@ -206,6 +234,10 @@ type Match struct {
 //     discs ("13" is the first track of disc 2 after a 12-track disc 1);
 //  2. then by title, for files whose numbers did not fit;
 //  3. then by number alone, for what is left.
+//
+// In every step a file whose length (FileInfo.DurationSec, when read) is
+// more than 15 seconds or 10% away from the track's is left out: it is
+// another recording, a sample or a cut-off download.
 //
 // It returns the matches and the files that fit no track.
 func MatchTracks(files []FileInfo, slots []TrackSlot) (matches []Match, unmatched []int) {
@@ -245,7 +277,7 @@ func MatchTracks(files []FileInfo, slots []TrackSlot) (matches []Match, unmatche
 	}
 
 	for fi, f := range files {
-		if si, ok := numbered(f); ok && !slotDone[si] && (f.Title == "" || titlesAgree(f.Title, slots[si].Title)) {
+		if si, ok := numbered(f); ok && !slotDone[si] && (f.Title == "" || titlesAgree(f.Title, slots[si].Title)) && lengthsAgree(f.DurationSec, slots[si].LengthMs) {
 			take(fi, si)
 		}
 	}
@@ -255,7 +287,7 @@ func MatchTracks(files []FileInfo, slots []TrackSlot) (matches []Match, unmatche
 		}
 		cand := -1
 		for si, s := range slots {
-			if !slotDone[si] && titlesAgree(f.Title, s.Title) {
+			if !slotDone[si] && titlesAgree(f.Title, s.Title) && lengthsAgree(f.DurationSec, s.LengthMs) {
 				if cand >= 0 {
 					cand = -2 // more than one fits: leave it
 					break
@@ -271,7 +303,7 @@ func MatchTracks(files []FileInfo, slots []TrackSlot) (matches []Match, unmatche
 		if fileDone[fi] {
 			continue
 		}
-		if si, ok := numbered(f); ok && !slotDone[si] {
+		if si, ok := numbered(f); ok && !slotDone[si] && lengthsAgree(f.DurationSec, slots[si].LengthMs) {
 			take(fi, si)
 		}
 	}

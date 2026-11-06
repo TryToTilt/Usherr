@@ -249,6 +249,12 @@ func (r *Repo) Issues(seriesID int64) ([]Issue, error) {
 	return r.queryIssues(`SELECT `+issueCols+` FROM comic_issues WHERE series_id = ? ORDER BY sort_key, number`, seriesID)
 }
 
+// DownloadedIssues returns every issue that has a file, by series and then in
+// reading order.
+func (r *Repo) DownloadedIssues() ([]Issue, error) {
+	return r.queryIssues(`SELECT ` + issueCols + ` FROM comic_issues WHERE status = 'downloaded' AND file_path != '' ORDER BY series_id, sort_key, number`)
+}
+
 // GetIssue returns an issue by id.
 func (r *Repo) GetIssue(id int64) (Issue, error) {
 	i, err := scanIssue(r.db.QueryRow(`SELECT `+issueCols+` FROM comic_issues WHERE id = ?`, id))

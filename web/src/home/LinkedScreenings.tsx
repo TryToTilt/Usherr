@@ -158,7 +158,8 @@ export function LinkedScreenings() {
       <h2>{t('From linked Usherrs')}</h2>
       <ul>
         {list.map((s) => {
-          const coming = s.roster.filter((g) => g.answer === 'going')
+          const coming = s.roster.filter((g, i) => g.answer === 'going' && !(s.rosterHost && i === 0))
+          const hostHome = s.rosterHost ? s.roster[0] : undefined // step 3: the host's own household
           const others = s.people.filter((p) => p.answer)
           return (
             <li key={s.id} className="sht-row">
@@ -175,6 +176,7 @@ export function LinkedScreenings() {
                 </span>
                 <span className="sht-party">
                   {s.hostName ? t('Hosted by {name} ({usherr})', { name: s.hostName, usherr: s.host }) : t('Hosted by {host}', { host: s.host })}
+                  {hostHome?.answer === 'going' && hostHome.count ? ` · ${plural(hostHome.count, '{n} person at the host’s', '{n} people at the host’s')}` : ''}
                   {coming.length > 0 ? ` · ${t('coming: {names}', { names: coming.map((g) => (g.count && g.count > 1 ? `${g.name} (${g.count})` : g.name)).join(', ') })}` : ''}
                 </span>
                 {others.length > 0 && <span>{t('Here: {names}', { names: others.map((p) => `${p.name} (${ANSWER_LABEL[p.answer]()})`).join(', ') })}</span>}
@@ -192,6 +194,7 @@ export function LinkedScreenings() {
                   )}
                 </span>
                 {s.differentCut && <span className="sht-warn">{t('Your copy may be a different cut, so it may not stay in step with the host’s.')}</span>}
+                {s.showtimeId ? <span>{t('Booked in your Showtime: the Marquee counts down to it.')}</span> : null}
               </div>
               <span className="sht-row-btns" role="group" aria-label={t('Are you coming?')}>
                 {(['going', 'not', 'maybe'] as ScreeningAnswer[]).map((a) => (

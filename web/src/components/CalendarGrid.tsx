@@ -29,6 +29,7 @@ export function entryLink(e: CalendarEntry): string | undefined {
   if (e.kind === 'album' && e.albumId) return `/music/album/${e.albumId}`
   if (e.kind === 'book' && e.bookId) return `/book/${e.bookId}`
   if (e.kind === 'comic' && e.comicSeriesId) return `/comics/${e.comicSeriesId}` // home fork
+  if (e.kind === 'sport' && e.sportLeagueId) return `/sports/league/${e.sportLeagueId}` // Usherr: a wanted game's league
   return undefined
 }
 
@@ -36,7 +37,7 @@ export function entryLink(e: CalendarEntry): string | undefined {
 // server ends the subtitle with the formats ("Audiobook", "Ebook and audiobook").
 // Usherr: every kind has its own type, comics and anime included (an unknown
 // kind used to fall through to "Movie"). Anime is drawn as TV, labelled anime.
-type TypeKey = GlyphKind | 'anime'
+type TypeKey = GlyphKind | 'anime' | 'sport' // sport: Usherr, drawn as TV
 function glyphOf(kind: CalendarEntry['kind'], subtitle?: string, anime?: boolean): TypeKey {
   switch (kind) {
     case 'episode':
@@ -47,15 +48,17 @@ function glyphOf(kind: CalendarEntry['kind'], subtitle?: string, anime?: boolean
       return subtitle && /(^|· )Audiobook$/.test(subtitle) ? 'audiobook' : 'book'
     case 'comic':
       return 'comic'
+    case 'sport':
+      return 'sport'
     default:
       return 'movie'
   }
 }
 // The drawing for a type.
-const drawn = (g: TypeKey): GlyphKind => (g === 'anime' ? 'tv' : g)
+const drawn = (g: TypeKey): GlyphKind => (g === 'anime' || g === 'sport' ? 'tv' : g)
 
-const KIND_LABEL: Record<TypeKey, string> = { movie: t('Movie'), tv: t('TV episode'), anime: t('Anime episode'), music: t('Album'), book: t('Book'), audiobook: t('Audiobook'), comic: t('Comic issue') }
-const LEGEND_LABEL: Record<TypeKey, string> = { movie: t('Movies'), tv: t('TV'), anime: t('Anime'), music: t('Music'), book: t('Books'), audiobook: t('Audiobooks'), comic: t('Comics') }
+const KIND_LABEL: Record<TypeKey, string> = { movie: t('Movie'), tv: t('TV episode'), anime: t('Anime episode'), music: t('Album'), book: t('Book'), audiobook: t('Audiobook'), comic: t('Comic issue'), sport: t('Game') }
+const LEGEND_LABEL: Record<TypeKey, string> = { movie: t('Movies'), tv: t('TV'), anime: t('Anime'), music: t('Music'), book: t('Books'), audiobook: t('Audiobooks'), comic: t('Comics'), sport: t('Sports') }
 const STATUS_LABEL: Record<CalendarEntry['status'], string> = { downloaded: t('Have it'), downloading: t('Downloading'), missing: t('Waiting'), theaters: t('In theaters'), streams: t('Streams') }
 
 // A movie that is on the calendar twice says which of its dates this is.
@@ -302,7 +305,7 @@ export default function CalendarGrid({ entries, compact, zone: zoneProp }: { ent
   // The legend shows the kinds that are switched on, plus any kind that has
   // an entry this month.
   const present = new Set(entries.map((e) => glyphOf(e.kind, e.subtitle, e.anime)))
-  const legendKinds = (['movie', 'tv', 'anime', 'music', 'book', 'audiobook', 'comic'] as const).filter(
+  const legendKinds = (['movie', 'tv', 'anime', 'music', 'book', 'audiobook', 'comic', 'sport'] as const).filter(
     (k) => present.has(k) || (k === 'movie' && on('movies')) || (k === 'tv' && on('tv')) || (k === 'music' && on('music')) || (k === 'book' && on('ebooks')) || (k === 'audiobook' && on('audiobooks')),
   )
 

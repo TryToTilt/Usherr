@@ -5,6 +5,39 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.55.0] - 2026-11-06
+
+### Added
+
+- **Music:**
+  - **Bring in playlists** (Settings, Playlists). The .m3u and .m3u8 files in your music folder become playlists, with a list of the tracks that weren't found. Usherr can check them again each day (off by default), and any playlist can be saved as .m3u8.
+  - **Last.fm.** An administrator enters a Last.fm API key once (Settings, Services, Last.fm), then everyone can connect their own account. What you play goes to Last.fm and ListenBrainz; plays made while they can't be reached are sent later, and the new heart in the player can love the track on Last.fm too.
+  - **Phone apps** (Settings, Services, Phone apps; off until you switch it on). Symfonium, DSub, Substreamer, play:Sub, Feishin and other Subsonic and OpenSubsonic apps can play your music from Usherr. They sign in with your user name and your app password (the same one e-readers use).
+  - **Streaming quality.** Phones on mobile data can get smaller files (Opus, AAC or MP3), set per device in the player; files that already fit play as they are.
+  - **Lyrics found online can be saved** as .lrc files next to your music (off by default; an existing .lrc is never replaced).
+  - **Safer album downloads.** Karaoke, tribute, live and bootleg releases are left out unless that's what you asked for, as are releases too small to be the album and, on import, files of the wrong length.
+  - Thanks to DroppedNeedle (AGPL-3.0), whose approach several of these follow.
+- **Books and comics:**
+  - **Comics in reading apps.** Your comics are in Usherr's OPDS catalogue by series, with covers; Chunky, Panels and KOReader can read them a page at a time without downloading the whole issue, and pick up where you left off in Usherr. One search finds books and comics.
+  - **PDFs in Usherr.** PDFs open in Usherr's own reader, page by page, and remember your place.
+  - **Bookmarks and highlights.** Highlight words in four colours, add notes, and bookmark pages in the ebook, PDF and comic readers. They're yours alone, listed on the book's or series' page, and jump straight back.
+  - **Read offline.** "Keep on this device" saves a book, comic or audiobook to read with no connection (over https); your place is sent when you're back online. See and free the space under "On this device"; signing out clears it.
+
+### Changed
+
+- The e-reader password is now called the **app password**: one password for reading apps and music apps, never your sign-in password.
+
+## [2.54.0] - 2026-11-06
+
+### Added
+
+- **Watch together with linked Usherrs** (Showtime). A linked screening now plays in step at every house. When someone at a guest's Usherr says I'm in, the screening is booked in its own Showtime, hosted by your Usherr, so the Marquee counts down to it; moves and cancellations follow, and it goes when nobody there is coming. Your own household is listed first among who's coming, and anyone in it can say I'm in or Can't make it. Shortly before the pre-show, your Usherr sends what's in it, piece by piece; each guest plays the same pre-show with its own cards, clips and trailers, and anything it doesn't have is a card of the same length, so the film starts at the same moment everywhere. When it's time, press "Join the screening" on the Showtime page; joining late starts where everyone has got to. The host's play, pause and skips go to everyone, and every player stays within a fraction of a second, speeding up or slowing down slightly, or jumping when it's further off. Guests see "Following the host", how far off they are, and "Host paused". "Anyone can pause" (off by default) lets guests ask to pause. If the relay drops, the film plays on and gets back in step when it's back. This follows in Usherr's own player; Jellyfin and Plex don't follow yet.
+- **Sports downloads, without Sportarr.** Usherr's own sports engine now downloads games. Each league chooses whether it gets its new games, which parts of a fight card or sessions of a race weekend, only the teams you follow or every game, and in which quality profile; followed teams can get their games too. Usherr looks for each game on your indexers a few hours after it ends, then less and less often for two weeks, within your indexers' daily limits. On a played game, Search now and Pick a release show every release, with why the others aren't that game. Games download through your usual download clients and are filed in a Sports folder the way Plex and Jellyfin read a TV library (League / Season 2026 / League - S2026E05 - Game), with NFO files, and the media servers are told to scan. Wanted games show on the Sports page and the Calendar, and their downloads in Activity under the game's name. Settings, Extras, Sports has the Sports folder, the quality for games and the automatic search, plus "Bring my followed leagues from Sportarr" (it only reads Sportarr, and brings no profiles).
+
+### Fixed
+
+- An invite code with one wrong character is always caught as a typo. Before, a few typos slipped through and were reported as "That code doesn't work anymore". Codes made by 2.52 or 2.53 that haven't been used yet may now read as a typo: make a new one.
+
 ## [2.53.0] - 2026-11-06
 
 ### Added

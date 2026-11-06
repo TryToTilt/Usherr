@@ -102,6 +102,20 @@ func (s *Server) ereaderUserAllowed(userID int64) (bool, string) {
 	if !s.ebooksEnabled() {
 		return false, "Ebooks are switched off in Mediarium."
 	}
+	return s.accountMayRead(userID)
+}
+
+// opdsUserAllowed is the same for the OPDS catalogue, which has comics as
+// well: it is open while ebooks or comics are on.
+func (s *Server) opdsUserAllowed(userID int64) (bool, string) {
+	if !s.ebooksEnabled() && !s.comicsEnabled() {
+		return false, "Ebooks and comics are switched off in Usherr."
+	}
+	return s.accountMayRead(userID)
+}
+
+// accountMayRead reports whether an account is on and may read.
+func (s *Server) accountMayRead(userID int64) (bool, string) {
 	// An account an administrator turned off loses its e-reader access too.
 	if u, err := s.Auth.GetUser(userID); err != nil || u.Disabled {
 		return false, "This account is turned off."
@@ -156,7 +170,7 @@ func (s *Server) opdsUser(w http.ResponseWriter, r *http.Request) (*auth.User, b
 		challenge(w)
 		return nil, false
 	}
-	if ok, why := s.ereaderUserAllowed(user.ID); !ok {
+	if ok, why := s.opdsUserAllowed(user.ID); !ok {
 		http.Error(w, why, http.StatusForbidden)
 		return nil, false
 	}

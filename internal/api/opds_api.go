@@ -80,8 +80,17 @@ func (s *Server) handleOPDS(w http.ResponseWriter, r *http.Request) {
 	}
 	rest = strings.Trim(rest, "/")
 	parts := strings.Split(rest, "/")
+	// Each half of the catalogue is there while its part of Usherr is on.
+	bookPart := rest == "new" || rest == "books" || rest == "authors" || rest == "series" || rest == "author" || rest == "series-books" || parts[0] == "books"
+	if bookPart && !s.ebooksEnabled() || parts[0] == "comics" && !s.comicsEnabled() {
+		http.NotFound(w, r)
+		return
+	}
 
 	switch {
+	case rest == "" && s.comicsEnabled():
+		// Not kept: the cache follows the books, not the comics.
+		s.opdsRootFeed(w, r, v)
 	case rest == "":
 		feed(func(w http.ResponseWriter) { s.opdsRootFeed(w, r, v) })
 	case rest == "new":
@@ -108,6 +117,8 @@ func (s *Server) handleOPDS(w http.ResponseWriter, r *http.Request) {
 		feed(func(w http.ResponseWriter) {
 			s.opdsBooks(w, r, v, "/series-books", name, "series:"+name, bySeriesPos, func(b books.Book) bool { return sameGroup(b.SeriesName, name) }, "name", name)
 		})
+	case rest == "search" && s.comicsEnabled():
+		s.opdsSearchAll(w, r, v, user.ID, strings.TrimSpace(r.URL.Query().Get("q")))
 	case rest == "search":
 		q := strings.TrimSpace(r.URL.Query().Get("q"))
 		feed(func(w http.ResponseWriter) {
@@ -116,7 +127,15 @@ func (s *Server) handleOPDS(w http.ResponseWriter, r *http.Request) {
 	case rest == "opensearch.xml" && !v.json:
 		s.opdsSearchDescription(w, v)
 	case len(parts) == 3 && parts[0] == "books":
-		s.opdsBookFile(w, r, parts[1], parts[2])
+		s.opdsBookFile(w, r, parts[1], parts[2], "")
+	case len(parts) == 4 && parts[0] == "books" && parts[2] == "pages" && !v.json:
+		s.opdsBookFile(w, r, parts[1], parts[2], parts[3])
+	case rest == "comics":
+		s.opdsComicSeriesList(w, r, v)
+	case len(parts) == 3 && parts[0] == "comics" && parts[1] == "series":
+		s.opdsComicIssues(w, r, v, user.ID, parts[2])
+	case len(parts) >= 4 && parts[0] == "comics" && (parts[1] == "series" || parts[1] == "issues") && !v.json:
+		s.opdsComicFile(w, r, parts)
 	default:
 		http.NotFound(w, r)
 	}
@@ -124,7 +143,14 @@ func (s *Server) handleOPDS(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) opdsSearchDescription(w http.ResponseWriter, v opdsView) {
 	w.Header().Set("Content-Type", opds.TypeSearch+"; charset=utf-8")
-	_, _ = w.Write(opds.SearchDescription("Mediarium books", "Search the ebooks in Mediarium", v.href("/search")+"?q={searchTerms}"))
+	what := "ebooks"
+	switch {
+	case s.comicsEnabled() && s.ebooksEnabled():
+		what = "books and comics"
+	case s.comicsEnabled():
+		what = "comics"
+	}
+	_, _ = w.Write(opds.SearchDescription(brand.Name+" books", "Search the "+what+" in "+brand.Name, v.href("/search")+"?q={searchTerms}"))
 }
 
 // ---- Feeds ----
@@ -206,11 +232,14 @@ func (s *Server) writeFeed(w http.ResponseWriter, r *http.Request, v opdsView, f
 }
 
 func (s *Server) opdsRootFeed(w http.ResponseWriter, r *http.Request, v opdsView) {
-	list, err := s.ebookBooks()
-	if err != nil {
-		slog.Error("opds: list books", "err", err)
-		http.Error(w, "Couldn't read the library.", http.StatusInternalServerError)
-		return
+	var list []books.Book
+	if s.ebooksEnabled() {
+		var err error
+		if list, err = s.ebookBooks(); err != nil {
+			slog.Error("opds: list books", "err", err)
+			http.Error(w, "Couldn't read the library.", http.StatusInternalServerError)
+			return
+		}
 	}
 	updated := latestAdded(list)
 	nav := func(id, title, content, rel, p string, kind opds.Kind) opds.Entry {
@@ -224,12 +253,16 @@ func (s *Server) opdsRootFeed(w http.ResponseWriter, r *http.Request, v opdsView
 	f := opds.Feed{
 		ID: "urn:mediarium:opds:root", Title: brand.Name + " books", Updated: updated, Kind: opds.Navigation,
 		Links: v.startAndSearch(opds.Link{Rel: opds.RelSelf, Href: v.href("/"), Type: v.navType()}),
-		Entries: []opds.Entry{
+	}
+	if s.ebooksEnabled() {
+		f.Entries = append(f.Entries,
 			nav("new", "Recently added", "The newest books in the library.", opds.RelNew, "/new", opds.Acquisition),
 			nav("books", "All books", fmt.Sprintf("%d books, by title.", len(list)), opds.RelSubsection, "/books", opds.Acquisition),
 			nav("authors", "Authors", "Books by author.", opds.RelSubsection, "/authors", opds.Navigation),
-			nav("series", "Series", "Books by series.", opds.RelSubsection, "/series", opds.Navigation),
-		},
+			nav("series", "Series", "Books by series.", opds.RelSubsection, "/series", opds.Navigation))
+	}
+	if s.comicsEnabled() {
+		f.Entries = append(f.Entries, nav("comics", "Comics", "Comics by series, to read page by page.", opds.RelSubsection, "/comics", opds.Navigation))
 	}
 	s.writeFeed(w, r, v, f)
 }
@@ -438,12 +471,17 @@ func (s *Server) opdsBookEntry(v opdsView, b books.Book) opds.Entry {
 		{Rel: opds.RelImage, Href: s.cfg.URLBase + "/opds/books/" + id + "/cover", Type: "image/jpeg"},
 		{Rel: opds.RelThumbnail, Href: s.cfg.URLBase + "/opds/books/" + id + "/thumbnail", Type: "image/jpeg"},
 	}
+	if !v.json {
+		if n := s.opdsBookComicCount(b); n > 0 {
+			e.Links = append(e.Links, opds.Link{Rel: opds.RelPSEStream, Href: s.cfg.URLBase + "/opds/books/" + id + "/pages/{pageNumber}?width={maxWidth}", Type: "image/jpeg", PSECount: n})
+		}
+	}
 	return e
 }
 
 // ---- Files and covers ----
 
-func (s *Server) opdsBookFile(w http.ResponseWriter, r *http.Request, idText, what string) {
+func (s *Server) opdsBookFile(w http.ResponseWriter, r *http.Request, idText, what, page string) {
 	id, err := strconv.ParseInt(idText, 10, 64)
 	if err != nil || id <= 0 {
 		http.NotFound(w, r)
@@ -455,6 +493,13 @@ func (s *Server) opdsBookFile(w http.ResponseWriter, r *http.Request, idText, wh
 		return
 	}
 	switch what {
+	case "pages":
+		n, err := strconv.Atoi(page)
+		if err != nil || !books.ComicFormat(ebookExt(b)) {
+			http.NotFound(w, r)
+			return
+		}
+		s.opdsBookComicPage(w, r, b, n)
 	case "download":
 		s.serveEbookDownload(w, r, b)
 	case "cover":

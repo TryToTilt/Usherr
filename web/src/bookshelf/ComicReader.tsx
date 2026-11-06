@@ -6,6 +6,9 @@ import { withBase } from '../base'
 import { t } from '../i18n'
 import { animateTurn, saveTurn, storedTurn, type Turn, type TurnSpeed } from './turn'
 import { openingPage } from './shelfMath'
+import Marks from './Marks'
+import { marksApi, pageOfMark } from './marksApi'
+import { saveProgress } from './progress'
 
 type View = 'single' | 'double'
 type Fit = 'page' | 'width'
@@ -32,13 +35,14 @@ const pageUrl = (id: number, n: number) => withBase(`/api/books/${id}/comic/${n}
 // The comic reader: one picture at a time (or two side by side), turned with
 // the arrows, a swipe or a tap on the side of the page. A comic from the
 // right-to-left world (manga) turns the other way round.
-export default function ComicReader({ book }: { book: Book }) {
+export default function ComicReader({ book, at = 0 }: { book: Book; at?: number }) {
   const [info, setInfo] = useState<{ pages: number; rtl: boolean } | null>(null)
   const [error, setError] = useState('')
   const [page, setPage] = useState(1) // the first page on screen
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs)
   const [turnPrefs, setTurnPrefs] = useState(storedTurn)
   const [panel, setPanel] = useState(false)
+  const [marksOpen, setMarksOpen] = useState(false)
   const [bad, setBad] = useState<Set<number>>(new Set())
   const stage = useRef<HTMLDivElement>(null)
   const turning = useRef(false)
@@ -58,9 +62,11 @@ export default function ComicReader({ book }: { book: Book }) {
           }),
           api.bookProgress(book.id, 'ebook').catch(() => null),
         ])
+        // Opened from a bookmark on the book's page: that page.
+        const mark = at ? (await marksApi.list(`book:${book.id}`).catch(() => [])).find((m) => m.id === at) : undefined
         if (cancelled) return
         if (meta.pages < 1) throw new Error(t("This comic couldn't be opened."))
-        const start = saved?.finished ? 1 : openingPage(saved?.position, meta.pages) // Usherr: read to the end, it starts again
+        const start = mark ? Math.min(pageOfMark(mark.position), meta.pages) : saved?.finished ? 1 : openingPage(saved?.position, meta.pages) // Usherr: read to the end, it starts again
         // What a save sends: the place read from the server until a page is turned,
         // so opening and leaving again keeps it instead of going back to page 1.
         last.current = start
@@ -76,7 +82,7 @@ export default function ComicReader({ book }: { book: Book }) {
     return () => {
       cancelled = true
     }
-  }, [book.id])
+  }, [book.id, at])
 
   const pages = info?.pages ?? 0
   const rtl = prefs.direction === 'rtl' || (prefs.direction === 'auto' && !!info?.rtl)
@@ -88,7 +94,7 @@ export default function ComicReader({ book }: { book: Book }) {
     (keepalive = false) => {
       if (!pages || !armed.current) return
       const p = last.current
-      void api.saveBookProgress(book.id, { format: 'ebook', position: `page:${p}`, percent: Math.round((p / pages) * 1000) / 10, finished: p >= pages }, keepalive).catch(() => undefined)
+      saveProgress(book.id, { format: 'ebook', position: `page:${p}`, percent: Math.round((p / pages) * 1000) / 10, finished: p >= pages }, keepalive)
     },
     [book.id, pages],
   )
@@ -229,7 +235,26 @@ export default function ComicReader({ book }: { book: Book }) {
         <button className="icon-btn" onClick={() => goTo(1)} disabled={page <= 1} title={t('Start over')} aria-label={t('Start over')}>
           <Icon name="skip-prev" size={18} />
         </button>
-        <button className={`icon-btn${panel ? ' active' : ''}`} onClick={() => setPanel((v) => !v)} title={t('View')} aria-label={t('View')}>
+        <button
+          className={`icon-btn${marksOpen ? ' active' : ''}`}
+          onClick={() => {
+            setMarksOpen((v) => !v)
+            setPanel(false)
+          }}
+          title={t('Bookmarks')}
+          aria-label={t('Bookmarks')}
+        >
+          <Icon name="bookmark" size={18} />
+        </button>
+        <button
+          className={`icon-btn${panel ? ' active' : ''}`}
+          onClick={() => {
+            setPanel((v) => !v)
+            setMarksOpen(false)
+          }}
+          title={t('View')}
+          aria-label={t('View')}
+        >
           <Icon name="sliders" size={18} />
         </button>
         <button
@@ -242,6 +267,18 @@ export default function ComicReader({ book }: { book: Book }) {
         </button>
       </header>
 
+      {marksOpen && (
+        <div className="rdr-panel" aria-label={t('Bookmarks')}>
+          <Marks
+            item={`book:${book.id}`}
+            here={{ position: `page:${page}`, label: t('Page {n}', { n: page }), percent: Math.round((page / pages) * 1000) / 10 }}
+            onJump={(m) => {
+              goTo(pageOfMark(m.position))
+              setMarksOpen(false)
+            }}
+          />
+        </div>
+      )}
       {panel && (
         <div className="rdr-panel rdr-settings">
           <div className="rdr-row">

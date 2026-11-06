@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import type { Book as EpubBook, NavItem, Rendition } from 'epubjs'
 import { installPageTurn, pageTurnOn, setPageTurn, setTurnSpeed, turnSpeed, turnSpeeds } from './pageTurn' // page-turn hook (home fork)
 import { api, type Book } from '../api'
@@ -7,6 +7,10 @@ import Icon from '../components/Icon'
 import { useDocumentTitle } from '../documentTitle'
 import { t } from '../i18n'
 import ComicReader from './ComicReader'
+import PdfReader from './PdfReader'
+import Marks from './Marks'
+import { MARK_COLORS, marksApi, type MarkColor, type ReadingMark } from './marksApi'
+import { saveProgress } from './progress'
 import { animateTurn, type Turn, type TurnSpeed } from './turn'
 
 type Theme = 'light' | 'sepia' | 'dark'
@@ -46,12 +50,14 @@ function loadPrefs(): Prefs {
   }
 }
 
-// The reader: one book, a page at a time. EPUBs are drawn here (epub.js);
-// PDFs open in the browser's own viewer; MOBI and AZW3 can't be read in a
-// browser, so those can be downloaded instead.
+// The reader: one book, a page at a time. EPUBs are drawn here (epub.js),
+// and so are MOBI and AZW3 books, as an EPUB copy the server makes; PDFs are
+// drawn by pdf.js (PdfReader.tsx).
 export default function Reader() {
   const { id } = useParams()
   const bookId = Number(id)
+  // ?at=<bookmark id>: opened from a bookmark on the book's page.
+  const at = Number(useSearchParams()[0].get('at')) || 0
   const [book, setBook] = useState<Book | null>(null)
   const [error, setError] = useState('')
   useDocumentTitle(book ? t('{title} · Reading', { title: book.title }) : t('Reading'))
@@ -67,10 +73,10 @@ export default function Reader() {
   if (!book) return <div className="bks-loading">{t('Opening…')}</div>
   if (book.ebook.status !== 'downloaded') return <ReaderMessage title={book.title} text={t('There is no ebook for this book yet. Once Mediarium has downloaded it, it opens here.')} />
   const format = (book.ebook.format ?? '').toLowerCase()
-  if (format === 'pdf') return <PdfReader book={book} />
-  if (COMIC.has(format)) return <ComicReader book={book} />
+  if (format === 'pdf') return <PdfReader book={book} at={at} />
+  if (COMIC.has(format)) return <ComicReader book={book} at={at} />
   // Kindle books open as an EPUB copy Mediarium makes for the reader.
-  if (KINDLE.has(format)) return <EpubReader book={book} src={`${api.bookFileUrl(book.id)}?as=epub`} />
+  if (KINDLE.has(format)) return <EpubReader book={book} src={`${api.bookFileUrl(book.id)}?as=epub`} at={at} />
   if (format !== 'epub') {
     return (
       <ReaderMessage
@@ -88,7 +94,7 @@ export default function Reader() {
       />
     )
   }
-  return <EpubReader book={book} src={api.bookFileUrl(book.id)} />
+  return <EpubReader book={book} src={api.bookFileUrl(book.id)} at={at} />
 }
 
 const KINDLE = new Set(['mobi', 'azw', 'azw3', 'prc'])
@@ -110,28 +116,18 @@ function ReaderMessage({ title, text, action }: { title: string; text: string; a
   )
 }
 
-function PdfReader({ book }: { book: Book }) {
-  useEffect(() => {
-    // Opening it is enough to put it under Continue.
-    void api.saveBookProgress(book.id, { format: 'ebook', position: 'pdf', percent: 1 })
-  }, [book.id])
-  return (
-    <div className="rdr rdr-pdf">
-      <header className="rdr-top">
-        <Link className="icon-btn" to="/bookshelf" title={t('Back to your books')} aria-label={t('Back to your books')}>
-          <Icon name="chevron-left" size={20} />
-        </Link>
-        <strong className="rdr-title">{book.title}</strong>
-        <a className="icon-btn" href={api.bookFileUrl(book.id, true)} title={t('Download')} aria-label={t('Download')}>
-          <Icon name="download" size={18} />
-        </a>
-      </header>
-      <iframe className="rdr-pdf-frame" src={api.bookFileUrl(book.id)} title={book.title} />
-    </div>
-  )
+// The colours a highlight is drawn in (SVG fill over the words).
+const HIGHLIGHT_FILL: Record<MarkColor, string> = { '': '#f5d76e', yellow: '#f5d76e', green: '#8fd694', blue: '#8cc4f2', pink: '#f2a6c8' }
+
+function drawHighlight(r: Rendition, m: ReadingMark, onClick: () => void) {
+  try {
+    r.annotations.highlight(m.position, { id: m.id }, onClick, 'rdr-hl', { fill: HIGHLIGHT_FILL[m.color], 'fill-opacity': '0.4', 'mix-blend-mode': 'multiply' })
+  } catch {
+    // a highlight whose place is no longer in the book (a new edition) is only listed
+  }
 }
 
-function EpubReader({ book, src }: { book: Book; src: string }) {
+function EpubReader({ book, src, at }: { book: Book; src: string; at: number }) {
   const viewer = useRef<HTMLDivElement>(null)
   const epub = useRef<EpubBook | null>(null)
   const rendition = useRef<Rendition | null>(null)
@@ -140,7 +136,13 @@ function EpubReader({ book, src }: { book: Book; src: string }) {
   prefsRef.current = prefs
   const turning = useRef(false)
   const [toc, setToc] = useState<NavItem[]>([])
-  const [panel, setPanel] = useState<'' | 'toc' | 'settings'>('')
+  const [panel, setPanel] = useState<'' | 'toc' | 'settings' | 'marks'>('')
+  const [marks, setMarks] = useState<ReadingMark[] | undefined>(undefined)
+  const drawn = useRef(new Set<string>())
+  // Words picked in the page, to highlight.
+  const [pick, setPick] = useState<{ cfi: string; text: string; clear: () => void } | null>(null)
+  const [pickNote, setPickNote] = useState<string | null>(null)
+  const [pickError, setPickError] = useState('')
   const [percent, setPercent] = useState(0)
   const [located, setLocated] = useState(false) // page percentages are ready
   const [chapter, setChapter] = useState('')
@@ -157,7 +159,7 @@ function EpubReader({ book, src }: { book: Book; src: string }) {
     (keepalive = false) => {
       const at = last.current
       if (!at || !armed.current) return
-      void api.saveBookProgress(book.id, { format: 'ebook', position: at.cfi, percent: at.percent, finished: at.percent >= 99.5 }, keepalive).catch(() => undefined)
+      saveProgress(book.id, { format: 'ebook', position: at.cfi, percent: at.percent, finished: at.percent >= 99.5 }, keepalive)
     },
     [book.id],
   )
@@ -193,7 +195,9 @@ function EpubReader({ book, src }: { book: Book; src: string }) {
           }),
           api.bookProgress(book.id, 'ebook').catch(() => null),
         ])
+        const list = await marksApi.list(`book:${book.id}`).catch(() => [] as ReadingMark[])
         if (cancelled || !viewer.current) return
+        setMarks(list)
         await hasRoom(viewer.current)
         if (cancelled || !viewer.current) return
         const b = ePub(data)
@@ -226,17 +230,38 @@ function EpubReader({ book, src }: { book: Book; src: string }) {
           if (Math.abs(dx) > 50) void turnRef.current(dx < 0 ? 'next' : 'prev')
         })
         r.on('keyup', onKey)
+        // Words picked with the mouse or a finger can be highlighted.
+        r.on('selected', (cfiRange: string, contents: { window: Window }) => {
+          let text = ''
+          try {
+            text = (r.getRange(cfiRange) as unknown as Range).toString().trim()
+          } catch {
+            text = ''
+          }
+          if (!text) return
+          setPickError('')
+          setPickNote(null)
+          setPick({ cfi: cfiRange, text: text.slice(0, 4000), clear: () => contents.window.getSelection()?.removeAllRanges() })
+        })
+        for (const m of list) {
+          if (m.kind === 'highlight') {
+            drawHighlight(r, m, () => setPanel('marks'))
+            drawn.current.add(m.position)
+          }
+        }
         b.loaded.navigation.then((nav) => {
           tocRef.current = nav.toc
           setToc(nav.toc)
         })
         // Usherr: a book read to the end opens at the start again.
         const kept = saved?.finished ? null : saved
-        const start = kept?.position && kept.position.startsWith('epubcfi') ? kept.position : undefined
+        // Opened from a bookmark: there, not where the reading was left.
+        const fromMark = at ? list.find((m) => m.id === at)?.position : undefined
+        const start = fromMark ?? (kept?.position && kept.position.startsWith('epubcfi') ? kept.position : undefined)
         // A place that came from an e-reader (a Kobo) is only a percentage, not an
         // EPUB location: the book opens at the start and jumps there once the page
         // numbers are worked out, unless the reader has already turned a page.
-        const jumpTo = !start && kept && kept.percent > 0 && kept.percent < 100 ? kept.percent : 0
+        const jumpTo = !start && !fromMark && kept && kept.percent > 0 && kept.percent < 100 ? kept.percent : 0
         await r.display(start)
         const firstCfi = (r.currentLocation() as unknown as { start?: { cfi: string } } | undefined)?.start?.cfi
         if (cancelled) return
@@ -308,7 +333,7 @@ function EpubReader({ book, src }: { book: Book; src: string }) {
       epub.current = null
       rendition.current = null
     }
-  }, [book.id, save, src])
+  }, [book.id, save, src, at])
 
   useEffect(() => {
     try {
@@ -348,6 +373,9 @@ function EpubReader({ book, src }: { book: Book; src: string }) {
         <button className={`icon-btn${panel === 'toc' ? ' active' : ''}`} onClick={() => setPanel(panel === 'toc' ? '' : 'toc')} title={t('Contents')} aria-label={t('Contents')}>
           <Icon name="list" size={18} />
         </button>
+        <button className={`icon-btn${panel === 'marks' ? ' active' : ''}`} onClick={() => setPanel(panel === 'marks' ? '' : 'marks')} disabled={!ready} title={t('Bookmarks')} aria-label={t('Bookmarks')}>
+          <Icon name="bookmark" size={18} />
+        </button>
         <button className={`icon-btn${panel === 'settings' ? ' active' : ''}`} onClick={() => setPanel(panel === 'settings' ? '' : 'settings')} title={t('Text and colours')} aria-label={t('Text and colours')}>
           <span className="rdr-aa">Aa</span>
         </button>
@@ -372,6 +400,54 @@ function EpubReader({ book, src }: { book: Book; src: string }) {
             }}
           />
         </nav>
+      )}
+      {panel === 'marks' && (
+        <div className="rdr-panel" aria-label={t('Bookmarks')}>
+          <Marks
+            item={`book:${book.id}`}
+            list={marks}
+            here={last.current ? { position: last.current.cfi, label: chapter || t('{n}% in', { n: Math.round(percent) }), percent: last.current.percent } : null}
+            onChange={(next) => {
+              setMarks(next)
+              // A highlight removed in the list leaves the page too.
+              const keep = new Set(next.filter((m) => m.kind === 'highlight').map((m) => m.position))
+              for (const cfi of [...drawn.current]) {
+                if (!keep.has(cfi)) {
+                  rendition.current?.annotations.remove(cfi, 'highlight')
+                  drawn.current.delete(cfi)
+                }
+              }
+            }}
+            onJump={(m) => {
+              void rendition.current?.display(m.position)
+              setPanel('')
+            }}
+          />
+        </div>
+      )}
+      {pick && (
+        <div className="rdr-pick" role="dialog" aria-label={t('Highlight')}>
+          <span>{t('Highlight')}</span>
+          {MARK_COLORS.map((c) => (
+            <button key={c} className={`rdr-pick-dot ${c}`} onClick={() => void highlight(c)} aria-label={t('Highlight in {colour}', { colour: c })} title={t('Highlight')} />
+          ))}
+          {pickNote === null ? (
+            <button className="btn-sm" onClick={() => setPickNote('')}>
+              {t('Add a note')}
+            </button>
+          ) : (
+            <>
+              <textarea value={pickNote} onChange={(e) => setPickNote(e.target.value)} rows={2} maxLength={10000} aria-label={t('Note')} autoFocus />
+              <button className="btn-sm primary" onClick={() => void highlight('yellow')}>
+                {t('Save')}
+              </button>
+            </>
+          )}
+          <button className="btn-sm" onClick={() => closePick()}>
+            {t('Cancel')}
+          </button>
+          {pickError && <p className="error-text" style={{ flexBasis: '100%', margin: 0 }}>{pickError}</p>}
+        </div>
       )}
       {panel === 'settings' && (
         <div className="rdr-panel rdr-settings">
@@ -456,6 +532,26 @@ function EpubReader({ book, src }: { book: Book; src: string }) {
       </footer>
     </div>
   )
+
+  function closePick() {
+    pick?.clear()
+    setPick(null)
+    setPickNote(null)
+  }
+
+  async function highlight(color: MarkColor) {
+    const r = rendition.current
+    if (!pick || !r) return
+    try {
+      const m = await marksApi.add(`book:${book.id}`, { kind: 'highlight', position: pick.cfi, excerpt: pick.text, note: pickNote ?? '', color, label: chapter, percent: last.current?.percent ?? 0 })
+      setMarks((list) => [...(list ?? []), m].sort((a, b) => a.percent - b.percent || a.id - b.id))
+      drawHighlight(r, m, () => setPanel('marks'))
+      drawn.current.add(m.position)
+      closePick()
+    } catch (e) {
+      setPickError(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   function jump(p: number) {
     const b = epub.current

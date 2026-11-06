@@ -12,13 +12,15 @@ import { useDocumentTitle } from '../documentTitle'
 import { t } from '../i18n'
 import { playStream, playTitle, playWithPreshow } from './Player'
 import { preshowApi } from './preshowApi' // Usherr
-import { cancelShowtime, clockLabel, inLabel, joinShowtime, linkedSummary, listShowtimes, moveShowtime, PLAY_ON_LABEL, shareShowtime, showtimeEnds, whenLabel, type PlayOn, type Showtime } from './showtimes'
+import { cancelShowtime, clockLabel, hostAnswer, inLabel, joinShowtime, linkedSummary, listShowtimes, moveShowtime, PLAY_ON_LABEL, shareShowtime, showtimeEnds, whenLabel, type PlayOn, type Showtime } from './showtimes'
 import { rememberedQuality, streamApi, type StreamStart } from './streamApi'
 import { api, type ImportCandidate } from '../api'
 import { openShowtimeBooking } from './ShowtimePill' // Usherr: book from here
 import { PartyChat } from './PartyChat' // Usherr: Community, the watch party chat
 import { JoinedSetup } from './JoinedSetup' // Usherr: a friend's party, not linked yet
 import { InviteLinked, LinkedScreenings } from './LinkedScreenings' // Usherr: linked screenings
+import { ScreeningRoom } from './ScreeningRoom' // Usherr: linked screenings, step 3: the screening room
+import type { RoomLink } from './roomLink'
 import { Link } from 'react-router-dom'
 import './showtime.css'
 
@@ -58,14 +60,15 @@ async function watchStreamed(s: Showtime): Promise<StreamStart> {
 }
 
 // startFilm plays a showtime's film here: the library's file, or a stream
-// (found ahead, during the pre-show, when it could be).
-async function startFilm(s: Showtime, ahead?: Promise<StreamStart> | null) {
+// (found ahead, during the pre-show, when it could be). Usherr: a linked
+// screening's film follows its room, from where it's got to.
+async function startFilm(s: Showtime, ahead?: Promise<StreamStart> | null, room?: { sync: RoomLink; startAt: number }) {
   if (s.libraryId) {
-    playTitle('movie', s.libraryId, s.title, { noPreshow: true, party: s.party ? s.id : undefined }) // its pre-show has played; Usherr: its party's chat
+    playTitle('movie', s.libraryId, s.title, { noPreshow: true, party: s.party ? s.id : undefined, sync: room?.sync, startAt: room?.startAt }) // its pre-show has played; Usherr: its party's chat
     return
   }
   const st = await (ahead ?? Promise.reject(new Error('none'))).catch(() => findStream(s))
-  playStream(st, s.title, undefined, { about: { kind: 'movie', tmdbId: s.tmdbId }, noPreshow: true, party: s.party ? s.id : undefined }) // its pre-show has played; Usherr: its party's chat
+  playStream(st, s.title, undefined, { about: { kind: 'movie', tmdbId: s.tmdbId }, noPreshow: true, party: s.party ? s.id : undefined, sync: room?.sync, startAt: room?.startAt }) // its pre-show has played; Usherr: its party's chat
 }
 
 // BookFilm: book a film from the Showtime page itself: search, pick, then
@@ -203,30 +206,33 @@ export default function ShowtimePage() {
   }, [])
   const serverNow = now + offset
 
-  // The next film to start here.
-  const next = (list ?? []).find((s) => s.playOn === 'here' && s.state !== 'done' && showtimeEnds(s) > serverNow && s.id !== started)
+  // The next film to start here. Usherr: a linked screening (shared with
+  // linked Usherrs, or a linked Usherr's) has its room here, wherever it was
+  // booked to play.
+  const next = (list ?? []).find((s) => (s.playOn === 'here' || s.linked || s.hosted) && s.state !== 'done' && showtimeEnds(s) > serverNow && s.id !== started)
+  const room = !!next && !!(next.linked || next.hosted)
   const due = next && serverNow >= next.atMs
   // Usherr: the pre-show plays here first, timed to end at showtime. How
   // long it runs is asked once (without counting it as played).
   const [preSecs, setPreSecs] = useState<{ id: number; at: number; secs: number } | null>(null)
   const preTried = useRef('')
   useEffect(() => {
-    if (!next || !ready || next.preshowMin <= 0 || due) return
+    if (!next || !ready || room || next.preshowMin <= 0 || due) return
     const key = `${next.id}-${next.atMs}`
     if (preSecs && `${preSecs.id}-${preSecs.at}` === key) return
     preshowApi
       .plan({ showtime: next.id, dry: true })
       .then((p) => setPreSecs({ id: next.id, at: next.atMs, secs: Math.min(p.seconds, next.preshowMin * 60) }))
       .catch(() => setPreSecs({ id: next.id, at: next.atMs, secs: 0 }))
-  }, [next, ready, due, preSecs])
+  }, [next, ready, room, due, preSecs])
   const preStart = next && preSecs && preSecs.id === next.id && preSecs.at === next.atMs && preSecs.secs > 0 ? next.atMs - preSecs.secs * 1000 : null
   useEffect(() => {
-    if (!next || !ready || preStart === null || due || serverNow < preStart) return
+    if (!next || !ready || room || preStart === null || due || serverNow < preStart) return
     const key = `${next.id}-${next.atMs}`
     if (preTried.current === key) return
     preTried.current = key
     void playWithPreshow({ showtime: next.id, budget: Math.max(30, Math.round((next.atMs - serverNow) / 1000)) }, () => undefined)
-  }, [next, ready, preStart, due, serverNow])
+  }, [next, ready, room, preStart, due, serverNow])
   // A film that isn't in the library: its stream is found while the pre-show
   // runs (from five minutes before at the latest), so it's ready at showtime.
   const ahead = useRef<{ id: number; at: number; p: Promise<StreamStart> } | null>(null)
@@ -252,14 +258,22 @@ export default function ShowtimePage() {
     },
     [],
   )
+  // Usherr: linked screenings. The room starts the film, from where it's got to.
+  const startSynced = useCallback((s: Showtime, sync: RoomLink, startAt: number) => {
+    const a = ahead.current?.id === s.id && ahead.current.at === s.atMs ? ahead.current.p : null
+    return startFilm(s, a, { sync, startAt }).catch((e: unknown) => {
+      ahead.current = null
+      throw e
+    })
+  }, [])
   const tried = useRef(0)
   useEffect(() => {
-    if (!next || !due || !ready || tried.current === next.id) return
+    if (!next || !due || !ready || room || tried.current === next.id) return
     // Started a while ago (the page was closed): not on its own.
     if (serverNow - next.atMs > 5 * 60_000) return
     tried.current = next.id
     go(next)
-  }, [next, due, ready, serverNow, go])
+  }, [next, due, ready, room, serverNow, go])
 
   const move = async (s: Showtime, byMin: number) => {
     try {
@@ -278,6 +292,14 @@ export default function ShowtimePage() {
       toast.error(e instanceof Error ? e.message : String(e))
     }
   }
+  const answerHost = async (s: Showtime, a: 'going' | 'not') => {
+    try {
+      await hostAnswer(s.id, a)
+      load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
   const cancel = async (s: Showtime) => {
     if (!(await confirm({ title: t('Cancel {title}?', { title: s.title }), body: s.party?.joined ? t('The Marquee stops counting down to it. Your friend’s watch party goes on.') : s.party ? t('The Marquee stops counting down to it, and the watch party in Discord is called off.') : t('The Marquee stops counting down to it.'), confirmLabel: t('Cancel it'), danger: true }))) return
     await cancelShowtime(s.id)
@@ -287,7 +309,12 @@ export default function ShowtimePage() {
   return (
     <div className="page showtime-page">
       <section className={`sht-screen${next ? '' : ' empty'}`}>
-        {next ? (
+        {next && room ? (
+          <>
+            {next.posterUrl && <img className="sht-poster" src={next.posterUrl} alt="" />}
+            <ScreeningRoom key={next.id} showtime={next} joined={ready} onJoin={() => setReady(true)} start={startSynced} />
+          </>
+        ) : next ? (
           <>
             {next.posterUrl && <img className="sht-poster" src={next.posterUrl} alt="" />}
             <div className="sht-count">
@@ -362,8 +389,24 @@ export default function ShowtimePage() {
                   </span>
                 )}
                 {s.linked && <span className="sht-party">{linkedSummary(s)}</span>}
+                {s.linked && s.state !== 'done' && (
+                  <span className="sht-host-rsvp" role="group" aria-label={t('Are you coming?')}>
+                    {t('You:')}{' '}
+                    <button className={`btn-sm${s.linked.mine === 'going' ? ' primary' : ''}`} aria-pressed={s.linked.mine === 'going'} onClick={() => void answerHost(s, 'going')}>
+                      {t('I’m in')}
+                    </button>{' '}
+                    <button className={`btn-sm${s.linked.mine === 'not' ? ' primary' : ''}`} aria-pressed={s.linked.mine === 'not'} onClick={() => void answerHost(s, 'not')}>
+                      {t('Can’t make it')}
+                    </button>
+                  </span>
+                )}
+                {s.hosted && (
+                  <span className="sht-party">
+                    {s.hosted.hostName ? t('Hosted by {name} ({usherr})', { name: s.hosted.hostName, usherr: s.hosted.host }) : t('Hosted by {host}', { host: s.hosted.host })} · {t('the host sets the time; answer under From linked Usherrs')}
+                  </span>
+                )}
               </div>
-              {(s.mine || admin) && s.state !== 'done' && (
+              {(s.mine || admin) && s.state !== 'done' && !s.hosted && (
                 <span className="sht-row-btns">
                   {linkOn && !s.party?.joined && (
                     <button className="btn-sm" aria-expanded={picking === s.id} onClick={() => setPicking(picking === s.id ? null : s.id)} title={t('Invite linked Usherrs')}>

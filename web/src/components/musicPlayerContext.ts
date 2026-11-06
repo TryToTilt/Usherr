@@ -73,5 +73,35 @@ export function useMusicPlayer(): PlayerApi | null {
   return useContext(PlayerContext)
 }
 
-export const trackUrl = (id: number) => withBase(`/api/music/tracks/${id}/play`)
+// Usherr: the streaming quality of this device ('' = the file as it is, else a
+// top bitrate in kbit/s). Tracks over it are converted on the server.
+export const STREAM_QUALITY_KEY = 'usherr.music.streamQuality'
+export const STREAM_QUALITIES = ['', '320', '192', '128', '96'] as const
+export function streamQuality(): string {
+  try {
+    const v = localStorage.getItem(STREAM_QUALITY_KEY) ?? ''
+    return (STREAM_QUALITIES as readonly string[]).includes(v) ? v : ''
+  } catch {
+    return ''
+  }
+}
+
+// The format this browser plays best for a converted stream.
+let bestFormat = ''
+function streamFormat(): string {
+  if (!bestFormat) {
+    try {
+      const a = document.createElement('audio')
+      bestFormat = a.canPlayType('audio/ogg; codecs="opus"') ? 'opus' : a.canPlayType('audio/aac') ? 'aac' : 'mp3'
+    } catch {
+      bestFormat = 'mp3'
+    }
+  }
+  return bestFormat
+}
+
+export const trackUrl = (id: number) => {
+  const q = streamQuality()
+  return withBase(`/api/music/tracks/${id}/play`) + (q ? `?maxBitRate=${q}&prefer=${streamFormat()}` : '')
+}
 export const albumCoverUrl = (albumId: number) => withBase(`/api/music/albums/${albumId}/cover`)

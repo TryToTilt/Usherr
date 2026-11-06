@@ -17,6 +17,8 @@ import IdleSignOutCard from '../components/IdleSignOutCard'
 import SessionsCard from '../components/SessionsCard'
 import PlexWatchlistCard from '../components/PlexWatchlistCard'
 import ListenBrainzCard from '../components/ListenBrainzCard'
+import LastFMCard from '../components/LastFMCard' // Usherr
+import SubsonicCard from '../components/SubsonicCard' // Usherr
 import RequestNoticesCard from '../components/RequestNoticesCard'
 import RequestSettingsCard from '../components/RequestSettingsCard'
 import EReaderCard from '../components/EReaderCard'
@@ -762,6 +764,8 @@ export function ServicesSettings() {
     <div className="settings-stack">
       <PlexWatchlistCard />
       <ListenBrainzCard />
+      <LastFMCard />
+      <SubsonicCard />
       <EReaderCard />
       <DiscordLinkCard />
     </div>

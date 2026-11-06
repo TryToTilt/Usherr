@@ -69,8 +69,11 @@ func TestMusicImportNamesFilesByTagsAndTrustsTheFilesOverTheReleaseName(t *testi
 	first := albumByTitle(t, artist, "First Album")
 	albumURL := fmt.Sprintf("%s/api/music/albums/%v", e.base, first["id"])
 
+	// Each file is as long as its track (180, 200 and 240 s): a download's
+	// files must fit the tracks' lengths to be imported.
 	file := func(track int, title string) nntpArticle {
-		return nntpArticle{fileName: fmt.Sprintf("zz%d.flac", track), content: flacFile(96000, 24, 200, fmt.Sprintf("TRACKNUMBER=%d", track), "TITLE="+title)}
+		secs := []int{0, 180, 200, 240}[track]
+		return nntpArticle{fileName: fmt.Sprintf("zz%d.flac", track), content: flacFile(96000, 24, secs, fmt.Sprintf("TRACKNUMBER=%d", track), "TITLE="+title)}
 	}
 	articles := map[string]nntpArticle{"a@x": file(3, "Closing Time"), "b@x": file(1, "Opening"), "c@x": file(2, "Middle Song")}
 	host, port := newArticleNNTPServer(t, articles)

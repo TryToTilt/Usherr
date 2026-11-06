@@ -22,8 +22,12 @@ export interface Showtime {
   // code (joined: host once found in their server; waiting: not found yet)
   party?: { going: string[] | null; cantMake: number; joined?: boolean; host?: string; waiting?: boolean; bot?: 'on' | 'off'; invite?: string; needLink?: boolean }
   // Usherr: linked screenings. Shared with linked Usherrs: how many are
-  // invited, how many said they're coming, and how many people they bring.
-  linked?: { invited: number; going: number; people: number }
+  // invited, how many said they're coming, and how many people they bring;
+  // step 3: how many of this household are coming, and whether you are.
+  linked?: { invited: number; going: number; people: number; hostGoing?: number; mine?: 'going' | 'not' }
+  // Usherr: linked screenings, step 3. A linked Usherr's screening, booked
+  // here because people here are going (its time is the host's).
+  hosted?: { host: string; hostName?: string; screening: number }
 }
 export interface ShowtimeList {
   showtimes: Showtime[]
@@ -102,6 +106,8 @@ export interface LinkedScreening {
   has?: HasFilm
   myRuntime?: number
   differentCut?: boolean
+  rosterHost?: boolean // step 3: the roster's first is the host's own household
+  showtimeId?: number // step 3: its booking in this Usherr's Showtime
 }
 
 // The summary on a booking shared with linked Usherrs.
@@ -115,6 +121,8 @@ export function linkedSummary(s: Showtime): string {
 
 export const linkedFor = (id: number) => call<LinkedAnswer>('GET', `/${id}/linked`)
 export const inviteLinked = (id: number, peers: number[]) => call<LinkedAnswer>('PUT', `/${id}/linked`, { peers })
+// Step 3: someone in the host's household says whether they're coming.
+export const hostAnswer = (id: number, answer: 'going' | 'not') => call<{ mine: string; hostGoing: number }>('PUT', `/${id}/linked/rsvp`, { answer })
 
 async function screeningsCall<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api/home/screenings${path}`, {

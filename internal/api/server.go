@@ -460,6 +460,8 @@ func (s *Server) Routes() http.Handler {
 	// E-readers: the OPDS catalogue and Kobo sync sign in their own way (ereader_auth.go).
 	s.opdsRoutes(root)
 	s.koboRoutes(root)
+	// Usherr: the Subsonic API for phone music apps signs in with app passwords (subsonic.go).
+	root.Handle("/rest/", s.busyGuard(http.HandlerFunc(s.handleSubsonic)))
 	// The Stremio and Nuvio add-on signs in with the key in its address (home_addon.go).
 	s.addonRoutes(root)
 	s.preshowRoutes(root)        // Usherr: the Jellyfin app's pre-show (the NeXroll Intros plugin)
@@ -710,6 +712,15 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("GET /api/home/marquee/media/{id}/file", s.handleMarqueeMediaFile)   // Usherr: your slides and pre-show
 	member.HandleFunc("GET /api/home/moods", s.handleMoods)                                // home fork: Library shelves by mood
 	member.HandleFunc("GET /api/home/book-genres", s.handleBookGenres)                     // home fork: Library shelves by genre
+
+	// Usherr: linked screenings, step 3 (home_link_room.go): the host's
+	// household, and the screening room.
+	member.HandleFunc("PUT /api/home/showtimes/{id}/linked/rsvp", s.handleShowtimeHostRSVP)
+	member.HandleFunc("GET /api/home/showtimes/{id}/room", s.handleRoom)
+	member.HandleFunc("GET /api/home/showtimes/{id}/room/events", s.handleRoomEvents)
+	member.HandleFunc("POST /api/home/showtimes/{id}/room/playback", s.handleRoomPlayback) // the host plays, pauses, seeks
+	member.HandleFunc("POST /api/home/showtimes/{id}/room/pause", s.handleRoomPause)       // anyone can pause, when the host allows it
+	member.HandleFunc("PUT /api/home/showtimes/{id}/room/settings", s.handleRoomSettings)
 
 	// home fork: Discover recipes and the services each person pays for
 	member.HandleFunc("GET /api/home/recipes", s.handleListRecipes)
@@ -1108,6 +1119,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/rename", s.handleRename)
 	s.registerVideoRoutes(admin, member) // videos hook (home fork)
 	s.registerComicRoutes(admin, member) // comics hook (home fork)
+	s.registerReadingMarkRoutes(member)  // Usherr: bookmarks and highlights
 	admin.HandleFunc("POST /api/downloads/manual", s.handleManualDownload)
 	admin.HandleFunc("GET /api/manual-import", s.handleManualImportList)
 	admin.HandleFunc("POST /api/manual-import", s.handleManualImport)

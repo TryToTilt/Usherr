@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api, type Book, type BookTrack } from '../api'
+import { saveProgress } from './progress'
 import Icon from '../components/Icon'
 import { PosterFallback } from '../components/PosterCard'
 import { useDocumentTitle } from '../documentTitle'
@@ -89,7 +90,7 @@ export default function Player() {
         a.duration > 0 ? secs / a.duration : 0,
       )
       const finished = track === tracks.length - 1 && a.duration > 0 && secs >= a.duration - 5
-      void api.saveBookProgress(bookId, { format: 'audiobook', position: formatAudioPosition({ track, seconds: secs }), percent: pct, finished }, keepalive).catch(() => undefined)
+      saveProgress(bookId, { format: 'audiobook', position: formatAudioPosition({ track, seconds: secs }), percent: pct, finished }, keepalive)
       lastSaved.current = Date.now()
     },
     [bookId, track, tracks],

@@ -460,8 +460,8 @@ page-flip reader, with story arcs and a weekly pull list.
 
 **Optional.** A **Sports** page for everyone: leagues, the teams you follow and
 the games of the coming two weeks. Games **stream** like films and episodes,
-and can be **downloaded** when Sports runs on Sportarr. Choose what it runs on
-in the *Sports* card in **Settings → Extras**:
+and **download** into a Sports folder that Plex and Jellyfin read. Choose what
+it runs on in the *Sports* card in **Settings → Extras**:
 
 - **Sportarr (stacked):** run Sportarr (github.com/Sportarr/Sportarr) next to
   Usherr, like Radarr or Sonarr, with your indexers (add it to Prowlarr as a
@@ -474,7 +474,15 @@ in the *Sports* card in **Settings → Extras**:
   TheSportsDB. Without a key Usherr uses TheSportsDB's free test key (search
   and part of each season, slowly); a paid key (thesportsdb.com/pricing, in
   your profile there once you subscribe) gives full schedules and scores. Games
-  stream from your own indexers; downloading games needs Sportarr for now.
+  stream from your own indexers and download through your own download
+  clients, into the **Sports folder** (empty: *Sports* next to your TV folder,
+  when that sits in a media folder such as `/data/media/tv`; with a TV folder
+  mounted on its own, like `/tv`, mount a folder for sports and enter it).
+  Add that folder to Plex or Jellyfin as a **TV** library. Choose the
+  **Quality for games** (one of your quality profiles; empty: the same as TV
+  shows) and whether Usherr **looks for wanted games by itself**. Already run
+  Sportarr? **Bring my followed leagues from Sportarr** copies its leagues and
+  teams (see [Moving from Sportarr](sports.md#moving-from-sportarr)).
 - **Streaming** needs Usherr's streaming engine (see *Streaming engine* above).
 - **Check:** **Test Sportarr** or **Test TheSportsDB**, then open **Sports** in
   the menu and find a league. See [Sports](sports.md).
@@ -511,6 +519,63 @@ one: automatic searches, downloads, repair and unpacking, and media server
 refreshes. Anything you start by hand always runs at once. **Quiet for…**
 holds every heavy task for a while, such as when TV time starts early;
 everything picks up again by itself.
+
+## Music in phone apps (Subsonic)
+
+**Optional.** Play Usherr's music in any app that speaks Subsonic or
+OpenSubsonic, the same way you would with Navidrome: Symfonium and Tempo
+(Android), play:Sub, Substreamer and Amperfy (iPhone), DSub, and Feishin
+(desktop). Apps can browse, search, play, download for offline, keep
+playlists, star songs (the same as the heart in Usherr), see lyrics and
+send plays to ListenBrainz and Last.fm.
+
+1. **Settings → Services → Phone apps.** Switch on **Let phone apps sign in**.
+2. Click **Make an app password** and copy it now: it is shown once. It is
+   your one app password for reading and music apps, the same as your
+   e-reader password (if you already use one for an e-reader, making a new
+   one means typing the new one there too).
+3. In the app, add a Subsonic (or "Navidrome / OpenSubsonic") server:
+   - **Server:** Usherr's address, as shown on the card (for example
+     `http://192.168.1.10:8264/` or your Tailscale address).
+   - **User name:** your Usherr user name.
+   - **Password:** the app password, never your own password.
+   - Leave "legacy" or "plain password" sign-in off where the app offers it.
+4. Check: the app lists your artists. If it says the password is wrong, make
+   sure you used the app password and that phone apps are switched on.
+
+Good to know:
+- Switching **Let phone apps sign in** off stops every music app at once, and
+  leaves your e-reader alone. Removing the app password stops both.
+- An e-reader password made before this version works in apps that send the
+  password as it is, but apps that use Subsonic's token sign-in (most of them)
+  need a new one: the card says so.
+- Your Usherr permissions apply. Without **Play**, an app can browse but not
+  play. A view-only account can play but not change playlists or stars.
+- On mobile data, set the app's streaming quality (for example 128 kbit/s).
+  Usherr makes those tracks smaller on the fly, and sends files that already
+  fit as they are. An administrator can change the format and top bitrate in
+  the player's settings (the sliders button in the player, **Advanced**).
+- An administrator can switch phone apps off for everyone in the same place.
+- Usherr only answers at home and on Tailscale. Don't open it to the internet
+  for this.
+
+## Last.fm
+
+**Optional.** Each person can send what they play to their own Last.fm
+account, from the web player and from phone apps.
+
+1. An administrator makes an API account at
+   [last.fm/api/account/create](https://www.last.fm/api/account/create) (any
+   name and description; leave the callback empty), then pastes its **API
+   key** and **Shared secret** under **Settings → Services → Last.fm**.
+2. Each person opens **Settings → Services → Last.fm**, clicks **Connect
+   Last.fm**, approves Usherr on last.fm, and comes back connected.
+3. Optional: **Love what I like** loves a track on Last.fm when you give it a
+   heart in Usherr.
+
+A track counts once it is longer than 30 seconds and you have heard half of
+it, or four minutes. Plays made while Last.fm can't be reached are kept and
+sent later (up to two weeks old).
 
 ## Notifications
 

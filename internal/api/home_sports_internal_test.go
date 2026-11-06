@@ -184,7 +184,7 @@ func TestOwnSportsOnTheSportsDB(t *testing.T) {
 		}
 	}
 	if o.canDownload() || o.getEvent(ctx, g.ID) == nil {
-		t.Fatal("the own engine doesn't download yet")
+		t.Fatal("the own engine got a game with no Sports folder")
 	}
 }
 

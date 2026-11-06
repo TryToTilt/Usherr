@@ -296,3 +296,27 @@ func TestLinkRegistry(t *testing.T) {
 		t.Fatal("CleanName")
 	}
 }
+
+// Any one mistyped character in a code is caught by the check, wherever it
+// is and whatever it was changed to.
+func TestLinkInviteCodeCatchesEveryTypo(t *testing.T) {
+	const alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+	for range 20 {
+		code := EncodeCode(NewSecret(), "")
+		for i := len("USH-"); i < len(code); i++ {
+			if code[i] == '-' {
+				continue
+			}
+			for _, c := range []byte(alphabet) {
+				if c == code[i] {
+					continue
+				}
+				typo := []byte(code)
+				typo[i] = c
+				if _, _, err := DecodeCode(string(typo)); err == nil {
+					t.Fatalf("%s with %c at %d still reads as a code", code, c, i)
+				}
+			}
+		}
+	}
+}

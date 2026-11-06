@@ -97,10 +97,14 @@ func secretOf(d []int) []byte {
 	return b
 }
 
+// codeCheck is the check digit: each digit times an odd weight (1, 3, 5, …),
+// summed, mod 32. An odd weight has no factor in common with 32, so any one
+// wrong character always changes the check. (Weights 1 to 20 missed a
+// character off by 8, 16 or 24 at an even position.)
 func codeCheck(d []int) int {
 	sum := 0
 	for i, v := range d {
-		sum += v * (i + 1)
+		sum += v * (2*i + 1)
 	}
 	return sum % 32
 }

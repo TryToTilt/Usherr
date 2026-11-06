@@ -1,0 +1,16 @@
+/* Keeping books on this device (Keep.tsx): the button on each book, the
+   list of what is kept, and the note shown with no connection. */
+.keep-btn.kept { border-color: var(--c-book, var(--accent)); color: var(--c-book, var(--accent)); }
+.keep-error { display: block; flex-basis: 100%; }
+.bks-offline { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--warning, #e9a23b) 16%, transparent); border: 1px solid color-mix(in srgb, var(--warning, #e9a23b) 40%, transparent); }
+.bks-device h2 { display: flex; align-items: center; gap: 8px; }
+.bks-device .hint { margin: 0 0 10px; }
+.bks-device-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; max-width: 760px; }
+.bks-device-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); }
+.bks-device-title { display: flex; gap: 8px; align-items: center; min-width: 0; color: var(--text); text-decoration: none; }
+.bks-device-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bks-device-title small { color: var(--text-dim); }
+@media (max-width: 560px) {
+  .bks-device-list li { grid-template-columns: minmax(0, 1fr) auto; }
+  .bks-device-list li .btn-sm { grid-column: 1 / -1; justify-self: start; }
+}

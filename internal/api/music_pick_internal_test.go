@@ -55,7 +55,7 @@ func TestPickMusicRelease(t *testing.T) {
 			for _, b := range tc.blocked {
 				blocked[blocklist.Key(b)] = true
 			}
-			best, v := pickMusicRelease(tc.results, blocked, tc.sources, artist, tc.album, lossless, albumCurrentTier(tc.album))
+			best, v := pickMusicRelease(tc.results, blocked, tc.sources, artist, tc.album, lossless, albumCurrentTier(tc.album), 0)
 			got := ""
 			if best != nil {
 				got = best.Title

@@ -30,6 +30,16 @@ type musicState struct {
 	scrobble   *listenbrainz.Submitter // sends plays to ListenBrainz (music_scrobble.go); created on first use
 	lyricsAt   keyedLocks              // one online lookup per track at a time
 	scrobbleAt keyedLocks              // one send of kept plays per account at a time
+
+	importMu sync.Mutex // one playlist import at a time (music_playlist_import.go)
+
+	// Last.fm (music_lastfm.go): sign-ins waiting for Last.fm to come back,
+	// and the test server.
+	lfMu     sync.Mutex
+	lfStates map[string]lastfmState
+	lfBase   string
+	lfHTTP   *http.Client
+	lfAt     keyedLocks // one send of kept plays per account at a time
 }
 
 // MusicBrainz returns the MusicBrainz client. There is one per server, so

@@ -1,6 +1,11 @@
 // Home fork: the Comics page. Library (series), Add (search ComicVine),
 // Settings (administrators), and a page per series with its issues.
 import VoteButtons from './VoteButtons'
+import Marks from '../bookshelf/Marks'
+import { marksApi, pageOfMark, type ReadingMark } from '../bookshelf/marksApi'
+import { KeepButton, useKept } from '../bookshelf/Keep'
+import { keptId } from '../bookshelf/offline'
+import { saveComicPlace } from '../bookshelf/progress'
 import HelpLink from '../components/HelpLink'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ComicCatchUp } from './CatchUp'
@@ -457,7 +462,15 @@ export function ComicSeriesPage() {
   const [picked, setPicked] = useState<Set<number>>(new Set())
   const [releasesFor, setReleasesFor] = useState<ComicIssue | null>(null)
   const [reading, setReading] = useState<ComicIssue | null>(null)
-  const closeReader = useCallback(() => setReading(null), [])
+  const [readFrom, setReadFrom] = useState(0) // a bookmark's page, or 0 for where it was left
+  const [marksSeen, setMarksSeen] = useState(0) // bumped when the reader closes, to list new bookmarks
+  const [kept] = useKept()
+  const keptIds = new Set(kept.map((k) => k.id))
+  const closeReader = useCallback(() => {
+    setReading(null)
+    setReadFrom(0)
+    setMarksSeen((n) => n + 1)
+  }, [])
 
   const load = useCallback(() => {
     comicsApi.get(sid).then(setData).catch((e: Error) => setError(e.message))
@@ -596,12 +609,37 @@ export function ComicSeriesPage() {
               <td className="cx-row-actions">
                 {i.status === 'downloaded' && (
                   <>
-                    <button className="btn-sm primary" data-walk="cx-read" onClick={() => setReading(i)} aria-label={t('Read issue {n}', { n: i.number })}>
+                    <button
+                      className="btn-sm primary"
+                      data-walk="cx-read"
+                      onClick={() => {
+                        setReadFrom(0)
+                        setReading(i)
+                      }}
+                      aria-label={t('Read issue {n}', { n: i.number })}
+                    >
                       <Icon name="book" size={14} /> {t('Read')}
                     </button>
                     <a className="btn-sm" href={comicsApi.fileUrl(i.id)} target="_blank" rel="noreferrer" aria-label={t('Download issue {n}', { n: i.number })}>
                       <Icon name="download" size={14} />
                     </a>
+                    {!/\.pdf$/i.test(i.filePath ?? '') && (
+                      <KeepButton
+                        kind="issue"
+                        id={i.id}
+                        title={`${series.name} #${i.number}`}
+                        subtitle={i.title || undefined}
+                        open={`/bookshelf/comic/${i.id}`}
+                        kept={keptIds.has(keptId('issue', i.id))}
+                        count={() =>
+                          comicsApi.pages(i.id).then((r) => {
+                            if (r.pdf || !r.pages) throw new Error(t("This issue is a PDF, which can't be kept on a device yet."))
+                            return r.pages
+                          })
+                        }
+                        compact
+                      />
+                    )}
                   </>
                 )}
                 {admin && i.status === 'missing' && (
@@ -619,9 +657,56 @@ export function ComicSeriesPage() {
           ))}
         </tbody>
       </table>
-      {reading && <ComicReader issue={reading} onClose={closeReader} />}
+      <SeriesMarks
+        seriesId={series.id}
+        issues={issues}
+        refresh={marksSeen}
+        onOpen={(issue, page) => {
+          setReadFrom(page)
+          setReading(issue)
+        }}
+      />
+      {reading && <ComicReader issue={reading} onClose={closeReader} startPage={readFrom} />}
       {releasesFor && <ComicReleases issue={releasesFor} onClose={() => setReleasesFor(null)} onGrabbed={() => { setReleasesFor(null); setNote(t('Downloading.')); load() }} />}
     </div>
+  )
+}
+
+// Usherr: your bookmarks in this series' issues; each opens the issue there.
+function SeriesMarks({ seriesId, issues, refresh, onOpen }: { seriesId: number; issues: ComicIssue[]; refresh: number; onOpen: (issue: ComicIssue, page: number) => void }) {
+  const [list, setList] = useState<ReadingMark[]>([])
+  useEffect(() => {
+    marksApi
+      .series(seriesId)
+      .then(setList)
+      .catch(() => setList([]))
+  }, [seriesId, refresh])
+  if (list.length === 0) return null
+  const byId = new Map(issues.map((i) => [i.id, i]))
+  return (
+    <section className="cx-series-marks">
+      <h2>
+        <Icon name="bookmark" size={16} /> {t('Your bookmarks')}
+      </h2>
+      {issues
+        .filter((i) => list.some((m) => m.item === `comic:${i.id}`))
+        .map((i) => (
+          <div key={i.id} className="cx-series-marks-issue">
+            <h3>
+              #{i.number} {issueTitle(i)}
+            </h3>
+            <Marks
+              item={`comic:${i.id}`}
+              list={list.filter((m) => m.item === `comic:${i.id}`)}
+              onChange={(next) => setList((all) => [...all.filter((m) => m.item !== `comic:${i.id}`), ...next])}
+              onJump={(m) => {
+                const issue = byId.get(Number(m.item.split(':')[1]))
+                if (issue && issue.status === 'downloaded') onOpen(issue, pageOfMark(m.position))
+              }}
+            />
+          </div>
+        ))}
+    </section>
   )
 }
 
@@ -724,11 +809,13 @@ function ComicReleases({ issue, onClose, onGrabbed }: { issue: ComicIssue; onClo
 // ---- reader ----
 
 // Usherr: where you are in a comic, kept for you (home_positions.go).
+// Read offline (Usherr Books), it is sent once the connection is back.
 function keepComicPage(id: number, page: number, total: number, keepalive = false) {
-  void fetch('/api/home/position', { method: 'PUT', credentials: 'include', keepalive, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: `comic:${id}`, position: page, duration: total }) }).catch(() => undefined)
+  saveComicPlace(id, page, total, keepalive)
 }
 
-export function ComicReader({ issue, onClose }: { issue: ComicIssue; onClose: () => void }) {
+export function ComicReader({ issue, onClose, startPage = 0 }: { issue: ComicIssue; onClose: () => void; startPage?: number }) {
+  const [marksOpen, setMarksOpen] = useState(false)
   const [info, setInfo] = useState<{ pages?: number; pdf?: boolean; title: string } | null>(null)
   const [error, setError] = useState('')
   const [page, setPage] = useState(() => {
@@ -811,14 +898,15 @@ export function ComicReader({ issue, onClose }: { issue: ComicIssue; onClose: ()
         } catch {
           /* private mode */
         }
-        const n = from > 1 ? from : pages && local >= pages ? 1 : local
+        // Opened from a bookmark: that page.
+        const n = startPage > 0 ? startPage : from > 1 ? from : pages && local >= pages ? 1 : local
         const p = pages ? Math.min(Math.max(1, n), pages) : n
         setPage(p)
         setFlipStart(p)
         setInfo(r)
       })
       .catch((e: Error) => setError(e.message))
-  }, [issue.id, onClose])
+  }, [issue.id, onClose, startPage])
   // and told as you turn the pages, and on closing
   const pageNow = useRef({ page, total: 0 })
   useEffect(() => {
@@ -869,6 +957,8 @@ export function ComicReader({ issue, onClose }: { issue: ComicIssue; onClose: ()
   }, [page, total, issue.id])
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      // Typing a bookmark's note doesn't turn pages.
+      if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select')) return
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') go(1)
       else if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(-1)
       else if (e.key === 'Escape') onClose()
@@ -897,6 +987,11 @@ export function ComicReader({ issue, onClose }: { issue: ComicIssue; onClose: ()
         {page > 1 && (
           <button type="button" className="btn-sm btn-with-icon" onClick={startOver} title={t('Back to the first page')}>
             <Icon name="skip-prev" size={14} /> {t('Start over')}
+          </button>
+        )}
+        {total > 0 && (
+          <button className={`btn-sm${marksOpen ? ' primary' : ''}`} onClick={() => setMarksOpen((v) => !v)} title={t('Bookmarks')} aria-label={t('Bookmarks')} aria-pressed={marksOpen}>
+            <Icon name="bookmark" size={14} />
           </button>
         )}
         {view !== 'panels' && (
@@ -929,6 +1024,20 @@ export function ComicReader({ issue, onClose }: { issue: ComicIssue; onClose: ()
           </button>
         )}
       </div>
+      {marksOpen && total > 0 && (
+        <div className="cx-marks-panel" aria-label={t('Bookmarks')}>
+          <Marks
+            item={`comic:${issue.id}`}
+            here={{ position: `page:${page}`, label: t('Page {n}', { n: page }), percent: Math.round((page / total) * 1000) / 10 }}
+            onJump={(m) => {
+              const n = Math.min(pageOfMark(m.position), total)
+              setPage(n)
+              if (view === 'flip') flip.current?.turnTo(n)
+              setMarksOpen(false)
+            }}
+          />
+        </div>
+      )}
       {error && <p className="error-text cx-reader-msg">{error}</p>}
       {!info && !error && <p className="hint cx-reader-msg">{t('Opening…')}</p>}
       {total > 0 && view === 'flip' && (

@@ -15,6 +15,7 @@ import './cinema.css' // Usherr: the Tickets button
 import { TICKET_SITES, type TicketService } from './cinema' // Usherr
 import { TicketsButton } from './InTheaters' // Usherr
 import { sportsApi, type SportsSettings } from './sportsApi' // Usherr
+import { ProfileSelect } from './SportsGet' // Usherr: games got by Usherr itself
 import { readToMeApi, type RtvSettings } from './readToMeApi'
 import { artApi, type ArtAll, type ArtSettings } from './artApi' // Usherr: Re-Posterr
 import DriveCard from './DriveCard' // Usherr: the virtual drive, for Plex
@@ -1026,10 +1027,26 @@ function SportsCard() {
   const [url, setUrl] = useState('')
   const [key, setKey] = useState('')
   const [tsdb, setTsdb] = useState('')
+  // Usherr's own engine gets games: the Sports folder, the default profile,
+  // the automatic search and how long it keeps looking.
+  const [path, setPath] = useState('')
+  const [profileId, setProfileId] = useState(0)
+  const [autoSearch, setAutoSearch] = useState(true)
+  const [searchDays, setSearchDays] = useState(14)
+  const [importing, setImporting] = useState(false)
+  const fill = (d: SportsSettings) => {
+    setS(d)
+    setUrl(d.sportarrUrl)
+    setMode(d.mode)
+    setPath(d.path)
+    setProfileId(d.profileId)
+    setAutoSearch(d.autoSearch)
+    setSearchDays(d.searchDays)
+  }
   useEffect(() => {
     sportsApi
       .settings()
-      .then((d) => (setS(d), setUrl(d.sportarrUrl), setMode(d.mode)))
+      .then(fill)
       .catch(() => setS(null))
   }, [])
   if (!s) return null
@@ -1037,16 +1054,21 @@ function SportsCard() {
     sportsApi
       .saveSettings(body)
       .then((d) => {
-        setS(d)
-        setUrl(d.sportarrUrl)
-        setMode(d.mode)
+        fill(d)
         setKey('')
         setTsdb('')
         toast.success(done)
       })
       .catch((e: Error) => toast.error(e.message))
-  const changed = mode !== s.mode || url.trim() !== s.sportarrUrl || key.trim() !== '' || tsdb.trim() !== ''
-  const body = () => ({ mode, sportarrUrl: url, ...(key.trim() ? { sportarrKey: key } : {}), ...(tsdb.trim() ? { tsdbKey: tsdb } : {}) })
+  const ownChanged = path.trim() !== s.path || profileId !== s.profileId || autoSearch !== s.autoSearch || searchDays !== s.searchDays
+  const changed = mode !== s.mode || url.trim() !== s.sportarrUrl || key.trim() !== '' || tsdb.trim() !== '' || (mode === 'usherr' && ownChanged)
+  const body = () => ({
+    mode,
+    sportarrUrl: url,
+    ...(key.trim() ? { sportarrKey: key } : {}),
+    ...(tsdb.trim() ? { tsdbKey: tsdb } : {}),
+    ...(mode === 'usherr' ? { path: path.trim(), profileId, autoSearch, searchDays } : {}),
+  })
   const on = s.mode !== ''
   return (
     <Card
@@ -1054,7 +1076,7 @@ function SportsCard() {
       title={t('Sports')}
       guide="sports"
       state={on && s.ready ? 'ready' : on ? 'setup' : 'off'}
-      blurb={t('A Sports page for everyone: leagues, teams you follow and the games of the coming weeks. Games stream like films and episodes; with Sportarr they can be downloaded too.')}
+      blurb={t('A Sports page for everyone: leagues, teams you follow and the games of the coming weeks. Games stream like films and episodes, and download into a Sports folder that Plex and Jellyfin read.')}
       needs={on ? s.problem ?? t('Sportarr’s address and API key') : t('choosing what Sports runs on')}
     >
       <div className="grid-form">
@@ -1063,7 +1085,7 @@ function SportsCard() {
           <select value={mode} onChange={(e) => setMode(e.target.value as SportsSettings['mode'])}>
             <option value="">{t('Off')}</option>
             <option value="sportarr">{t('Sportarr (stacked: Sportarr downloads, Usherr shows and streams)')}</option>
-            <option value="usherr">{t('Usherr’s own engine (TheSportsDB; streams, no downloads yet)')}</option>
+            <option value="usherr">{t('Usherr’s own engine (TheSportsDB; streams and downloads, no Sportarr needed)')}</option>
           </select>
         </label>
         {mode === 'sportarr' && (
@@ -1100,6 +1122,69 @@ function SportsCard() {
             </p>
           </>
         )}
+        {mode === 'usherr' && (
+          <>
+            <label>
+              {t('Sports folder (where downloaded games go)')}
+              <input value={path} onChange={(e) => setPath(e.target.value)} placeholder={s.defaultPath || t('A full path, like /data/sports')} autoComplete="off" spellCheck={false} />
+            </label>
+            <p style={small}>
+              {s.defaultPath
+                ? t('Empty uses {path}, next to your TV folder.', { path: s.defaultPath })
+                : t('Choose a folder: without one, games stream but aren’t downloaded.')}{' '}
+              {t('Add it to Plex or Jellyfin as a TV library: each league shows as a show, each season as a season, each game as an episode.')}
+            </p>
+            <label>
+              {t('Quality for games')}
+              <ProfileSelect value={profileId} onChange={setProfileId} defaultLabel={t('The same as TV shows')} />
+            </label>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="checkbox" checked={autoSearch} onChange={(e) => setAutoSearch(e.target.checked)} />
+              {t('Look for wanted games by itself, a few hours after they end')}
+            </label>
+            <details>
+              <summary>{t('Advanced')}</summary>
+              <label>
+                {t('Keep looking for a game for (days)')}
+                <input type="number" min={1} max={60} value={searchDays} onChange={(e) => setSearchDays(Math.min(60, Math.max(1, Number(e.target.value) || 14)))} />
+              </label>
+              <p style={small}>{t('A game is looked for 3 hours after it starts, then every few hours, then once a day. Fewer days spare your indexers’ daily limits.')}</p>
+            </details>
+            {s.mode === 'usherr' && (
+              <details>
+                <summary>{t('Bring my followed leagues from Sportarr')}</summary>
+                <p style={small}>{t('Reads the leagues and teams in your Sportarr and adds them here, with whether each league gets its new games. Only reads: Sportarr, its profiles and its files stay as they are.')}</p>
+                {!(s.sportarrUrl && s.sportarrKeySet) && (
+                  <>
+                    <label>
+                      {t('Sportarr’s address')}
+                      <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://host.docker.internal:1867" autoComplete="off" spellCheck={false} />
+                    </label>
+                    <label>
+                      {t('Sportarr’s API key (Sportarr: Settings > General)')}
+                      <input type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" spellCheck={false} />
+                    </label>
+                    <p style={small}>{t('Save first, then bring them over.')}</p>
+                  </>
+                )}
+                <button
+                  className="btn-with-icon"
+                  disabled={importing || !(s.sportarrUrl && s.sportarrKeySet)}
+                  onClick={() => {
+                    setImporting(true)
+                    sportsApi
+                      .importSportarr()
+                      .then((r) => toast.success(r.message))
+                      .catch((e: Error) => toast.error(e.message))
+                      .finally(() => setImporting(false))
+                  }}
+                >
+                  <Icon name="download" /> {importing ? t('Bringing them over…') : t('Bring them over')}
+                </button>
+              </details>
+            )}
+          </>
+        )}
         <div style={row}>
           <button className="primary" disabled={!changed} onClick={() => void save(body(), mode === '' ? t('Sports is off.') : t('Sports saved.'))}>
             {t('Save')}
@@ -1123,7 +1208,7 @@ function SportsCard() {
         </div>
         <p style={small}>
           {mode === 'usherr'
-            ? t('Usherr keeps the leagues itself and finds each game on your indexers when someone streams it.')
+            ? t('Usherr keeps the leagues itself, finds each game on your indexers when someone streams it, and downloads the games each league (or team) gets: set that on a league’s page.')
             : t('Sportarr runs as its own app next to Usherr, like Radarr or Sonarr. Usherr shows its leagues and games, streams them, and asks it for the ones people want downloaded.')}
         </p>
       </div>

@@ -11,6 +11,14 @@
 .hp-poster:hover .hp-playicon, .hp-poster:focus-visible .hp-playicon { opacity: 1; }
 @media (hover: none) { .hp-poster .hp-playicon { opacity: 0.85; background: transparent; } }
 .hp-note { color: rgba(255, 255, 255, 0.65); font-size: 0.85em; margin: 0; }
+/* Usherr: linked screenings, the room's bar under the film, and "Host paused" over it (RoomFollow.tsx) */
+.hp-room { font-size: 0.85rem; }
+.hp-room-note { flex: 1 1 220px; min-width: 0; opacity: 0.85; }
+.hp-room-drift { opacity: 0.6; font-variant-numeric: tabular-nums; }
+.hp-room-opt { font-size: 0.8rem; }
+.hp-room-warn { flex-basis: 100%; color: #fcd34d; font-size: 0.8rem; }
+.hp-room-paused { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3; display: flex; align-items: center; gap: 8px; padding: 12px 22px; border-radius: 999px; background: rgba(0, 0, 0, 0.72); color: #fff; font-weight: 600; font-size: 1.05rem; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); animation: fade-in 0.25s ease; pointer-events: none; }
+button.hp-room-paused { pointer-events: auto; }
 
 /* Stream now: what is playing, and keep it */
 .hp-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 12px; }

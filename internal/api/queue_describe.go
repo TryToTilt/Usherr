@@ -136,6 +136,9 @@ func (n *queueNamer) describe(it queue.Item) (title, subtitle, poster string) {
 		if t, sub, img, ok := n.s.describeVideoItem(it.ID); ok { // videos hook (home fork)
 			return t, sub, img
 		}
+		if t, sub, img, ok := n.s.describeSportItem(it.ID); ok { // sports hook (Usherr)
+			return t, sub, img
+		}
 	}
 	title = it.ReleaseTitle
 	switch {

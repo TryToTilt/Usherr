@@ -5,8 +5,8 @@ package api
 // Usherr's database; a job fetches the current season again every few hours.
 // Games stream through Usherr's streaming engine: the indexers are searched
 // for the league and the game's date or teams, and a release is taken only
-// when it names the league and the game. Downloading games is Sportarr's
-// part for now (the stacked way).
+// when it names the league and the game. Games are also got (downloaded
+// into the Sports folder) by Usherr itself: home_sports_get.go.
 
 import (
 	"context"
@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"github.com/rdborg/mediarium/internal/indexers"
+	"github.com/rdborg/mediarium/internal/queue"
+	"github.com/rdborg/mediarium/internal/sports"
 )
 
 type ownSports struct{ s *Server }
@@ -47,9 +49,12 @@ func (o *ownSports) searchTeams(ctx context.Context, q string) ([]sportTeam, err
 
 func (o *ownSports) leagues(ctx context.Context) ([]sportLeague, error) {
 	now := time.Now().UnixMilli()
-	rows, err := o.s.db.QueryContext(ctx, `SELECT l.id, l.external_id, l.name, l.sport, l.country, l.description, l.badge, l.poster, l.banner, l.monitored,
+	rows, err := o.s.db.QueryContext(ctx, `SELECT l.id, l.external_id, l.name, l.alternate, l.sport, l.country, l.description, l.badge, l.poster, l.banner, l.monitored,
+		l.profile_id, l.parts, l.teams_only,
 		(SELECT COUNT(*) FROM sports_events e WHERE e.league_id = l.id),
-		(SELECT COUNT(*) FROM sports_events e WHERE e.league_id = l.id AND e.monitored = 1 AND e.at_ms < ?)
+		(SELECT COUNT(DISTINCT f.event_id) FROM sports_files f JOIN sports_events e ON e.id = f.event_id WHERE e.league_id = l.id),
+		(SELECT COUNT(*) FROM sports_events e WHERE e.league_id = l.id AND e.monitored = 1 AND e.at_ms > 0 AND e.at_ms < ?
+			AND NOT EXISTS (SELECT 1 FROM sports_files f WHERE f.event_id = e.id))
 		FROM sports_leagues l ORDER BY l.name`, now)
 	if err != nil {
 		return nil, err
@@ -59,17 +64,25 @@ func (o *ownSports) leagues(ctx context.Context) ([]sportLeague, error) {
 	for rows.Next() {
 		var l sportLeague
 		var id int64
-		if err := rows.Scan(&id, &l.ExternalID, &l.Name, &l.Sport, &l.Country, &l.Description, &l.Badge, &l.Poster, &l.Banner, &l.Monitored, &l.Events, &l.Missing); err != nil {
+		var alternate, parts string
+		if err := rows.Scan(&id, &l.ExternalID, &l.Name, &alternate, &l.Sport, &l.Country, &l.Description, &l.Badge, &l.Poster, &l.Banner, &l.Monitored,
+			&l.ProfileID, &parts, &l.TeamsOnly, &l.Events, &l.Files, &l.Missing); err != nil {
 			return nil, err
 		}
 		l.ID, l.InLibrary = strconv.FormatInt(id, 10), true
+		l.Kind = string((sports.League{Name: l.Name, Alternate: alternate, Sport: l.Sport}).Kind())
+		for _, p := range strings.Split(parts, ",") {
+			if p = strings.TrimSpace(p); p != "" {
+				l.Parts = append(l.Parts, p)
+			}
+		}
 		out = append(out, l)
 	}
 	return out, rows.Err()
 }
 
 func (o *ownSports) followedTeams(ctx context.Context) ([]sportTeam, error) {
-	rows, err := o.s.db.QueryContext(ctx, `SELECT id, external_id, name, sport, country, badge FROM sports_teams ORDER BY name`)
+	rows, err := o.s.db.QueryContext(ctx, `SELECT id, external_id, name, sport, country, badge, monitored, profile_id FROM sports_teams ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +91,7 @@ func (o *ownSports) followedTeams(ctx context.Context) ([]sportTeam, error) {
 	for rows.Next() {
 		var t sportTeam
 		var id int64
-		if err := rows.Scan(&id, &t.ExternalID, &t.Name, &t.Sport, &t.Country, &t.Badge); err != nil {
+		if err := rows.Scan(&id, &t.ExternalID, &t.Name, &t.Sport, &t.Country, &t.Badge, &t.Monitored, &t.ProfileID); err != nil {
 			return nil, err
 		}
 		t.ID, t.Followed = strconv.FormatInt(id, 10), true
@@ -162,11 +175,19 @@ func (o *ownSports) syncSeason(ctx context.Context, l ownLeagueRow, season strin
 	if _, err := tx.ExecContext(ctx, `UPDATE sports_leagues SET synced_json = ? WHERE id = ?`, string(raw), l.id); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	o.s.applySportsRules(ctx, l.id) // new games of a league (or team) that gets them are wanted
+	return nil
 }
 
 const ownEventCols = `e.id, e.external_id, e.title, e.sport, e.league_id, l.name, l.badge, e.home, e.away, e.season, e.round, e.at_ms, e.venue, e.image,
-	e.monitored, e.status, e.home_score, e.away_score`
+	e.monitored, e.status, e.home_score, e.away_score, l.alternate, l.sport, l.parts,
+	(SELECT COUNT(*) FROM sports_files f WHERE f.event_id = e.id),
+	COALESCE((SELECT GROUP_CONCAT(f.part, '|') FROM sports_files f WHERE f.event_id = e.id), ''),
+	COALESCE((SELECT f.quality FROM sports_files f WHERE f.event_id = e.id ORDER BY f.imported_ms DESC LIMIT 1), ''),
+	(SELECT COUNT(*) FROM sports_downloads d JOIN download_queue q ON q.id = d.queue_id WHERE d.event_id = e.id AND q.status IN ('queued','downloading','importing','paused'))`
 
 func scanOwnEvents(rows *sql.Rows) ([]sportEvent, error) {
 	defer rows.Close()
@@ -175,9 +196,22 @@ func scanOwnEvents(rows *sql.Rows) ([]sportEvent, error) {
 		var e sportEvent
 		var id, league, at int64
 		var hs, as sql.NullInt64
+		var alternate, leagueSport, parts, have string
+		var files, busy int
 		if err := rows.Scan(&id, &e.ExternalID, &e.Title, &e.Sport, &league, &e.League, &e.LeagueBadge, &e.Home, &e.Away, &e.Season, &e.Round, &at,
-			&e.Venue, &e.Image, &e.Monitored, &e.Status, &hs, &as); err != nil {
+			&e.Venue, &e.Image, &e.Monitored, &e.Status, &hs, &as, &alternate, &leagueSport, &parts, &files, &have, &e.Quality, &busy); err != nil {
 			return nil, err
+		}
+		e.HasFile, e.Downloading = files > 0, busy > 0
+		kind := (sports.League{Name: e.League, Alternate: alternate, Sport: leagueSport}).Kind()
+		e.Kind = string(kind)
+		if kind == sports.KindFight {
+			e.Parts = sportGame{ev: sports.Event{League: sports.League{Name: e.League, Alternate: alternate, Sport: leagueSport}}, leagueParts: parts}.wantedParts()
+			for _, p := range strings.Split(have, "|") {
+				if p != "" {
+					e.Have = append(e.Have, p)
+				}
+			}
 		}
 		e.ID, e.LeagueID = strconv.FormatInt(id, 10), strconv.FormatInt(league, 10)
 		if at > 0 {
@@ -279,7 +313,9 @@ func (o *ownSports) unfollowTeam(ctx context.Context, id string) error {
 	return err
 }
 
-func (o *ownSports) canDownload() bool { return false }
+// canDownload: Usherr gets games itself once the Sports folder is known
+// (home_sports_get.go).
+func (o *ownSports) canDownload() bool { return o.s.sportsRoot() != "" }
 
 // game is one game by its id.
 func (o *ownSports) game(ctx context.Context, id string) (sportEvent, error) {
@@ -300,8 +336,40 @@ func (o *ownSports) gameTitle(ctx context.Context, id string) string {
 	return t
 }
 
+// getEvent wants one game, and searches for it at once when it has been
+// played (in the background: the search can take a minute).
 func (o *ownSports) getEvent(ctx context.Context, id string) error {
-	return errors.New("Downloading games needs Sportarr (Settings > Extras > Sports). Stream works on its own.")
+	if o.s.sportsRoot() == "" {
+		return errors.New("Choose the Sports folder in Settings > Extras > Sports first.")
+	}
+	n, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return errSportNotFound
+	}
+	g, err := o.s.sportGame(ctx, n)
+	if err != nil {
+		return err
+	}
+	if _, err := o.s.db.ExecContext(ctx, `UPDATE sports_events SET monitored = 1, by_hand = 1 WHERE id = ?`, n); err != nil {
+		return err
+	}
+	if !g.ev.At.IsZero() && time.Since(g.ev.At) > sportsAfterEnd/2 {
+		o.s.background(func() {
+			sctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+			o.s.searchSportGame(sctx, n, queue.PriorityManual)
+		})
+	}
+	return nil
+}
+
+// gotMessage says what happens to a game just asked for.
+func (o *ownSports) gotMessage(ctx context.Context, id string) string {
+	n, _ := strconv.ParseInt(id, 10, 64)
+	if g, err := o.s.sportGame(ctx, n); err == nil && (g.ev.At.IsZero() || time.Since(g.ev.At) <= sportsAfterEnd/2) {
+		return "Usherr will get it once it's been played."
+	}
+	return "Usherr is looking for it. It shows in Activity once it's found."
 }
 
 // syncCurrent fetches each league's current season again (the job).

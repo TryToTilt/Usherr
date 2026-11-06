@@ -132,6 +132,9 @@ func (s *Server) restartLink() {
 	if err := screening.Register(n.Registry(), linkBook{s}); err != nil {
 		log.Printf("link: the screening messages couldn't be set up: %v", err)
 	}
+	if err := screening.RegisterRoom(n.Registry(), linkBook{s}, linkBook{s}); err != nil { // step 3: synced playback
+		log.Printf("link: the playback messages couldn't be set up: %v", err)
+	}
 	l := &s.linkS
 	l.mu.Lock()
 	l.node = n

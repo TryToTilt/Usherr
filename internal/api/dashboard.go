@@ -566,5 +566,8 @@ func (s *Server) describeQueueItem(it queue.Item) (title, subtitle, poster strin
 	if t, sub, img, ok := s.describeVideoItem(it.ID); ok { // videos hook (home fork)
 		return t, sub, img
 	}
+	if t, sub, img, ok := s.describeSportItem(it.ID); ok { // sports hook (Usherr)
+		return t, sub, img
+	}
 	return s.newQueueNamer([]queue.Item{it}).describe(it)
 }

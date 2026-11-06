@@ -10,6 +10,7 @@ import (
 	"github.com/rdborg/mediarium/internal/crypto"
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/link"
+	"github.com/rdborg/mediarium/internal/link/screening"
 	"github.com/rdborg/mediarium/internal/metadata"
 	"github.com/rdborg/mediarium/internal/notify"
 	"github.com/rdborg/mediarium/internal/settings"
@@ -324,6 +325,46 @@ func SetScreeningRosterWaitForTest(d time.Duration) { screeningRosterWait = d }
 
 // DifferentCutForTest is differentCut (home_link_screenings.go).
 func DifferentCutForTest(a, b int) bool { return differentCut(a, b) }
+
+// SetRoomBeatForTest sets how often the host says where the film is while
+// it plays (and how often that's looked at), and how long before the
+// pre-show its recipe is fixed (home_link_room.go).
+func SetRoomBeatForTest(beat, tick, recipeAhead time.Duration) {
+	roomBeat, roomBeatPaused, roomTick, screeningRecipeAhead = beat, 3*beat, tick, recipeAhead
+}
+
+// TestScreeningKeyIn is the screening key a guest was given for a screening.
+func (s *Server) TestScreeningKeyIn(sid string) []byte {
+	var enc string
+	if s.db.QueryRow(`SELECT skey FROM link_screenings_in WHERE sid = ?`, sid).Scan(&enc) != nil {
+		return nil
+	}
+	key, _ := s.openScreeningKey(enc)
+	return key
+}
+
+// TestRoomForget makes a guest forget where the film is (a missed message):
+// the next heartbeat puts it right.
+func (s *Server) TestRoomForget(sid string) {
+	_, _ = s.db.Exec(`UPDATE link_screenings_in SET play_seq = 0, play_state = '', play_pos = 0, play_at = 0 WHERE sid = ?`, sid)
+}
+
+// RecipeFillForTest is recipeFill (home_link_room.go): the pre-show built
+// from a recipe with what find finds; each step's kind, card, whether it
+// was filled, and its seconds.
+func RecipeFillForTest(items []screening.RecipeItem, find func(screening.RecipeItem) bool) []map[string]any {
+	steps := recipeFill(items, func(it screening.RecipeItem) (preshowStep, bool) {
+		if !find(it) {
+			return preshowStep{}, false
+		}
+		return preshowStep{Kind: it.Kind, Card: it.Card, Seconds: it.Seconds * 2}, true // a piece of its own length: the slot holds
+	})
+	out := []map[string]any{}
+	for _, st := range steps {
+		out = append(out, map[string]any{"kind": st.Kind, "card": st.Card, "filled": st.Filled, "seconds": st.Seconds})
+	}
+	return out
+}
 
 // TestShowtimeCode makes a watch party's showtime code (home_showtime_code.go).
 func (s *Server) TestShowtimeCode(tmdbID int, atMs int64, preshowMin int) string {

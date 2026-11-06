@@ -158,6 +158,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/books/{id}/grab` | any account |  |
 | GET | `/api/books/{id}/links` | any account | GET /api/books/{id}/links: where the book can be read or listened to, the connected Audiobookshelf and Kavita servers that have it. |
 | GET | `/api/books/{id}/listen/{n}` | any account | GET /api/books/{id}/listen/{n}: one track, with ranges for seeking. |
+| GET | `/api/books/{id}/marks` | any account | GET /api/books/{id}/marks |
+| POST | `/api/books/{id}/marks` | any account | POST /api/books/{id}/marks |
 | GET | `/api/books/{id}/own-cover` | any account | serves the picture a person gave a book. |
 | GET | `/api/books/{id}/progress` | any account | GET /api/books/{id}/progress?format=: where the person is in one format. |
 | PUT | `/api/books/{id}/progress` | any account | PUT /api/books/{id}/progress: saves where the person is. |
@@ -176,6 +178,20 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/calendar/feed` | any account |  |
 | POST | `/api/calendar/feed` | any account |  |
 | GET | `/api/calendar/feed/{file}` | **public** | serves the .ics file. |
+
+## cleanup
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| POST | `/api/cleanup/exemptions` | admin | POST /api/cleanup/exemptions {kind, id}: an administrator keeps a title. |
+| DELETE | `/api/cleanup/exemptions/{unit}` | admin | DELETE /api/cleanup/exemptions/{unit}: the title can be cleaned up again. |
+| PUT | `/api/cleanup/options` | admin | PUT /api/cleanup/options {maxPerRun, membersKeep, collectionServers, collectionName} |
+| GET | `/api/cleanup/preview` | admin | GET /api/cleanup/preview[?ruleSet=ID]: what the next run would do (the switched-on rule sets), or what one rule set would do on its own, on or off. |
+| GET | `/api/cleanup/rule-sets` | admin | GET /api/cleanup/rule-sets: the rule sets, the options and the kept titles. |
+| POST | `/api/cleanup/rule-sets` | admin | POST /api/cleanup/rule-sets and PUT /api/cleanup/rule-sets/{id}. |
+| DELETE | `/api/cleanup/rule-sets/{id}` | admin | DELETE /api/cleanup/rule-sets/{id}: the rule set goes, and what it put on Leaving soon comes off. |
+| PUT | `/api/cleanup/rule-sets/{id}` | admin | POST /api/cleanup/rule-sets and PUT /api/cleanup/rule-sets/{id}. |
+| POST | `/api/cleanup/run` | admin | POST /api/cleanup/run: run the switched-on rule sets once, now. |
 
 ## collections
 
@@ -207,6 +223,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/comics/issues/wanted` | admin |  |
 | GET | `/api/comics/issues/{id}/file` | any account |  |
 | POST | `/api/comics/issues/{id}/grab` | admin |  |
+| GET | `/api/comics/issues/{id}/marks` | any account | GET /api/comics/issues/{id}/marks |
+| POST | `/api/comics/issues/{id}/marks` | any account | POST /api/comics/issues/{id}/marks |
 | GET | `/api/comics/issues/{id}/pages` | any account |  |
 | GET | `/api/comics/issues/{id}/pages/{n}` | any account |  |
 | GET | `/api/comics/issues/{id}/pages/{n}/panels` | any account |  |
@@ -217,6 +235,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/comics/reviews` | admin |  |
 | POST | `/api/comics/reviews/{id}/accept` | admin |  |
 | POST | `/api/comics/reviews/{id}/reject` | admin |  |
+| GET | `/api/comics/series/{id}/marks` | any account | GET /api/comics/series/{id}/marks: the bookmarks in every issue of a series. |
 | GET | `/api/comics/settings` | admin |  |
 | PUT | `/api/comics/settings` | admin | PUT /api/comics/settings {"enabled","path","key","removeKey"}; only what is sent changes. |
 | GET | `/api/comics/tools` | admin |  |
@@ -393,6 +412,10 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/home/autostream` | any account | PUT /api/home/autostream {"on": bool}: switch it on or off for yourself. |
 | PUT | `/api/home/autostream/household` | admin | PUT /api/home/autostream/household {"on": bool}: an administrator allows Streams for you for the household, or stops it for everyone. |
 | DELETE | `/api/home/autostream/{id}` | any account | DELETE /api/home/autostream/{id}: take a film Streams for you added for you back out of the streamed library. |
+| GET | `/api/home/badges` | admin | GET /api/home/badges (admin): the settings, the libraries to choose from, titles for the preview and how the last pass went. |
+| PUT | `/api/home/badges` | admin | PUT /api/home/badges (admin): save, and draw (or take off) right away. |
+| POST | `/api/home/badges/apply` | admin | POST /api/home/badges/apply (admin): a pass now. |
+| POST | `/api/home/badges/preview` | admin | POST /api/home/badges/preview (admin): one title's poster with the badges as the settings sent would draw them (a JPEG). |
 | GET | `/api/home/book-genres` | any account | handleBookGenres: GET /api/home/book-genres, the genres by book id. |
 | GET | `/api/home/book-sources` | admin | GET/PUT /api/home/book-sources {"sources":"both"} |
 | PUT | `/api/home/book-sources` | admin | GET/PUT /api/home/book-sources {"sources":"both"} |
@@ -400,6 +423,17 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/cinema` | any account | GET /api/home/cinema: the films in cinemas now, for the "In theaters now" row, with the household's cinema settings the links need. |
 | GET | `/api/home/cinema/settings` | admin | GET /api/home/cinema/settings (admin). |
 | PUT | `/api/home/cinema/settings` | admin | PUT /api/home/cinema/settings {on, region, zip, theatre, amcKey} (admin): only what's sent changes; an empty amcKey removes the key. |
+| GET | `/api/home/collections` | admin | GET /api/home/collections (admin) |
+| POST | `/api/home/collections` | admin | POST /api/home/collections (admin): add one, and sync it now. |
+| POST | `/api/home/collections/preview` | admin | POST /api/home/collections/preview (admin): what a collection as typed would hold, without sending anything. |
+| PUT | `/api/home/collections/settings` | admin | PUT /api/home/collections/settings (admin): hours between syncs. |
+| POST | `/api/home/collections/sync` | admin | POST /api/home/collections/sync (admin): every switched-on collection now. |
+| GET | `/api/home/collections/titles` | admin | GET /api/home/collections/titles?q= (admin): library titles to pick by hand. |
+| DELETE | `/api/home/collections/{id}` | admin | DELETE /api/home/collections/{id}?servers=1 (admin): forget it; with servers=1 it's deleted from Jellyfin and Plex too (their titles stay). |
+| PUT | `/api/home/collections/{id}` | admin | PUT /api/home/collections/{id} (admin): change one, and sync it now. |
+| GET | `/api/home/collections/{id}/poster` | admin | GET /api/home/collections/{id}/poster (admin): the poster it sends (made now in the style, when that's the choice). |
+| POST | `/api/home/collections/{id}/poster` | admin | POST /api/home/collections/{id}/poster (admin, a form with "file"): the collection's own poster. |
+| POST | `/api/home/collections/{id}/sync` | admin | POST /api/home/collections/{id}/sync (admin) |
 | GET | `/api/home/community` | admin | GET /api/home/community (admin): the bot and where it posts. |
 | PUT | `/api/home/community` | admin | PUT /api/home/community (admin): save, and connect (or not). |
 | GET | `/api/home/community/channels` | admin | GET /api/home/community/channels?server= (admin): where the bot can post. |
@@ -569,6 +603,9 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/schedules` | admin | GET/PUT /api/home/schedules: the schedules and the shared tasks' rules. |
 | PUT | `/api/home/schedules` | admin | GET/PUT /api/home/schedules: the schedules and the shared tasks' rules. |
 | GET | `/api/home/scores` | any account | GET /api/home/scores?kind=movie\|tv&ids=1,2,3 (up to 200): scores by TMDB id. |
+| GET | `/api/home/screenings` | any account | GET /api/home/screenings: the screenings linked Usherrs invited this one to, with who's coming and whether this Usherr has the film. |
+| POST | `/api/home/screenings/{id}/check` | any account | POST /api/home/screenings/{id}/check: look again whether this Usherr has the film (after asking for it), and tell the host. |
+| PUT | `/api/home/screenings/{id}/rsvp` | any account | PUT /api/home/screenings/{id}/rsvp {"answer": "going"\|"not"\|"maybe"}: this person's answer; the household's goes to the host. |
 | GET | `/api/home/search/keywords` | any account | GET /api/home/search/keywords?q= |
 | GET | `/api/home/search/people` | any account | GET /api/home/search/people?q= |
 | GET | `/api/home/season-folder` | admin | GET/PUT /api/home/season-folder {"style":"plain"\|"padded"} |
@@ -581,21 +618,37 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/showtimes/{id}/chat` | any account | GET /api/home/showtimes/{id}/chat (member): the party's chat so far, and whether you can post in it. |
 | POST | `/api/home/showtimes/{id}/chat` | any account | POST /api/home/showtimes/{id}/chat {"text"} (member): say something in the party's thread, under your linked Discord name. |
 | GET | `/api/home/showtimes/{id}/chat/events` | any account | GET /api/home/showtimes/{id}/chat/events (member): the chat, live. |
+| GET | `/api/home/showtimes/{id}/linked` | any account | GET /api/home/showtimes/{id}/linked: the linked Usherrs, which are invited and what they answered (whoever booked it, or an administrator). |
+| PUT | `/api/home/showtimes/{id}/linked` | any account | PUT /api/home/showtimes/{id}/linked {"peers":[link ids]}: share it with these linked Usherrs (and no others). |
+| PUT | `/api/home/showtimes/{id}/linked/rsvp` | any account | PUT /api/home/showtimes/{id}/linked/rsvp {"answer": "going"\|"not"}: someone in the host's household says whether they're coming to a shared showtime. |
+| GET | `/api/home/showtimes/{id}/room` | any account | GET /api/home/showtimes/{id}/room: a linked screening's room: where the film is (this Usherr's clock), who controls it, and the relay. |
+| GET | `/api/home/showtimes/{id}/room/events` | any account | GET /api/home/showtimes/{id}/room/events: "changed" whenever the host moves the film (the page asks for the room again). |
+| POST | `/api/home/showtimes/{id}/room/pause` | any account | POST /api/home/showtimes/{id}/room/pause: pause, when the host lets anyone: at the host, it pauses; at a guest, the host is asked. |
+| POST | `/api/home/showtimes/{id}/room/playback` | any account | POST /api/home/showtimes/{id}/room/playback {"state": "film"\|"paused"\|"ended", "position"?}: the host plays, pauses or seeks, for everyone. |
+| PUT | `/api/home/showtimes/{id}/room/settings` | any account | PUT /api/home/showtimes/{id}/room/settings {"anyonePause": bool}: the host lets guests pause (they ask; the host's Usherr pauses for everyone). |
 | POST | `/api/home/showtimes/{id}/share` | any account | POST /api/home/showtimes/{id}/share (member): share a booked Showtime as a watch party. |
 | GET | `/api/home/sports` | any account | GET /api/home/sports: the Sports home. |
 | POST | `/api/home/sports/events/{id}/get` | signed in | POST /api/home/sports/events/{id}/get: watch for one game and search for it now. |
+| POST | `/api/home/sports/events/{id}/grab` | signed in | POST /api/home/sports/events/{id}/grab {title, downloadUrl, sizeBytes, protocol, part}: download a release picked by hand. |
+| GET | `/api/home/sports/events/{id}/releases` | signed in | GET /api/home/sports/events/{id}/releases?part=&q=: every release the indexers answer for a game, with whether it is the game and whether the profile takes i... |
+| POST | `/api/home/sports/events/{id}/search` | signed in | POST /api/home/sports/events/{id}/search: look for a game now and get the best release. |
 | POST | `/api/home/sports/events/{id}/stream` | signed in | POST /api/home/sports/events/{id}/stream {quality}: the game's releases as stream options, best first (the same options as a film's). |
 | POST | `/api/home/sports/events/{id}/streamed` | signed in | POST /api/home/sports/events/{id}/streamed {title, league}: a game was streamed (the Dashboard counts them). |
+| PUT | `/api/home/sports/events/{id}/wanted` | signed in | PUT /api/home/sports/events/{id}/wanted {wanted}: get one game, or not (the league's rules leave it as chosen). |
 | GET | `/api/home/sports/image` | any account | GET /api/home/sports/image?u=: a league's badge, a team's crest or a game's picture, through Usherr (the page only loads images from Usherr). |
+| POST | `/api/home/sports/import-sportarr` | admin | POST /api/home/sports/import-sportarr: the leagues in the household's Sportarr, and the teams it follows, put in Usherr's own engine. |
 | POST | `/api/home/sports/leagues` | signed in | POST /api/home/sports/leagues: put a found league in the library. |
 | GET | `/api/home/sports/leagues/{id}` | any account | GET /api/home/sports/leagues/{id}?season=: one league of the library, its seasons (newest first) and the games of one season (the newest unless asked). |
+| PUT | `/api/home/sports/leagues/{id}/get` | signed in | PUT /api/home/sports/leagues/{id}/get {monitored, parts, teamsOnly, profileId}: what a league gets. |
 | GET | `/api/home/sports/on` | any account | GET /api/home/sports/on: whether Sports is set up, for the menu (quick: it doesn't ask the backend). |
 | GET | `/api/home/sports/search` | any account | GET /api/home/sports/search?q=: leagues and teams by name, marked when they're already in the library or followed. |
 | GET | `/api/home/sports/settings` | admin | GET /api/home/sports/settings |
 | PUT | `/api/home/sports/settings` | admin | PUT /api/home/sports/settings: only what is sent changes. |
 | POST | `/api/home/sports/teams` | signed in | POST /api/home/sports/teams: follow a found team. |
 | DELETE | `/api/home/sports/teams/{id}` | signed in | DELETE /api/home/sports/teams/{id}: stop following a team. |
+| PUT | `/api/home/sports/teams/{id}/get` | signed in | PUT /api/home/sports/teams/{id}/get {monitored, profileId}: whether a followed team's games are got (in the leagues in Sports). |
 | POST | `/api/home/sports/test` | admin | POST /api/home/sports/test |
+| GET | `/api/home/sports/wanted` | any account | GET /api/home/sports/wanted: the played games that are wanted and have no file yet, newest first. |
 | GET | `/api/home/stack` | any account | GET /api/home/stack (member): your stack, top first. |
 | POST | `/api/home/stack` | any account | POST /api/home/stack (member): put a title on top of your stack. |
 | PUT | `/api/home/stack/order` | any account | PUT /api/home/stack/order (member): {"order": ["movie:603", "tv:1396"]}, top first. |
@@ -685,6 +738,13 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/issues/{id}/reopen` | admin | POST /api/issues/{id}/reopen |
 | POST | `/api/issues/{id}/resolve` | admin | POST /api/issues/{id}/resolve {"comment": "..."} |
 
+## leaving-soon
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/leaving-soon` | any account | GET /api/leaving-soon: what the clean-up rules will act on, and when. |
+| POST | `/api/leaving-soon/keep` | any account | POST /api/leaving-soon/keep {kind, id}: "Keep it". |
+
 ## library
 
 | Method | Path | Access | What it does |
@@ -718,6 +778,19 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/library/owned` | any account |  |
 | POST | `/api/library/scan` | admin | starts a scan of an existing folder. |
 | GET | `/api/library/scan/{id}` | admin |  |
+
+## link
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/link` | admin | GET /api/link (admin): this Usherr's identity, its relay and the connection, and its codes waiting. |
+| POST | `/api/link/invites` | admin | POST /api/link/invites (admin): a new one-time code. |
+| DELETE | `/api/link/invites/{id}` | admin | DELETE /api/link/invites/{id} (admin): cancel a code, or stop waiting for a friend's Usherr to answer. |
+| POST | `/api/link/join` | admin | POST /api/link/join {"code"} (admin): link with a friend's Usherr. |
+| GET | `/api/link/peers` | admin | GET /api/link/peers (admin): the linked Usherrs. |
+| DELETE | `/api/link/peers/{id}` | admin | DELETE /api/link/peers/{id} (admin): unlink. |
+| PUT | `/api/link/peers/{id}` | admin | PUT /api/link/peers/{id} {"name"} (admin): call a linked Usherr something else here ("" for the name it gives itself). |
+| PUT | `/api/link/settings` | admin | PUT /api/link/settings (admin): the switch, the relay, this Usherr's name. |
 
 ## manual-import
 
@@ -843,24 +916,38 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/music/covers/release-group/{mbid}` | any account | serves the front cover of any release group by its MusicBrainz id (any account), for the Discover page: fetched once from the archive and kept, so the browse... |
 | GET | `/api/music/discover` | any account |  |
 | GET | `/api/music/discover/artists` | any account |  |
+| GET | `/api/music/favorites` | any account | GET /api/music/favorites: {tracks, albums, artists} ids. |
+| DELETE | `/api/music/favorites/{kind}/{id}` | any account | PUT and DELETE /api/music/favorites/{kind}/{id} |
+| PUT | `/api/music/favorites/{kind}/{id}` | any account | PUT and DELETE /api/music/favorites/{kind}/{id} |
 | GET | `/api/music/filters` | any account | is GET /api/music/filters (any account). |
 | PUT | `/api/music/filters` | admin | is PUT /api/music/filters (administrators): the library-wide choice, as {types, hideSecondary, hideBootlegs}. |
 | GET | `/api/music/import/scan` | admin | returns the most recent scan job, running or finished, so the page shows it again when it is reopened (administrators). |
 | POST | `/api/music/import/scan` | admin | starts reading the music folder and registering what MusicBrainz recognises (administrators). |
 | DELETE | `/api/music/import/scan/{id}` | admin | stops a running scan (administrators). |
 | GET | `/api/music/import/scan/{id}` | admin | returns a scan job: its phase, progress, the summary and one result per album folder found (administrators). |
+| DELETE | `/api/music/lastfm` | any account | DELETE /api/music/lastfm: forget the session and any unsent plays. |
+| GET | `/api/music/lastfm` | any account | GET /api/music/lastfm |
+| PUT | `/api/music/lastfm` | any account | PUT /api/music/lastfm {enabled?, loveSync?} |
+| GET | `/api/music/lastfm/app` | admin | GET /api/music/lastfm/app: the server's Last.fm application (key shown, secret never). |
+| PUT | `/api/music/lastfm/app` | admin | PUT /api/music/lastfm/app {apiKey, secret?} |
+| GET | `/api/music/lastfm/callback` | any account | GET /api/music/lastfm/callback?state&token: where last.fm sends the person back. |
+| POST | `/api/music/lastfm/connect` | any account | POST /api/music/lastfm/connect: the last.fm page to send the person to. |
 | DELETE | `/api/music/listenbrainz` | any account | DELETE /api/music/listenbrainz: forget the token and any unsent plays. |
 | GET | `/api/music/listenbrainz` | any account | GET /api/music/listenbrainz |
 | PUT | `/api/music/listenbrainz` | any account | PUT /api/music/listenbrainz {token?, enabled?} |
 | POST | `/api/music/listenbrainz/listen` | signed in | POST /api/music/listenbrainz/listen {trackId, listenedAt}: a play that has counted. |
 | POST | `/api/music/listenbrainz/playing` | signed in | POST /api/music/listenbrainz/playing {trackId} |
 | GET | `/api/music/player-settings` | any account | GET /api/music/player-settings |
-| PUT | `/api/music/player-settings` | admin | PUT /api/music/player-settings {lyricsOnline} |
+| PUT | `/api/music/player-settings` | admin | PUT /api/music/player-settings {lyricsOnline?, lyricsSaveLrc?, transcode?, transcodeMaxKbps?, transcodeFormat?, transcodeCacheMB?} |
+| GET | `/api/music/playlist-files` | admin | GET /api/music/playlist-files: the settings and what the last import found. |
+| PUT | `/api/music/playlist-files` | admin | PUT /api/music/playlist-files {auto?, shared?} |
+| POST | `/api/music/playlist-files/import` | admin | POST /api/music/playlist-files/import {again?}: read the files now. |
 | GET | `/api/music/playlists` | any account | GET /api/music/playlists |
 | POST | `/api/music/playlists` | any account | POST /api/music/playlists {name, shared?, trackIds?, albumId?, artistId?} |
 | DELETE | `/api/music/playlists/{id}` | any account | DELETE /api/music/playlists/{id} |
 | GET | `/api/music/playlists/{id}` | any account | GET /api/music/playlists/{id} |
 | PUT | `/api/music/playlists/{id}` | any account | PUT /api/music/playlists/{id} {name?, shared?} |
+| GET | `/api/music/playlists/{id}/m3u` | any account | GET /api/music/playlists/{id}/m3u: the playlist as an .m3u8 file. |
 | PUT | `/api/music/playlists/{id}/order` | any account | PUT /api/music/playlists/{id}/order {entryIds: [...]} |
 | POST | `/api/music/playlists/{id}/tracks` | any account | POST /api/music/playlists/{id}/tracks {trackIds?, albumId?, artistId?} |
 | DELETE | `/api/music/playlists/{id}/tracks/{entry}` | any account | DELETE /api/music/playlists/{id}/tracks/{entry} |
@@ -869,7 +956,13 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/music/profiles` | admin | makes a music quality profile (administrators): {name, allowed[], cutoff, upgradeAllowed, fallback[]}. |
 | DELETE | `/api/music/profiles/{id}` | admin | removes a music quality profile (administrators) that is not the default and that no artist uses (409 otherwise). |
 | PUT | `/api/music/profiles/{id}` | admin | changes a music quality profile (administrators). |
+| POST | `/api/music/scrobble/listen` | signed in | POST /api/music/scrobble/listen {trackId, listenedAt, playedSec?}: a play that counted. |
+| POST | `/api/music/scrobble/playing` | signed in | POST /api/music/scrobble/playing {trackId} |
 | GET | `/api/music/search` | any account | finds artists on MusicBrainz by name, marking the ones already in the library. |
+| GET | `/api/music/subsonic` | any account | GET /api/music/subsonic |
+| PUT | `/api/music/subsonic` | any account | PUT /api/music/subsonic {enabled} |
+| DELETE | `/api/music/subsonic/password` | any account | DELETE /api/music/subsonic/password: no app password any more (e-reader apps stop working too). |
+| POST | `/api/music/subsonic/password` | any account | POST /api/music/subsonic/password: a new app password for reading and music apps (it replaces the e-reader password too), shown once. |
 | GET | `/api/music/tiers` | any account | lists the music quality tiers, worst to best, for building a profile. |
 | GET | `/api/music/tracks/{id}/gain` | signed in | GET /api/music/tracks/{id}/gain: the ReplayGain tags of a track's file, null for the ones it doesn't have. |
 | GET | `/api/music/tracks/{id}/lyrics` | signed in | GET /api/music/tracks/{id}/lyrics |
@@ -1017,6 +1110,13 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/queue/{id}/torrent` | admin |  |
 | PUT | `/api/queue/{id}/torrent` | admin |  |
 | PUT | `/api/queue/{id}/torrent/files` | admin |  |
+
+## reading-marks
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| DELETE | `/api/reading-marks/{id}` | any account | DELETE /api/reading-marks/{id} |
+| PUT | `/api/reading-marks/{id}` | any account | PUT /api/reading-marks/{id}: a new note, colour or label. |
 
 ## rename
 
@@ -1295,6 +1395,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/tv/channels/{id}/logo-ideas` | admin | GET /api/tv/channels/{id}/logo-ideas: its shows' logos, to pick one. |
 | GET | `/api/tv/channels/{id}/now` | signed in | GET /api/tv/channels/{id}/now: what to play to tune in, and from where. |
 | POST | `/api/tv/channels/{id}/rebuild` | admin |  |
+| PUT | `/api/tv/channels/{id}/watermark` | admin | PUT /api/tv/channels/{id}/watermark {"on": bool}: a channel with or without the watermark. |
 | GET | `/api/tv/guide` | signed in |  |
 | POST | `/api/tv/jellyfin` | admin | POST /api/tv/jellyfin: add Mediarium TV to Jellyfin's Live TV (a tuner and a guide), once, and refresh Jellyfin's guide. |
 | POST | `/api/tv/plex` | admin | POST /api/tv/plex (admin): Usherr's channels and guide in Plex's Live TV. |
@@ -1308,6 +1409,12 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/tv/replay/{id}` | admin |  |
 | GET | `/api/tv/search` | any account | searches for shows by title, to find something to add. |
 | GET | `/api/tv/tuner` | admin | GET /api/tv/tuner: the feed addresses (admin), for setting up an IPTV app by hand. |
+| GET | `/api/tv/video` | admin | GET /api/tv/video |
+| PUT | `/api/tv/video` | admin | PUT /api/tv/video: save, and test the encoders again. |
+| DELETE | `/api/tv/video/image` | admin | DELETE /api/tv/video/image |
+| POST | `/api/tv/video/image` | admin | POST /api/tv/video/image (multipart "file"): the watermark picture. |
+| POST | `/api/tv/video/preview` | admin | POST /api/tv/video/preview {"channelId", "watermark"}: one frame of what the channel shows now, with the watermark as set (saved or not). |
+| POST | `/api/tv/video/test` | admin | POST /api/tv/video/test |
 
 ## tvfeed
 
@@ -1435,4 +1542,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-1005 routes.
+1092 routes.

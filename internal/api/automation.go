@@ -75,9 +75,11 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "server-collections", Interval: time.Hour, InitialDelay: 12 * time.Minute, Run: s.heavy(s.collectionsPushJob)}, // Usherr: collections pushed to Jellyfin and Plex
 		automation.Job{Name: "poster-badges", Interval: badgeEvery, InitialDelay: 15 * time.Minute, Run: s.heavy(s.badgesJob)},              // Usherr: badges on posters (does nothing until switched on)
 		automation.Job{Name: "preshow-trailers", Interval: 4 * time.Hour, InitialDelay: 5 * time.Minute, Run: s.heavy(s.trailersJob)},
-		automation.Job{Name: "sports-sync", Interval: 6 * time.Hour, InitialDelay: 3 * time.Minute, Run: s.sportsSyncJob}, // Usherr: Sports' schedules and scores (Usherr's own engine)
-		automation.Job{Name: "real-tv-refresh", Interval: 20 * time.Minute, Run: s.realTVRefreshJob},                      // Usherr: Real TV's day before, each night
-		automation.Job{Name: "music-import-wait", Interval: musicWaitJobTick, Run: s.retryMusicWaits},                     // tries the imports that were waiting for MusicBrainz
+		automation.Job{Name: "sports-sync", Interval: 6 * time.Hour, InitialDelay: 3 * time.Minute, Run: s.sportsSyncJob},                    // Usherr: Sports' schedules and scores (Usherr's own engine)
+		automation.Job{Name: "real-tv-refresh", Interval: 20 * time.Minute, Run: s.realTVRefreshJob},                                         // Usherr: Real TV's day before, each night
+		automation.Job{Name: "music-import-wait", Interval: musicWaitJobTick, Run: s.retryMusicWaits},                                        // tries the imports that were waiting for MusicBrainz
+		automation.Job{Name: "music-playlist-files", Interval: time.Hour, InitialDelay: 20 * time.Minute, Run: s.heavy(s.playlistImportJob)}, // Usherr: .m3u files read again daily (off until switched on)
+		automation.Job{Name: "music-scrobble-retry", Interval: scrobbleRetryEvery, InitialDelay: 11 * time.Minute, Run: s.scrobbleRetryJob},  // Usherr: plays kept while ListenBrainz or Last.fm was away
 		automation.Job{Name: "speed-limit", Interval: speedCheck, Run: s.speedJob},
 		automation.Job{Name: "quiet-hours", Interval: speedCheck, Run: s.quietHoursJob},
 		automation.Job{Name: "cleanup", Interval: cleanupCheckInterval, Run: s.cleanupJob},
@@ -245,6 +247,7 @@ func (s *Server) hunt(ctx context.Context) {
 	s.huntBooks(ctx)            // only while ebooks or audiobooks are on
 	s.huntNsfw(ctx)             // videos hook (home fork): only while NSFW 18+ is on
 	s.huntComics(ctx)           // comics hook (home fork): only while Comics are on
+	s.huntSports(ctx)           // sports hook (Usherr): only on Usherr's own sports engine, with a Sports folder
 }
 
 // maxMovieSearchesPerHunt is how many movies one scheduled run searches for

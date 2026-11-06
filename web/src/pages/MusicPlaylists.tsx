@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AIPlaylist } from '../home/AIMusic' // home fork
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, isViewer, type MusicPlaylist, type MusicPlaylistDetail, type MusicPlaylistTrack } from '../api'
+import { api, isAdmin, isViewer, type MusicPlaylist, type MusicPlaylistDetail, type MusicPlaylistTrack } from '../api'
 import { useAuth } from '../AuthContext'
 import { useConfirm } from '../components/ConfirmProvider'
 import Icon from '../components/Icon'
 import MusicMenu from '../components/MusicMenu'
+import PlaylistFiles from '../components/PlaylistFiles' // Usherr
+import { withBase } from '../base'
 import { albumCoverUrl, useMusicPlayer } from '../components/musicPlayerContext'
 import type { PlayerTrack } from '../musicQueue'
 import Switch from '../components/Switch'
@@ -82,7 +84,9 @@ export function MusicPlaylists() {
   const player = useMusicPlayer()
   const play = usePlayList()
   // A viewer can open and play the shared playlists but not make one.
-  const viewer = isViewer(useAuth().user)
+  const { user } = useAuth()
+  const viewer = isViewer(user)
+  const admin = isAdmin(user)
   const [lists, setLists] = useState<MusicPlaylist[] | null>(null)
   const [error, setError] = useState('')
   const [name, setName] = useState('')
@@ -186,6 +190,7 @@ export function MusicPlaylists() {
         )}
       </div>
       {!viewer && <AIPlaylist />} {/* home fork: a playlist from a mood */}
+      {admin && <PlaylistFiles onImported={load} />} {/* Usherr: .m3u files in the music folder */}
 
       {error && <p className="error-text">{error}</p>}
       {lists === null && !error && <div className="skeleton" style={{ height: 180, borderRadius: 18 }} />}
@@ -370,6 +375,11 @@ export function MusicPlaylistPage() {
                   <Icon name="list" size={15} /> {t('Add to queue')}
                 </button>
               </>
+            )}
+            {list.trackCount > 0 && (
+              <a className="btn btn-with-icon" href={withBase(`/api/music/playlists/${list.id}/m3u`)} download title={t('Save the playlist as an .m3u8 file for other apps')}>
+                <Icon name="download" size={15} /> {t('Save as .m3u8')}
+              </a>
             )}
             {mine && (
               <button type="button" className="btn-with-icon btn-danger" onClick={() => void remove()}>

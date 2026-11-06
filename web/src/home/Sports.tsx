@@ -13,6 +13,7 @@ import { isAdmin } from '../api'
 import { useDocumentTitle } from '../documentTitle'
 import { plural, t } from '../i18n'
 import { gameState, sportsApi, sportsImage, streamGame, type SportGame, type SportLeague, type SportsHome, type SportTeam } from './sportsApi'
+import { GameGetButtons, LeagueGetPanel, WantedGames } from './SportsGet' // Usherr's own engine gets games
 import './sports.css'
 
 const dayKey = (iso: string) => new Date(iso).toDateString()
@@ -67,7 +68,7 @@ function Badge({ src, alt, size = 40 }: { src?: string; alt: string; size?: numb
   return src ? <img className="sp-badge" src={sportsImage(src)} alt={alt} width={size} height={size} loading="lazy" /> : <span className="sp-badge sp-badge-none" style={{ width: size, height: size }} aria-hidden="true" />
 }
 
-function GameRow({ g, canGet, canStream, showLeague, scores, onGot }: { g: SportGame; canGet: boolean; canStream: boolean; showLeague: boolean; scores: boolean; onGot: () => void }) {
+function GameRow({ g, canGet, canStream, showLeague, scores, onGot, own }: { g: SportGame; canGet: boolean; canStream: boolean; showLeague: boolean; scores: boolean; onGot: () => void; own: boolean }) {
   const toast = useToast()
   const [busy, setBusy] = useState(false)
   const [streaming, setStreaming] = useState(false)
@@ -115,11 +116,12 @@ function GameRow({ g, canGet, canStream, showLeague, scores, onGot }: { g: Sport
           <Icon name="download" /> {t('Get')}
         </button>
       )}
+      {canGet && own && <GameGetButtons g={g} onChange={onGot} />}
     </li>
   )
 }
 
-function GameDays({ games, canGet, canStream, showLeague, onGot }: { games: SportGame[]; canGet: boolean; canStream: boolean; showLeague: boolean; onGot: () => void }) {
+function GameDays({ games, canGet, canStream, showLeague, onGot, own = false }: { games: SportGame[]; canGet: boolean; canStream: boolean; showLeague: boolean; onGot: () => void; own?: boolean }) {
   const [scores, setScores] = useShowScores()
   const days = useMemo(() => {
     const out: { key: string; label: string; games: SportGame[] }[] = []
@@ -138,7 +140,7 @@ function GameDays({ games, canGet, canStream, showLeague, onGot }: { games: Spor
           <h3>{d.label}</h3>
           <ul className="sp-games" data-walk="sp-games">
             {d.games.map((g) => (
-              <GameRow key={g.id} g={g} canGet={canGet} canStream={canStream} showLeague={showLeague} scores={scores} onGot={onGot} />
+              <GameRow key={g.id} g={g} canGet={canGet} canStream={canStream} showLeague={showLeague} scores={scores} onGot={onGot} own={own} />
             ))}
           </ul>
         </section>
@@ -344,7 +346,8 @@ export function SportsLeaguePage() {
           </button>
         </div>
       </div>
-      {shown.length ? <GameDays games={shown} canGet={d.canGet} canStream={d.canStream} showLeague={false} onGot={load} /> : <p className="sp-dim">{t('No games here yet. New leagues take a minute to fill.')}</p>}
+      {d.canManage && d.canGet && d.backend === 'Usherr' && l.id && <LeagueGetPanel key={l.id + String(l.monitored) + (l.parts ?? []).join() + String(l.profileId ?? 0) + String(!!l.teamsOnly)} league={l} onSaved={load} />}
+      {shown.length ? <GameDays games={shown} canGet={d.canGet} canStream={d.canStream} showLeague={false} onGot={load} own={d.backend === 'Usherr'} /> : <p className="sp-dim">{t('No games here yet. New leagues take a minute to fill.')}</p>}
     </div>
   )
 }
@@ -356,12 +359,14 @@ export default function SportsPage() {
   const [error, setError] = useState('')
   const [text, setText] = useState('')
   const [q, setQ] = useState('')
+  const [refresh, setRefresh] = useState(0)
   const load = useCallback(() => {
     sportsApi
       .home()
       .then((h) => {
         setHome(h)
         setError('')
+        setRefresh((n) => n + 1)
       })
       .catch((e: Error) => setError(e.message))
   }, [])
@@ -369,6 +374,7 @@ export default function SportsPage() {
   if (error) return <p className="error-text">{error}</p>
   if (!home) return <p>{t('Loading…')}</p>
   if (!home.on) return <NotOn home={home} />
+  const own = home.backend === 'Usherr'
   const submit = (e: FormEvent) => {
     e.preventDefault()
     setQ(text.trim().length >= 2 ? text.trim() : '')
@@ -417,6 +423,22 @@ export default function SportsPage() {
               <li key={tm.id}>
                 <Badge src={tm.badge} alt={tm.name} size={28} />
                 <span>{tm.name}</span>
+                {own && home.canGet && tm.id && (
+                  <button
+                    className={tm.monitored ? 'icon-btn sp-on' : 'icon-btn'}
+                    title={tm.monitored ? t('Getting its games. Click to stop.') : t('Get its games (in the leagues in Sports)')}
+                    aria-pressed={!!tm.monitored}
+                    aria-label={t('Get the games of {name}', { name: tm.name })}
+                    onClick={() =>
+                      sportsApi
+                        .teamGet(tm.id!, { monitored: !tm.monitored })
+                        .then(() => (toast.success(tm.monitored ? t('No longer getting {name}’s games.', { name: tm.name }) : t('Getting {name}’s games.', { name: tm.name })), load()))
+                        .catch((e: Error) => toast.error(e.message))
+                    }
+                  >
+                    <Icon name="download" />
+                  </button>
+                )}
                 {home.canManage && tm.id && (
                   <button
                     className="icon-btn"
@@ -438,10 +460,12 @@ export default function SportsPage() {
         </section>
       )}
 
+      {own && <WantedGames refresh={refresh} />}
+
       <section>
         <h2>{t('Games')}</h2>
         {home.games.length ? (
-          <GameDays games={home.games} canGet={home.canGet} canStream={home.canStream} showLeague onGot={load} />
+          <GameDays games={home.games} canGet={home.canGet} canStream={home.canStream} showLeague onGot={load} own={own} />
         ) : (
           <p className="sp-dim">{home.leagues.length ? t('No games in the next two weeks.') : t('Find a league or team above to begin.')}</p>
         )}

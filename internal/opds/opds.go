@@ -41,6 +41,10 @@ const (
 	RelImage       = "http://opds-spec.org/image"
 	RelThumbnail   = "http://opds-spec.org/image/thumbnail"
 	RelCrawlable   = "http://opds-spec.org/crawlable"
+	// RelPSEStream is OPDS Page Streaming (https://github.com/anansi-project/opds-pse):
+	// a comic read page by page. Its Href is a template with {pageNumber}
+	// (0-based) and {maxWidth} in it.
+	RelPSEStream = "http://vaemendis.net/opds-pse/stream"
 )
 
 // Kind is what a feed lists.
@@ -62,6 +66,11 @@ type Link struct {
 	Length int64 // size in bytes, 0 = not known
 	// Templated marks an OPDS 2.0 link whose Href is a URI template.
 	Templated bool
+	// Page streaming (RelPSEStream links only): how many pages there are, and
+	// the page (0-based) the reader got to, when LastReadAt is set.
+	PSECount    int
+	PSELastRead int
+	LastReadAt  time.Time
 }
 
 // Entry is one line of a feed: a book in an acquisition feed, a link to
@@ -102,6 +111,7 @@ const (
 	nsDC         = "http://purl.org/dc/terms/"
 	nsOPDS       = "http://opds-spec.org/2010/catalog"
 	nsOpenSearch = "http://a9.com/-/spec/opensearch/1.1/"
+	nsPSE        = "http://vaemendis.net/opds-pse/ns"
 )
 
 // xmlWriter writes indented XML by hand: the OPDS prefixes (dc:, opds:,
@@ -167,6 +177,12 @@ func (w *xmlWriter) link(l Link, withLength bool) {
 	if withLength && l.Length > 0 {
 		attrs += ` length="` + strconv.FormatInt(l.Length, 10) + `"`
 	}
+	if l.PSECount > 0 {
+		attrs += ` pse:count="` + strconv.Itoa(l.PSECount) + `"`
+		if !l.LastReadAt.IsZero() {
+			attrs += ` pse:lastRead="` + strconv.Itoa(max(l.PSELastRead, 0)) + `" pse:lastReadDate="` + stamp(l.LastReadAt) + `"`
+		}
+	}
 	w.line("<link%s/>", attrs)
 }
 
@@ -176,7 +192,7 @@ func stamp(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05Z") }
 func (f Feed) Atom() []byte {
 	w := &xmlWriter{}
 	w.buf.WriteString(xml.Header)
-	w.line(`<feed xmlns="%s" xmlns:dc="%s" xmlns:opds="%s" xmlns:opensearch="%s">`, nsAtom, nsDC, nsOPDS, nsOpenSearch)
+	w.line(`<feed xmlns="%s" xmlns:dc="%s" xmlns:opds="%s" xmlns:opensearch="%s" xmlns:pse="%s">`, nsAtom, nsDC, nsOPDS, nsOpenSearch, nsPSE)
 	w.depth++
 	w.text("id", f.ID)
 	w.text("title", f.Title)

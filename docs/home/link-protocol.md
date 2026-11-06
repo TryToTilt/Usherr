@@ -178,7 +178,7 @@ the screening's id, a UUID the host made.
 | `screening.offer` | host → guest | pair | `{"v","sid","rev","film":{"tmdb","title","year"?,"runtime"?,"copy"?,"edition"?,"poster"?},"at","preshow","host","key"}` (4 KB) | a screening this Usherr is invited to: TMDB id, title, year, runtime (TMDB), `copy` the host's own copy's minutes, start (unix ms), pre-show minutes (0–60), who's hosting, and the screening key (b64). `poster` only as an `https://image.tmdb.org/` address. |
 | `screening.update` | host → guest | pair | the same (4 KB) | it changed (time, pre-show, a new key); `rev` goes up with each change. Sent again until the guest says it saw the latest (`ready`'s `rev`): every 10 minutes, and every hour anyway until it starts. |
 | `screening.cancel` | host → guest | pair | `{"v","sid"}` (512 B) | called off, or this guest isn't invited anymore |
-| `screening.roster` | host → everyone | group (fanout) | `{"v","sid","rev","guests":[{"name","answer"?,"count"?}]}` (12 KB, ≤ 100 guests) | who's coming: each invited Usherr's own name, its answer and how many |
+| `screening.roster` | host → everyone | group (fanout) | `{"v","sid","rev","guests":[{"name","answer"?,"count"?}]}` (12 KB, ≤ 101 entries) | who's coming: first the host's own household (its Usherr's name, `going` and how many, or `not`; step 3), then each invited Usherr's own name, its answer and how many |
 | `rsvp` | guest → host | pair | `{"v","sid","answer","count"}` (512 B) | `going` / `not` / `maybe` for the household, and how many (0–20; 0 for `not`) |
 | `ready` | guest → host | pair | `{"v","sid","rev","has","runtime"?}` (512 B) | has the film: `yes` / `getting` / `no`, and its copy's minutes; sent on every offer and update (so it also says the screening arrived) and when it changes |
 
@@ -195,6 +195,59 @@ Who may send what (dropped otherwise, counted as `refused`):
 
 A link sees only the screenings it's invited to.
 
+When anyone at a guest Usherr says `going`, the screening is booked in that
+Usherr's own Showtime (the Marquee counts down to it), marked as hosted by
+the linked Usherr; it moves with `screening.update` and goes with
+`screening.cancel`, unlinking, or when nobody there is going anymore. Only
+the host can move or cancel it.
+
+### Playback (step 3)
+
+Code: `internal/link/screening/playback.go`, `internal/api/home_link_room.go`
+(the room), `web/src/home/RoomFollow.tsx` and `syncMath.ts` (the player).
+
+| type | way | envelope | body (largest) | does |
+|---|---|---|---|---|
+| `playback` | host → everyone | group (fanout) | `{"v","sid","seq","state","position","atWallTime","anyonePause"?}` (512 B) | where the film is: at `atWallTime` (unix ms, **the relay's clock**) it was at `position` (seconds into the film; negative in the pre-show), `state` `preshow` / `film` / `paused` / `ended`. `seq` goes up with each change the host makes; heartbeats repeat it. `anyonePause`: the host lets guests ask to pause. |
+| `pause.request` | guest → host | pair | `{"v","sid"}` (512 B) | please pause; the host's Usherr pauses for everyone when it lets anyone pause and the film is playing, and drops it otherwise |
+| `screening.preshow` | host → everyone | group (fanout) | `{"v","sid","rev","items":[{"kind","card"?,"text"?,"category"?,"tmdb"?,"tv"?,"season"?,"youtube"?,"title"?,"poster"?,"release"?,"why"?,"seconds"}]}` (12 KB, ≤ 80 items, ≤ 60 min in all) | the pre-show's recipe: each piece in order and how long it runs. A card by its kind, a clip by its category only, a trailer by its film (TMDB id, a show's season) and its public YouTube video. Never a file or address of the host's. |
+
+Who may send what: `playback` and `screening.preshow` only sealed with that
+screening's key, by its host, with the key's `sid` (a guest has the key, but
+anything it seals with it is dropped as `sender`); `pause.request` only from
+an Usherr invited to that screening.
+
+**Clocks.** Each Usherr knows how far its clock is from the relay's (the
+`time` in the relay's `challenge` at every connect, kept as `skewMs`). The
+host sends `atWallTime` = its own time + its skew; a guest takes it as `atWallTime` − its own skew. Then a film
+playing is at `position + (now − at) / 1000` on every Usherr's own clock.
+Before the host has said anything, the schedule holds: the film at the
+booked time, the pre-show just before it.
+
+**The host** sends `playback` whenever whoever booked it (or an
+administrator) plays, pauses or seeks, and again every 5 seconds while the
+pre-show or film plays (every 15 while paused, once when it ends), so an
+Usherr that missed a message, joined late or was offline is right within
+seconds. A guest keeps the newest `seq`; while the relay is out of reach it
+plays on by its own clock and is put right by the next heartbeat.
+
+**Following.** A player compares where it is with where it should be:
+closer than 0.1 s, nothing; up to 1 s off, it plays up to 6% faster or
+slower (8% per second off) until it's back; more than 1 s off, it seeks
+there (0.25 s ahead). A copy converted on the fly can't seek: it's
+converted again from there, at most every 20 seconds.
+
+**The pre-show.** From 15 minutes before it starts, the host fixes its
+pre-show (the plan it plays itself) and sends the recipe, again every
+minute until the film starts. Each guest builds it from its own cards,
+clips of the same category and trailers of the same film (else the
+YouTube video); whatever it lacks is a card of the same length (the
+coming-soon card of a trailer it hasn't got, else the welcome card). Every
+piece has the host's length, so the pre-show starts and ends at the same
+moment everywhere; a piece that ends early leaves the welcome card for the
+rest of its slot. Moving the screening starts the pre-show and playback
+over.
+
 ## Invite codes
 
 ```
@@ -203,8 +256,8 @@ USH-7QPM-2RD9-HXK4-MW3T-0A6B-C
 
 Twenty characters of Crockford's base 32 (no I, L, O or U) hold a **100-bit
 random secret** (13 bytes, the first 4 bits zero); the last character is a
-check (the sum of each digit times its position, 1 to 20, mod 32), so a
-mistyped code is refused before anything is sent. Reading a code is
+check (each digit times an odd weight, 1, 3, 5 … 39, summed mod 32), so
+any one mistyped character is refused before anything is sent. Reading a code is
 forgiving: lower case, spaces, O for 0, I or L for 1, and a code inside a
 pasted message are all fine.
 

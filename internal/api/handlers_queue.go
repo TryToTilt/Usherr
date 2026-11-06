@@ -364,6 +364,9 @@ func (s *Server) handleRetryQueueItem(w http.ResponseWriter, r *http.Request) {
 		if s.retryComicDownload(w, item) { // comics hook (home fork)
 			return
 		}
+		if s.retrySportDownload(w, item) { // sports hook (Usherr)
+			return
+		}
 	}
 	newID, err := s.retryQueueItem(item)
 	if errors.Is(err, errNotRetryable) {

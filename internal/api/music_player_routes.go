@@ -15,6 +15,14 @@ func (s *Server) musicPlayerRoutes(member, play, admin routeGroup) {
 	member.HandleFunc("POST /api/music/playlists/{id}/tracks", s.handleAddToPlaylist)
 	member.HandleFunc("DELETE /api/music/playlists/{id}/tracks/{entry}", s.handleRemoveFromPlaylist)
 	member.HandleFunc("PUT /api/music/playlists/{id}/order", s.handleReorderPlaylist)
+	member.HandleFunc("GET /api/music/playlists/{id}/m3u", s.handleExportPlaylist)
+
+	// Usherr: .m3u/.m3u8 files in the music folder brought in as playlists
+	// (music_playlist_import.go). They read the library's folder, so only an
+	// administrator runs them.
+	admin.HandleFunc("GET /api/music/playlist-files", s.handlePlaylistImportStatus)
+	admin.HandleFunc("PUT /api/music/playlist-files", s.handlePlaylistImportSettings)
+	admin.HandleFunc("POST /api/music/playlist-files/import", s.handlePlaylistImportRun)
 
 	// What the player reads from a track's file.
 	play.HandleFunc("GET /api/music/tracks/{id}/lyrics", s.handleTrackLyrics)
@@ -28,4 +36,27 @@ func (s *Server) musicPlayerRoutes(member, play, admin routeGroup) {
 	member.HandleFunc("DELETE /api/music/listenbrainz", s.handleScrobbleForget)
 	play.HandleFunc("POST /api/music/listenbrainz/playing", s.handleScrobblePlaying)
 	play.HandleFunc("POST /api/music/listenbrainz/listen", s.handleScrobbleListen)
+
+	// Usherr: the caller's own Last.fm connection (music_lastfm.go), and the
+	// player's plays sent to every service the caller connected.
+	member.HandleFunc("GET /api/music/lastfm", s.handleLastFMStatus)
+	member.HandleFunc("PUT /api/music/lastfm", s.handleLastFMSave)
+	member.HandleFunc("DELETE /api/music/lastfm", s.handleLastFMForget)
+	member.HandleFunc("POST /api/music/lastfm/connect", s.handleLastFMConnect)
+	member.HandleFunc("GET /api/music/lastfm/callback", s.handleLastFMCallback)
+	admin.HandleFunc("GET /api/music/lastfm/app", s.handleLastFMAppGet)
+	admin.HandleFunc("PUT /api/music/lastfm/app", s.handleLastFMAppSave)
+	play.HandleFunc("POST /api/music/scrobble/playing", s.handleScrobbleNowPlaying)
+	play.HandleFunc("POST /api/music/scrobble/listen", s.handleScrobblePlay)
+
+	// Usherr: phone apps through the Subsonic API: the switch and app passwords (subsonic_auth.go).
+	member.HandleFunc("GET /api/music/subsonic", s.handleSubsonicStatus)
+	member.HandleFunc("PUT /api/music/subsonic", s.handleSubsonicSave)
+	member.HandleFunc("POST /api/music/subsonic/password", s.handleNewAppPassword)
+	member.HandleFunc("DELETE /api/music/subsonic/password", s.handleRemoveAppPassword)
+
+	// Usherr: likes (music_favorites.go).
+	member.HandleFunc("GET /api/music/favorites", s.handleListFavorites)
+	member.HandleFunc("PUT /api/music/favorites/{kind}/{id}", s.handleSetFavorite)
+	member.HandleFunc("DELETE /api/music/favorites/{kind}/{id}", s.handleSetFavorite)
 }

@@ -55,6 +55,8 @@ type linkScreeningState struct {
 	mu     sync.Mutex
 	roster map[int64]*time.Timer // showtime -> roster waiting to go
 	stop   chan struct{}         // ends the screening job
+	room   roomHub               // step 3: the browsers in a screening room (home_link_room.go)
+	beats  map[int64]roomBeatSent
 }
 
 // ---- keys ----
@@ -175,6 +177,13 @@ func (b linkBook) Offered(ctx context.Context, host link.Peer, o screening.Offer
 			o.At, o.Preshow, o.Host, now, id); err != nil {
 			return err
 		}
+		if o.At != at || o.Preshow != pre {
+			// Step 3: moved, so its pre-show and playback start over.
+			_, _ = s.db.ExecContext(ctx, `UPDATE link_screenings_in SET recipe = '', play_seq = 0, play_state = '', play_pos = 0, play_at = 0 WHERE id = ?`, id)
+		}
+	}
+	if !isNew {
+		s.screeningBook(ctx, id) // step 3: the booking here follows
 	}
 	who := s.linkPeerName(ctx, peer)
 	film := o.Film.Title
@@ -203,6 +212,7 @@ func (b linkBook) Cancelled(ctx context.Context, host link.Peer, sid string) err
 	if err := s.db.QueryRowContext(ctx, `SELECT title, year, peer_id FROM link_screenings_in WHERE sid = ?`, sid).Scan(&title, &year, &peer); err != nil {
 		return nil // never had it
 	}
+	s.screeningUnbook(ctx, `sid = ?`, sid) // step 3: the booking here goes too
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM link_screenings_in WHERE sid = ?`, sid); err != nil {
 		return err
 	}
@@ -471,6 +481,12 @@ func (s *Server) screeningMoved(showtimeID int64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if st, ok := s.showtimeByID(ctx, showtimeID); ok {
+		// Step 3: its pre-show is made again, and playback starts over.
+		_, _ = s.db.ExecContext(ctx, `UPDATE link_screenings_out SET recipe = '', play_seq = 0, play_state = '', play_pos = 0, play_at = 0 WHERE showtime_id = ?`, showtimeID)
+		s.linkS.scr.mu.Lock()
+		delete(s.linkS.scr.beats, showtimeID)
+		s.linkS.scr.mu.Unlock()
+		s.linkS.scr.room.changed(showtimeID)
 		_ = s.screeningChanged(ctx, st, false)
 	}
 }
@@ -516,6 +532,14 @@ func (s *Server) sendRoster(ctx context.Context, showtimeID int64) error {
 		return nil
 	}
 	r := screening.Roster{V: screening.Version, SID: o.SID, Rev: o.Rev, Guests: []screening.Guest{}}
+	// Step 3: the host's own household first.
+	if st, ok := s.showtimeByID(ctx, showtimeID); ok {
+		host := screening.Guest{Name: link.CleanName(s.linkName()), Answer: screening.NotGoing}
+		if n := goingOf(s.hostHousehold(ctx, st)); n > 0 {
+			host.Answer, host.Count = screening.Going, min(n, screening.MaxHousehold)
+		}
+		r.Guests = append(r.Guests, host)
+	}
 	var to []string
 	rows, err := s.db.QueryContext(ctx, `SELECT p.their_id, p.name, g.answer, g.count FROM link_screening_guests g JOIN link_peers p ON p.id = g.peer_id
 		WHERE g.showtime_id = ? AND p.status = 'linked' AND p.their_id <> '' ORDER BY g.answer = '', g.answered_ms, g.peer_id`, showtimeID)
@@ -552,6 +576,7 @@ func (s *Server) screeningsForgetPeer(ctx context.Context, peer int64) {
 		rows.Close()
 	}
 	_, _ = s.db.ExecContext(ctx, `DELETE FROM link_screening_guests WHERE peer_id = ?`, peer)
+	s.screeningUnbook(ctx, `peer_id = ?`, peer) // step 3: the bookings here go too
 	_, _ = s.db.ExecContext(ctx, `DELETE FROM link_screenings_in WHERE peer_id = ?`, peer)
 	if len(showtimes) == 0 {
 		return
@@ -673,6 +698,21 @@ func (s *Server) startScreeningJob() {
 			}
 		}
 	}()
+	// Step 3: where the film is, to everyone at the screenings hosted here.
+	go func() {
+		t := time.NewTicker(roomTick)
+		defer t.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-t.C:
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				s.roomBeats(ctx)
+				cancel()
+			}
+		}
+	}()
 }
 
 func (s *Server) stopScreeningJob() {
@@ -735,15 +775,18 @@ func (s *Server) screeningJob(ctx context.Context) {
 	for _, id := range ids {
 		s.screeningTell(id, false)
 	}
+	s.screeningRecipes(ctx) // step 3: the pre-shows starting soon
 	_, _ = s.db.ExecContext(ctx, `DELETE FROM link_screenings_in WHERE at_ms < ?`, now.Add(-2*screeningKeep).UnixMilli())
 }
 
 // ---- what the pages show ----
 
 type linkedSummary struct {
-	Invited int `json:"invited"` // linked Usherrs invited
-	Going   int `json:"going"`   // of them, coming
-	People  int `json:"people"`  // how many people they bring
+	Invited   int    `json:"invited"`        // linked Usherrs invited
+	Going     int    `json:"going"`          // of them, coming
+	People    int    `json:"people"`         // how many people they bring
+	HostGoing int    `json:"hostGoing"`      // step 3: how many of this household are coming
+	Mine      string `json:"mine,omitempty"` // ... and whether the asker is
 }
 
 // withLinked adds who's invited from linked Usherrs to each shared showtime.
@@ -895,18 +938,20 @@ type screeningInOut struct {
 	Edition      string               `json:"edition,omitempty"`
 	AtMs         int64                `json:"atMs"`
 	PreshowMin   int                  `json:"preshowMin"`
-	Mine         string               `json:"mine,omitempty"` // this person's answer
-	People       []screeningPersonOut `json:"people"`         // this household's answers
-	Roster       []screening.Guest    `json:"roster"`         // who's coming, from the host
-	Has          string               `json:"has,omitempty"`  // yes, getting, no
+	Mine         string               `json:"mine,omitempty"`       // this person's answer
+	People       []screeningPersonOut `json:"people"`               // this household's answers
+	Roster       []screening.Guest    `json:"roster"`               // who's coming, from the host
+	RosterHost   bool                 `json:"rosterHost"`           // step 3: the roster's first is the host's own household
+	ShowtimeID   int64                `json:"showtimeId,omitempty"` // step 3: its booking in this Usherr's Showtime
+	Has          string               `json:"has,omitempty"`        // yes, getting, no
 	MyRuntime    int                  `json:"myRuntime,omitempty"`
 	DifferentCut bool                 `json:"differentCut,omitempty"`
 }
 
 func (s *Server) screeningsIn(ctx context.Context, user int64) []screeningInOut {
 	out := []screeningInOut{}
-	rows, err := s.db.QueryContext(ctx, `SELECT i.id, COALESCE(NULLIF(p.nickname, ''), p.name), i.host_name, i.tmdb_id, i.title, i.year, i.poster_url, i.runtime, i.copy_min, i.edition,
-			i.at_ms, i.preshow_min, i.roster, i.has, i.my_runtime
+	rows, err := s.db.QueryContext(ctx, `SELECT i.id, COALESCE(NULLIF(p.nickname, ''), p.name), p.name, i.host_name, i.tmdb_id, i.title, i.year, i.poster_url, i.runtime, i.copy_min, i.edition,
+			i.at_ms, i.preshow_min, i.roster, i.has, i.my_runtime, COALESCE(i.showtime_id, 0)
 		FROM link_screenings_in i JOIN link_peers p ON p.id = i.peer_id
 		WHERE p.status = 'linked' AND i.at_ms > ? ORDER BY i.at_ms, i.id`, time.Now().Add(-screeningKeep).UnixMilli())
 	if err != nil {
@@ -915,14 +960,15 @@ func (s *Server) screeningsIn(ctx context.Context, user int64) []screeningInOut 
 	var copies []int
 	for rows.Next() {
 		var x screeningInOut
-		var roster string
+		var roster, hostSelf string
 		var copyMin int
-		if rows.Scan(&x.ID, &x.Host, &x.HostName, &x.TMDBID, &x.Title, &x.Year, &x.PosterURL, &x.Runtime, &copyMin, &x.Edition, &x.AtMs, &x.PreshowMin, &roster, &x.Has, &x.MyRuntime) != nil {
+		if rows.Scan(&x.ID, &x.Host, &hostSelf, &x.HostName, &x.TMDBID, &x.Title, &x.Year, &x.PosterURL, &x.Runtime, &copyMin, &x.Edition, &x.AtMs, &x.PreshowMin, &roster, &x.Has, &x.MyRuntime, &x.ShowtimeID) != nil {
 			continue
 		}
 		if json.Unmarshal([]byte(roster), &x.Roster) != nil || x.Roster == nil {
 			x.Roster = []screening.Guest{}
 		}
+		x.RosterHost = len(x.Roster) > 0 && x.Roster[0].Name == link.CleanName(hostSelf)
 		out = append(out, x)
 		copies = append(copies, copyMin)
 	}
@@ -993,6 +1039,7 @@ func (s *Server) handleScreeningRSVP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "Your answer couldn't be saved.")
 		return
 	}
+	s.screeningBook(ctx, id) // step 3: in this Usherr's Showtime while anyone here is going
 	if a, c := s.household(ctx, id); a != "" {
 		if err := n.Send(ctx, their, screening.TypeRSVP, screening.RSVP{V: screening.Version, SID: sid, Answer: a, Count: c}); err != nil {
 			writeError(w, http.StatusBadGateway, "Your answer is saved, but it couldn't be sent to the host yet.")

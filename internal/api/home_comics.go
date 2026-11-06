@@ -1096,7 +1096,12 @@ var comicImageClient = &http.Client{Timeout: 20 * time.Second}
 
 // GET /api/comics/image?u=: a ComicVine image fetched for the page.
 func (s *Server) handleComicImage(w http.ResponseWriter, r *http.Request) {
-	u := r.URL.Query().Get("u")
+	s.proxyComicVineImage(w, r, r.URL.Query().Get("u"))
+}
+
+// proxyComicVineImage sends a ComicVine picture the library knows about (the
+// web page's covers, and the OPDS catalogue's).
+func (s *Server) proxyComicVineImage(w http.ResponseWriter, r *http.Request, u string) {
 	if u == "" || len(u) > 2048 || !strings.HasPrefix(u, "https://comicvine.gamespot.com/") || !s.comicImageKnown(u) {
 		writeError(w, http.StatusNotFound, "Unknown image.")
 		return

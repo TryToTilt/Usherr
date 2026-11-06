@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, isAdmin, type TrackLyrics } from '../api'
+import { api, isAdmin, type MusicServerSettings, type TrackLyrics } from '../api'
 import { useAuth } from '../AuthContext'
 import { activeLine, parseLrc } from '../lrc'
 import { t, plural } from '../i18n'
@@ -8,7 +8,7 @@ import { clock } from '../musicAudio'
 import { MAX_CROSSFADE, type QueuedTrack } from '../musicQueue'
 import Icon from './Icon'
 import { PlaylistPicker, Popover } from './MusicMenu'
-import { useMusicPlayer, usePlayerTime, type PanelTab } from './musicPlayerContext'
+import { STREAM_QUALITY_KEY, streamQuality, useMusicPlayer, usePlayerTime, type PanelTab } from './musicPlayerContext'
 import Switch from './Switch'
 import { useToast } from './Toast'
 import '../musicpanel.css'
@@ -248,11 +248,17 @@ function SettingsTab() {
   const toast = useToast()
   const admin = isAdmin(user)
   const [online, setOnline] = useState<boolean | null>(null)
+  const [server, setServer] = useState<MusicServerSettings | null>(null)
+  const [quality, setQuality] = useState(streamQuality)
   useEffect(() => {
     let live = true
     api
       .musicPlayerSettings()
-      .then((s) => live && setOnline(s.lyricsOnline))
+      .then((s) => {
+        if (!live) return
+        setOnline(s.lyricsOnline)
+        setServer(s)
+      })
       .catch(() => undefined)
     return () => {
       live = false
@@ -260,6 +266,24 @@ function SettingsTab() {
   }, [])
   if (!p) return null
   const s = p.settings
+
+  function chooseQuality(v: string) {
+    setQuality(v)
+    try {
+      if (v) localStorage.setItem(STREAM_QUALITY_KEY, v)
+      else localStorage.removeItem(STREAM_QUALITY_KEY)
+    } catch {
+      // Private windows may refuse; the choice then lasts until the page closes.
+    }
+  }
+
+  async function saveServer(changes: Partial<MusicServerSettings>) {
+    try {
+      setServer(await api.saveMusicServerSettings(changes))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   async function setLyricsOnline(v: boolean) {
     try {
@@ -300,6 +324,19 @@ function SettingsTab() {
         <small>{t('Uses the ReplayGain tags in the files. A file without them plays as it is.')}</small>
       </div>
       <p className="np-note">{t('These two are kept on this device. On an iPhone or iPad they may stop working while the screen is locked.')}</p>
+      {server?.transcode !== false && (
+        <div className="np-field">
+          <label htmlFor="np-quality">{t('Streaming quality')}</label>
+          <select id="np-quality" value={quality} onChange={(e) => chooseQuality(e.target.value)}>
+            <option value="">{t('Original files')}</option>
+            <option value="320">{t('High (320 kbit/s)')}</option>
+            <option value="192">{t('Normal (192 kbit/s)')}</option>
+            <option value="128">{t('Data saver (128 kbit/s)')}</option>
+            <option value="96">{t('Low (96 kbit/s)')}</option>
+          </select>
+          <small>{t('For phones on mobile data. Bigger files are made smaller on the server; ones that already fit play as they are. Kept on this device.')}</small>
+        </div>
+      )}
       <div className="np-field">
         <span className="np-label">{t('ListenBrainz')}</span>
         <small>
@@ -314,6 +351,42 @@ function SettingsTab() {
           label={t('Look up lyrics online')}
           description={t('When a track has no lyrics of its own, the title, artist and album are sent to lrclib.net, once per track. This is for everyone on this server.')}
         />
+      )}
+      {admin && server && (
+        <>
+          <Switch
+            checked={server.lyricsSaveLrc}
+            disabled={!online}
+            onChange={(v) => void saveServer({ lyricsSaveLrc: v })}
+            label={t('Save synced lyrics as .lrc files')}
+            description={t('Lyrics found online are written next to the track, so other apps see them too. Existing files are never replaced.')}
+          />
+          <Switch
+            checked={server.transcode}
+            onChange={(v) => void saveServer({ transcode: v })}
+            label={t('Make tracks smaller for slow connections')}
+            description={t('Players and phone apps can ask for a lower bitrate. Off, files are always sent as they are.')}
+          />
+          {server.transcode && (
+            <details className="np-field">
+              <summary>{t('Advanced')}</summary>
+              <label htmlFor="np-tformat">{t('Format for phone apps that don’t say')}</label>
+              <select id="np-tformat" value={server.transcodeFormat} onChange={(e) => void saveServer({ transcodeFormat: e.target.value as MusicServerSettings['transcodeFormat'] })}>
+                <option value="opus">{t('Opus (smallest, best sound)')}</option>
+                <option value="aac">AAC</option>
+                <option value="mp3">{t('MP3 (plays anywhere)')}</option>
+              </select>
+              <label htmlFor="np-tmax">{t('Top bitrate')}</label>
+              <select id="np-tmax" value={server.transcodeMaxKbps} onChange={(e) => void saveServer({ transcodeMaxKbps: Number(e.target.value) })}>
+                {[96, 128, 160, 192, 256, 320].map((k) => (
+                  <option key={k} value={k}>
+                    {t('{n} kbit/s', { n: k })}
+                  </option>
+                ))}
+              </select>
+            </details>
+          )}
+        </>
       )}
     </div>
   )

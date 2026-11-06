@@ -36,6 +36,8 @@ type preshowStep struct {
 	Season      int               `json:"season,omitempty"` // a show's new season (a trailer, its card)
 	Why         string            `json:"why,omitempty"`    // a trailer's: wanted, cinema or season
 	Reel        []preshowReelItem `json:"reel,omitempty"`   // the reel card: what's coming
+	TV          bool              `json:"tv,omitempty"`     // Usherr: a show's trailer (TMDBID is the show's)
+	Filled      bool              `json:"filled,omitempty"` // Usherr: linked screenings, a card in place of the host's piece this Usherr doesn't have
 	Seconds     float64           `json:"seconds"`
 	item        string            // what's recorded as played
 }
@@ -305,7 +307,7 @@ func (s *Server) planPreshow(ctx context.Context, film preshowFilm, themeID int6
 	// addTrailer adds a trailer, with its coming-soon card first.
 	addTrailer := func(st preshowStep) {
 		if soonCard {
-			plan.Steps = append(plan.Steps, preshowStep{Kind: "card", Card: "soon", Title: st.Title, TMDBID: st.TMDBID, Season: st.Season, Why: st.Why,
+			plan.Steps = append(plan.Steps, preshowStep{Kind: "card", Card: "soon", Title: st.Title, TMDBID: st.TMDBID, TV: st.TV, Season: st.Season, Why: st.Why,
 				PosterURL: st.PosterURL, ReleaseDate: st.ReleaseDate, Seconds: preshowCards["soon"]})
 		}
 		plan.Steps = append(plan.Steps, st)
@@ -359,7 +361,7 @@ func (s *Server) planPreshow(ctx context.Context, film preshowFilm, themeID int6
 					continue
 				}
 				used[t.item()] = true
-				st := preshowStep{Kind: "trailer", URL: t.FileURL, Title: t.Title, TMDBID: t.TMDBID, Season: t.Season, Why: t.Why, PosterURL: t.PosterURL,
+				st := preshowStep{Kind: "trailer", URL: t.FileURL, YouTube: t.YouTube, Title: t.Title, TMDBID: t.TMDBID, TV: t.Kind == "tv", Season: t.Season, Why: t.Why, PosterURL: t.PosterURL,
 					ReleaseDate: t.ReleaseDate, Seconds: t.Seconds, item: t.item()}
 				if st.Seconds <= 0 {
 					st.Seconds = float64(set.TrailerSeconds)
@@ -446,6 +448,14 @@ func (s *Server) handlePreshowPlan(w http.ResponseWriter, r *http.Request) {
 	showtimeID, _ := strconv.ParseInt(q.Get("showtime"), 10, 64)
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
+	// Usherr: linked screenings, step 3. A linked screening's pre-show is
+	// the same everywhere: the host's, fixed once; a guest's, built from it.
+	if showtimeID > 0 {
+		if plan, ok := s.roomPlan(ctx, showtimeID); ok {
+			writeJSON(w, http.StatusOK, plan)
+			return
+		}
+	}
 	var atMs int64
 	if showtimeID > 0 {
 		var st showtime

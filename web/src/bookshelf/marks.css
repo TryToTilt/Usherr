@@ -1,0 +1,41 @@
+/* Bookmarks and highlights (Marks.tsx): in the readers' panels, on a book's
+   page and on a comic series' page. */
+.mk { display: grid; gap: 10px; }
+.mk-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.mk-item { display: grid; gap: 4px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); border-left: 4px solid var(--c-book); }
+.mk-item.kind-highlight { border-left-color: #e9c46a; }
+.mk-item.mk-yellow { border-left-color: #e9c46a; }
+.mk-item.mk-green { border-left-color: #6fbf73; }
+.mk-item.mk-blue { border-left-color: #5fa8e8; }
+.mk-item.mk-pink { border-left-color: #e88fb5; }
+.mk-go { display: flex; gap: 8px; align-items: flex-start; width: 100%; text-align: left; background: transparent; border: 0; padding: 2px 0; color: inherit; cursor: pointer; font: inherit; }
+.mk-go:hover .mk-text strong, .mk-go:hover .mk-text q { text-decoration: underline; }
+.mk-go svg { flex: none; margin-top: 3px; opacity: 0.7; }
+.mk-text { display: grid; gap: 2px; min-width: 0; }
+.mk-text q { font-style: italic; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.mk-text small { color: var(--text-dim); font-size: 0.78rem; }
+.mk-note { margin: 0; font-size: 0.88rem; white-space: pre-wrap; color: var(--text); }
+.mk-note-edit { display: grid; gap: 6px; }
+.mk-note-edit textarea { width: 100%; resize: vertical; }
+.mk-tools { display: flex; gap: 6px; }
+.mk-tools .btn-sm { padding: 2px 10px; }
+
+/* The words picked in the ebook reader, and what can be done with them */
+.rdr-pick { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); z-index: 11; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; padding: 8px 12px; border-radius: 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35); max-width: calc(100vw - 24px); }
+.rdr-pick-dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); cursor: pointer; padding: 0; }
+.rdr-pick-dot.yellow { background: #e9c46a; }
+.rdr-pick-dot.green { background: #6fbf73; }
+.rdr-pick-dot.blue { background: #5fa8e8; }
+.rdr-pick-dot.pink { background: #e88fb5; }
+.rdr-pick textarea { flex-basis: 100%; min-width: min(320px, 80vw); }
+
+/* The Comics library: the reader's bookmarks panel, and a series' bookmarks */
+.cx-marks-panel { position: fixed; top: 56px; right: 12px; z-index: 1001; width: min(340px, calc(100vw - 24px)); max-height: calc(100vh - 140px); overflow: auto; padding: 14px; border-radius: 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45); }
+.cx-series-marks { margin-top: 22px; }
+.cx-series-marks h2 { font-size: 1.05rem; display: flex; align-items: center; gap: 6px; margin: 0 0 10px; }
+.cx-series-marks-issue { margin-bottom: 14px; max-width: 560px; }
+.cx-series-marks-issue h3 { font-size: 0.92rem; margin: 0 0 6px; color: var(--text-dim); }
+
+/* A book's page */
+.book-marks { margin-top: 12px; }
+.book-marks h3 { font-size: 0.95rem; margin: 0 0 8px; display: flex; align-items: center; gap: 6px; }

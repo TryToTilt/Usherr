@@ -181,8 +181,8 @@ Both need **Ebooks** switched on under **Settings > Media types**, and an accoun
 
 OPDS is the catalogue format most reading apps understand. Mediarium serves OPDS 1.2 at `/opds/` and OPDS 2.0 at `/opds/v2/`.
 
-1. Open **Profile > Read on an e-reader** and press **Make an e-reader password**. Copy it straight away: it is shown once. It is not your sign-in password, and it can't be used to sign in to Mediarium.
-2. In your app, add a catalogue. Use the address from the profile page (for example `https://books.example.com/opds/`), your user name and the e-reader password.
+1. Open **Profile > Read on an e-reader** and press **Make an app password**. Copy it straight away: it is shown once. It is not your sign-in password, and it can't be used to sign in to Mediarium.
+2. In your app, add a catalogue. Use the address from the profile page (for example `https://books.example.com/opds/`), your user name and the app password. The same app password signs in Subsonic music apps.
 
 It works with KOReader, Moon+ Reader, Librera, Marvin, Foliate and other OPDS apps. What the apps show:
 

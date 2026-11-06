@@ -89,7 +89,30 @@ func (s *Server) musicRejections(res indexers.Result, rel music.Release, artist 
 	if why := s.retentionRejection(res); why != "" {
 		out = append(out, why)
 	}
+	if why := releaseSanity(&res, rel.Tier(), artist, album, s.albumLengthMs(album.ID)); why != "" {
+		out = append(out, why)
+	}
 	return append(out, profile.Rejections(rel.Tier(), albumCurrentTier(album))...)
+}
+
+// releaseSanity (Usherr) refuses a release that is another kind of edition
+// (karaoke, tribute, live…) or far too small for the album in its quality.
+// Adapted from DroppedNeedle (AGPL-3.0); see internal/music/release_sanity.go.
+func releaseSanity(res *indexers.Result, tier music.Tier, artist music.Artist, album music.Album, albumMs int64) string {
+	if w := music.WrongEdition(res.Title, artist.Name, album.Title); w != "" {
+		return "a " + w + " release, not the album"
+	}
+	if music.TooSmall(res.SizeBytes, albumMs, tier) {
+		return "too small to be the whole album in " + string(tier)
+	}
+	return ""
+}
+
+// albumLengthMs is the total length of an album's tracklist, 0 when unknown.
+func (s *Server) albumLengthMs(albumID int64) int64 {
+	var ms int64
+	_ = s.db.QueryRow(`SELECT COALESCE(SUM(length_ms), 0) FROM tracks WHERE album_id = ?`, albumID).Scan(&ms)
+	return ms
 }
 
 func musicAcceptedBy(profile music.Profile, t music.Tier) *acceptedByPayload {
@@ -253,7 +276,7 @@ func (s *Server) huntAlbum(ctx context.Context, artist music.Artist, album music
 	results, expired := s.freshResults(indexers.MergeResults(outcomes))
 	results, thin := s.keepSeeded(ctx, results)
 	sources := s.sourcesFor("")
-	best, verdict := pickMusicRelease(results, blocked, sources, artist, album, profile, current)
+	best, verdict := pickMusicRelease(results, blocked, sources, artist, album, profile, current, s.albumLengthMs(album.ID))
 	verdict.addExpired(expired, s.retentionDays())
 	verdict.addThin(thin)
 	verdict.failedIndexers = failedIndexers(outcomes)
@@ -290,7 +313,7 @@ func (s *Server) huntAlbum(ctx context.Context, artist music.Artist, album music
 // album, quality), and returns the best one it may take with the tally for
 // the album's activity log. current is the tier on disk ("" when missing):
 // then only an upgrade under the album's own profile counts.
-func pickMusicRelease(results []indexers.Result, blocked map[string]bool, sources string, artist music.Artist, album music.Album, profile music.Profile, current music.Tier) (*indexers.Result, searchVerdict) {
+func pickMusicRelease(results []indexers.Result, blocked map[string]bool, sources string, artist music.Artist, album music.Album, profile music.Profile, current music.Tier, albumMs int64) (*indexers.Result, searchVerdict) {
 	v := searchVerdict{total: len(results)}
 	type candidate struct {
 		res   *indexers.Result
@@ -311,6 +334,10 @@ func pickMusicRelease(results []indexers.Result, blocked map[string]bool, source
 			continue
 		}
 		if ok, why := music.ReleaseMatch(rel, artist.Name, album.Title, album.Year()); !ok {
+			v.reject(why)
+			continue
+		}
+		if why := releaseSanity(res, tier, artist, album, albumMs); why != "" { // Usherr
 			v.reject(why)
 			continue
 		}

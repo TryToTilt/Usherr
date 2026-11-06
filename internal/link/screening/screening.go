@@ -109,7 +109,8 @@ type Ready struct {
 	Runtime int    `json:"runtime,omitempty"` // minutes of its copy, when known
 }
 
-// Roster is who's coming, from the host to everyone at the screening.
+// Roster is who's coming, from the host to everyone at the screening. The
+// first is the host's own household (step 3), then each invited Usherr.
 type Roster struct {
 	V      int     `json:"v"`
 	SID    string  `json:"sid"`
@@ -304,7 +305,7 @@ func (r *Ready) check() bool {
 }
 
 func (r *Roster) check() bool {
-	if r.V != Version || !validSID(r.SID) || r.Rev < 1 || len(r.Guests) > MaxGuests {
+	if r.V != Version || !validSID(r.SID) || r.Rev < 1 || len(r.Guests) > MaxGuests+1 { // the guests, and the host's own household first
 		return false
 	}
 	for i := range r.Guests {

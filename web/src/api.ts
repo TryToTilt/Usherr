@@ -2796,7 +2796,7 @@ export interface DashboardData {
 }
 
 export interface CalendarEntry {
-  kind: 'movie' | 'episode' | 'album' | 'book' | 'comic' // comic: home fork
+  kind: 'movie' | 'episode' | 'album' | 'book' | 'comic' | 'sport' // comic: home fork; sport: Usherr (a wanted game)
   id: number
   movieId?: number
   tmdbId?: number
@@ -2815,6 +2815,7 @@ export interface CalendarEntry {
   posterUrl?: string // the poster or cover, when there is one
   formats?: ('ebook' | 'audiobook')[] // a book's wanted formats (home fork)
   comicSeriesId?: number // home fork
+  sportLeagueId?: number // Usherr: a wanted game's league in Sports
   anime?: boolean // Usherr: an episode of an anime series (set by the calendar page)
   backdropUrl?: string // a wide still, once it has been fetched (the calendar's Backdrops view)
   logoUrl?: string // the title's logo, once it has been fetched
@@ -3176,6 +3177,69 @@ export interface MusicPlaylistTrack {
 
 export interface MusicPlaylistDetail extends MusicPlaylist {
   tracks: MusicPlaylistTrack[]
+}
+
+// The music player's settings that are the same for everyone on the server.
+export interface MusicServerSettings {
+  lyricsOnline: boolean
+  lyricsSaveLrc: boolean // Usherr: synced lyrics found online written as .lrc files
+  transcode: boolean // Usherr: convert while streaming when asked
+  transcodeMaxKbps: number
+  transcodeFormat: 'opus' | 'aac' | 'mp3'
+  transcodeCacheMB: number
+}
+
+// Usherr: phone apps through the Subsonic API.
+export interface SubsonicStatus {
+  serverOn: boolean
+  enabled: boolean
+  username: string
+  // The account's one app password, shared with e-reader apps.
+  hasPassword: boolean
+  passwordCreated?: string
+  tokenReady: boolean // made since music apps can use it with every sign-in kind
+}
+
+// Usherr: Last.fm, and where a play was sent.
+export interface LastFMStatus {
+  configured: boolean
+  connected: boolean
+  user?: string
+  enabled: boolean
+  loveSync: boolean
+  lastError?: string
+  submitted: number
+  pending: number
+}
+
+export interface ScrobbleResult {
+  listenbrainz: boolean
+  lastfm: boolean
+}
+
+// Usherr: .m3u files in the music folder brought in as playlists.
+export interface PlaylistFileReport {
+  file: string
+  status: 'new' | 'updated' | 'same' | 'removed' | 'empty' | 'failed'
+  playlistId?: number
+  name?: string
+  entries: number
+  matched: number
+  unmatched: { line: number; entry: string }[]
+  error?: string
+}
+
+export interface PlaylistImportReport {
+  found: number
+  new: number
+  updated: number
+  files: PlaylistFileReport[]
+  ranAt?: string
+}
+
+export interface PlaylistImportSettings {
+  auto: boolean
+  shared: boolean
 }
 
 // Which tracks to put on a playlist: tracks by id, a whole album, or the top
@@ -4174,15 +4238,35 @@ export const api = {
   addToMusicPlaylist: (id: number, what: PlaylistSelection) => post<{ added: number; playlist: MusicPlaylistDetail }>(`/music/playlists/${id}/tracks`, what),
   removeFromMusicPlaylist: (id: number, entryId: number) => del<MusicPlaylistDetail>(`/music/playlists/${id}/tracks/${entryId}`),
   reorderMusicPlaylist: (id: number, entryIds: number[]) => put<MusicPlaylistDetail>(`/music/playlists/${id}/order`, { entryIds }),
+  playlistFiles: () => get<{ settings: PlaylistImportSettings; last: PlaylistImportReport }>('/music/playlist-files'),
+  savePlaylistFiles: (data: Partial<PlaylistImportSettings>) => put<PlaylistImportSettings>('/music/playlist-files', data),
+  importPlaylistFiles: (again = false) => post<PlaylistImportReport>('/music/playlist-files/import', { again }),
   trackLyrics: (id: number) => get<TrackLyrics>(`/music/tracks/${id}/lyrics`),
   trackGain: (id: number) => get<TrackGainInfo>(`/music/tracks/${id}/gain`),
-  musicPlayerSettings: () => get<{ lyricsOnline: boolean }>('/music/player-settings'),
-  setMusicPlayerSettings: (lyricsOnline: boolean) => put<{ lyricsOnline: boolean }>('/music/player-settings', { lyricsOnline }),
+  musicPlayerSettings: () => get<MusicServerSettings>('/music/player-settings'),
+  setMusicPlayerSettings: (lyricsOnline: boolean) => put<MusicServerSettings>('/music/player-settings', { lyricsOnline }),
+  saveMusicServerSettings: (changes: Partial<MusicServerSettings>) => put<MusicServerSettings>('/music/player-settings', changes),
   listenBrainz: () => get<ListenBrainzStatus>('/music/listenbrainz'),
   saveListenBrainz: (data: { token?: string; enabled?: boolean }) => put<ListenBrainzStatus>('/music/listenbrainz', data),
   forgetListenBrainz: () => del<null>('/music/listenbrainz'),
   scrobblePlaying: (trackId: number) => post<{ sent: boolean }>('/music/listenbrainz/playing', { trackId }),
   scrobbleListen: (trackId: number, listenedAt: number) => post<{ sent: boolean }>('/music/listenbrainz/listen', { trackId, listenedAt }),
+  // Usherr: plays sent to every service the person connected, and kept in the history.
+  nowPlaying: (trackId: number) => post<ScrobbleResult>('/music/scrobble/playing', { trackId }),
+  playCounted: (trackId: number, listenedAt: number, playedSec: number) => post<ScrobbleResult>('/music/scrobble/listen', { trackId, listenedAt, playedSec }),
+  lastFM: () => get<LastFMStatus>('/music/lastfm'),
+  saveLastFM: (data: { enabled?: boolean; loveSync?: boolean }) => put<LastFMStatus>('/music/lastfm', data),
+  forgetLastFM: () => del<null>('/music/lastfm'),
+  connectLastFM: () => post<{ url: string }>('/music/lastfm/connect', {}),
+  lastFMApp: () => get<{ apiKey: string; hasSecret: boolean }>('/music/lastfm/app'),
+  saveLastFMApp: (data: { apiKey?: string; secret?: string }) => put<{ apiKey: string; hasSecret: boolean }>('/music/lastfm/app', data),
+  subsonic: () => get<SubsonicStatus>('/music/subsonic'),
+  saveSubsonic: (enabled: boolean) => put<SubsonicStatus>('/music/subsonic', { enabled }),
+  newAppPassword: () => post<{ status: SubsonicStatus; password: string }>('/music/subsonic/password', {}),
+  removeAppPassword: () => del<null>('/music/subsonic/password'),
+  musicFavorites: () => get<{ tracks: number[]; albums: number[]; artists: number[] }>('/music/favorites'),
+  setMusicFavorite: (kind: 'track' | 'album' | 'artist', id: number, liked: boolean) =>
+    liked ? put<{ liked: boolean }>(`/music/favorites/${kind}/${id}`, {}) : del<{ liked: boolean }>(`/music/favorites/${kind}/${id}`),
   startMusicScan: () => post<{ id: string }>('/music/import/scan'),
   musicScan: (id: string) => get<MusicImportJob>(`/music/import/scan/${id}`),
   // The latest scan, running or finished; id is empty when none has run.

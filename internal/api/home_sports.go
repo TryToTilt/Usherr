@@ -11,7 +11,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,6 +46,11 @@ type sportLeague struct {
 	Events      int    `json:"events,omitempty"`
 	Files       int    `json:"files,omitempty"`
 	Missing     int    `json:"missing,omitempty"` // watched for, not downloaded yet
+	// Usherr's own engine: what the league gets (home_sports_get.go).
+	ProfileID int64    `json:"profileId,omitempty"`
+	Parts     []string `json:"parts,omitempty"` // the events it gets ("main", "prelims"... "race", "qualifying"...); none = all
+	TeamsOnly bool     `json:"teamsOnly,omitempty"`
+	Kind      string   `json:"kind,omitempty"` // "team", "fight", "motor", "wrestling" or "other"
 }
 
 type sportTeam struct {
@@ -54,6 +61,9 @@ type sportTeam struct {
 	Country    string `json:"country,omitempty"`
 	Badge      string `json:"badge,omitempty"`
 	Followed   bool   `json:"followed"`
+	// Usherr's own engine: whether its games are got, and in which profile.
+	Monitored bool  `json:"monitored,omitempty"`
+	ProfileID int64 `json:"profileId,omitempty"`
 }
 
 type sportEvent struct {
@@ -78,6 +88,12 @@ type sportEvent struct {
 	Status      string    `json:"status,omitempty"`
 	HomeScore   *int      `json:"homeScore,omitempty"`
 	AwayScore   *int      `json:"awayScore,omitempty"`
+	// Usherr's own engine: a download under way, a fight card's parts
+	// (those it gets, and those it has).
+	Downloading bool     `json:"downloading,omitempty"`
+	Kind        string   `json:"kind,omitempty"`
+	Parts       []string `json:"parts,omitempty"`
+	Have        []string `json:"have,omitempty"`
 }
 
 // sportsBackend is what Sports needs from whatever keeps the leagues.
@@ -135,6 +151,8 @@ func (s *Server) registerSportsRoutes(member, play, manage, admin routeGroup) {
 	admin.HandleFunc("GET /api/home/sports/settings", s.handleGetSportsSettings)
 	admin.HandleFunc("PUT /api/home/sports/settings", s.handlePutSportsSettings)
 	admin.HandleFunc("POST /api/home/sports/test", s.handleTestSports)
+	admin.HandleFunc("POST /api/home/sports/import-sportarr", s.handleSportsImportSportarr)
+	s.registerSportsGetRoutes(member, manage) // Usherr's own engine gets games (home_sports_get.go)
 }
 
 func sportsFail(w http.ResponseWriter, err error) {
@@ -326,7 +344,7 @@ func (s *Server) handleSportsLeague(w http.ResponseWriter, r *http.Request) {
 	if seasons == nil {
 		seasons = []string{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"league": league, "seasons": seasons, "season": season, "games": games, "canManage": s.userAllows(r, auth.PermManage),
+	writeJSON(w, http.StatusOK, map[string]any{"league": league, "seasons": seasons, "season": season, "games": games, "canManage": s.userAllows(r, auth.PermManage), "backend": b.name(),
 		"canStream": s.userAllows(r, auth.PermPlay) && s.ownProblem() == "", "canGet": s.userAllows(r, auth.PermManage) && b.canDownload()})
 }
 
@@ -402,6 +420,10 @@ func (s *Server) handleSportsGetEvent(w http.ResponseWriter, r *http.Request) {
 		sportsFail(w, err)
 		return
 	}
+	if own, ok := b.(*ownSports); ok {
+		writeJSON(w, http.StatusOK, map[string]string{"message": own.gotMessage(ctx, r.PathValue("id"))})
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"message": b.name() + " is looking for it."})
 }
 
@@ -452,11 +474,19 @@ type sportsSettings struct {
 	TSDBKeySet     bool   `json:"tsdbKeySet"` // a paid TheSportsDB key (Usherr's own engine)
 	Ready          bool   `json:"ready"`
 	Problem        string `json:"problem,omitempty"`
+	// Usherr's own engine gets games (home_sports_get.go).
+	Path        string `json:"path"`        // the Sports folder as set ("" = the default)
+	DefaultPath string `json:"defaultPath"` // "Sports" next to the TV folder
+	ProfileID   int64  `json:"profileId"`   // 0 = the shows' default
+	AutoSearch  bool   `json:"autoSearch"`
+	SearchDays  int    `json:"searchDays"`
 }
 
 func (s *Server) currentSportsSettings(ctx context.Context) sportsSettings {
 	var out sportsSettings
 	out.Mode = s.sportsMode()
+	out.Path, _ = s.Settings.Get(keySportsPath)
+	out.DefaultPath, out.ProfileID, out.AutoSearch, out.SearchDays = s.defaultSportsRoot(), s.sportsDefaultProfileID(), s.sportsAutoSearch(), s.sportsSearchDays()
 	out.SportarrURL, _ = s.Settings.Get(keySportsSportarrURL)
 	k, _ := s.Settings.Get(keySportsSportarrKey)
 	out.SportarrKeySet = strings.TrimSpace(k) != ""
@@ -491,10 +521,43 @@ func (s *Server) handlePutSportsSettings(w http.ResponseWriter, r *http.Request)
 		RemoveSportarrKey bool    `json:"removeSportarrKey"`
 		TSDBKey           *string `json:"tsdbKey"`
 		RemoveTSDBKey     bool    `json:"removeTsdbKey"`
+		Path              *string `json:"path"`
+		ProfileID         *int64  `json:"profileId"`
+		AutoSearch        *bool   `json:"autoSearch"`
+		SearchDays        *int    `json:"searchDays"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "That request couldn't be read.")
 		return
+	}
+	if req.Path != nil {
+		p := strings.TrimSpace(*req.Path)
+		if p != "" && !filepath.IsAbs(p) {
+			writeError(w, http.StatusBadRequest, "The Sports folder needs a full path, like /data/sports.")
+			return
+		}
+		_ = s.Settings.Set(keySportsPath, p, false)
+	}
+	if req.ProfileID != nil {
+		if !s.profileExists(*req.ProfileID) {
+			writeError(w, http.StatusBadRequest, "That quality profile doesn't exist.")
+			return
+		}
+		_ = s.Settings.Set(keySportsProfile, strconv.FormatInt(*req.ProfileID, 10), false)
+	}
+	if req.AutoSearch != nil {
+		v := "1"
+		if !*req.AutoSearch {
+			v = "0"
+		}
+		_ = s.Settings.Set(keySportsAutoSearch, v, false)
+	}
+	if req.SearchDays != nil {
+		if *req.SearchDays < 1 || *req.SearchDays > 60 {
+			writeError(w, http.StatusBadRequest, "Keep looking for 1 to 60 days.")
+			return
+		}
+		_ = s.Settings.Set(keySportsSearchDays, strconv.Itoa(*req.SearchDays), false)
 	}
 	if req.Mode != nil {
 		m := strings.TrimSpace(*req.Mode)

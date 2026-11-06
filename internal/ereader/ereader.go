@@ -132,15 +132,61 @@ func (r *Repo) NewOPDSPassword(userID int64) (string, error) {
 	if err := r.ensure(userID); err != nil {
 		return "", err
 	}
-	if _, err := r.db.Exec(`UPDATE ereader_access SET opds_hash = ?, opds_created_at = ? WHERE user_id = ?`, sha(NormalizePassword(pw)), now(), userID); err != nil {
+	// Usherr: the password is also the app password of music apps (Subsonic),
+	// whose token sign-in needs it back: md5(password + salt). It is kept
+	// encrypted with the server key besides the hash.
+	enc := ""
+	if r.box != nil {
+		if enc, err = r.box.Encrypt(pw); err != nil {
+			return "", fmt.Errorf("save e-reader password: %w", err)
+		}
+	}
+	if _, err := r.db.Exec(`UPDATE ereader_access SET opds_hash = ?, opds_secret_enc = ?, opds_created_at = ? WHERE user_id = ?`, sha(NormalizePassword(pw)), enc, now(), userID); err != nil {
 		return "", fmt.Errorf("save e-reader password: %w", err)
 	}
 	return pw, nil
 }
 
+// OPDSSecret (Usherr) returns the account's app password as it was made, ""
+// when it has none or it was made before it was kept (only its hash is known).
+func (r *Repo) OPDSSecret(userID int64) (string, error) {
+	var enc string
+	err := r.db.QueryRow(`SELECT opds_secret_enc FROM ereader_access WHERE user_id = ? AND opds_hash <> ''`, userID).Scan(&enc)
+	if errors.Is(err, sql.ErrNoRows) || enc == "" || r.box == nil {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read app password: %w", err)
+	}
+	pw, err := r.box.Decrypt(enc)
+	if err != nil {
+		return "", fmt.Errorf("read app password: %w", err)
+	}
+	return pw, nil
+}
+
+// UserForOPDSPassword (Usherr) finds the account whose app password this is
+// (an OpenSubsonic apiKey), ErrNotFound when none.
+func (r *Repo) UserForOPDSPassword(password string) (int64, error) {
+	given := sha(NormalizePassword(password))
+	var id int64
+	var stored string
+	err := r.db.QueryRow(`SELECT user_id, opds_hash FROM ereader_access WHERE opds_hash = ?`, given).Scan(&id, &stored)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	if err != nil {
+		return 0, fmt.Errorf("find app password: %w", err)
+	}
+	if subtle.ConstantTimeCompare([]byte(given), []byte(stored)) != 1 {
+		return 0, ErrNotFound
+	}
+	return id, nil
+}
+
 // RemoveOPDS turns the account's e-reader password off.
 func (r *Repo) RemoveOPDS(userID int64) error {
-	if _, err := r.db.Exec(`UPDATE ereader_access SET opds_hash = '', opds_created_at = '' WHERE user_id = ?`, userID); err != nil {
+	if _, err := r.db.Exec(`UPDATE ereader_access SET opds_hash = '', opds_secret_enc = '', opds_created_at = '' WHERE user_id = ?`, userID); err != nil {
 		return fmt.Errorf("remove e-reader password: %w", err)
 	}
 	return nil

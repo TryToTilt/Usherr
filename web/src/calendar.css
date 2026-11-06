@@ -440,3 +440,4 @@ a.prog-card:hover { text-decoration: none; border-color: color-mix(in srgb, var(
 /* Usherr: anime wears TV's colour; comics their own. */
 .prog .k-anime, .prog-badge.k-anime { --kc: var(--c-tv); }
 .prog .k-comic, .prog-badge.k-comic { --kc: var(--c-comics, var(--c-book)); }
+.prog .k-sport, .prog-badge.k-sport { --kc: var(--c-tv); }

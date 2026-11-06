@@ -67,7 +67,9 @@ export default function EReaderCard() {
 
       <h3 style={{ margin: '16px 0 6px', fontSize: '1rem' }}>{t('Reading apps (OPDS)')}</h3>
       <p style={{ color: 'var(--text-dim)', margin: '0 0 8px' }}>
-        {t('For KOReader, Moon+ Reader, Librera, Marvin, Foliate and other apps that can connect to an OPDS catalogue. Add a catalogue in the app with this address, your user name and an e-reader password. It is not your sign-in password.')}
+        {t('For KOReader, Moon+ Reader, Librera, Marvin, Foliate and other apps that can connect to an OPDS catalogue. Add a catalogue in the app with this address, your user name and an app password. It is not your sign-in password.')}{' '}
+        {t('Your comics are in it too. Chunky, Panels and KOReader can read them a page at a time, without downloading the whole issue.')}{' '}
+        {t('The same app password signs in music apps such as Symfonium (Settings > Services > Phone apps).')}
       </p>
       {access.opds.on ? (
         <>
@@ -77,8 +79,8 @@ export default function EReaderCard() {
           <CopyBox text={access.username} label={t('User name')} />
           {password ? (
             <>
-              <p style={{ margin: '10px 0 2px' }}>{t('E-reader password')}</p>
-              <CopyBox text={password} label={t('E-reader password')} />
+              <p style={{ margin: '10px 0 2px' }}>{t('App password')}</p>
+              <CopyBox text={password} label={t('App password')} />
               <p className="field-hint" style={{ color: 'var(--warning)' }}>
                 {t("Copy it now. You won't see it again. If you lose it, make a new one.")}
               </p>
@@ -94,7 +96,7 @@ export default function EReaderCard() {
               disabled={busy}
               onClick={() => {
                 setPassword('')
-                void run(() => api.removeEReaderPassword(), t('The e-reader password is turned off.'))
+                void run(() => api.removeEReaderPassword(), t('The app password is turned off.'))
               }}
             >
               {t('Turn it off')}
@@ -103,7 +105,7 @@ export default function EReaderCard() {
         </>
       ) : (
         <button className="primary" disabled={busy} onClick={() => void makePassword()}>
-          {t('Make an e-reader password')}
+          {t('Make an app password')}
         </button>
       )}
 

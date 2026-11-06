@@ -24,6 +24,8 @@ import { useModules } from '../ModulesContext'
 import { useLive } from '../useLive'
 import { bookState } from './BookLibrary'
 import { listenPath, openBookApp, readPath } from '../bookshelf/open'
+import Marks from '../bookshelf/Marks'
+import { marksApi, type ReadingMark } from '../bookshelf/marksApi'
 import type { Unanswered } from '../releaseHint'
 import type { Searched } from '../searched'
 
@@ -287,6 +289,7 @@ function FormatPanel({ book, format, queue, onChanged }: { book: Book; format: B
           </button>
         )}
       </div>
+      {format === 'ebook' && st.status === 'downloaded' && can(me, 'play') && <BookMarks bookId={book.id} />}
       {open && (
         <div className="book-releases">
           {releaseError && <p className="error-text">{releaseError}</p>}
@@ -300,5 +303,37 @@ function FormatPanel({ book, format, queue, onChanged }: { book: Book; format: B
         </div>
       )}
     </section>
+  )
+}
+
+// Usherr: your bookmarks and highlights in this book; each opens the reader there.
+function BookMarks({ bookId }: { bookId: number }) {
+  const [list, setList] = useState<ReadingMark[]>([])
+  useEffect(() => {
+    const load = () =>
+      marksApi
+        .list(`book:${bookId}`)
+        .then(setList)
+        .catch(() => setList([]))
+    load()
+    // Marks made in the reader's window show up when coming back here.
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') load()
+    }
+    document.addEventListener('visibilitychange', onFocus)
+    window.addEventListener('focus', onFocus)
+    return () => {
+      document.removeEventListener('visibilitychange', onFocus)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [bookId])
+  if (list.length === 0) return null
+  return (
+    <div className="book-marks">
+      <h3>
+        <Icon name="bookmark" size={15} /> {t('Your bookmarks and highlights')}
+      </h3>
+      <Marks item={`book:${bookId}`} list={list} onChange={setList} onJump={(m) => openBookApp(`${readPath(bookId)}?at=${m.id}`)} />
+    </div>
   )
 }

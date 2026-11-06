@@ -49,6 +49,9 @@ type showtime struct {
 	Party *partyInfo `json:"party,omitempty"`
 	// Usherr: linked screenings. Shared with linked Usherrs: who's coming.
 	Linked *linkedSummary `json:"linked,omitempty"`
+	// Usherr: linked screenings, step 3. A linked Usherr's screening, booked
+	// here because people here are going.
+	Hosted *hostedInfo `json:"hosted,omitempty"`
 }
 
 const showtimeCols = `id, user_id, tmdb_id, title, year, poster_url, runtime, at_ms, preshow_min, play_on, state, preshow_theme`
@@ -106,6 +109,13 @@ func (s *Server) handleShowtimes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.withLinked(r.Context(), list) // Usherr: linked screenings
+	s.withHosted(r.Context(), list) // ... step 3: a linked Usherr's, booked here
+	for i := range list {
+		if list[i].Linked != nil {
+			answers := s.hostHousehold(r.Context(), list[i])
+			list[i].Linked.HostGoing, list[i].Linked.Mine = goingOf(answers), answers[requestUserID(r)]
+		}
+	}
 	_, _, canShare := s.communityCanShare()
 	writeJSON(w, http.StatusOK, map[string]any{"showtimes": list, "nowMs": time.Now().UnixMilli(), "tv": s.tvReady(), "community": canShare, "linkOn": s.linkedPeersOn(r.Context())})
 }
@@ -246,6 +256,11 @@ func (s *Server) showtimeFor(r *http.Request) (showtime, int, string) {
 	}
 	if u := auth.UserFromContext(r.Context()); st.UserID != requestUserID(r) && (u == nil || !u.IsAdmin) {
 		return st, http.StatusForbidden, "Only whoever booked it (or an administrator) can change it."
+	}
+	// Usherr: linked screenings, step 3. A linked Usherr's screening is
+	// theirs to move, cancel or share.
+	if host := s.hostedBy(r.Context(), st.ID); host != "" {
+		return st, http.StatusConflict, host + " hosts this screening, so it's theirs to move or cancel. If you can't make it, say so under Linked screenings."
 	}
 	return st, 0, ""
 }

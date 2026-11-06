@@ -278,6 +278,9 @@ func (s *Server) preparePipeline(item queue.Item) (func(), error) {
 	if run, ok, err := s.prepareComicPipeline(item, protocol); ok { // comics hook (home fork)
 		return run, err
 	}
+	if run, ok, err := s.prepareSportsPipeline(item, protocol); ok { // sports hook (Usherr)
+		return run, err
+	}
 	return nil, errors.New("This download isn't linked to a movie, show, album or book.")
 }
 

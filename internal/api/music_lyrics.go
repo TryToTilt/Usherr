@@ -7,6 +7,10 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -134,18 +138,25 @@ func (s *Server) handleTrackLyrics(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	writeJSON(w, http.StatusOK, s.trackLyrics(r.Context(), t, folder, rel))
+}
+
+// trackLyrics is what a track has: its own lyrics, else (when switched on)
+// LRCLIB's. The web player and Subsonic apps both use it.
+func (s *Server) trackLyrics(ctx context.Context, t music.Track, folder mediafiles.Folder, rel string) lyricsJSON {
 	online := s.lyricsOnline()
 	out := fileLyrics(folder, rel)
 	// Words from the file are kept, but synced ones found online are better
 	// than plain ones in the file.
 	if online && out.Synced == "" {
-		if got, ok := s.onlineLyrics(r.Context(), t); ok {
+		if got, ok := s.onlineLyrics(ctx, t); ok {
 			switch {
 			case got.Synced != "":
 				if out.Plain == "" {
 					out.Plain = got.Plain
 				}
 				out.Synced, out.Source = got.Synced, got.Source
+				s.saveLRC(folder, rel, got.Synced) // Usherr: only when switched on
 			case out.Plain == "" && got.Plain != "":
 				out.Plain, out.Source = got.Plain, got.Source
 			case !out.Has() && got.Instrumental:
@@ -153,7 +164,7 @@ func (s *Server) handleTrackLyrics(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	writeJSON(w, http.StatusOK, lyricsJSON{Source: out.Source, Synced: out.Synced, Plain: out.Plain, Instrumental: out.Instrumental, Online: online})
+	return lyricsJSON{Source: out.Source, Synced: out.Synced, Plain: out.Plain, Instrumental: out.Instrumental, Online: online}
 }
 
 // onlineLyrics returns what LRCLIB has for a track, from the database when it
@@ -211,28 +222,121 @@ func (s *Server) handleTrackGain(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, g)
 }
 
-// GET /api/music/player-settings
-func (s *Server) handleGetPlayerSettings(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"lyricsOnline": s.lyricsOnline()})
+// keyLyricsSaveLRC (Usherr): "1" writes synced lyrics found online as a .lrc
+// file next to the track, so other apps see them too. Off unless switched on.
+const keyLyricsSaveLRC = "music.lyrics_save_lrc"
+
+func (s *Server) lyricsSaveLRC() bool {
+	v, _ := s.Settings.Get(keyLyricsSaveLRC)
+	return v == "1"
 }
 
-// PUT /api/music/player-settings {lyricsOnline}
+// saveLRC writes synced lyrics beside a track when that is switched on and
+// there is no .lrc there yet. It never replaces a file.
+func (s *Server) saveLRC(folder mediafiles.Folder, rel, synced string) {
+	if !s.lyricsSaveLRC() || !music.IsSyncedLyrics(synced) {
+		return
+	}
+	p := filepath.Join(folder.Dir, filepath.FromSlash(music.SidecarName(rel)))
+	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		if !errors.Is(err, fs.ErrExist) {
+			slog.Info("music: save lyrics file", "file", music.SidecarName(rel), "err", err)
+		}
+		return
+	}
+	_, werr := f.WriteString(strings.TrimSpace(synced) + "\n")
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		_ = os.Remove(p)
+		slog.Info("music: save lyrics file", "file", music.SidecarName(rel), "err", werr)
+		return
+	}
+}
+
+type playerSettingsJSON struct {
+	LyricsOnline  bool `json:"lyricsOnline"`
+	LyricsSaveLRC bool `json:"lyricsSaveLrc"`
+	Subsonic      bool `json:"subsonic"` // phone apps may sign in (each person still switches it on)
+	transcodeSettings
+}
+
+func (s *Server) playerSettings() playerSettingsJSON {
+	return playerSettingsJSON{LyricsOnline: s.lyricsOnline(), LyricsSaveLRC: s.lyricsSaveLRC(), Subsonic: s.subsonicOn(), transcodeSettings: s.transcodeSettings()}
+}
+
+// GET /api/music/player-settings
+func (s *Server) handleGetPlayerSettings(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.playerSettings())
+}
+
+// PUT /api/music/player-settings {lyricsOnline?, lyricsSaveLrc?, transcode?,
+// transcodeMaxKbps?, transcodeFormat?, transcodeCacheMB?}
 func (s *Server) handlePutPlayerSettings(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		LyricsOnline *bool `json:"lyricsOnline"`
+		LyricsOnline     *bool   `json:"lyricsOnline"`
+		LyricsSaveLRC    *bool   `json:"lyricsSaveLrc"`
+		Subsonic         *bool   `json:"subsonic"`
+		Transcode        *bool   `json:"transcode"`
+		TranscodeMaxKbps *int    `json:"transcodeMaxKbps"`
+		TranscodeFormat  *string `json:"transcodeFormat"`
+		TranscodeCacheMB *int    `json:"transcodeCacheMB"`
 	}
-	if err := decodeJSON(r, &req); err != nil || req.LyricsOnline == nil {
-		writeError(w, http.StatusBadRequest, "Say whether lyrics may be looked up online.")
+	if err := decodeJSON(r, &req); err != nil || (req.LyricsOnline == nil && req.LyricsSaveLRC == nil && req.Subsonic == nil && req.Transcode == nil &&
+		req.TranscodeMaxKbps == nil && req.TranscodeFormat == nil && req.TranscodeCacheMB == nil) {
+		writeError(w, http.StatusBadRequest, "Say which player setting to change.")
 		return
 	}
-	v := "1"
-	if !*req.LyricsOnline {
-		v = "0"
-	}
-	if err := s.Settings.Set(settings.KeyMusicLyricsOnline, v, false); err != nil {
-		slog.Warn("save lyrics setting", "err", err)
-		writeError(w, http.StatusInternalServerError, "Couldn't save the setting. Check the log for details.")
+	if req.TranscodeMaxKbps != nil && (*req.TranscodeMaxKbps < 32 || *req.TranscodeMaxKbps > 1411) {
+		writeError(w, http.StatusBadRequest, "The top bitrate is between 32 and 1411 kbit/s.")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"lyricsOnline": *req.LyricsOnline})
+	if req.TranscodeFormat != nil {
+		if _, ok := transcodeFormats[*req.TranscodeFormat]; !ok {
+			writeError(w, http.StatusBadRequest, "The format is opus, aac or mp3.")
+			return
+		}
+	}
+	if req.TranscodeCacheMB != nil && (*req.TranscodeCacheMB < 100 || *req.TranscodeCacheMB > 1<<20) {
+		writeError(w, http.StatusBadRequest, "The cache is at least 100 MB.")
+		return
+	}
+	flag := func(b bool) string {
+		if b {
+			return "1"
+		}
+		return "0"
+	}
+	var changes [][2]string
+	if req.LyricsOnline != nil {
+		changes = append(changes, [2]string{settings.KeyMusicLyricsOnline, flag(*req.LyricsOnline)})
+	}
+	if req.Subsonic != nil {
+		changes = append(changes, [2]string{keySubsonicOn, flag(*req.Subsonic)})
+	}
+	if req.LyricsSaveLRC != nil {
+		changes = append(changes, [2]string{keyLyricsSaveLRC, flag(*req.LyricsSaveLRC)})
+	}
+	if req.Transcode != nil {
+		changes = append(changes, [2]string{keyTranscodeOn, flag(*req.Transcode)})
+	}
+	if req.TranscodeMaxKbps != nil {
+		changes = append(changes, [2]string{keyTranscodeMaxKbps, strconv.Itoa(*req.TranscodeMaxKbps)})
+	}
+	if req.TranscodeFormat != nil {
+		changes = append(changes, [2]string{keyTranscodeFormat, *req.TranscodeFormat})
+	}
+	if req.TranscodeCacheMB != nil {
+		changes = append(changes, [2]string{keyTranscodeCacheMB, strconv.Itoa(*req.TranscodeCacheMB)})
+	}
+	for _, c := range changes {
+		if err := s.Settings.Set(c[0], c[1], false); err != nil {
+			slog.Warn("save player setting", "err", err)
+			writeError(w, http.StatusInternalServerError, "Couldn't save the setting. Check the log for details.")
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, s.playerSettings())
 }

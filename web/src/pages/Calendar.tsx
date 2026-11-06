@@ -20,14 +20,14 @@ import ActionMenu from '../components/ActionMenu' // Usherr
 
 // home fork: the Library's kinds, in its order (anime apart from TV, ebooks
 // apart from audiobooks, and comics).
-type Show = 'all' | 'movie' | 'theaters' | 'episode' | 'anime' | 'ebook' | 'audiobook' | 'album' | 'comic'
-const SHOW_LABEL: Record<Show, string> = { all: t('All'), movie: t('Movies'), theaters: t('In theaters'), episode: t('TV'), anime: t('Anime'), ebook: t('Ebooks'), audiobook: t('Audiobooks'), album: t('Music'), comic: t('Comics') }
+type Show = 'all' | 'movie' | 'theaters' | 'episode' | 'anime' | 'ebook' | 'audiobook' | 'album' | 'comic' | 'sport' // sport: Usherr
+const SHOW_LABEL: Record<Show, string> = { all: t('All'), movie: t('Movies'), theaters: t('In theaters'), episode: t('TV'), anime: t('Anime'), ebook: t('Ebooks'), audiobook: t('Audiobooks'), album: t('Music'), comic: t('Comics'), sport: t('Sports') }
 
 // Monitored movie releases, episode airs and album releases on one month
 // view, with simple filters and a link to add it to a calendar app.
 // Each filter wears its kind's glyph and colour, as on Discover and Library.
-const SHOW_GLYPH: Record<Exclude<Show, 'all'>, GlyphKind> = { movie: 'movie', theaters: 'movie', episode: 'tv', anime: 'tv', ebook: 'book', audiobook: 'audiobook', album: 'music', comic: 'comic' }
-const SHOW_COLOR: Record<Exclude<Show, 'all'>, string> = { movie: 'var(--c-movie)', theaters: 'var(--c-movie)', episode: 'var(--c-tv)', anime: 'var(--c-tv)', ebook: 'var(--c-book)', audiobook: 'var(--c-audiobook)', album: 'var(--c-music)', comic: 'var(--c-comics)' }
+const SHOW_GLYPH: Record<Exclude<Show, 'all'>, GlyphKind> = { movie: 'movie', theaters: 'movie', episode: 'tv', anime: 'tv', ebook: 'book', audiobook: 'audiobook', album: 'music', comic: 'comic', sport: 'tv' }
+const SHOW_COLOR: Record<Exclude<Show, 'all'>, string> = { movie: 'var(--c-movie)', theaters: 'var(--c-movie)', episode: 'var(--c-tv)', anime: 'var(--c-tv)', ebook: 'var(--c-book)', audiobook: 'var(--c-audiobook)', album: 'var(--c-music)', comic: 'var(--c-comics)', sport: 'var(--c-tv)' }
 
 // matches says whether an entry belongs under a kind.
 function matches(e: CalendarEntry, show: Show, anime: ReadonlySet<number>): boolean {
@@ -56,7 +56,7 @@ export default function Calendar() {
   const [error, setError] = useState('')
   // The kind and the "not downloaded" tick live in the address, so Back returns to them.
   const [ui, patchUi] = useUrlState({ show: 'all', missing: '', month: '' })
-  const show: Show = (['movie', 'theaters', 'episode', 'anime', 'ebook', 'audiobook', 'album', 'comic'] as const).find((k) => k === ui.show) ?? (ui.show === 'book' ? 'ebook' : 'all')
+  const show: Show = (['movie', 'theaters', 'episode', 'anime', 'ebook', 'audiobook', 'album', 'comic', 'sport'] as const).find((k) => k === ui.show) ?? (ui.show === 'book' ? 'ebook' : 'all')
   const setShow = (k: Show) => patchUi({ show: k })
   const missingOnly = ui.missing === '1'
   const setMissingOnly = (v: boolean) => patchUi({ missing: v ? '1' : '' })
@@ -103,6 +103,7 @@ export default function Calendar() {
     ...(on('audiobooks') ? (['audiobook'] as const) : []),
     ...(kinds.includes('music') ? (['album'] as const) : []),
     ...(hasComics ? (['comic'] as const) : []),
+    ...((entries ?? []).some((e) => e.kind === 'sport') ? (['sport'] as const) : []), // Usherr: wanted games
   ]
   const shown = (entries ?? []).filter((e) => matches(e, show, anime) && (!missingOnly || e.status !== 'downloaded')).map((e) => (e.kind === 'episode' && anime.has(e.seriesId ?? 0) ? { ...e, anime: true } : e)) // Usherr: anime labelled as anime
   // Usherr: the search narrows the calendar to what the AI picked, or to the titles typed.

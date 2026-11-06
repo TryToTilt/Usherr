@@ -25,6 +25,7 @@ import {
   type Repeat,
 } from '../musicQueue'
 import Icon from './Icon'
+import LikeButton from './LikeButton' // Usherr
 import MusicMenu from './MusicMenu'
 import NowPlayingPanel from './MusicPanel'
 import { albumCoverUrl, PlayerContext, PlayerTimeContext, trackUrl, useMusicPlayer, usePlayerTime, type PanelTab, type PlayerApi } from './musicPlayerContext'
@@ -156,16 +157,21 @@ export function MusicPlayerProvider({ children, popout = false }: { children: Re
       .catch(() => setScrobbling(null))
   }, [])
 
-  // Whether plays are sent: asked once, the first time something plays.
+  // Whether "now playing" is sent (ListenBrainz or Last.fm): asked once, the first time something plays.
   const scrobbleEnabled = useCallback((): Promise<boolean> => {
     if (!scrobbleOn.current) {
-      scrobbleOn.current = api
+      const lb = api
         .listenBrainz()
         .then((s) => {
           setScrobbling({ connected: s.connected, enabled: s.enabled })
           return s.connected && s.enabled
         })
         .catch(() => false)
+      const lf = api
+        .lastFM()
+        .then((s) => s.connected && s.enabled)
+        .catch(() => false)
+      scrobbleOn.current = Promise.all([lb, lf]).then(([a, b]) => a || b)
     }
     return scrobbleOn.current
   }, [])
@@ -236,9 +242,9 @@ export function MusicPlayerProvider({ children, popout = false }: { children: Re
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.uid, nonce])
 
-  // Tell ListenBrainz what is playing now.
+  // Tell ListenBrainz and Last.fm what is playing now.
   async function announce(id: number) {
-    if (await scrobbleEnabled()) void api.scrobblePlaying(id).catch(() => undefined)
+    if (await scrobbleEnabled()) void api.nowPlaying(id).catch(() => undefined)
   }
 
   // Load the track after this one ahead of time, so it follows without a gap.
@@ -302,10 +308,8 @@ export function MusicPlayerProvider({ children, popout = false }: { children: Re
     if (tracker.current.tick(position)) {
       const c = latest.current.current
       if (c) {
-        const at = tracker.current.startedAtSeconds
-        void scrobbleEnabled().then((ok) => {
-          if (ok) void api.scrobbleListen(c.id, at).catch(() => undefined)
-        })
+        // Always sent: the play goes in the history, and to the services the person connected.
+        void api.playCounted(c.id, tracker.current.startedAtSeconds, tracker.current.heardSeconds).catch(() => undefined)
       }
     }
   }
@@ -818,6 +822,7 @@ export function MiniPlayer() {
             <Icon name="repeat" size={17} />
             {p.repeat === 'one' && <b className="mp-one">1</b>}
           </button>
+          <LikeButton kind="track" id={c.id} />
           <MusicMenu target={{ kind: 'track', track: c }} label={t('Add {title} to a playlist', { title: c.title })} className="mp-btn" direct />
           <button type="button" className={`mp-btn${p.panel === 'queue' ? ' on' : ''}`} onClick={() => toggleTab('queue')} aria-pressed={p.panel === 'queue'} aria-label={t('Queue')} title={t('Queue')}>
             <Icon name="list" size={17} />

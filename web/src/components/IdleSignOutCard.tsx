@@ -49,7 +49,7 @@ export default function IdleSignOutCard() {
         <Icon name="shield" size={14} /> {t('Sign out idle browsers')}
       </legend>
       <p style={{ color: 'var(--text-dim)', marginTop: 0 }}>
-        {t("A browser that hasn't been used for this long is signed out and asks for the password again. A sign-in ends after 7 days anyway. API keys, calendar feeds and e-reader passwords are not affected.")}
+        {t("A browser that hasn't been used for this long is signed out and asks for the password again. A sign-in ends after 7 days anyway. API keys, calendar feeds and app passwords are not affected.")}
       </p>
       <label style={{ display: 'grid', gap: 4, maxWidth: 260 }}>
         {t('Sign out after being idle for')}
