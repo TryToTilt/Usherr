@@ -312,20 +312,43 @@ func (s *Server) attachBook(ctx context.Context, res bookImportResult, match boo
 	if !ok {
 		nb := books.Book{OLKey: match.Key, Title: match.Title, Author: match.Author, AuthorKey: match.AuthorKey, Year: match.Year, CoverID: match.CoverID,
 			WantEbook: res.Kind == books.Ebook, WantAudiobook: res.Kind == books.Audiobook}
-		if hcMatch != nil {
+		if hcMatch != nil { // home fork: a book on disk matched on Hardcover by the import
 			nb.Description = hcMatch.Description
-		} else if work, err := s.OpenLibrary.GetWork(ctx, match.Key); err == nil {
-			nb.Description = work.Description
-			if nb.CoverID == 0 {
-				nb.CoverID = work.CoverID
+			b, err = s.BookRepo.Add(nb)
+			if err == nil {
+				s.setHardcoverCover(b.ID, hcMatch.ImageURL)
+			} else if errors.Is(err, books.ErrExists) {
+				b, _, err = s.BookRepo.GetByKey(match.Key)
 			}
-		}
-		b, err = s.BookRepo.Add(nb)
-		if err == nil && hcMatch != nil {
-			s.setHardcoverCover(b.ID, hcMatch.ImageURL)
-		}
-		if errors.Is(err, books.ErrExists) {
-			b, _, err = s.BookRepo.GetByKey(match.Key)
+		} else {
+			hcID, cover := s.prepareNewBook(ctx, &nb, match.HardcoverID)
+			gbID := ""
+			if id, ok := books.ParseGoogleKey(nb.OLKey); ok {
+				gbID = id
+			} else if id, ok := books.ParseGoogleKey(match.Key); ok {
+				gbID = id
+			} else if books.ValidGoogleID(match.GoogleID) {
+				gbID = match.GoogleID
+			}
+			fresh := false
+			b, err = s.BookRepo.Add(nb)
+			if err == nil {
+				fresh = true
+			} else if errors.Is(err, books.ErrExists) {
+				b, _, err = s.BookRepo.GetByKey(nb.OLKey)
+			}
+			if err == nil && fresh && hcID > 0 && b.CoverID == 0 && b.OwnCover == 0 {
+				s.keepHardcoverCover(ctx, b, hcID, cover)
+				if got, gerr := s.BookRepo.Get(b.ID); gerr == nil {
+					b = got
+				}
+			}
+			if err == nil && fresh && gbID != "" && b.CoverID == 0 && b.OwnCover == 0 {
+				s.keepGoogleCover(ctx, b.ID, gbID)
+				if got, gerr := s.BookRepo.Get(b.ID); gerr == nil {
+					b = got
+				}
+			}
 		}
 		if err != nil {
 			res.Status, res.Message = bookFailed, err.Error()

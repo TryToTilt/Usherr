@@ -95,6 +95,7 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "auto-tags", Interval: 6 * time.Hour, Run: s.heavy(s.autoTagJob)},             // Usherr: does nothing until a rule is switched on
 		automation.Job{Name: "trash-formats", Interval: time.Hour, Run: s.heavy(s.trashFormatsJob)},        // does nothing until switched on; reads the guides once a day
 		automation.Job{Name: "genre-backfill", Interval: genreBackfillInterval, Run: s.heavy(s.backfillGenres)},
+		automation.Job{Name: "display-faces", Interval: displayFaceInterval, Run: s.heavy(s.backfillDisplayFaces)}, // stores the translated title and poster of each library title
 		automation.Job{Name: "country-backfill", Interval: countryBackfillInterval, Run: s.heavy(s.backfillCountries)},
 		automation.Job{Name: "collections", Interval: collectionsInterval, Run: s.heavy(s.collectionsJob)},       // finds the collection of each movie; adds new films of followed collections
 		automation.Job{Name: "title-names", Interval: titleNamesInterval, Run: s.heavy(s.titleNamesJob)},         // picks the other titles of each movie and show, when a language besides English is wanted
@@ -474,7 +475,7 @@ func pickBestFor(results []indexers.Result, profile quality.Profile, wantYear in
 		if ok, _ := profile.TitleAllowedRel(results[i].Title, release); !ok {
 			continue
 		}
-		if wantYear != 0 && release.Year != 0 && release.Year != wantYear {
+		if !sameMovieYear(release.Year, wantYear) {
 			continue
 		}
 		if !builtinSizeOK(quality.Classify(release), results[i].SizeBytes, 0, 0) || !profile.SizeFits(quality.Classify(release), results[i].SizeBytes, 0) {
@@ -505,7 +506,7 @@ func pickUpgradeResult(results []indexers.Result, profile quality.Profile, curre
 		if ok, _ := profile.TitleAllowedRel(results[i].Title, release); !ok {
 			continue
 		}
-		if wantYear != 0 && release.Year != 0 && release.Year != wantYear {
+		if !sameMovieYear(release.Year, wantYear) {
 			continue
 		}
 		if !builtinSizeOK(quality.Classify(release), results[i].SizeBytes, 0, 0) || !profile.SizeFits(quality.Classify(release), results[i].SizeBytes, 0) {
@@ -585,7 +586,10 @@ func matchesMovie(releaseTitle string, movie library.Movie) bool {
 
 // matchesMovieRel is matchesMovie for a release that is already parsed.
 func matchesMovieRel(release parser.Release, movie library.Movie) bool {
-	if release.Year != 0 && movie.Year != 0 && release.Year != movie.Year {
+	if release.Season > 0 || len(release.Episodes) > 0 || release.AirDate != "" {
+		return false // an episode of a show is not a film, whatever its name
+	}
+	if !sameMovieYear(release.Year, movie.Year) {
 		return false
 	}
 	if sameTitle(release.Title, movie.Title) || possessiveLead(release, movie) {
@@ -598,6 +602,14 @@ func matchesMovieRel(release parser.Release, movie library.Movie) bool {
 		return false
 	}
 	return matchingAltTitle(release.Title, movie.AltTitles) != ""
+}
+
+// sameMovieYear says whether a release's year is the film's. A year that is
+// not known fits anything. It is exact on purpose: remakes and sequels of the
+// same name come a year or two apart, and a title with a year in its name
+// ("2012 (2009)") would match the wrong film.
+func sameMovieYear(releaseYear, movieYear int) bool {
+	return releaseYear == 0 || movieYear == 0 || releaseYear == movieYear
 }
 
 // normalizeTitle reduces a title to letters and digits for comparison,

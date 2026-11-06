@@ -26,6 +26,7 @@ The keys the app stores in its settings table. You normally change these from th
 | `backup.cloud` | encrypted; copies of the nightly backup in S3-style storage or a WebDAV folder (JSON: enabled, kind, storage details, passphrase, keep). Off unless enabled is true. Only a signed-in browser session can read or set it, not an API key |
 | `backup.cloud_status` | what the last cloud copy did (JSON; set by the app, not user-editable) |
 | `backup.keep` | how many saved backups are kept in /config/backups; unset = 7 |
+| `books.google_books_api_key` | encrypted; an optional personal Google Books API key. Book search asks Google Books without one. A key is for people who reach Google's limit. |
 | `books.hardcover_token` | encrypted; a personal Hardcover API token for better book series and release dates. Unset = Open Library only |
 | `cleanup.auto` | "0" turns the daily automatic clean-up off; anything else (including unset) leaves it on |
 | `cleanup.history_retention_days` | days finished downloads and activity are kept; unset = 90, "0" = forever |
@@ -212,6 +213,7 @@ The keys the app stores in its settings table. You normally change these from th
 | `usenetclient.url` | the client's web address, e.g. http://192.168.1.10:8080 |
 | `usenetclient.use` | "1" sends Usenet releases to it; unset or "0" keeps the built-in downloader |
 | `usenetclient.username` | NZBGet's login (ControlUsername) |
+| `vpn.discover_through_tunnel` | "1" sends UDP tracker announces and DHT through the VPN and looks their names up through the VPN's DNS. A failed lookup, or a tunnel socket that will not open, sends nothing from the home address. Unset or "0" skips them |
 | `vpn.notice_acknowledged` |  |
 | `vpn.require_for_torrents` |  |
 | `vpn.route_indexers` | "1" sends searches, RSS, release downloads, IRC announces and debrid through the VPN, and they wait while it isn't up. Home-network addresses still connect directly |

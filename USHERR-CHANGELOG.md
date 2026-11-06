@@ -5,6 +5,18 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.56.0] - 2026-11-06
+
+### Changed
+
+- **Built on Mediarium 3.9.4** (from 3.9.0). What's new from it:
+  - **Book search** also asks Hardcover (when a token is saved) and Google Books, for missing covers and descriptions and for books Open Library doesn't list.
+  - **Titles and posters in your info language** across the library, Activity, the calendar and requests, filled in by a background job.
+  - **UDP trackers and DHT through the VPN** (Settings, Downloading, VPN and proxy; also a new step in setup, before Extras). Tracker names are looked up through the VPN too.
+  - **Search for other words** when choosing a release for a film, season or episode.
+  - Fewer false "too many connections" warnings from Usenet, SABnzbd and NZBGet jobs cleaned up after import, albums no longer linked to a single of the same name, and many search, naming and download fixes. See [CHANGELOG.md](CHANGELOG.md) 3.9.1 to 3.9.4.
+- Pausing a download while its files are being repaired now stops the repair at once.
+
 ## [2.55.0] - 2026-11-06
 
 ### Added

@@ -297,7 +297,7 @@ func (s *Server) prepareDownload(ctx context.Context, queueID int64, downloadURL
 	)
 	// A retry of a failed Usenet download starts from the files it already
 	// has when they are still there and pass PAR2 (see reuseDownloaded).
-	reused := s.reuseDownloaded(queueID, incompleteDir)
+	reused := s.reuseDownloaded(ctx, queueID, incompleteDir)
 	if !reused && protocol != indexers.ProtocolTorrent && keptResume(incompleteDir) {
 		s.queueEvent(queueID, "retried", queue.LevelInfo, "Carrying on from the part already downloaded")
 	}
@@ -365,7 +365,7 @@ func (s *Server) prepareDownload(ctx context.Context, queueID int64, downloadURL
 	// A download client's files are never repaired here: that would write to
 	// files the client may still be seeding.
 	if !viaClient {
-		if err := s.verifyStep(queueID, incompleteDir, missing); err != nil {
+		if err := s.verifyStep(ctx, queueID, incompleteDir, missing); err != nil {
 			return "", repairFailure(err)
 		}
 	}
@@ -889,7 +889,7 @@ func (s *Server) resolveConflict(queueID int64, overwrite bool) error {
 	_ = s.QueueRepo.LogActivity(item.MovieID, "imported", message)
 	replacedItem := notify.Item{Media: "movie", Title: item.ReleaseTitle}
 	if m, err := s.MovieRepo.Get(item.MovieID); err == nil {
-		replacedItem = movieItem(m)
+		replacedItem = s.localizedMovieItem(m)
 	}
 	replacedItem.Quality, replacedItem.SizeBytes, replacedItem.Path = string(tier), fileSize(result.DestPath), result.DestPath
 	s.notifyItem("imported", replacedItem)
@@ -903,7 +903,8 @@ func (s *Server) resolveConflict(queueID int64, overwrite bool) error {
 const keptExistingMessage = "Kept the file you already have."
 
 func isMagnetURI(s string) bool {
-	return strings.HasPrefix(s, "magnet:")
+	s = strings.TrimSpace(s)
+	return len(s) >= 7 && strings.EqualFold(s[:7], "magnet:")
 }
 
 // looksLikeTorrentFile reports whether the bytes are a bencoded .torrent file
@@ -924,9 +925,11 @@ func looksLikeTorrentFile(b []byte) bool {
 // local .torrent file. Links from definition-based indexers are resolved
 // through that indexer's session (login, details page, Cloudflare).
 func (s *Server) torrentSource(ctx context.Context, downloadURL, destDir string) (magnet, torrentFile string, err error) {
+	downloadURL = strings.TrimSpace(downloadURL)
 	switch {
 	case isMagnetURI(downloadURL):
-		return downloadURL, "", nil
+		// An indexer may write the scheme as "Magnet:"; the clients look for "magnet:".
+		return "magnet:" + downloadURL[7:], "", nil
 	case isUploadRef(downloadURL):
 		data, err := s.readUpload(downloadURL)
 		if err != nil {
@@ -945,8 +948,8 @@ func (s *Server) torrentSource(ctx context.Context, downloadURL, destDir string)
 		path, err := writeTorrentFile(dl.Data, destDir)
 		return "", path, err
 	default:
-		path, err := downloadToTempFile(ctx, downloadURL, destDir)
-		return "", path, err
+		magnet, path, err := downloadToTempFile(ctx, downloadURL, destDir)
+		return magnet, path, err
 	}
 }
 
@@ -1012,13 +1015,18 @@ func writeTorrentFile(data []byte, destDir string) (string, error) {
 
 // downloadToTempFile fetches a .torrent file's bytes and writes them into
 // destDir so torrentclient.AddTorrentFile (which reads from a local path,
-// mirroring the anacrolix/torrent API) can load it.
-func downloadToTempFile(ctx context.Context, url, destDir string) (string, error) {
-	data, err := fetchURL(ctx, url)
+// mirroring the anacrolix/torrent API) can load it. A download that redirects
+// to a magnet link returns the magnet instead.
+func downloadToTempFile(ctx context.Context, url, destDir string) (string, string, error) {
+	data, magnet, err := fetchTorrentURL(ctx, url)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return writeTorrentFile(data, destDir)
+	if magnet != "" {
+		return magnet, "", nil
+	}
+	path, err := writeTorrentFile(data, destDir)
+	return "", path, err
 }
 
 func percent(done, total int64) float64 {
@@ -1034,6 +1042,45 @@ func fetchURL(ctx context.Context, url string) ([]byte, error) {
 
 // fetchURLLimit is fetchURL for a file of at most maxBytes.
 func fetchURLLimit(ctx context.Context, url string, maxBytes int64) ([]byte, error) {
+	return fetchURLLimitWithClient(ctx, netproxy.Client(30*time.Second, netproxy.Indexers), url, maxBytes)
+}
+
+// errMagnetRedirect carries a redirect to a magnet link, which net/http can't
+// follow as a request.
+type errMagnetRedirect struct{ uri string }
+
+func (e errMagnetRedirect) Error() string { return "redirect to magnet link" }
+
+// fetchTorrentURL is fetchURL for a .torrent file, taking the target of a
+// redirect to a magnet link as the torrent's source instead of failing on the
+// magnet scheme. The existing redirect check still runs first, so its limit,
+// address checks and credential stripping apply to the whole chain.
+func fetchTorrentURL(ctx context.Context, url string) (data []byte, magnet string, err error) {
+	client := netproxy.Client(30*time.Second, netproxy.Indexers)
+	follow := client.CheckRedirect
+	client.CheckRedirect = func(next *http.Request, via []*http.Request) error {
+		if follow != nil {
+			if err := follow(next, via); err != nil {
+				return err
+			}
+		}
+		if strings.EqualFold(next.URL.Scheme, "magnet") {
+			return errMagnetRedirect{uri: next.URL.String()}
+		}
+		return nil
+	}
+	data, err = fetchURLLimitWithClient(ctx, client, url, 256<<20)
+	if err != nil {
+		var redirect errMagnetRedirect
+		if errors.As(err, &redirect) {
+			return nil, redirect.uri, nil
+		}
+		return nil, "", err
+	}
+	return data, "", nil
+}
+
+func fetchURLLimitWithClient(ctx context.Context, client *http.Client, url string, maxBytes int64) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -1043,7 +1090,6 @@ func fetchURLLimit(ctx context.Context, url string, maxBytes int64) ([]byte, err
 	// even via a redirect), and the proxy when one is set for indexers;
 	// errors and messages never carry the link's query string, which holds
 	// the indexer key.
-	client := netproxy.Client(30*time.Second, netproxy.Indexers)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, netguard.CleanError(err)
@@ -1071,7 +1117,7 @@ func fetchURLLimit(ctx context.Context, url string, maxBytes int64) ([]byte, err
 // missing is how many articles no server had. Then repair is mandatory: if
 // PAR2 cannot rebuild the file the release is unusable, so the step fails
 // rather than quietly passing on a file with holes in it.
-func verifyAndRepair(dir string, missing int) error {
+func verifyAndRepair(ctx context.Context, dir string, missing int) error {
 	// Obfuscated releases first get their real names back from the PAR2
 	// data, so repair, unpacking and import all see the names they expect.
 	if n, err := organizer.Deobfuscate(dir); err != nil {
@@ -1094,12 +1140,12 @@ func verifyAndRepair(dir string, missing int) error {
 		return fmt.Errorf("%s couldn't be found on your Usenet servers and the release has no PAR2 files to repair it", plural(missing, "article"))
 	}
 	for _, f := range par2Files {
-		result, err := repairer.Verify(f)
+		result, err := repairer.VerifyContext(ctx, f)
 		if err != nil {
 			return err
 		}
 		if !result.OK {
-			if err := repairer.Repair(f); err != nil {
+			if err := repairer.RepairContext(ctx, f); err != nil {
 				return err
 			}
 		}

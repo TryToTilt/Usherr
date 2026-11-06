@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rdborg/mediarium/internal/indexers"
 )
@@ -78,5 +79,68 @@ func TestNewznabSearchStopsAtThreePagesAndNeedsATotal(t *testing.T) {
 	one := indexers.NewNewznabClient("Plain", srv2.URL, "key")
 	if got, err := one.Search(context.Background(), "x", nil); err != nil || len(got) != 1 || one.ExtraRequests != 0 {
 		t.Errorf("plain feed: %d releases, err %v, extra %d", len(got), err, one.ExtraRequests)
+	}
+}
+
+// A search a person started reads up to ten pages, so the list in Choose a
+// release is not cut at 300.
+func TestNewznabManualSearchReadsTenPages(t *testing.T) {
+	var requests []string
+	srv := pagedFeed(t, 1500, &requests)
+	defer srv.Close()
+	client := indexers.NewNewznabClient("Paged", srv.URL, "key")
+	got, err := client.Search(indexers.AsManual(context.Background()), "x", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1000 || len(requests) != 10 {
+		t.Errorf("got %d releases in %d requests, want 1000 in 10", len(got), len(requests))
+	}
+}
+
+// A page after the first that says "too many requests" still lets the first
+// page through, and the client keeps that error so the limit is learned.
+func TestNewznabLaterPageErrorIsKept(t *testing.T) {
+	var requests []string
+	feed := pagedFeed(t, 250, &requests)
+	defer feed.Close()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("offset") != "" {
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		resp, err := http.Get(feed.URL + "?" + r.URL.RawQuery)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer resp.Body.Close()
+		var b strings.Builder
+		buf := make([]byte, 32<<10)
+		for {
+			n, err := resp.Body.Read(buf)
+			b.Write(buf[:n])
+			if err != nil {
+				break
+			}
+		}
+		_, _ = w.Write([]byte(b.String()))
+	}))
+	defer srv.Close()
+	client := indexers.NewNewznabClient("Paged", srv.URL, "key")
+	got, err := client.Search(context.Background(), "the batman", []int{2000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 100 {
+		t.Errorf("got %d releases, want the first page's 100", len(got))
+	}
+	if client.LaterPageErr == nil {
+		t.Fatal("the second page's error was dropped")
+	}
+	tr := indexers.NewTracker(nil, time.Now)
+	tr.RecordLaterPage(7, client.LaterPageErr)
+	if _, paused := tr.PausedUntil(7); !paused {
+		t.Error("a 429 on a later page should pause the indexer")
 	}
 }

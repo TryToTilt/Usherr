@@ -54,6 +54,7 @@ import { crewWith } from '../people'
 import { useLive } from '../useLive'
 import { useConfirm } from '../components/ConfirmProvider'
 import { removeOption } from '../diskUsage'
+import CustomSearch from '../components/CustomSearch'
 import ReleaseNotice from '../components/ReleaseNotice'
 import type { Unanswered } from '../releaseHint'
 import type { Searched } from '../searched'
@@ -177,7 +178,7 @@ function SeriesPage() {
 
   // Only the answer to the latest search is shown, so a slow earlier one can't land under the wrong episode.
   const searchId = useRef(0)
-  async function runSearch(st: SearchTarget) {
+  async function runSearch(st: SearchTarget, q?: string) {
     const mine = ++searchId.current
     setTarget(st)
     setResults(null)
@@ -185,7 +186,7 @@ function SeriesPage() {
     setError('')
     setMessage('')
     try {
-      const a = await api.seriesSearch(seriesId, st.season, st.episode)
+      const a = await api.seriesSearch(seriesId, st.season, st.episode, q)
       if (mine !== searchId.current) return
       setAnswered({ sources: a.sources, unanswered: a.unanswered, warnings: a.warnings, searched: a.searched })
       setResults(a.results)
@@ -465,7 +466,7 @@ function SeriesPage() {
     title: withNameTag(series.title, series.nameTag, series.year),
     year: series.year,
     posterUrl: series.posterUrl,
-    overview: series.overview,
+    overview: tv?.overview || series.overview,
     certification: tv?.contentRating,
     links: titleLinks('tv', series.tmdbId, tv?.imdbId, tv?.homepage),
     facts: [
@@ -651,6 +652,7 @@ function SeriesPage() {
         {target && (
           <section ref={releasesRef} className="card" style={{ marginBottom: 16, scrollMarginTop: 80 }}>
             <h2>{t('Releases for {target}', { target: target.label })}</h2>
+            <CustomSearch key={target.label} busy={searching} onSearch={(q) => runSearch(target, q)} />
             {searching && <p>{t('Looking for releases…')}</p>}
             {results !== null && <ReleaseNotice sources={answered.sources} unanswered={answered.unanswered} warnings={answered.warnings} searched={answered.searched} results={results.length} />}
             {!searching && (results === null || results.length === 0) && (

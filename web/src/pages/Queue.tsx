@@ -528,7 +528,8 @@ export default function Queue() {
   const [blLimit, setBlLimit] = useState(100)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
-  const [busy, setBusy] = useState<{ id: number; doing: Doing } | null>(null)
+  // What each download is being told to do right now, so two quick actions on different rows don't free each other.
+  const [busy, setBusy] = useState<ReadonlyMap<number, Doing>>(new Map())
   const [bulkBusy, setBulkBusy] = useState<'pause' | 'resume' | null>(null)
   // The downloads picked with the checkboxes, for doing one thing to all of them.
   const [picked, setPicked] = useState<ReadonlySet<number>>(new Set())
@@ -602,6 +603,7 @@ export default function Queue() {
       }
       setError('')
     } catch (e) {
+      if (mine !== latest.current) return // a newer refresh has taken over
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoaded(true)
@@ -624,7 +626,7 @@ export default function Queue() {
 
   const act = useCallback(
     async (item: QueueItem, fn: () => Promise<unknown>, done: string, doing: Doing = 'other') => {
-      setBusy({ id: item.id, doing })
+      setBusy((cur) => new Map(cur).set(item.id, doing))
       try {
         await fn()
         toast.success(done)
@@ -632,7 +634,11 @@ export default function Queue() {
       } catch (e) {
         grabError(e)
       } finally {
-        setBusy(null)
+        setBusy((cur) => {
+          const next = new Map(cur)
+          next.delete(item.id)
+          return next
+        })
       }
     },
     [load, toast, grabError],
@@ -758,15 +764,24 @@ export default function Queue() {
       return next
     })
   }, [])
-  async function pickedDo(action: 'pause' | 'resume' | 'stop' | 'retry' | 'front' | 'remove') {
+  async function pickedDo(action: 'pause' | 'resume' | 'stop' | 'retry' | 'front' | 'remove' | 'blocklist') {
     // In the order they are shown, so "to the front" keeps the line's own order.
     // Retry only goes to the failed and stopped ones, so "Pick all" then Retry
     // leaves what is running alone instead of reporting it as refused.
     const ids = pickable
-      .filter((q) => livePicked.has(q.id) && (action !== 'retry' || q.status === 'failed' || q.status === 'stopped'))
+      .filter((q) => livePicked.has(q.id) && ((action !== 'retry' && action !== 'blocklist') || q.status === 'failed' || q.status === 'stopped'))
       .map((q) => q.id)
     if (ids.length === 0 || pickBusy) return
     let deleteFiles = false
+    if (action === 'blocklist') {
+      const r = await confirm({
+        title: plural(ids.length, 'Blocklist this release?', 'Blocklist these {n} releases?'),
+        body: <p>{t('They are never grabbed again, and Mediarium looks for another release for each title.')}</p>,
+        confirmLabel: t('Blocklist releases'),
+        danger: true,
+      })
+      if (!r) return
+    }
     if (action === 'stop' || action === 'remove') {
       const anyFiles = pickable.some((q) => livePicked.has(q.id) && (q.keptFiles || q.progressPct > 0))
       const removing = action === 'remove'
@@ -813,7 +828,7 @@ export default function Queue() {
         key={q.id}
         q={q}
         admin={admin}
-        busy={busy?.id === q.id ? busy.doing : null}
+        busy={busy.get(q.id) ?? null}
         act={act}
         stop={stop}
         remove={remove}
@@ -959,6 +974,9 @@ export default function Queue() {
               <button className="btn-sm btn-with-icon" disabled={pickBusy} onClick={() => void pickedDo('retry')}>
                 <Icon name="refresh" size={14} /> {t('Retry')}
               </button>
+              <button className="btn-sm btn-with-icon" disabled={pickBusy} onClick={() => void pickedDo('blocklist')}>
+                <Icon name="ban" size={14} /> {t('Blocklist')}
+              </button>
               <button className="btn-sm btn-with-icon danger-ghost" disabled={pickBusy} onClick={() => void pickedDo('remove')}>
                 <Icon name="trash" size={14} /> {t('Remove')}
               </button>
@@ -967,6 +985,9 @@ export default function Queue() {
               </button>
               <button className="btn-sm" disabled={pickBusy} onClick={() => setPicked(new Set(pickable.filter((q) => q.status === 'paused').map((q) => q.id)))}>
                 {t('Pick paused')}
+              </button>
+              <button className="btn-sm" disabled={pickBusy} onClick={() => setPicked(new Set(pickable.filter((q) => q.status === 'failed' || q.status === 'stopped').map((q) => q.id)))}>
+                {t('Pick problems')}
               </button>
               <button className="btn-sm" disabled={pickBusy} onClick={() => setPicked(new Set())}>
                 {t('Clear')}
@@ -999,6 +1020,11 @@ export default function Queue() {
               <div className="rail-head">
                 <h2>{t('Failed')}</h2>
                 <span>{t('retry, pick another release, or remove')}</span>
+                {admin && (
+                  <button className="btn-sm" onClick={() => setPicked(new Set(pickable.filter((q) => q.status === 'failed' || q.status === 'stopped').map((q) => q.id)))}>
+                    {t('Pick problems')}
+                  </button>
+                )}
               </div>
               {rows(failed, true)}
             </section>
@@ -1031,7 +1057,7 @@ export default function Queue() {
               </h2>
               <ul>
                 {waiting.slice(0, 20).map((w) => {
-                  const search = w.lastSearch ? `${w.lastSearch.replace(/^Searched: /, '')}${w.lastSearchAt ? ` (${timeAgo(w.lastSearchAt)})` : ''}` : t('Not searched yet.')
+                  const search = w.lastSearch ? `${st(w.lastSearch.replace(/^Searched: /, ''))}${w.lastSearchAt ? ` (${timeAgo(w.lastSearchAt)})` : ''}` : t('Not searched yet.')
                   const meta = [w.year ? String(w.year) : '', w.episodes && w.episodes > 1 ? plural(w.episodes, '{n} episode waiting', '{n} episodes waiting') : w.subtitle ?? ''].filter(Boolean).join(' · ')
                   return (
                     <li key={w.key} className={`kind-${w.kind}`}>
@@ -1089,7 +1115,7 @@ export default function Queue() {
           {shownActivity.length === 0 ? (
             <div className="empty-state">
               <Icon name="activity" size={44} />
-              <p>{actQuery.trim() ? t('Nothing in the history matches that.') : t('No activity yet.')}</p>
+              <p>{actQuery.trim() ? t('Nothing in the history matches that.') : activity.length > 0 ? t('Nothing in this group among the latest lines. Older lines may have some.') : t('No activity yet.')}</p>
             </div>
           ) : (
             <ul className="timeline">

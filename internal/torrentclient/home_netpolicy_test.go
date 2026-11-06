@@ -24,7 +24,7 @@ func (withUDP) ListenPacket(string, string) (net.PacketConn, error) {
 func TestTrackerSocketsNeverErrorWithVPN(t *testing.T) {
 	for name, tun := range map[string]TunnelDialer{"tunnel without UDP": dialOnly{}, "tunnel with UDP": withUDP{}} {
 		cfg := torrent.NewDefaultClientConfig()
-		applyNetworkPolicy(cfg, tun, false)
+		applyNetworkPolicy(cfg, tun, false, false)
 		pc, err := cfg.TrackerListenPacket("udp4", "")
 		if err != nil || pc == nil {
 			t.Fatalf("%s: got %v, %v (the torrent library panics on an error)", name, pc, err)

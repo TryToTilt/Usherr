@@ -8,6 +8,89 @@ under [Unreleased]. How releases are cut: [docs/RELEASING.md](docs/RELEASING.md)
 
 ## [Unreleased]
 
+## [3.9.4] - 2026-11-05
+
+In short: torrents from Torznab and Prowlarr indexers no longer fail when their magnet link has stray spaces or a capital letter.
+
+### Fixed
+
+- A magnet link from a Torznab or Prowlarr indexer that came with spaces around it, or with a capital letter in "Magnet:", was fetched as a web address and failed with "couldn't get the torrent". It is now recognised as a magnet link and sent to the torrent client. Reported by theshadillac on GitHub.
+
+## [3.9.3] - 2026-11-03
+
+In short: Decypharr works again, book search can use Google Books for missing covers and descriptions, old SABnzbd and NZBGet jobs are cleaned up, library titles and posters can follow the info language, and a few calendar and search fixes.
+
+### Added
+
+- Book search also asks **Hardcover** when a token is saved under Settings > Info, lists and subtitles. A book Open Library has no cover for shows Hardcover's picture, and a book only Hardcover knows can be opened and added. Without a token, search stays on Open Library. Written by memnos on GitHub as a pull request (#162, #171).
+- Book search asks **Google Books** after Open Library and Hardcover, with no API key. It fills in a missing cover or description, and a book neither of the others lists can be opened and added with Google's title, author, year, description and cover. The picture is saved on this server. A key under Settings > Info, lists and subtitles is optional, for when you reach Google's limit. The answer, including "no cover" and a failed lookup, is remembered for a few minutes. Written by memnos on GitHub as a pull request (#174).
+
+### Fixed
+
+- A download client that copies the qBittorrent API, such as Decypharr, answers 401 where qBittorrent answers 403 to a call with no session, so Mediarium never signed in again and the list of downloads failed with "refused the user name or password" although the Test button passed. A 401 now signs in again like a 403 does. Reported, with the fix, by KpiclhU on GitHub (#173).
+- With SABnzbd and **Remove from the downloader after import** on, a job saved as a single file (SABnzbd then reports the file, not a folder) was never deleted from the completed folder, and the clean-up skipped it too. The file is now removed (its folder too when it has one of its own), only inside the completed folder you mapped; the hard link in your library stays. Reported by xrandallx1 (#165) and bevinduplessis on GitHub.
+- Calendar, posters view: the **+N more** list of a greyed day (outside the month) was dimmed with the day and could lie behind the days after it. It is now solid and on top. Reported by nexus4004 on GitHub (#172); if your list still looks cut off, a screenshot would help.
+- A title whose own name has umlauts (with German as the info language, `Sams im Glück`) is now also searched written out (`Sams im Glueck`), first among its other titles and also when English is the only language you want. Before, only its other titles got that spelling, so the automatic search and Choose a release found nothing on indexers that don't treat the two as the same (#148, mirisbowring).
+- With SABnzbd or NZBGet, the clean-up now also clears out the jobs Mediarium sent there. Failed jobs go two days after they failed, finished ones too when **Remove from the downloader after import** is on, with their folder in the completed folder. Jobs in other categories, and jobs a download still needs (one you can still retry), stay. Before, failed and some finished jobs piled up in the downloader's history. Reported by u/troelsdk on Reddit.
+
+### Changed
+
+- A movie or show already in the library is shown in the language chosen for movie and show info (Settings > Info, lists and subtitles): the title and the poster in the Library, on the Dashboard, in Activity (a download and the waiting list), on the calendar, in reports, requests, statistics and notifications, and the description on the title's own page. The translated title, poster and description are saved, and a background job fills them in (right after a title is added or refreshed, then the rest of the library a few dozen at a time). A description saved before this change is fetched again. Lists never ask TMDB while they answer: until a translation is saved, the English title and poster are shown, and so is the description. On a show's page the description TMDB already returns for that page (the same request as the tagline) is shown straight away, in the chosen language. Changing the info language starts that job again for the new language. Discover, search and the title page already ask TMDB directly. The English title stays saved for indexer searches. Where TMDB has no translation, poster or description in that language, the English one is kept. An episode's own name and description, and a line already written in the activity history, stay as they are. Written by memnos on GitHub as a pull request (#155).
+- The note under a title that is waiting for a release (Activity) is translated with the language of the app. It was left in English.
+
+## [3.9.2] - 2026-11-01
+
+In short: no more false "too many connections" emails from Mediarium's own checks, SABnzbd and NZBGet leftovers are cleaned up after import, albums no longer get linked to a single of the same name, and a long list of search, naming and download fixes.
+
+### Fixed
+
+- "Usenet server is not working: this login has too many connections open" no longer comes from Mediarium's own checks. The check that runs every half hour (and the Test button) opened one more connection into a login that downloads had already filled, so a provider with a fixed limit (100 on many plans) refused it and sent a notification, even though nothing was wrong. While downloads hold connections to a login, the check now counts that as working, and it keeps away for half a minute after a connection closed. The first refusals while downloading are waited out quietly; Health and the problem log only mention it when it keeps going.
+- Usenet connections: a limit the provider made Mediarium lower after a few refusals (for example after a restart, while the provider still counted the old connections) used to stay lowered until the next restart. It is now tried again after five minutes, doubling up to the number you set. The connection probe (Find the right number) now counts its connections in the same limit, so a download that starts meanwhile waits instead of being refused. A refusal that says "unknown user" or "invalid username" is no longer read as "too many connections". A download that is cancelled no longer waits for a slow server greeting or login, and a server that is removed while a connection is being opened no longer keeps one open.
+- SABnzbd and NZBGet jobs: with **Remove from the downloader after import** on and the path mapping set, the job's folder in the completed folder is now deleted as well. Both programs only delete the files of a job that is still in their working folder, so every imported release used to stay behind (#165, xrandallx1). Nothing is deleted without the path mapping.
+- Stopping or pausing a download that is being repaired with PAR2 now stops the repair at once instead of waiting for it (it could take hours).
+- A torrent waiting in line in qBittorrent (its limit of active downloads is full) or being checked is no longer counted as stalled, so it is not deleted and blocklisted after six hours.
+- Music import: an album and a single with the same name and year (AC/DC "Back in Black", Roxette "Joyride") no longer end up with the album's folder linked to the single. The album wins, or the single when the folder holds only one or two tracks. A rescan of the music folder moves the folder over to the album and puts the single back to wanted (#163, okuegow).
+- Films and shows: a release of an episode ("Fargo.S01E01...") is no longer taken for the film of the same name, and a release named "S01E01-S01E03" now counts as three episodes.
+- Release names: "Charlotte's.Web.2006" and "The.Dark.Web.2021" keep "Web" in the title, "HDR10+" before a dot is read as HDR10+, and 1080i, 576p and UHD are read as 1080p, standard definition and 2160p.
+- Music names: artists and albums in Cyrillic, Greek or Japanese are matched by their own letters (they used to shrink to nothing and match each other), "Dvořák" matches "Dvorak" and "Die Ärzte" matches "Die Aerzte", and "Nevermind (Instrumental)" or "(Live)" is no longer taken for the studio album.
+- RSS sync counts all the pages it reads against an indexer's daily limit, so a limited indexer is no longer read three times as often as intended.
+- A case-only rename (a new naming setting that only changes capitals) no longer fails on a disk that ignores case.
+- Activity: two quick actions on different downloads no longer free each other's buttons early, an old failed refresh can't show an error after a newer one worked, a History group with nothing in the latest lines says so instead of "No activity yet", the time left is translated, "59 min ago" no longer rounds up to "60", a failed migration status check says so, and a limit being typed for a torrent is kept when the download changes state.
+- Book covers: a client asking for made-up cover numbers can no longer grow memory without end or hammer Open Library. The sign-in limits of the MCP (OAuth) endpoints now treat one IPv6 network as one address.
+- Scheduled TV search: a show with more than 25 missing episodes only ever had its first 25 searched, run after run. Each run now goes on with the episodes not searched for yet.
+- A film with a common name ("Dune", "Halloween") could have more releases than a search reads, and the right film's releases were sometimes never seen. When an indexer fills every page, the title is searched again with its year.
+- An indexer that says "too many requests" or "daily limit reached" on the second or third page of a search is now paused or marked as used up, as on the first page. It used to be asked again straight away.
+- A file with two or more episodes (S01E01E02) is named for all of them ("S01E01-E02 - Pilot + Second"), as Plex, Jellyfin and Sonarr expect, instead of for the first one only. **Rename files** offers the new name for those already in the library (#101, 12nick12).
+- Subtitles: OpenSubtitles' short "too many requests" (a limit per second) was taken for the daily limit and stopped the subtitle run. Mediarium now waits the few seconds it asks for and tries again.
+- Import a file by hand: a title that already had a file under another name kept both on disk, and the old one was no longer known to Mediarium. The old one is now removed once the new one is in, as with an upgrade.
+- A folder or release named with a span of years ("Friends (1994-2004)", "James Bond Collection (1962-2021)") was read as the title "Friends (1994" from 2004. It now reads as "Friends" from 1994, so library import finds the right show.
+- SABnzbd and NZBGet: **Retry** on a download that failed for the downloader's own reasons (a full disk) sent the release a second time and left the failed job there too. The failed job is now removed first.
+- **Pause all** and pausing or stopping several downloads at once waited for each one to wind down in turn (up to ten seconds each), which held up every other pause, resume and stop for minutes on a long list. They now wind down together.
+- Anime: a batch named by episode numbers that holds a whole season ("Show - 01-12" for a twelve-episode season) now counts as that season's pack, so the season pack search can take it.
+- Passkey sign-in: a flood of sign-in starts from many networks could push out a real person's sign-in that was waiting. Each network now holds a few at most, and a full list makes room from the busiest network.
+- On a phone, the "deleted" and "saved" notices no longer sit on top of the buttons at the bottom of the screen and block the next tap. They show at the top and a tap goes through them (#164, mirisbowring).
+
+## [3.9.1] - 2026-10-31
+
+In short: UDP trackers and DHT can go through the built-in VPN, Choose a release has a search box for your own words and reads up to 1,000 releases, Activity can blocklist picked downloads, and several name and warning fixes.
+
+### Added
+
+- UDP trackers and DHT can now run through the built-in VPN (Settings > Downloading > VPN and proxy, off by default; offered in the setup wizard and in What's new). They use a socket inside the tunnel, tracker and DHT names are looked up through the VPN's DNS, and if a name or the socket fails nothing is sent from your home address. Torrents that list only UDP trackers no longer sit at 0% with the VPN on. Written by memnos as a pull request, #151 (#154)
+
+- Choose a release has a **Search for other words** box for movies, seasons and episodes. Type your own words (for example the title a release was posted under), see every answer and grab one; it is still imported as the movie or episode you opened. An empty box brings back the usual list. Idea from mirisbowring on GitHub (#159)
+
+- Activity: the bar for picked downloads has a **Blocklist** button (retry and remove were already there), and **Pick problems** picks every failed and stopped download at once, also from the **Failed** heading (in-app suggestion)
+
+### Fixed
+
+- Choose a release now reads up to ten pages (1,000 releases) from a Newznab indexer, not three, so a title with very many releases is no longer cut off at 300 and older releases (such as a favourite group's) show up. Searches Mediarium starts by itself still stop at 300 (#152, reported by mirisbowring)
+- A Usenet release posted without file names in its subjects, which came down as file_1.bin, file_2.bin and failed with "No video in a download", is now saved under the name inside each article, so unpacking can find the archives (#156, reported by nexus4004)
+- A release that held programs or scripts, a download too short to be real, and a download with no video in it are now shown as a warning on Health and in the problem list, not as an error, and no longer send an error message. They are everyday Usenet and Mediarium already tries another release (suggested through the in-app feedback form)
+- A torrent from Prowlarr or Jackett whose download link redirects to a magnet link is now added instead of failing with "unsupported protocol scheme magnet". Written by blind0wl as a pull request, #157
+- The umlaut spellings ("Sams im Glueck" next to "Sams im Glück") now also apply to titles that were already in the library, not only to titles whose other names were fetched after the update (#148, reported by mirisbowring)
+- A release name with broken letters from an indexer ("Sams im GlÃ¼ck" for "Sams im Glück") is read as the right letters again, so it can match the title (#148, reported by mirisbowring)
+
 ## [3.9.0] - 2026-10-30
 
 In short: new movie and show folders can use the info language, the release list no longer stops at 60 results, season packs follow your setting again, and Missing Movies in nzb360 skips unreleased titles. Client totals in Activity, the subtitle source and umlaut spellings in searches are new.

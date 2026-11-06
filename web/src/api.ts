@@ -745,6 +745,8 @@ export interface Settings {
   requireVpnForTorrents?: boolean
   // Send indexer traffic through the VPN; off until switched on.
   routeIndexersThroughVpn?: boolean
+  // UDP trackers and DHT through the built-in VPN; off until switched on.
+  discoverThroughTunnel?: boolean
   // The person said their torrent client is already behind a VPN: no "Torrenting without a VPN" notice.
   vpnNoticeAcknowledged?: boolean
   importConflictPolicy?: string
@@ -2941,10 +2943,31 @@ export interface BookFound {
   year?: number
   coverId?: number
   coverUrl?: string
+  hardcoverId?: number
+  googleId?: string
+  slug?: string
   libraryId?: number
   // Whether an ebook / an audiobook edition has been published (Open Library).
   hasEbook?: boolean
   hasAudio?: boolean
+}
+
+// A Google Books volume from the direct Google search. coverUrl and infoUrl
+// point at Google Books.
+export interface GoogleBookHit {
+  id: string
+  title: string
+  author?: string
+  year?: number
+  coverUrl?: string
+  infoUrl: string
+  isbn?: string
+  language?: string
+}
+export interface GoogleBookSearch {
+  configured: boolean
+  unavailable?: boolean
+  results: GoogleBookHit[]
 }
 
 // ---- Modules and music -------------------------------------------------
@@ -4054,7 +4077,7 @@ export const api = {
   resumeQueueItem: (id: number) => post<{ status: string }>(`/queue/${id}/resume`),
   stopQueueItem: (id: number, deleteFiles: boolean) => post<{ status: string; pending?: string }>(`/queue/${id}/stop`, { deleteFiles }),
   frontQueueItem: (id: number) => post<{ status: string }>(`/queue/${id}/front`),
-  bulkQueue: (ids: number[], action: 'pause' | 'resume' | 'stop' | 'retry' | 'front' | 'remove', deleteFiles = false) =>
+  bulkQueue: (ids: number[], action: 'pause' | 'resume' | 'stop' | 'retry' | 'front' | 'remove' | 'blocklist', deleteFiles = false) =>
     post<{ done: number; failed: { id: number; error: string }[] }>('/queue/bulk', { ids, action, deleteFiles }),
   pauseAllQueue: (protocol?: 'usenet' | 'torrent') => post<{ paused: number }>(`/queue/pause-all${protocol ? `?protocol=${protocol}` : ''}`),
   resumeAllQueue: (protocol?: 'usenet' | 'torrent') => post<{ resumed: number; skipped: number; problem?: string }>(`/queue/resume-all${protocol ? `?protocol=${protocol}` : ''}`),
@@ -4071,7 +4094,7 @@ export const api = {
   replaceMovieSmaller: (id: number) => post<{ grabbed: number; message: string }>(`/movies/${id}/replace-smaller`),
   searchNowSeries: (id: number, scope: { season?: number; episode?: number } = {}) =>
     post<{ grabbed: number; message: string }>(`/series/${id}/search-now`, scope),
-  movieSearch: (id: number) => get<SearchAnswer<SearchResult>>(`/movies/${id}/search?detail=1`),
+  movieSearch: (id: number, q?: string) => get<SearchAnswer<SearchResult>>(`/movies/${id}/search?detail=1${q ? `&q=${encodeURIComponent(q)}` : ''}`),
   libraryFolders: () => get<LibraryFolders>('/library/folders'),
   setMovieFolder: (id: number, rootPath: string) => put<{ rootPath: string }>(`/movies/${id}/folder`, { rootPath }),
   setSeriesFolder: (id: number, rootPath: string) => put<{ rootPath: string }>(`/series/${id}/folder`, { rootPath }),
@@ -4152,6 +4175,11 @@ export const api = {
   // With an author, the books by that author come first.
   searchBooks: (q: string, author = '') =>
     get<BookFound[]>(`/books/search?q=${encodeURIComponent(q)}${author ? `&author=${encodeURIComponent(author)}` : ''}`),
+  searchGoogleBooks: (q: string) => get<GoogleBookSearch>(`/books/search/google?q=${encodeURIComponent(q)}`),
+  adoptGoogleBook: (data: { isbn?: string; title?: string; author?: string; ebook: boolean; audiobook: boolean; searchNow?: boolean }) =>
+    post<Book | Requested>('/books/search/google', data),
+  getGoogleBooks: () => get<{ set: boolean }>('/settings/google-books'),
+  putGoogleBooks: (key: string) => put<{ set: boolean }>('/settings/google-books', { key }),
   bookDiscover: (p: { list: 'trending' | 'browse'; period?: string; subject?: string; from?: string; to?: string; sort?: string; page?: number }) => {
     const q = new URLSearchParams()
     for (const [k, v] of Object.entries(p)) if (v !== undefined && v !== '') q.set(k, String(v))
@@ -4188,10 +4216,10 @@ export const api = {
   bookImportStatus: () => get<BookImportState>('/books/import'),
   startBookImport: (format?: BookFormat) => post<BookImportState>('/books/import', { format: format ?? '' }),
   retryBookImport: (format?: BookFormat) => post<BookImportState>('/books/import/retry', { format: format ?? '' }),
-  matchBookImport: (body: { path: string; kind: BookFormat; olKey: string; title: string; author: string; authorKey?: string; year?: number; coverId?: number; rename: boolean }) =>
+  matchBookImport: (body: { path: string; kind: BookFormat; olKey: string; title: string; author: string; authorKey?: string; year?: number; coverId?: number; hardcoverId?: number; googleId?: string; rename: boolean }) =>
     post<BookImportState>('/books/import/match', body),
   bookSubjects: () => get<{ label: string; subject: string }[]>('/books/subjects'),
-  addBook: (data: { olKey: string; title: string; author: string; authorKey?: string; year?: number; coverId?: number; ebook: boolean; audiobook: boolean; searchNow?: boolean }) =>
+  addBook: (data: { olKey: string; title: string; author: string; authorKey?: string; year?: number; coverId?: number; hardcoverId?: number; googleId?: string; ebook: boolean; audiobook: boolean; searchNow?: boolean }) =>
     post<Book | Requested>('/books', data),
   setBookWanted: (id: number, format: BookFormat, wanted: boolean) => put<Book>(`/books/${id}/want`, { format, wanted }),
   deleteBook: (id: number, deleteFiles: boolean) => del<null>(`/books/${id}?deleteFiles=${deleteFiles}`),
@@ -4295,8 +4323,8 @@ export const api = {
   deleteSeries: (id: number, deleteFiles = false) => del<null>(`/series/${id}?deleteFiles=${deleteFiles}`),
   titleCopies: (kind: 'movie' | 'series', id: number) => get<TitleCopies>(`/${kind === 'movie' ? 'movies' : 'series'}/${id}/copies`),
   addTitleCopy: (kind: 'movie' | 'series', id: number, profileId: number) => post<TitleCopy>(`/${kind === 'movie' ? 'movies' : 'series'}/${id}/copies`, { profileId }),
-  seriesSearch: (id: number, season: number, episode?: number) =>
-    get<SearchAnswer<SearchResult>>(`/series/${id}/search?detail=1&season=${season}${episode ? `&episode=${episode}` : ''}`),
+  seriesSearch: (id: number, season: number, episode?: number, q?: string) =>
+    get<SearchAnswer<SearchResult>>(`/series/${id}/search?detail=1&season=${season}${episode ? `&episode=${episode}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`),
   grabSeries: (id: number, data: { releaseTitle: string; downloadUrl: string; sizeBytes: number; protocol?: 'usenet' | 'torrent'; season?: number; episode?: number; replaceQueueId?: number; replace?: boolean }) =>
     post<{ queueId: number }>(`/series/${id}/grab`, data),
 
@@ -4356,7 +4384,7 @@ export const api = {
   setDebugLogging: (enabled: boolean) => put<{ debugLogging: boolean }>('/system/problems/debug', { enabled }),
   flareSolverrStatus: () => get<FlareSolverrStatus>('/flaresolverr/status'),
   cleanupReport: () => get<CleanupReport>('/system/cleanup'),
-  runCleanup: () => post<{ removedBytes: number; removed?: unknown[]; prunedQueueItems?: number; prunedActivity?: number; errors?: unknown }>('/system/cleanup'),
+  runCleanup: () => post<{ removedBytes: number; removed?: unknown[]; prunedQueueItems?: number; prunedActivity?: number; clientJobs?: number; errors?: unknown }>('/system/cleanup'),
   updateState: () => get<UpdateState>('/system/update'),
   updateLatest: () => get<UpdateNotice>('/system/update/latest'),
   updateCheck: () => post<UpdateNotice>('/system/update/check'),

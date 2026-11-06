@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/blocklist"
@@ -128,13 +129,22 @@ func (s *Server) handleMovieSearch(w http.ResponseWriter, r *http.Request) {
 			notAsked = append(notAsked, inst.Name)
 		}
 	}
-	outcomes := s.searchMovieTitles(r.Context(), asked, m, nil)
+	// Words typed by hand are searched as they are, and every answer is shown:
+	// the person chose to look for something else, such as a release posted under
+	// another title, and the download still belongs to this movie.
+	custom := customSearchQuery(r)
+	var outcomes []indexers.Outcome
+	if custom != "" {
+		outcomes = indexers.SearchAll(indexers.AsManual(r.Context()), asked, custom, movieCategory)
+	} else {
+		outcomes = s.searchMovieTitles(r.Context(), asked, m, nil)
+	}
 	merged := indexers.MergeResults(outcomes)
 	out := []searchResultPayload{}
 	var found []indexers.Result
 	var ignored ignoredReleases
 	for _, res := range merged {
-		if !matchesMovie(res.Title, m) {
+		if custom == "" && !matchesMovie(res.Title, m) {
 			ignored.add(res.Title)
 			continue
 		}
@@ -383,7 +393,8 @@ func (s *Server) wantedMovieItems(ctx context.Context, kind string, profiles pro
 		switch {
 		case kind == "missing" && movieWantedMissing(m),
 			kind == "cutoff" && m.Status == library.StatusDownloaded && !m.NoUpgrade && wantsUpgrade(p, m.Quality, m.ReleaseTitle, m.ReleaseDate):
-			item := wantedItemPayload{Kind: "movie", ID: m.ID, MovieID: m.ID, TMDBID: m.TMDBID, Title: m.Title, Date: m.ReleaseDate, ProfileName: p.Name, Copy: m.CopyOf != 0, Year: m.Year, PosterURL: wantedPoster(m.PosterPath)}
+			title, poster := s.shownFace("movie", m.TMDBID, m.Title, m.PosterPath)
+			item := wantedItemPayload{Kind: "movie", ID: m.ID, MovieID: m.ID, TMDBID: m.TMDBID, Title: title, Date: m.ReleaseDate, ProfileName: p.Name, Copy: m.CopyOf != 0, Year: m.Year, PosterURL: poster}
 			if item.Copy {
 				item.Subtitle = "Second copy"
 			}
@@ -405,6 +416,7 @@ func (s *Server) wantedEpisodeItems(ctx context.Context, kind string, profiles p
 		return nil, err
 	}
 	var out []wantedItemPayload
+	faces := map[int64][2]string{}
 	for _, ep := range episodes {
 		p := profiles.resolveTV(ep.ProfileID)
 		if kind == "missing" && fileExists(ep.FilePath) {
@@ -420,9 +432,18 @@ func (s *Server) wantedEpisodeItems(ctx context.Context, kind string, profiles p
 		if ep.CopyOf != 0 {
 			label = "Second copy · " + label
 		}
+		title, poster := ep.SeriesTitle, wantedPoster(ep.SeriesPoster)
+		if cached, seen := faces[ep.SeriesID]; seen {
+			title, poster = cached[0], cached[1]
+		} else {
+			if sr, err := s.MovieRepo.GetSeries(ep.SeriesID); err == nil {
+				title, poster = s.shownFace("tv", sr.TMDBID, sr.Title, sr.PosterPath)
+			}
+			faces[ep.SeriesID] = [2]string{title, poster}
+		}
 		item := wantedItemPayload{
 			Kind: "episode", ID: ep.ID, SeriesID: ep.SeriesID, Season: ep.Season, Episode: ep.Episode.Episode,
-			Title: ep.SeriesTitle, Subtitle: label, Date: ep.AirDate, ProfileName: p.Name, Copy: ep.CopyOf != 0, Year: ep.SeriesYear, PosterURL: wantedPoster(ep.SeriesPoster),
+			Title: title, Subtitle: label, Date: ep.AirDate, ProfileName: p.Name, Copy: ep.CopyOf != 0, Year: ep.SeriesYear, PosterURL: poster,
 		}
 		if kind == "cutoff" {
 			item.Quality, item.Cutoff = ep.Quality, p.CutoffName()
@@ -537,4 +558,14 @@ func (s *Server) setMonitored(w http.ResponseWriter, r *http.Request, what strin
 		return
 	}
 	writeJSON(w, http.StatusOK, nil)
+}
+
+// customSearchQuery is the words a person typed into the search box of Choose a
+// release, or "" when the release list is the usual one for the title.
+func customSearchQuery(r *http.Request) string {
+	q := strings.Join(strings.Fields(r.URL.Query().Get("q")), " ")
+	if len([]rune(q)) > 200 {
+		q = string([]rune(q)[:200])
+	}
+	return q
 }

@@ -83,8 +83,8 @@ func (s *Server) handleVPNUDPTest(w http.ResponseWriter, r *http.Request) {
 	res["lookup"], res["lookupErr"] = addrs, errString(err)
 	var ip net.IP
 	for _, a := range addrs {
-		if p := net.ParseIP(a); p != nil && p.To4() != nil {
-			ip = p
+		if a.To4() != nil {
+			ip = a
 			break
 		}
 	}

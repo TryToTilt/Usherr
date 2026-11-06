@@ -53,8 +53,8 @@ func TestAutomationJobsStartOneAfterTheOther(t *testing.T) {
 		}
 		last = max(last, d)
 	}
-	if last > 9*time.Minute { // Usherr: twice the jobs, so nine minutes instead of six
-		t.Errorf("the last job first runs after %v, want within 9 minutes", last)
+	if last > 10*time.Minute { // Usherr: twice the jobs, so ten minutes instead of six
+		t.Errorf("the last job first runs after %v, want within 10 minutes", last)
 	}
 
 	// Downloads, the release feeds and the hunt come before everything else.

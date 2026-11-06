@@ -47,19 +47,20 @@ import (
 )
 
 type Server struct {
-	resumeStop  context.CancelFunc // ends the resume of interrupted downloads (resume_interrupted.go)
-	streamPause streamPauseState   // pause while someone is watching (stream_pause.go)
-	libStats    libraryStatsCache  // the Statistics page's answer, kept for a few minutes (stats_library.go)
-	marqueeLive marqueeHub         // Usherr: the Marquee screens' live streams (home_marquee_screens.go)
-	marqueeMQTT marqueeBridge      // Usherr: the Marquee in Home Assistant (home_marquee_mqtt.go)
-	communityL  communityLink      // Usherr: the household's Discord bot (home_community.go)
-	linkS       linkState          // Usherr: linked Usherrs through the Usherr Link Relay (home_link.go)
-	linkC       linkCodes          // Usherr: /link codes waiting to be typed in (home_community_link.go)
-	chat        chatHub            // Usherr: watch party chats, live (home_community_chat.go)
-	mediaInfo   mediaInfoState     // what the video files hold, read from their headers (media_info.go)
-	appFrames   atomic.Value       // []string: the origins of add-ons shown in a frame, kept in memory so the security headers never wait for the database (app_links.go)
-	cfg         config.Config
-	db          *sql.DB // for backups (VACUUM INTO); repos hold their own handles
+	resumeStop    context.CancelFunc // ends the resume of interrupted downloads (resume_interrupted.go)
+	streamPause   streamPauseState   // pause while someone is watching (stream_pause.go)
+	libStats      libraryStatsCache  // the Statistics page's answer, kept for a few minutes (stats_library.go)
+	displayFaceMu sync.Mutex         // one display-face lookup at a time (display_face.go)
+	marqueeLive   marqueeHub         // Usherr: the Marquee screens' live streams (home_marquee_screens.go)
+	marqueeMQTT   marqueeBridge      // Usherr: the Marquee in Home Assistant (home_marquee_mqtt.go)
+	communityL    communityLink      // Usherr: the household's Discord bot (home_community.go)
+	linkS         linkState          // Usherr: linked Usherrs through the Usherr Link Relay (home_link.go)
+	linkC         linkCodes          // Usherr: /link codes waiting to be typed in (home_community_link.go)
+	chat          chatHub            // Usherr: watch party chats, live (home_community_chat.go)
+	mediaInfo     mediaInfoState     // what the video files hold, read from their headers (media_info.go)
+	appFrames     atomic.Value       // []string: the origins of add-ons shown in a frame, kept in memory so the security headers never wait for the database (app_links.go)
+	cfg           config.Config
+	db            *sql.DB // for backups (VACUUM INTO); repos hold their own handles
 
 	Auth              *auth.Service
 	Settings          *settings.Store
@@ -98,6 +99,8 @@ type Server struct {
 	authorCheck       authorCheck    // when followed authors were last checked (books_authors.go)
 	seriesCheck       authorCheck    // when followed series were last checked (books_series.go)
 	hc                hardcoverState // the Hardcover client for the saved token (books_series.go)
+	googleBooksBase   string         // tests point Google Books elsewhere; "" = the real API (books_google.go)
+	gbooks            googleMemo     // recent Google Books answers, including "no cover" (books_google.go)
 	coverLink         *http.Client   // downloads a book cover from a pasted link; nil = the public-internet-only client (books_owncover.go)
 
 	mediaClient    *mediaservers.Client
@@ -324,6 +327,7 @@ func New(db *sql.DB, cfg config.Config, box *crypto.Box, defaultTMDBAPIKey, vers
 	s.Announce = announce.NewManager(s.AnnounceRepo, ircDecider{s}, slog.Default())
 	s.torrents.noPortMapping = !s.torrentPortMapping()
 	s.torrents.allowLocal = s.torrentAllowLocal()
+	s.torrents.discover = s.vpnUDPDiscovery()
 	queue.SetNewestFirst(s.newestFirstOn())
 	s.refreshAppFrames()
 	s.dispatch = s.newDispatcher()
@@ -867,6 +871,8 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("GET /api/books", revalidated(s.handleListBooks))
 	member.HandleFunc("POST /api/books", s.handleAddBook) // home fork: ebooks and audiobooks are checked apart, in the handler
 	member.HandleFunc("GET /api/books/search", s.handleBookSearch)
+	member.HandleFunc("GET /api/books/search/google", s.handleSearchGoogleBooks)
+	member.Need(auth.PermBooks).HandleFunc("POST /api/books/search/google", s.handleAdoptGoogleBook)
 	member.HandleFunc("GET /api/book-covers/{file}", s.handleBookCover)
 	member.HandleFunc("GET /api/books/discover", s.handleBookDiscover)
 	member.HandleFunc("GET /api/books/subjects", s.handleBookSubjects)
@@ -1319,6 +1325,8 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("DELETE /api/cleanup/exemptions/{unit}", s.handleDeleteCleanupExemption)
 	admin.HandleFunc("GET /api/settings/hardcover", s.handleGetHardcover)
 	admin.HandleFunc("PUT /api/settings/hardcover", s.handlePutHardcover)
+	admin.HandleFunc("GET /api/settings/google-books", s.handleGetGoogleBooks)
+	admin.HandleFunc("PUT /api/settings/google-books", s.handlePutGoogleBooks)
 	admin.HandleFunc("GET /api/settings/simkl", s.handleGetSimkl)
 	admin.HandleFunc("DELETE /api/settings/simkl", s.handleDisconnectSimkl)
 	admin.HandleFunc("POST /api/settings/simkl/test", s.handleTestSimkl)
