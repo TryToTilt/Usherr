@@ -5,6 +5,7 @@ import { useAuth } from '../AuthContext'
 import Icon from '../components/Icon'
 import Loading from '../components/Loading'
 import PosterCard from '../components/PosterCard'
+import { mangaContinueKey, mangaContinueLink, mangaContinueMeta, useMangaContinue } from '../manga/useMangaContinue'
 import { useNextShowtime } from '../home/ShowtimePill'
 import { inLabel, whenLabel } from '../home/showtimes'
 import { locale, plural, t } from '../i18n'
@@ -127,6 +128,27 @@ function ContinueRow() {
   )
 }
 
+// Usherr: where you got to in your manga.
+function MangaContinueRow() {
+  const items = useMangaContinue()
+  if (items.length === 0) return null
+  return (
+    <Row title={t('Continue reading')} more={{ to: '/manga', label: t('Manga') }}>
+      {items.map((c) => (
+        <PosterCard
+          key={mangaContinueKey(c)}
+          to={mangaContinueLink(c)}
+          kind="book"
+          poster={c.coverUrl}
+          title={c.series}
+          meta={mangaContinueMeta(c)}
+          progress={c.pages > 0 ? { pct: Math.round((c.page / c.pages) * 100) } : undefined}
+        />
+      ))}
+    </Row>
+  )
+}
+
 function dayOf(e: CalendarEntry): string {
   const d = new Date(e.airAt ?? `${e.releaseDate}T12:00:00`)
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(locale(), { weekday: 'short', month: 'short', day: 'numeric' })
@@ -175,6 +197,7 @@ export default function LobbyHome() {
       )}
       <NextShowtime fallback={arrived[0]} />
       <ContinueRow />
+      <MangaContinueRow />
       {arrived.length > 0 && (
         <Row title={t('Just added')} more={{ to: '/library', label: t('Library') }}>
           {arrived.map((r) => (

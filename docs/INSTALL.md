@@ -229,6 +229,7 @@ Each kind of media has its own folder setting. You only need the ones you use.
 | Ebooks | `EBOOKS_DIR` | `/ebooks` | Works today. Switch it on under Settings > Media types ([books.md](./books.md)). |
 | Audiobooks | `AUDIOBOOKS_DIR` | `/audiobooks` | Works today. Switch it on under Settings > Media types ([books.md](./books.md)). |
 | Comics | `COMICS_DIR` | `/comics`, else `/data/comics` | Usherr. Made on the first download when it doesn't exist. |
+| Manga | `MANGA_DIR` | `/manga`, else `/data/manga` | Usherr. Made on the first download when it doesn't exist. |
 | Anime | `ANIME_DIR` | `/anime`, else `/data/anime` when it exists | Usherr. Without one, anime goes in the TV folder. |
 | NSFW 18+ | `NSFW_DIR` | `/nsfw`, else `/data/nsfw` | Usherr. Only with `USHERR_ALLOW_ADULT=1`. |
 

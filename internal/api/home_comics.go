@@ -116,10 +116,11 @@ func (s *Server) registerComicRoutes(admin, member routeGroup) {
 	admin.HandleFunc("PUT /api/comics/issues/wanted", on(s.handleSetComicIssuesWanted))
 	admin.HandleFunc("POST /api/comics/issues/{id}/search", on(s.handleSearchComicIssue))
 	admin.HandleFunc("GET /api/comics/issues/{id}/releases", on(s.handleComicIssueReleases))
-	s.registerComicReviewRoutes(admin, on)       // review list and search history (home fork)
-	s.registerComicWeekRoutes(member, admin, on) // the week's new comics (home fork)
-	s.registerComicArcRoutes(member, admin, on)  // story arcs (home fork)
-	s.registerComicToolRoutes(admin, on)         // library tools (home fork)
+	s.registerComicReviewRoutes(admin, on)          // review list and search history (home fork)
+	s.registerComicWeekRoutes(member, admin, on)    // the week's new comics (home fork)
+	s.registerComicArcRoutes(member, admin, on)     // story arcs (home fork)
+	s.registerComicToolRoutes(admin, on)            // library tools (home fork)
+	s.registerComicReadingRoutes(admin, member, on) // reading views, read state, fixing a match
 	admin.HandleFunc("POST /api/comics/issues/{id}/grab", on(s.handleGrabComicIssue))
 	admin.HandleFunc("POST /api/comics/import", on(s.handleImportComics))
 	admin.HandleFunc("POST /api/comics/import/folder", on(s.handleImportComicFolder))
@@ -258,10 +259,17 @@ func (s *Server) handleGetComicSeries(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if s.comicRepo().MovedToManga(sr.ID) > 0 {
+		writeError(w, http.StatusNotFound, "This series moved to Manga. You'll find it there.")
+		return
+	}
 	issues, err := s.comicRepo().Issues(sr.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "The issues couldn't be read.")
 		return
+	}
+	if err := s.comicRepo().FillReading(requestUserID(r), &sr, issues); err != nil {
+		slog.Warn("comics: someone's reading couldn't be read", "err", err)
 	}
 	sr.ImageURL = s.comicImage(sr.ImageURL)
 	admin := isAdminRequest(r)
@@ -378,21 +386,32 @@ func (s *Server) handleAddComicSeries(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"series": sr, "issues": n})
 }
 
-// PUT /api/comics/{id} {"monitorNew"}
+// PUT /api/comics/{id} {"monitorNew", "type"}
 func (s *Server) handleUpdateComicSeries(w http.ResponseWriter, r *http.Request) {
 	sr, ok := s.comicSeriesFromPath(w, r)
 	if !ok {
 		return
 	}
 	var req struct {
-		MonitorNew *bool `json:"monitorNew"`
+		MonitorNew *bool   `json:"monitorNew"`
+		Type       *string `json:"type"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "That request couldn't be read.")
 		return
 	}
+	if req.Type != nil && !comics.ValidType(*req.Type) {
+		writeError(w, http.StatusBadRequest, "That isn't a kind of series.")
+		return
+	}
 	if req.MonitorNew != nil {
 		_ = s.comicRepo().SetMonitorNew(sr.ID, *req.MonitorNew)
+	}
+	if req.Type != nil {
+		if err := s.comicRepo().SetSeriesType(sr.ID, *req.Type); err != nil {
+			writeError(w, http.StatusInternalServerError, "The series couldn't be changed.")
+			return
+		}
 	}
 	sr, _ = s.comicRepo().GetSeries(sr.ID)
 	writeJSON(w, http.StatusOK, sr)
@@ -935,6 +954,16 @@ func (s *Server) runComicPipeline(queueID int64, sr comics.Series, is comics.Iss
 	dest, err := s.comicDest(sr, is, file)
 	if err != nil {
 		return fail(err)
+	}
+	// Usherr: no second copy of what's already filed. Nothing is deleted from
+	// the library: an identical copy is dropped, another one is left out.
+	if note := s.comicAlreadyFiled(is.ID, dest, size); note != "" {
+		if err := s.QueueRepo.SetStatus(queueID, queue.StatusCompleted, ""); err != nil {
+			return fail(err)
+		}
+		s.cleanupWorkDir(dir, protocol)
+		_ = s.QueueRepo.LogActivity(queueID, "imported", label+": "+note)
+		return nil
 	}
 	dest = freeName(dest)
 	res, err := organizer.Import(file, dest, organizer.ConflictSkip, nil)

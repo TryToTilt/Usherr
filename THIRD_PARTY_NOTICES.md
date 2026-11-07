@@ -5,7 +5,7 @@ Mediarium is licensed under the GNU Affero General Public License v3.0 (see LICE
 ## Contents
 
 - [Go modules compiled into the program](#go-modules) (109)
-- [Packages bundled into the web app](#web-app-packages) (56)
+- [Packages bundled into the web app](#web-app-packages) (57)
 - [Fonts](#fonts) (7)
 - [Tools in the Docker images](#tools-in-the-docker-images)
 - [Data from other services](#data-from-other-services)
@@ -38,6 +38,8 @@ The `-full` image is built on the official FlareSolverr image (MIT), which bring
 | [TVmaze](https://www.tvmaze.com) | the time episodes air, shown on the calendar | CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/) |
 
 Air times from TVmaze. Only a show's TheTVDB or IMDb id, or its name and year, is sent to it, and it can be switched off under Settings > Metadata.
+
+Chapters from [MangaDex](https://mangadex.org), when you switch that on in Settings > Manga, under its [acceptable use policy](https://api.mangadex.org/docs/): MangaDex and the scanlation groups are credited in the app and in each file, and it's not for ads or paid access. The chapters belong to their authors and translators. Most aren't licensed.
 
 ## Go modules
 
@@ -10729,6 +10731,7 @@ SOFTWARE.
 | @fontsource/righteous | 5.3.0 | OFL-1.1 |
 | @napi-rs/canvas | 1.1.0 | MIT |
 | @napi-rs/canvas-linux-x64-gnu | 1.1.0 | MIT |
+| @napi-rs/canvas-linux-x64-musl | 1.1.0 | MIT |
 | @types/localforage | 0.0.34 | MIT |
 | @types/react | 19.3.0 | MIT |
 | @xmldom/xmldom | 0.8.15 | MIT |
@@ -11826,6 +11829,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ### @napi-rs/canvas-linux-x64-gnu 1.1.0
+
+```text
+Licensed under MIT (the package ships no licence file).
+```
+
+
+### @napi-rs/canvas-linux-x64-musl 1.1.0
 
 ```text
 Licensed under MIT (the package ships no licence file).

@@ -193,9 +193,20 @@ var (
 	driveOpenMu sync.Mutex
 	driveOpenTo = map[int64]*driveOpened{}
 	driveOpenIn = map[int64]*sync.Mutex{} // one opening at a time per file
+
+	driveOpenStrikes = map[int64]time.Time{} // when a release first wouldn't open
+	driveHoleChecked = map[int64]time.Time{} // when a release's missing articles were last asked about
+	// driveStrikeGap: a release that won't open is given up on when it still
+	// won't this long after the first time; driveStrikeForget: that first time
+	// no longer counts after this.
+	driveStrikeGap    = 10 * time.Minute
+	driveStrikeForget = 24 * time.Hour
 )
 
-const driveOpenKeep = 30 * time.Minute
+const (
+	driveOpenKeep       = 30 * time.Minute
+	driveHoleCheckEvery = 10 * time.Minute
+)
 
 func init() {
 	go func() {
@@ -244,7 +255,12 @@ func (s *Server) driveStream(ctx context.Context, id int64) (*download.StreamFil
 	driveOpenMu.Unlock()
 
 	var nzbName string
-	if err := s.db.QueryRowContext(ctx, `SELECT nzb FROM streamed_files WHERE id = ?`, id).Scan(&nzbName); err != nil {
+	var storedSize int64
+	if err := s.db.QueryRowContext(ctx, `SELECT nzb, size FROM streamed_files WHERE id = ?`, id).Scan(&nzbName, &storedSize); err != nil {
+		return nil, err
+	}
+	want, err := s.driveWant(ctx, id)
+	if err != nil {
 		return nil, err
 	}
 	data, err := os.ReadFile(filepath.Join(s.streamedNZBDir(), filepath.Base(nzbName)))
@@ -261,23 +277,110 @@ func (s *Server) driveStream(ctx context.Context, id int64) (*download.StreamFil
 	}
 	octx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 90*time.Second)
 	defer cancel()
-	f, err := download.OpenStream(octx, servers, nzb)
+	f, err := download.OpenStreamFor(octx, servers, nzb, want)
 	if err != nil {
-		if errors.Is(err, download.ErrArticleMissing) {
-			s.driveDead(id)
+		switch {
+		case errors.Is(err, download.ErrArticleMissing):
+			s.driveOpenMissed(id)
+		case errors.Is(err, download.ErrNotInRelease):
+			s.driveDead(id) // kept from a pack without this episode: look for another
 		}
 		return nil, err
 	}
+	if storedSize > 0 && f.Size != storedSize {
+		// Kept by a version that always took a pack's biggest video, which was
+		// another episode. This one is the right one, and the drive should say so.
+		slog.Info("drive: the right file in a pack differs from the one kept", "file", id, "name", f.Name)
+		if _, err := s.db.ExecContext(ctx, `UPDATE streamed_files SET inner_file = ?, size = ? WHERE id = ?`, f.Name, f.Size, id); err == nil {
+			driveTreeChanged()
+		}
+	}
 	driveOpenMu.Lock()
+	delete(driveOpenStrikes, id)
 	driveOpenTo[id] = &driveOpened{file: f, last: time.Now()}
 	driveOpenMu.Unlock()
 	return f, nil
+}
+
+// driveWant says what a streamed file is, for finding it in its release.
+func (s *Server) driveWant(ctx context.Context, id int64) (download.StreamWant, error) {
+	var w download.StreamWant
+	var titleID int64
+	err := s.db.QueryRowContext(ctx, `SELECT title_id, season, episode, air_date, release, inner_file FROM streamed_files WHERE id = ?`, id).
+		Scan(&titleID, &w.Season, &w.Episode, &w.AirDate, &w.Release, &w.InnerFile)
+	if err != nil {
+		return w, err
+	}
+	if w.Episode > 0 {
+		// Only for a whole season out: a pack can't hold what hasn't aired.
+		_ = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM streamed_files WHERE title_id = ? AND season = ?`, titleID, w.Season).Scan(&w.SeasonEpisodes)
+	}
+	return w, nil
 }
 
 // driveReader is where a file's bytes come from: its release on Usenet (a
 // test puts a stand-in here).
 var driveReader = func(s *Server, ctx context.Context, id int64) (io.ReaderAt, error) {
 	return s.driveStream(ctx, id)
+}
+
+// driveOpenMissed counts a release that wouldn't open because a file's first
+// article is missing. A release leaves the drive only when that's still so a
+// while later, so one bad answer from a provider can't take a title out of
+// Plex, which would change its library.
+func (s *Server) driveOpenMissed(id int64) {
+	driveOpenMu.Lock()
+	first, ok := driveOpenStrikes[id]
+	if !ok || time.Since(first) > driveStrikeForget {
+		driveOpenStrikes[id] = time.Now()
+		driveOpenMu.Unlock()
+		slog.Info("drive: a release wouldn't open, a first article is missing; asking again later", "file", id)
+		return
+	}
+	stillMissing := time.Since(first) >= driveStrikeGap
+	if stillMissing {
+		delete(driveOpenStrikes, id)
+	}
+	driveOpenMu.Unlock()
+	if stillMissing {
+		s.driveDead(id)
+	}
+}
+
+// holeConfirmer is a video that can have its missing articles asked about again.
+type holeConfirmer interface {
+	ConfirmHoles(ctx context.Context) download.HoleVerdict
+}
+
+// driveHolesOver is called when a read reached more missing articles than the
+// video can take. The read has failed; now the servers are asked about exactly
+// those articles, once per driveHoleCheckEvery. The release leaves the drive
+// only if all of them answer and what's missing is still too much. A server that
+// can't be asked changes nothing: "couldn't ask" is not "gone".
+func (s *Server) driveHolesOver(id int64, ra io.ReaderAt) {
+	c, ok := ra.(holeConfirmer)
+	if !ok {
+		return
+	}
+	driveOpenMu.Lock()
+	if at, ok := driveHoleChecked[id]; ok && time.Since(at) < driveHoleCheckEvery {
+		driveOpenMu.Unlock()
+		return
+	}
+	driveHoleChecked[id] = time.Now()
+	driveOpenMu.Unlock()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		switch c.ConfirmHoles(ctx) {
+		case download.HolesGone:
+			s.driveDead(id)
+		case download.HolesBearable:
+			slog.Info("drive: most of a release's missing articles are back; it stays", "file", id)
+		case download.HolesUnknown:
+			slog.Info("drive: couldn't find out whether a release's articles are gone; it stays", "file", id)
+		}
+	}()
 }
 
 // driveDead marks a file's release as gone from Usenet: it leaves the drive
@@ -438,7 +541,7 @@ func (f *driveFile) Read(p []byte) (int, error) {
 	n, err := ra.ReadAt(p, f.off)
 	f.off += int64(n)
 	if err != nil && errors.Is(err, download.ErrArticleMissing) {
-		f.s.driveDead(f.n.fileID)
+		f.s.driveHolesOver(f.n.fileID, ra)
 	}
 	if errors.Is(err, io.EOF) && n > 0 {
 		err = nil

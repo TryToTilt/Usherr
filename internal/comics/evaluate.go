@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/rdborg/mediarium/internal/releaselang"
 )
 
 // Confidence in a match.
@@ -35,14 +37,6 @@ type Release struct {
 	SizeBytes  int64
 	Categories []int
 }
-
-// Usherr: a release in another language, by the tag in its name ("ger",
-// "German", "Deutsch"...). ComicVine's series are the original editions.
-var otherLanguage = regexp.MustCompile(`(?i)(?:^|[\s._\-\[\(])(ger|german|deutsch|fre|french|fra|ita|italian|italiano|spa|esp|spanish|espanol|español|dut|dutch|ned|nl|por|portuguese|pt-?br)(?:$|[\s._\-\]\)])`)
-
-var languageName = map[string]string{"ger": "German", "german": "German", "deutsch": "German", "fre": "French", "french": "French", "fra": "French",
-	"ita": "Italian", "italian": "Italian", "italiano": "Italian", "spa": "Spanish", "esp": "Spanish", "spanish": "Spanish", "espanol": "Spanish", "español": "Spanish",
-	"dut": "Dutch", "dutch": "Dutch", "ned": "Dutch", "nl": "Dutch", "por": "Portuguese", "portuguese": "Portuguese", "pt-br": "Portuguese", "ptbr": "Portuguese"}
 
 var (
 	notComic          = regexp.MustCompile(`(?i)\b(s\d{1,2}e\d{1,3}|480p|720p|1080p|2160p|x26[45]|hevc|web-?dl|bluray|mp3|flac|m4b|audiobook|epub|mobi|azw3)\b`)
@@ -81,8 +75,8 @@ func Evaluate(r Release, s Series, i Issue) Verdict {
 	if IsReprint(r.Title) {
 		return reject("A reprint or facsimile edition")
 	}
-	if m := otherLanguage.FindStringSubmatch(r.Title); m != nil && !otherLanguage.MatchString(s.Name) {
-		return reject("In another language (%s)", languageName[strings.ToLower(m[1])])
+	if lang := releaselang.Other(r.Title, s.Name); lang != "" {
+		return reject("In another language (%s)", lang)
 	}
 	want := NormalNumber(i.Number)
 	if alt := AltNumber(i); alt != "" {
@@ -129,6 +123,13 @@ func Evaluate(r Release, s Series, i Issue) Verdict {
 				return reject("Volume %d, not this one", n.Volume)
 			}
 			return doubtful(60, fmt.Sprintf("Volume %d: the issue itself for manga", n.Volume))
+		}
+		// A series set by hand as collected editions counts volumes the same way.
+		if n.Volume > 0 && s.Type == TypeCollected {
+			if strconv.Itoa(n.Volume) != want {
+				return reject("Volume %d, not this one", n.Volume)
+			}
+			return doubtful(60, fmt.Sprintf("Volume %d: the issue itself for this series", n.Volume))
 		}
 		return doubtful(30, "A collected edition (TPB, omnibus or similar): check it holds this issue")
 	}
@@ -202,7 +203,15 @@ func NamedIssue(title string, manga bool) string {
 
 var mangaPublisher = regexp.MustCompile(`(?i)\b(viz|kodansha|shueisha|shogakukan|yen press|seven seas|square enix|kadokawa|hakusensha|akita shoten|tokyopop|vertical|del rey manga|dark horse manga|j-novel|futabasha|ichijinsha|houbunsha|mag garden|enterbrain|media factory|ascii media works|tokuma|takeshobo|nihon bungeisha|coamix|shonen gahosha|kodansha usa|denpa|one peace|udon|digital manga)\b`)
 
-// IsManga reports whether a series is manga, by its publisher: manga counts
-// its volumes as the issues ("Vagabond Volume 023" is #23); a western
-// collection ("Saga Vol. 6") holds several issues instead.
-func IsManga(s Series) bool { return mangaPublisher.MatchString(s.Publisher) }
+// IsManga reports whether a series is manga, by the type set on it or else by
+// its publisher: manga counts its volumes as the issues ("Vagabond Volume 023"
+// is #23); a western collection ("Saga Vol. 6") holds several issues instead.
+func IsManga(s Series) bool {
+	if s.Type != "" {
+		return s.Type == TypeManga
+	}
+	return PublisherManga(s)
+}
+
+// PublisherManga reports whether a series' publisher is a manga publisher.
+func PublisherManga(s Series) bool { return mangaPublisher.MatchString(s.Publisher) }

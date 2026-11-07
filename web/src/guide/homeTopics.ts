@@ -34,6 +34,13 @@ export const HOME_TOPICS: TopicDef[] = [
     sources: [{ file: 'home/watching.md' }],
   },
   {
+    id: 'manga',
+    title: 'Manga',
+    summary: 'Adding a series by its English title, official editions and fan scans, why nothing has come yet, your own files.',
+    group: HOME_GROUP,
+    sources: [{ file: 'manga.md' }],
+  },
+  {
     id: 'home-livetv',
     title: 'Live TV',
     summary: 'Channels from your library, streams and free live channels; packs and the AI builder; scheduling like a network; Real TV; Jellyfin, Plex and IPTV apps.',

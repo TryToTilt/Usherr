@@ -264,6 +264,7 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
             {audiobooksOn ? <FolderStatus path={audiobooksPath} suggest={suggestFor('audiobooks')} onUse={setAudiobooksPath} /> : <small className="path-note">{t('Turn on Audiobooks in Media types first.')}</small>}
           </div>
           {comicsOn && <ExtraFolder kind="comics" />} {/* Usherr */}
+          {on('manga') && <ExtraFolder kind="manga" />} {/* Usherr */}
           {nsfwOn && <ExtraFolder kind="nsfw" />} {/* Usherr */}
           <div className="path-col">
             <label>

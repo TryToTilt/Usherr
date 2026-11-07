@@ -76,6 +76,23 @@ export function saveComicPlace(id: number, page: number, total: number, keepaliv
   })
 }
 
+// saveMangaPlace is the same for a volume of the Manga library.
+export function saveMangaPlace(id: number, page: number, total: number, keepalive = false, chapter = false) {
+  const item = `manga:${chapter ? 'c' : 'v'}:${id}`
+  const body = { item, position: page, duration: total }
+  const at = Date.now()
+  void updateStored(`/api/home/position?item=${item}`, { position: page, duration: total })
+  // A chapter and a volume can share a number: the id only keeps them apart in the waiting list.
+  const pending: Pending = { kind: 'manga', id: chapter ? -id : id, body, at }
+  if (!navigator.onLine) {
+    remember(pending)
+    return
+  }
+  void put('/api/home/position', body, keepalive).then((ok) => {
+    if (!ok) remember(pending)
+  })
+}
+
 let flushing = false
 
 // sendPending sends the places read offline, once the server is back. A book

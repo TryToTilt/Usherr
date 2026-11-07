@@ -51,7 +51,7 @@ var (
 	savedServers = func(s *Server) ([]download.ClientConfig, error) { return s.ownServers() }
 	// savedCheck asks the servers about a sample of a release's articles.
 	savedCheck = func(ctx context.Context, servers []download.ClientConfig, nzb *download.NZB) download.PrecheckResult {
-		return download.Precheck(ctx, servers, nzb, download.PrecheckOptions{Timeout: 15 * time.Second})
+		return download.Precheck(ctx, servers, download.ForStreamCheck(nzb), download.PrecheckOptions{Timeout: 15 * time.Second})
 	}
 	// savedOpen opens a streamed file's saved release for reading (opened
 	// once and shared with the virtual drive).
@@ -114,7 +114,7 @@ func (s *Server) savedHealth(ctx context.Context, f streamedFileRow) (string, er
 	}
 	res := savedCheck(ctx, servers, nzb)
 	switch {
-	case res.Hopeless():
+	case res.TooThinToStream():
 		s.driveDead(f.id) // off the drive too, until its search finds another
 		return "", errSavedDead
 	case res.Skipped:

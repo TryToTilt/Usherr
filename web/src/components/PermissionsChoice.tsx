@@ -30,6 +30,7 @@ export default function PermissionsChoice({ value, onChange, disabled }: { value
     { key: 'audiobooks', label: t('Audiobooks'), show: on('audiobooks') },
     { key: 'music', label: t('Music'), show: on('music') },
     { key: 'comics', label: t('Comics'), show: comicsOn },
+    { key: 'manga', label: t('Manga'), show: on('manga') },
     { key: 'nsfw', label: t('NSFW 18+'), show: nsfwOn },
   ]
   return (

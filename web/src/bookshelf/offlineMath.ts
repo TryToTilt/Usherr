@@ -2,10 +2,12 @@
 // progress.ts), so the tests can run them (offline.test.ts).
 
 // What can be kept: a book's ebook (an EPUB, a Kindle book read as EPUB, a
-// PDF, a comic of pictures), its audiobook, or an issue of the Comics library.
-export type KeptKind = 'epub' | 'kindle' | 'pdf' | 'comic' | 'audiobook' | 'issue'
+// PDF, a comic of pictures), its audiobook, an issue of the Comics library, or a
+// manga volume.
+export type KeptKind = 'epub' | 'kindle' | 'pdf' | 'comic' | 'audiobook' | 'issue' | 'volume'
 
 export function keptId(kind: KeptKind, id: number): string {
+  if (kind === 'volume') return `manga:${id}`
   return kind === 'issue' ? `comic:${id}` : kind === 'audiobook' ? `book:${id}:audiobook` : `book:${id}:ebook`
 }
 
@@ -34,6 +36,10 @@ export function bookPaths(kind: KeptKind, id: number, n: number, base: (p: strin
       const c = (p: string) => `/api/comics/issues/${id}${p}`
       return [c('/pages'), c('/marks'), `/api/home/position?item=comic:${id}`, ...list(n).map((p) => c(`/pages/${p}`))]
     }
+    case 'volume': {
+      const v = (p: string) => `/api/manga/volumes/${id}${p}`
+      return [v('/pages'), v('/marks'), `/api/home/position?item=manga:v:${id}`, ...list(n).map((p) => v(`/pages/${p}`))]
+    }
   }
 }
 
@@ -54,7 +60,7 @@ export function sizeText(bytes: number): string {
 // until it can. at is when it was read there (ms), so a place saved later on
 // another device is never replaced by an older one from here.
 export interface Pending {
-  kind: 'book' | 'comic'
+  kind: 'book' | 'comic' | 'manga'
   id: number
   format?: 'ebook' | 'audiobook'
   body: { format: 'ebook' | 'audiobook'; position: string; percent: number; finished?: boolean } | { item: string; position: number; duration: number }
@@ -62,6 +68,7 @@ export interface Pending {
 }
 
 export function pendingKey(p: Pick<Pending, 'kind' | 'id' | 'format'>): string {
+  if (p.kind === 'manga') return `manga:${p.id}`
   return p.kind === 'comic' ? `comic:${p.id}` : `book:${p.id}:${p.format}`
 }
 

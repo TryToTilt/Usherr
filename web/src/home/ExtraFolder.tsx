@@ -7,7 +7,7 @@ import FolderStatus from '../components/FolderStatus'
 import { useToast } from '../components/Toast'
 import { t } from '../i18n'
 
-export type ExtraKind = 'anime' | 'comics' | 'nsfw'
+export type ExtraKind = 'anime' | 'comics' | 'manga' | 'nsfw'
 
 interface FolderState {
   path: string // saved
@@ -20,15 +20,17 @@ interface FolderState {
 const LABEL: Record<ExtraKind, () => string> = {
   anime: () => t('Anime folder'),
   comics: () => t('Comics folder'),
+  manga: () => t('Manga folder'),
   nsfw: () => t('NSFW 18+ folder'),
 }
 const NOTE: Record<ExtraKind, () => string> = {
   anime: () => t('New anime shows go here. Add it to Jellyfin, Emby or Plex as its own library.'),
   comics: () => t('Downloaded and imported comics go here, a folder per series. Point Komga or Kavita at it.'),
+  manga: () => t('Volumes go here, as Series/Series v01.cbz. Komga and Kavita can read this folder too.'),
   nsfw: () => t('NSFW 18+ downloads go here. Files in it are never overwritten or deleted.'),
 }
-const EXAMPLE: Record<ExtraKind, string> = { anime: '/data/anime', comics: '/data/comics', nsfw: '/data/nsfw' }
-const VARIABLE: Record<ExtraKind, string> = { anime: 'ANIME_DIR', comics: 'COMICS_DIR', nsfw: 'NSFW_DIR' }
+const EXAMPLE: Record<ExtraKind, string> = { anime: '/data/anime', comics: '/data/comics', manga: '/data/manga', nsfw: '/data/nsfw' }
+const VARIABLE: Record<ExtraKind, string> = { anime: 'ANIME_DIR', comics: 'COMICS_DIR', manga: 'MANGA_DIR', nsfw: 'NSFW_DIR' }
 
 export default function ExtraFolder({ kind }: { kind: ExtraKind }) {
   const toast = useToast()

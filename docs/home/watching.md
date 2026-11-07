@@ -211,6 +211,21 @@ Open an issue to read it page by page (swipe or use the arrow keys);
 the pages like paper (two side by side on a wide screen). *Catch me up* recaps a series
 up to where you stopped, and **Story arcs** lists what to read in which order.
 
+The sliders button in the reader sets the **reading direction** and how pages show:
+page turn, one page, two pages, panels, or **webtoon** (one long scroll). It's remembered
+for each series, just for you, and *Use these for other comics too* makes it your default.
+A file marked right to left, or a series set to manga, opens right to left by itself.
+
+The **Reading** tab has **Continue**, **Want to Read** and **Read**, each your own. The last
+page offers the next issue. The **⋯** beside an issue marks it, or everything up to it,
+read or unread; the series page does the whole series.
+
+If a series was matched to the wrong volume, an administrator can press **Fix match** on its
+page, search again and choose another. You see what it would do first. Issues are paired by
+number, so files, what people have read and bookmarks stay with them. No file moves: the
+Rename tool in Comics settings renames them when you run it. Fix match also sets what kind
+of series it is, which decides how a manga or a collected edition is searched for and read.
+
 ## On a phone
 
 Usherr works the same on a phone. To keep it like an app, open it in the

@@ -115,6 +115,24 @@ func CaptureAccountMail(t interface{ Cleanup(func()) }, got chan<- [3]string) {
 	t.Cleanup(func() { sendAccountMail = old })
 }
 
+// CaptureBookMail replaces emailing a book for the length of the test: mails
+// arrive on got, and a non-nil fail makes the send fail with it.
+func CaptureBookMail(t interface {
+	Helper()
+	Cleanup(func())
+}, got chan<- notify.FileMail, fail error) {
+	t.Helper()
+	old := sendBookMail
+	sendBookMail = func(_ context.Context, _ *notify.EmailSender, m notify.FileMail) error {
+		if fail != nil {
+			return fail
+		}
+		got <- m
+		return nil
+	}
+	t.Cleanup(func() { sendBookMail = old })
+}
+
 func (s *Server) TestSetTMDBBaseURL(apiKey, baseURL string) {
 	s.tmdbMu.Lock()
 	s.tmdb = metadata.NewWithBaseURL(apiKey, baseURL)

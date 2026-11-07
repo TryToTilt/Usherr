@@ -120,6 +120,13 @@ func (s *Server) startQueued(item queue.Item, done func()) error {
 	if it, err := s.QueueRepo.Get(item.ID); errors.Is(err, sql.ErrNoRows) || (err == nil && it.Status == queue.StatusStopped) {
 		s.releaseTitleClaims(item)
 	}
+	if item.Protocol == queue.Protocol(mangaSourceDex) { // manga hook (Usherr): chapters wait for their own slot, and don't keep Usenet waiting
+		held := run
+		run = func() {
+			done()
+			held()
+		}
+	}
 	s.launch(item, done, run)
 	return nil
 }

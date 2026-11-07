@@ -25,6 +25,40 @@ func (s *Server) unclaimComicIssue(id int64) {
 	_ = repo.SetState(id, comics.StatusMissing, "", 0)
 }
 
+// copyAt reports what's at a path, for not filing a second copy: whether a
+// file is there, and whether it's as big as the one about to be filed.
+func copyAt(path string, size int64) (there, same bool) {
+	if path == "" {
+		return false, false
+	}
+	st, err := os.Stat(path)
+	if err != nil || st.IsDir() {
+		return false, false
+	}
+	return true, st.Size() == size
+}
+
+// comicAlreadyFiled says why a finished download shouldn't be filed as this
+// issue, or "" when it should: the issue has its file already, by another copy
+// of the same release, or an earlier download left the same file at dest.
+func (s *Server) comicAlreadyFiled(issueID int64, dest string, size int64) string {
+	repo := s.comicRepo()
+	if is, err := repo.GetIssue(issueID); err == nil && is.Status == comics.StatusDownloaded {
+		if there, same := copyAt(is.FilePath, size); there {
+			if same {
+				return "the same file is already in your library, so this copy was dropped"
+			}
+			return "you already have this issue, in a file of another size. It was kept, and this copy wasn't filed"
+		}
+	}
+	if there, same := copyAt(dest, size); there && same {
+		if repo.SetState(issueID, comics.StatusDownloaded, dest, size) == nil {
+			return "the same file is already in your library, so this copy was dropped"
+		}
+	}
+	return ""
+}
+
 // claimComicFiles registers files in the series' folder as the missing
 // issues they name; it returns how many.
 func (s *Server) claimComicFiles(sr comics.Series) int {

@@ -9,10 +9,11 @@ package api
 import (
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 )
 
-var positionItemRe = regexp.MustCompile(`^(movie|episode|video|sport|comic|title:movie|title:tv):[0-9a-z:._-]{1,80}$`)
+var positionItemRe = regexp.MustCompile(`^(movie|episode|video|sport|comic|manga|title:movie|title:tv):[0-9a-z:._-]{1,80}$`)
 
 // a video this close to its end (or past this share of it) is finished
 const (
@@ -22,7 +23,7 @@ const (
 )
 
 func positionFinished(item string, position, duration float64) bool {
-	if len(item) > 6 && item[:6] == "comic:" {
+	if strings.HasPrefix(item, "comic:") || strings.HasPrefix(item, "manga:") { // pages, not seconds
 		return position <= 1 || (duration > 0 && position >= duration)
 	}
 	if position < positionMinStart {
@@ -69,5 +70,7 @@ func (s *Server) handlePositionPut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.guestPlayed(r.Context(), user, body.Item, body.Position, body.Duration) // a joined party's stub, stamped at the credits
+	s.comicPlaceSaved(user, body.Item, body.Position, body.Duration)          // a comic read to its last page is read
+	s.mangaPlaceSaved(user, body.Item, body.Position, body.Duration)          // and a manga volume
 	w.WriteHeader(http.StatusNoContent)
 }

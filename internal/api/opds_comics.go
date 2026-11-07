@@ -551,7 +551,12 @@ func (s *Server) opdsComicFile(w http.ResponseWriter, r *http.Request, parts []s
 }
 
 func (s *Server) opdsIssueDownload(w http.ResponseWriter, r *http.Request, is comics.Issue) {
-	f, err := os.Open(is.FilePath)
+	s.opdsFileDownload(w, r, is.FilePath)
+}
+
+// opdsFileDownload sends a comic or manga file to save.
+func (s *Server) opdsFileDownload(w http.ResponseWriter, r *http.Request, file string) {
+	f, err := os.Open(file)
 	if err != nil {
 		http.Error(w, "Couldn't find the file. It may have been moved or deleted.", http.StatusNotFound)
 		return
@@ -562,7 +567,7 @@ func (s *Server) opdsIssueDownload(w http.ResponseWriter, r *http.Request, is co
 		http.Error(w, "Couldn't read the file.", http.StatusInternalServerError)
 		return
 	}
-	name := filepath.Base(is.FilePath)
+	name := filepath.Base(file)
 	ct := opdsFileTypes[strings.TrimPrefix(strings.ToLower(filepath.Ext(name)), ".")]
 	if ct == "" {
 		ct = "application/octet-stream"

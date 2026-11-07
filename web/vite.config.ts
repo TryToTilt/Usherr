@@ -10,6 +10,9 @@ export default defineConfig({
   base: './',
   build: {
     outDir: 'dist',
+    // Fonts stay files: the server's font-src doesn't allow data: addresses, so
+    // an inlined small font is blocked with a console error on every page.
+    assetsInlineLimit: (file) => (/\.woff2?$/.test(file) ? false : undefined),
   },
   server: {
     // Go backend during `npm run dev` (the UI talks to the same REST

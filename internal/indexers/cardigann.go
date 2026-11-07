@@ -518,8 +518,8 @@ func (v *defValidator) filters(what string, fs []FilterBlock) {
 		args := filterArgs(f.Args)
 		switch f.Name {
 		case "regexp", "re_replace":
-			// re_replace falls back to leaving the text unchanged when Go can't
-			// express the pattern, but never runs one that is too costly
+			// re_replace falls back to leaving the text unchanged when no engine
+			// can read the pattern, but never runs one that is too costly
 			if p := argAt(args, 0); !strings.Contains(p, "{{") {
 				if _, err := compileDotNetRegex(p); err != nil && (f.Name == "regexp" || errors.Is(err, errRegexTooBig)) {
 					v.add("%s: %v", what, err)

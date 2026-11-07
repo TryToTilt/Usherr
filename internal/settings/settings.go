@@ -280,6 +280,7 @@ const (
 	KeyModulesMusic      = "modules.music"      // "1" switches music on; unset or "0" leaves it off (unset falls back to music.enabled)
 	KeyModulesAudiobooks = "modules.audiobooks" // "1" switches it on; unset or "0" leaves it off
 	KeyModulesEbooks     = "modules.ebooks"     // "1" switches it on; unset or "0" leaves it off
+	KeyModulesManga      = "modules.manga"      // "1" switches it on; unset or "0" leaves it off (Usherr)
 
 	// Updates and restarts (Settings > System). See docs/security.md.
 	KeyStatsChoice        = "stats.choice"                   // the administrator's answer about sharing anonymous usage numbers: "yes", "no", or unset when not asked yet. Nothing is sent unless it is "yes" (see docs/usage-stats.md)

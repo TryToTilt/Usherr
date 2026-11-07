@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, type EReaderAccess } from '../api'
 import { DOCS_URL } from '../docs'
-import { t, tx } from '../i18n'
+import { st, t, tx } from '../i18n'
 import CopyBox from './CopyBox'
 import { useConfirm } from './ConfirmProvider'
 import Icon from './Icon'
@@ -11,13 +11,16 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 // Your profile: read your Mediarium books on an e-reader. Two ways, both off
 // until you turn them on: a catalogue that reading apps (KOReader, Moon+
-// Reader, Librera, Marvin, Foliate) connect to, and sync for a Kobo.
+// Reader, Librera, Marvin, Foliate) connect to, and sync for a Kobo. Below
+// them: the addresses books can be emailed to, and progress sync (KOSync).
 export default function EReaderCard() {
   const toast = useToast()
   const confirm = useConfirm()
   const [access, setAccess] = useState<EReaderAccess | null>(null)
   const [password, setPassword] = useState('') // shown once, right after it is made
   const [busy, setBusy] = useState(false)
+  const [deviceName, setDeviceName] = useState('')
+  const [deviceEmail, setDeviceEmail] = useState('')
 
   useEffect(() => {
     api.eReader().then(setAccess).catch(() => undefined)
@@ -29,8 +32,10 @@ export default function EReaderCard() {
       const a = await work()
       setAccess(a)
       toast.success(done)
+      return true
     } catch (e) {
       toast.error(errorText(e))
+      return false
     } finally {
       setBusy(false)
     }
@@ -46,6 +51,13 @@ export default function EReaderCard() {
       toast.error(errorText(e))
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function addDevice() {
+    if (await run(() => api.addEReaderDevice(deviceName, deviceEmail), t('Address saved.'))) {
+      setDeviceName('')
+      setDeviceEmail('')
     }
   }
 
@@ -157,6 +169,54 @@ export default function EReaderCard() {
           {t('Make my Kobo address')}
         </button>
       )}
+
+      <h3 style={{ margin: '22px 0 6px', fontSize: '1rem' }}>{t('Send by email')}</h3>
+      <p style={{ color: 'var(--text-dim)', margin: '0 0 8px' }}>
+        {t("Save your Kindle's email address, or another e-reader's. A book's page then has a Send to e-reader button. Books of up to 50 MB can go this way, and only to the addresses you save here.")}
+      </p>
+      {access.send.problem ? (
+        <p className="error-text">{st(access.send.problem)}</p>
+      ) : (
+        access.send.sender && (
+          <>
+            <p className="field-hint">{t("Amazon only takes books from senders you approve. On Amazon's Manage Your Content and Devices page, under Preferences, Personal Document Settings, add this address to the approved list:")}</p>
+            <CopyBox text={access.send.sender} label={t('The address books come from')} />
+          </>
+        )
+      )}
+      {access.send.devices.map((d) => (
+        <p key={d.id} style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '8px 0' }}>
+          <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
+            <strong>{d.name}</strong> {d.email}
+          </span>
+          <button disabled={busy} onClick={() => void run(() => api.removeEReaderDevice(d.id), t('Address removed.'))}>
+            {t('Remove')}
+          </button>
+        </p>
+      ))}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+        <input style={{ flex: '1 1 140px', minWidth: 0 }} placeholder={t('Name, such as My Kindle')} aria-label={t('Name of the device')} value={deviceName} onChange={(e) => setDeviceName(e.target.value)} disabled={busy} />
+        <input style={{ flex: '2 1 220px', minWidth: 0 }} type="email" placeholder="name@kindle.com" aria-label={t('Email address of the device')} value={deviceEmail} onChange={(e) => setDeviceEmail(e.target.value)} disabled={busy} />
+        <button disabled={busy || !deviceName.trim() || !deviceEmail.trim()} onClick={() => void addDevice()}>
+          {t('Save address')}
+        </button>
+      </div>
+
+      <h3 style={{ margin: '22px 0 6px', fontSize: '1rem' }}>{t('Keep your place with KOReader and Readest')}</h3>
+      <p style={{ color: 'var(--text-dim)', margin: '0 0 8px' }}>
+        {tx('These apps can keep your place in step with Usherr (KOSync). In KOReader, open a book, then Progress sync: choose Custom sync server and enter this address, then log in with your user name and app password. Choose Login, not Register. {guide}', {
+          guide: (
+            <a href={`${DOCS_URL}/books.md#keeping-your-place-with-koreader-and-readest`} target="_blank" rel="noreferrer">
+              {t('What syncs and what cannot')}
+            </a>
+          ),
+        })}
+      </p>
+      <p style={{ margin: '6px 0 2px' }}>{t('Sync server address')}</p>
+      <CopyBox text={origin + access.kosync.path} label={t('Sync server address')} />
+      {!access.opds.on && <p className="field-hint">{t('Make an app password above first.')}</p>}
+      {access.opds.on && !access.kosync.ready && <p className="field-hint" style={{ color: 'var(--warning)' }}>{t('Your app password is too old to sign in here. Make a new one above; your other apps will need it too.')}</p>}
+      <p className="field-hint">{t('Get the book from the catalogue above, so your device has the same file: another copy of the same book is not recognised. An EPUB opened in KOReader goes to the start of the chapter you were in.')}</p>
     </fieldset>
   )
 }

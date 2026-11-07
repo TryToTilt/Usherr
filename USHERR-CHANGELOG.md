@@ -5,6 +5,111 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.59.1] - 2026-11-07
+
+### Fixed
+
+- **Manga downloads show the series and its cover in Downloads**, with the volume when it's one volume, instead of the release name and a stand-in picture.
+- **One time left, not two.** A running download showed an estimate from its average speed beside one from its speed right now, and they could be half an hour apart. Only the one from the speed right now is shown.
+- **Opening a download's details no longer pulls its cover down** to the middle of the card.
+
+## [2.59.0] - 2026-11-07
+
+### Added
+
+- **Manga: chapters from MangaDex, if you choose them.** It's off until you switch it on in Settings > Manga, and official editions stay the default. A new **Chapters** tab on a series lets you follow new chapters or all of them. No account is needed.
+- **Every chapter says what's true of it:** on disk, wanted, in a volume you have, on another site (those can't be downloaded, so they're skipped), or taken down.
+- **"Why nothing yet?" now explains the empty ones.** When MangaDex lists a series but nothing can be downloaded, it says how many chapters were taken down and how many are links elsewhere, and that a publisher is the likely reason. A series with nothing is asked about less and less.
+- **Chapters credit who made them.** Files go in `Series/Chapters/`, named with the group, with the group and MangaDex in their ComicInfo.xml. When several groups did a chapter, Usherr takes the one you chose for the series, or else the one that did the most.
+- **Downloads are gentle.** One batch at a time and one line in Activity. A batch doesn't hold a place in the download line or use Usenet connections, and it carries on after a restart. Big catch-ups run between 2 and 9 in the morning. If MangaDex is away or asks Usherr to wait, it isn't asked until the time is up, and the page says so.
+- **Reading runs across chapters and volumes.** The last page offers whichever comes next, and your place and Continue follow you.
+- **When a volume arrives,** its chapters show "In Volume N" and your place carries over. **Tidy chapters** sets them aside in `.replaced` and never deletes them, and you can put them back.
+- **Manga reads panel by panel, the same as Comics.** Press **Panels** in the reader and the page glides from panel to panel: right to left for manga, top to bottom for manhwa, remembered for each series. A picture holding two pages is read one page, then the other. A long manhwa strip is cut at its gaps, and shown a screen at a time where a stretch is too tall. A page with no panels to find is shown whole, and on an upright phone a wide one with none is shown a page at a time. Chapters read this way as well as volumes. PDFs aren't drawn on the server, so they read by the page.
+- **More for reading manga**, all under the sliders button in the reader, and kept simple:
+  - **Shift the pairs by one page**, for a series whose two-page pictures come out split across a turn. Kept for each series.
+  - **Fit**: whole page, width, height or actual size. Too big for the screen, it scrolls.
+  - **Trim white borders**, **Brightness** and **Dark pages**, which turns white paper black for reading in the dark.
+  - **Hold a finger on a page** (or right-click) to save it. The screen stays on while you read, and goes to sleep after 15 minutes of no page turns. Tap zones are shown the first time, and the next pages load ahead of you. The page number now has a percentage beside it, and there's a full screen button.
+- **Discover manga** (Manga > Discover): what's trending, popular or new on AniList, by genre if you like, with no key or account. **Add** on a tile is one press, and you choose what it gets: all volumes, new ones only or nothing yet. Type a user name to see what's on a public AniList list.
+- **A series' page knows more**: its genres, score, **Related series** (sequels, spin-offs, side stories) and **More like this**, each with an Add button. This comes from AniList when you open the page and isn't stored, so without AniList the page simply doesn't have it.
+- **New volumes of a series you follow** go on the calendar on the day they're noticed, and send a notification. If you've chosen notifications by hand, tick **New manga volumes** in Settings > Notifications. AniList often has no volume count until a series ends, so most new volumes are noticed from your indexers' releases.
+- **Continue reading on Home**, for manga you're part way through, and how many volumes you've read on the Manga page.
+
+### Changed
+
+- A run like `One Piece (Chapters 1-721)` is still turned down for a series that follows volumes. For one that follows chapters, with fan scans from your indexers on, it now waits for you. Its chapters are filed if each is its own file. One big file can't be split, and Activity says so.
+- **A manga series' details now refresh between 2 and 9 in the morning**, instead of at any hour. Running series are asked about daily, finished ones monthly.
+- **Comics' panel view reads two-page pictures one page at a time too**, for pages it hasn't worked out yet, as it shares this code with Manga.
+
+### Fixed
+
+- **Manga volumes wrapped in a ZIP are read.** Published volumes often come as a RAR holding a ZIP, and Usherr said they held "only RAR, ZIP files". A ZIP of pages now counts as a CBZ, and a ZIP holding a PDF, EPUB or comic is opened.
+- **More indexer sites work, including Nyaa.** Sites whose entries in the site list use the fancier kinds of text patterns now load and read properly, instead of being refused with an error or having some of their titles left untidied.
+- **A manga series' dialogs open on the screen.** On a phone, **Choose a release** and **Sources for this series** could open off the bottom of a long page.
+
+## [2.58.2] - 2026-11-07
+
+### Fixed
+
+- **A book's page fits the screen.** In Curl, Slide and None you never have to scroll up or down: the reader is pinned to the part of the screen you can see, stays clear of the phone's own bars, and makes the page again when the address bar comes or goes or you rotate the phone, on the same page. PDFs open with a whole page showing, and Fit width stays a button.
+
+### Added
+
+- **Scroll as a way to read.** In the reader's Aa settings, Reading is now Pages or Scroll. Scroll runs the book as one long column, with your place, bookmarks and highlights kept. Pages stays the default.
+
+## [2.58.1] - 2026-11-07
+
+### Fixed
+
+- **Manga checks its folder before it fetches anything.** With a manga folder Usherr can't save to, downloads came down and then failed at the last step. Now it says so on the Manga settings page and doesn't search or download until the folder works. If your Docker setup has no manga folder yet, add one such as `/your/manga:/data/manga`.
+
+## [2.58.0] - 2026-11-06
+
+### Added
+
+- **Manga, a section of its own** (off until you switch it on in Settings > Media types): type a series' English title and press Add, with no site to pick. Other titles work too, since the titles come from AniList. Choose All volumes, New volumes only or Nothing yet.
+  - **Official English editions by default.** Usherr tells them from fan scans by the release's name. Fan scans and Nyaa are choices in Settings > Manga, off until you pick them, and a single series can differ. "Official" describes the edition, so a copy on an indexer still isn't a purchase: every series with a known publisher has a Buy it link.
+  - **Every series says what's happening.** One sentence, when it looks next, and **Why nothing yet?**: "Searched 3 indexers for Volume 14. Found 4 results: 2 in French, 2 other volumes."
+  - **Volumes arrive by themselves** when Usherr is sure, through your usual indexers, Activity, blocklist and limits. Chapters, other languages and spin-offs are turned down, and packs and anything doubtful wait for you. `Mob Psycho 100 v01` and `Kaiju No. 8 v01` now read as volume 1.
+  - **Gentle on your indexers.** It searches once by the series' name, then by volume only if that found something, and waits longer each time nothing turns up: a day, three days, a week, then a month.
+  - **Your own files count.** Usherr finds names like `Series/Series v01.cbz` in the manga folder, without moving or changing them, when you ask, when you add a series, and once a night between 2 and 9.
+  - **A reader of its own.** Tap a volume to read it: right to left for manga, one long scroll for manhwa, your choice kept for each series. Two pages on a wide screen, one on a phone, and a two-page spread stays whole. Your place, bookmarks and a Continue reading row follow you, and the last page offers the next volume. CBZ, CBR, PDF and EPUBs made of pictures all read here.
+  - **The book reader's page turn on manga.** The page curls after your finger or mouse, from the left edge when it reads right to left. Curl, Slide or None is the same choice as in the book reader, and a device asking for less motion just turns.
+  - **Bring manga over from Comics** (Settings > Manga): you see every new file name first, files are moved and never deleted or overwritten, and Undo puts it all back. Where you'd got to and your bookmarks come too. Duplicates stay where they are and say why, and a series with no files comes with one tick.
+  - **Nyaa is one switch.** Turning it on adds Nyaa to your indexers for Manga only, after a plain warning about seeding, and follows your VPN settings. Films and TV don't ask it. **Sources for this series** lets one series differ.
+  - **Published editions as indexers really name them.** `VIZ.Media.Chainsaw.Man.Vol.21.2026.HYBRID.MANGA.eBook-21A1` and `Yen.Press-Yotsubaand.Vol.15...` were being turned down as another series, because the publisher comes first. They now count as Volume 21 and Volume 15 of an official edition. Searches ask the Books categories, so a title's anime doesn't crowd out its volumes.
+  - **Odd formats are handled, not blocklisted.** A release holding only MOBI, or a novel in an EPUB, says so in Activity and asks you next time. When a pack holds a volume twice, the better copy is kept: official over fan scan, then pictures over PDF, then the bigger file.
+  - In **OPDS**, so Panels, Chunky and KOReader read a page at a time, and **Keep on this device** works for volumes.
+- **A page turn like paper in the ebook reader**: the page curls after your finger or mouse, with its back, the gloss on the bend and a soft shadow underneath. Pull it from the edge of the page (or anywhere sideways with a finger; hold still to pick words, as before), bring it back to change your mind, or flick it. Taps and arrow keys play the whole turn, in right-to-left books from the left. Text > Page turn: Curl, Slide or None; a system asking for less motion starts on None, and a browser that can't draw the curl slides.
+- **A page turn like paper in the ebook reader**: the page curls after your finger or mouse, with its back, the gloss on the bend and a soft shadow underneath. Pull it from the edge of the page (or anywhere sideways with a finger; hold still to pick words, as before), bring it back to change your mind, or flick it. Taps and arrow keys play the whole turn, in right-to-left books from the left. Aa > Page turn: Curl, Slide or None; a system asking for less motion starts on None, and a browser that can't draw the curl slides.
+- **The ebook reader fits how you like to read**: under Aa there is now line spacing, margins, justify on or off, more fonts (or the book's own) and a black page for OLED screens, all remembered. Tap a footnote mark to read the note in a small card and stay on your page.
+- **Edit a book's details**: an Edit details button on the book's page lets you correct the title, author, series, number, year and description, use what the book's own file says, or match it again against Open Library, Hardcover and Google Books. No more deleting and adding it again. Files stay where they are.
+- **Send a book to your Kindle or e-reader by email**: save your device's address on your profile, then press Send to e-reader on a book's page. Older Kindle formats go as EPUB, and EPUBs are mended so Amazon takes them. Up to 50 MB, through the mail server of your email notification. Add the sender to Amazon's approved list, or Amazon drops the book without a word.
+- **Keep your place with KOReader and Readest**: Usherr is now a KOSync server, signing in with your app password. Your place follows between the apps and Usherr's reader, by page for PDFs and comics, and by percentage and chapter for EPUBs. See the guide for what can't convert.
+- **NSFW 18+ tools** (NSFW page > Tools, for administrators; each runs only when you press its button):
+  - **Match files by fingerprint**: finds video files in your NSFW folder that Usherr doesn't know and looks them up on StashDB. You see each file with the video it matched, how it matched and whether the length agrees. Nothing is added until you confirm, and files stay where they are.
+  - **Bring in my StashDB favorites**: shows the favorite performers and studios of your StashDB account, then follows the ones you pick, from today on. No older videos are added and no search starts. It never unfollows anyone or changes anything on StashDB. A switch (off by default) repeats it every night, between 2 and 9.
+  - **Rename and file**: shows old and new names as `Studio/Studio - YYYY-MM-DD - Title [quality].ext` before anything changes. You pick the videos; subtitles and `.nfo` files move along, nothing is ever overwritten, copied or deleted, and it can all be undone.
+- **Audiobook player**:
+  - **Bookmarks**: keep a spot with one press and add a note. They are listed in the player and on the book's page.
+  - **Goes back a little after a pause**, more the longer it was paused. You can turn it down or off in the new player settings.
+  - **Choose your skip lengths**, 5 to 60 seconds, back and forward.
+  - **Lock screen**: phones that show a progress bar can now drag it, and the skips use your lengths.
+- **Real audiobook lengths**: Usherr now reads how long each file really is, for a book when you open it and for the rest between 2 and 9 in the morning. A book in many files becomes one timeline, with a slider for the whole book, the time left, chapter start times and an exact percent, and skips carry on across files. Your saved places stay exactly where they were.
+- **Better audiobook import**: reads the narrator, series number and Audible ASIN from folder names like `Vol 2 - Title {Narrator} [B0015T963C]`, the files `metadata.json`, `desc.txt`, `reader.txt` and `.opf`, and the tags in the audio. It only fills in what a book doesn't have, and files stay where they are. Importing again fills in the books you already have.
+
+### Changed
+
+- **Comics turn down more languages, and don't file a second copy.** Japanese and raw, Korean, Chinese, Russian and French `T25` releases are now refused, as German and French already were. A copy of an issue you already have isn't filed beside it any more: the same file is dropped, and one of another size is left out with a note in Activity.
+- **The ebook reader**: a book now reopens on the page you left, not one page or spread earlier. Highlights sit on their words again, on the page and in the page curl, and show in the curl of the next chapter too. A page dragged while the screen drops the curl still turns. Someone who had chosen Fade now gets Slide. On an iPhone, words picked in a book can be highlighted again and links in a book work.
+- **The virtual drive's own search keeps to the night** (Settings > Extras > Virtual drive): it runs only between the hours on the card, 2 AM to 9 AM to start with, so your streams have the Usenet connections during the day. The day's searches are spread evenly over those hours, so 60 a day is still 60. What you start yourself isn't held back. The card shows Usherr's clock and warns you if it's on UTC.
+- **One missing article no longer ends a stream.** Usherr asks your servers once more, then plays past it as a moment's glitch, as long as the video can take it: at most 2 articles in a row, 5 in all and 1% of the file, and never in the file's start or in formats that can't recover. Past that, a title leaves the drive only once all your servers confirm the articles are gone, so a provider's bad moment can't take it out of Plex.
+- **Season packs play the right episode.** Usherr now finds the episode's own file in a release by its name, also inside RAR archives. When a pack's names are scrambled it goes by the order and sizes only if everything adds up, and otherwise tries the next release rather than guess.
+- **Streaming is quicker and holds up better.** Read-ahead grows when a player keeps catching up with it and shrinks when it doesn't, a jump goes straight to the new place, a hung connection costs about 3 seconds instead of a minute, and all streams together share 512 MB of memory.
+- **Manga and webtoons in the Comics reader**: read right to left or left to right, one page, two pages, page turn, panels, or a **webtoon** view (one long scroll with no gaps). Keys, taps and swipes go the way the comic reads. Your choice is remembered for each series, and you can make it your default. A file marked as right to left, or a series set to manga, opens that way by itself.
+- **Your reading in Comics**: a **Continue** row above your shelves, and a new **Reading** tab with Continue, Want to Read and Read, each kept for you alone. The last page offers the **next issue**. Mark an issue, everything up to it, or a whole series as read or unread. Reading to the last page marks it read for you.
+- **Fix a wrong Comic Vine match** (a series' page > Fix match, for administrators): search again and choose the right volume. You see what it would do first. Issues are paired by number, so files, what people have read and bookmarks stay with them, and no file moves. You can also say what kind of series it is: comic, manga, webtoon or collected editions.
+
 ## [2.57.0] - 2026-11-06
 
 ### Added

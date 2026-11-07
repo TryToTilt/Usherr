@@ -3,7 +3,7 @@
 //
 // No React in this file, so it can be tested on its own.
 
-export type LibraryTab = 'movie' | 'tv' | 'music' | 'ebook' | 'audiobook' | 'anime' | 'comics' | 'nsfw' // Usherr: anime, comics, NSFW
+export type LibraryTab = 'movie' | 'tv' | 'music' | 'ebook' | 'audiobook' | 'anime' | 'comics' | 'manga' | 'nsfw' // Usherr: anime, comics, manga, NSFW
 
 // Usherr: the kinds this fork adds. Anime sits next to TV; Comics and NSFW 18+
 // come last and have pages of their own.
@@ -13,9 +13,9 @@ export interface HomeTabs {
 }
 
 // The switches in Settings, Media types, that decide which tabs exist.
-export type LibraryModule = 'movies' | 'tv' | 'music' | 'ebooks' | 'audiobooks'
+export type LibraryModule = 'movies' | 'tv' | 'music' | 'ebooks' | 'audiobooks' | 'manga'
 
-const ALL_TABS: readonly LibraryTab[] = ['movie', 'tv', 'music', 'ebook', 'audiobook', 'anime', 'comics', 'nsfw']
+const ALL_TABS: readonly LibraryTab[] = ['movie', 'tv', 'music', 'ebook', 'audiobook', 'anime', 'comics', 'manga', 'nsfw']
 
 export function isLibraryTab(v: string | null | undefined): v is LibraryTab {
   return !!v && (ALL_TABS as readonly string[]).includes(v)
@@ -30,12 +30,13 @@ export function libraryTabs(on: (key: LibraryModule) => boolean, home?: HomeTabs
   if (on('music')) video.push('music')
   // With nothing on at all, the Library still opens on Movies.
   const videoKinds: LibraryTab[] = video.length > 0 ? video : ['movie']
-  const booksOn = on('ebooks') || on('audiobooks')
+  const booksOn = on('ebooks') || on('audiobooks') || on('manga')
   return [
     ...(on('movies') || on('tv') || on('music') || !booksOn ? videoKinds : []),
     ...(on('ebooks') ? (['ebook'] as const) : []),
     ...(on('audiobooks') ? (['audiobook'] as const) : []),
     ...(home?.comics ? (['comics'] as const) : []),
+    ...(on('manga') ? (['manga'] as const) : []),
     ...(home?.nsfw ? (['nsfw'] as const) : []),
   ]
 }
@@ -50,6 +51,7 @@ export function activeLibraryTab(tabs: readonly LibraryTab[], kindParam: string 
 // The address that opens the Library on a tab.
 export function libraryTabPath(tab: LibraryTab): string {
   if (tab === 'comics') return '/comics' // Usherr
+  if (tab === 'manga') return '/manga' // Usherr
   if (tab === 'nsfw') return '/nsfw' // Usherr
   return `/library?kind=${tab}`
 }
@@ -67,6 +69,6 @@ export function libraryEntries(on: (key: LibraryModule) => boolean, pathname: st
   const inLibrary = pathname === '/library' || pathname === '/library/'
   const open = inLibrary ? activeLibraryTab(tabs, new URLSearchParams(search).get('kind')) : null
   // Usherr: Comics and NSFW 18+ are open on their own pages.
-  const own = (tab: LibraryTab) => (tab === 'comics' || tab === 'nsfw') && (pathname === libraryTabPath(tab) || pathname.startsWith(libraryTabPath(tab) + '/'))
+  const own = (tab: LibraryTab) => (tab === 'comics' || tab === 'manga' || tab === 'nsfw') && (pathname === libraryTabPath(tab) || pathname.startsWith(libraryTabPath(tab) + '/'))
   return tabs.map((tab) => ({ tab, to: libraryTabPath(tab), active: tab === open || own(tab) }))
 }

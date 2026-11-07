@@ -197,12 +197,22 @@ websites: Usherr doesn't install anything on your computer.
   few seconds apart, and Plex has each a couple of minutes later. For a title
   already in your streams, its page has **Put it on the virtual drive now**
   (the newest season, for a show). Both use the day's searches.
-- **The rest, a few a day.** Everything else is looked for one at a time
-  (**Searches a day**, 30 to start with, never more than one every ten
-  minutes), so your indexers' daily limits are never spent in one go: newest
-  first, and a new episode of a show you stream goes to the front of the
-  queue. **Get one ready now** looks for the next one straight away. A release
-  that disappears from Usenet leaves the drive until another is found.
+- **The rest, a few a night.** Everything else is looked for one at a time
+  (**Searches a day**, 30 to start with), so your indexers' daily limits are
+  never spent in one go: newest first, and a new episode of a show you stream
+  goes to the front of the queue. **Get one ready now** looks for the next one
+  straight away.
+- **Only at night.** This search runs only between the hours on the card,
+  **2 AM to 9 AM** to start with, because during the day your streams need the
+  Usenet connections. The day's searches are spread evenly over those hours
+  (60 searches in 7 hours is one every 7 minutes), never closer than a minute
+  apart. The same hour twice means all day. What you start yourself isn't held
+  back. The hours follow Usherr's clock, which the card shows: that's the `TZ`
+  in Usherr's compose file. If it's left at `Etc/UTC` the card warns you, and
+  2 AM means 2 AM UTC until you set your own zone.
+- **One bad article doesn't cost you the title.** A release leaves the drive
+  only when its articles are confirmed gone from your Usenet servers, and
+  another is then looked for.
 - **Its own sign-in.** The drive has its own user (`usherr`) and password,
   shown on the card. It only opens the drive, and only to read; it is never a
   person's account. **New password** makes another (then run rclone's setup
@@ -510,6 +520,35 @@ gets a **Read to me** button; the finished audiobook is filed with your audioboo
 studios. Only administrators ever see it: it is hidden from everyone else,
 keeps its own library and its own download queue, and never sends
 notifications. The server must allow it (`USHERR_ALLOW_ADULT`).
+
+The **Tools** tab, for administrators, has three helpers. Matching and renaming
+run only when you press their button, and one job runs at a time, with progress
+and **Stop**.
+
+- **Match files by fingerprint** finds video files in your NSFW folder that
+  Usherr doesn't know, and looks them up on StashDB (one request a second at
+  most). It reads 128 KiB of each file, the OSHASH fingerprint. You see each
+  file with the video it matched and whether the length agrees. More than 10
+  seconds or 5% apart, or a fingerprint shared by several videos, is marked
+  **Unsure** and isn't ticked for you. Files you confirm are added as
+  downloaded, where they are. A file StashDB doesn't know stays unknown:
+  fingerprints only work for files other people have submitted.
+- **Bring in my StashDB favorites** shows the favorite performers and studios of
+  the account behind your key, and follows the ones you pick. They are followed
+  from today: nothing older is added and no search starts. After that the usual
+  follow check adds their new videos as wanted, and your automatic video search
+  looks for them if it's on (see **Settings**). It never unfollows anyone, and
+  someone you stopped following here stays that way. The switch below it, off by
+  default, repeats this every night between 2 and 9.
+- **Rename and file** shows each downloaded video's old and new name,
+  `Studio/Studio - YYYY-MM-DD - Title [quality].ext`, before anything changes.
+  You pick the videos. Subtitles and `.nfo` files of the same name move along,
+  and your media servers are told. A name that is taken blocks that video. A
+  file is only ever renamed, never copied, overwritten or deleted, so one on
+  another drive stays where it is, with the reason shown. Files outside the NSFW
+  folder aren't ticked for you: an app that still manages them, like Whisparr,
+  would lose track of them. **Undo** puts it all back, except a file that changed
+  since or whose old name is taken, which stays and is listed.
 
 ## Schedules
 

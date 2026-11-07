@@ -43,6 +43,8 @@ function linkOf(e: CalendarEntry): string {
       return `/music/artist/${e.artistId}`
     case 'comic':
       return `/comics/${e.comicSeriesId}`
+    case 'manga':
+      return `/manga/${e.mangaSeriesId}`
     default:
       return `/book/${e.bookId}`
   }

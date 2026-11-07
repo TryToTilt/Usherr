@@ -20,6 +20,37 @@ func comicTestServer(t *testing.T) (*Server, *comics.Repo) {
 	return s, s.comicRepo()
 }
 
+// A second copy of an issue is never filed beside the first (Usherr).
+func TestComicNoSecondCopy(t *testing.T) {
+	s, repo := comicTestServer(t)
+	folder := t.TempDir()
+	sr, _ := repo.UpsertSeries(comics.Series{CVID: 5, Name: "Saga", Publisher: "Image", IssueCount: 2, Folder: folder})
+	_, _ = repo.UpsertIssue(comics.Issue{SeriesID: sr.ID, CVID: 501, Number: "1", Wanted: true})
+	list, _ := repo.Issues(sr.ID)
+	is := list[0]
+	file := filepath.Join(folder, "Saga 001.cbz")
+	_ = os.WriteFile(file, []byte("comic"), 0o644)
+
+	if note := s.comicAlreadyFiled(is.ID, filepath.Join(folder, "new.cbz"), 5); note != "" {
+		t.Fatalf("nothing is filed yet, got %q", note)
+	}
+	_ = repo.SetState(is.ID, comics.StatusDownloaded, file, 5)
+	if note := s.comicAlreadyFiled(is.ID, file, 5); note == "" {
+		t.Fatal("the same file was filed again")
+	}
+	if note := s.comicAlreadyFiled(is.ID, file, 99); note == "" {
+		t.Fatal("a copy of another size was filed beside the first")
+	}
+	// A file left at the name, with the issue not marked as having it.
+	_ = repo.SetState(is.ID, comics.StatusMissing, "", 0)
+	if note := s.comicAlreadyFiled(is.ID, file, 5); note == "" {
+		t.Fatal("the same file at the name was filed again")
+	}
+	if got, _ := repo.GetIssue(is.ID); got.Status != comics.StatusDownloaded || got.FilePath != file {
+		t.Fatalf("the issue is %s at %q", got.Status, got.FilePath)
+	}
+}
+
 // Two copies of a pack at once: the one that didn't file #1 must not mark it
 // missing again; Refresh picks up a file that is there but marked missing.
 func TestComicIssueStaysFiled(t *testing.T) {

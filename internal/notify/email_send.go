@@ -40,7 +40,20 @@ func (s *EmailSender) Send(ctx context.Context, ev Event) error {
 		st.Add(false, "There is no address to send to")
 		return errors.New("no recipients")
 	}
+	return s.deliver(ctx, from.Address, rcpts, func() []byte {
+		header := fromHeader(s.From, s.FromName)
+		if ev.rich() {
+			return buildRichMessage(header, s.To, ev)
+		}
+		return buildMessage(header, s.To, ev)
+	})
+}
 
+// deliver holds the conversation with the mail server. message makes the
+// finished message once the server has said yes to the addresses.
+func (s *EmailSender) deliver(ctx context.Context, from string, rcpts []string, message func() []byte) error {
+	st := stepsFrom(ctx)
+	var err error
 	timeout := s.Timeout
 	if timeout <= 0 {
 		timeout = 20 * time.Second
@@ -115,8 +128,8 @@ func (s *EmailSender) Send(ctx context.Context, ev Event) error {
 		}
 		st.Add(true, "Signed in")
 	}
-	st.Add(true, "Sending the message from %s to %s", from.Address, strings.Join(rcpts, ", "))
-	if err := c.Mail(from.Address); err != nil {
+	st.Add(true, "Sending the message from %s to %s", from, strings.Join(rcpts, ", "))
+	if err := c.Mail(from); err != nil {
 		reason := smtpReason(err)
 		st.Add(false, "The sender address was refused: %s", reason)
 		return fmt.Errorf("sender rejected: %s", reason)
@@ -133,12 +146,7 @@ func (s *EmailSender) Send(ctx context.Context, ev Event) error {
 		st.Add(false, "The server would not take the message: %s", smtpReason(err))
 		return fmt.Errorf("start message: %w", err)
 	}
-	header := fromHeader(s.From, s.FromName)
-	msg := buildMessage(header, s.To, ev)
-	if ev.rich() {
-		msg = buildRichMessage(header, s.To, ev)
-	}
-	if _, err := w.Write(msg); err != nil {
+	if _, err := w.Write(message()); err != nil {
 		st.Add(false, "Could not send the message: %s", plainerror.Message(err))
 		return fmt.Errorf("write message: %w", err)
 	}

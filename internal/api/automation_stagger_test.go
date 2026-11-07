@@ -21,7 +21,7 @@ func TestAutomationJobsStartOneAfterTheOther(t *testing.T) {
 	// soon after a restart; artwork and trailers wait until things are quiet)
 	// and take no slot in the line.
 	own := map[string]bool{"showtimes": true, "read-to-me": true, "tv-warm": true, "sports-sync": true, "artwork": true, "preshow-trailers": true, "server-collections": true, "poster-badges": true, "watch-sessions": true, "watch-prune": true,
-		"music-playlist-files": true, "music-scrobble-retry": true, "music-tidy-recycle": true} // Usherr music: after the line, nothing urgent
+		"music-playlist-files": true, "music-scrobble-retry": true, "music-tidy-recycle": true, "nsfw-favorites": true, "audiobook-lengths": true} // Usherr music: after the line, nothing urgent
 	delay := map[string]time.Duration{}
 	seen := map[time.Duration]string{}
 	slot := 0

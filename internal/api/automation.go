@@ -81,6 +81,7 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "music-playlist-files", Interval: time.Hour, InitialDelay: 20 * time.Minute, Run: s.heavy(s.playlistImportJob)}, // Usherr: .m3u files read again daily (off until switched on)
 		automation.Job{Name: "music-scrobble-retry", Interval: scrobbleRetryEvery, InitialDelay: 11 * time.Minute, Run: s.scrobbleRetryJob},  // Usherr: plays kept while ListenBrainz or Last.fm was away
 		automation.Job{Name: "music-tidy-recycle", Interval: 24 * time.Hour, InitialDelay: 25 * time.Minute, Run: s.tidyRecycleJob},          // Usherr: originals kept 30 days after tidying music
+		automation.Job{Name: "nsfw-favorites", Interval: time.Hour, InitialDelay: 27 * time.Minute, Run: s.heavy(s.favoritesJob)},            // Usherr: StashDB favorites, once a night between 2 and 9 (off until switched on)
 		automation.Job{Name: "speed-limit", Interval: speedCheck, Run: s.speedJob},
 		automation.Job{Name: "quiet-hours", Interval: speedCheck, Run: s.quietHoursJob},
 		automation.Job{Name: "cleanup", Interval: cleanupCheckInterval, Run: s.cleanupJob},
@@ -111,6 +112,9 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "home-news", Interval: newsEvery, Run: s.heavy(s.newsJob)},                          // home fork: entertainment news
 		automation.Job{Name: "home-moods", Interval: moodsEvery, Run: s.heavy(s.moodsJob)},                       // home fork: moods for the Library shelves
 		automation.Job{Name: "home-comic-arcs", Interval: arcsForYouEvery, Run: s.heavy(s.comicArcsJob)},         // home fork: story arcs for you
+		automation.Job{Name: "manga-scan", Interval: time.Hour, Run: s.heavy(s.mangaScanJob)},                    // Usherr: the manga folder, once a night between 2 and 9
+		automation.Job{Name: "manga-refresh", Interval: mangaRefreshJobEvery, Run: s.heavy(s.mangaRefreshJob)},   // Usherr: each series' details from AniList, a little between 2 and 9
+		automation.Job{Name: "manga-chapters", Interval: mangaDexJobEvery, Run: s.heavy(s.mangaDexJob)},          // Usherr: chapters from MangaDex, only once it's switched on
 		automation.Job{Name: "home-scores", Interval: scoresEvery, Run: s.heavy(s.scoresJob)},                    // home fork: critic scores from MDBList
 		automation.Job{Name: "home-gaps", Interval: gapsEvery, Run: s.heavy(s.gapsJob)},                          // home fork: complete your library
 		automation.Job{Name: "home-taste", Interval: tasteJobEvery, Run: s.heavy(s.tasteJob)},                    // home fork: titles' traits for the taste engine
@@ -119,10 +123,12 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "episode-quality", Interval: 24 * time.Hour, Run: s.heavy(func(context.Context) { s.backfillEpisodeQuality() })},
 		automation.Job{Name: "import-added-dates", Interval: 24 * time.Hour, Run: s.heavy(func(context.Context) { s.backfillImportedAddedDates() })},
 		automation.Job{Name: "import-details", Interval: importDetailsInterval, Run: s.heavy(s.importDetailsJob)},
+		// Usherr: the real length of audiobook files, a little at a time between 2 and 9 (books_lengths.go).
+		automation.Job{Name: "audiobook-lengths", Interval: lengthsEvery, InitialDelay: 29 * time.Minute, Run: s.heavy(s.audiobookLengthsJob)},
 		// media-info reads the video, audio and subtitle tracks of the library's files, a few minutes at a time.
 		automation.Job{Name: "media-info", Interval: mediaInfoInterval, Run: s.heavy(s.mediaInfoJob)},
 		automation.Job{Name: "subtitle-sweep", Interval: subtitleSweepInterval, Run: s.heavy(s.subtitleSweepJob)},
-		automation.Job{Name: "drive-prep", Interval: driveEvery, Run: s.driveJob},               // Usherr: the virtual drive, one title at a time within the day's budget
+		automation.Job{Name: "drive-prep", Interval: driveTick, Run: s.driveJob},                // Usherr: the virtual drive, one title at a time, at night, within the day's budget
 		automation.Job{Name: "preshow-plex", Interval: preshowPlexEvery, Run: s.preshowPlexJob}, // Usherr: the pre-show in Plex (home_preshow_plex.go)
 	)
 	// The first minute belongs to the pages: the loops start once the app has
@@ -249,6 +255,7 @@ func (s *Server) hunt(ctx context.Context) {
 	s.huntBooks(ctx)            // only while ebooks or audiobooks are on
 	s.huntNsfw(ctx)             // videos hook (home fork): only while NSFW 18+ is on
 	s.huntComics(ctx)           // comics hook (home fork): only while Comics are on
+	s.huntManga(ctx)            // manga hook (Usherr): only while Manga is on
 	s.huntSports(ctx)           // sports hook (Usherr): only on Usherr's own sports engine, with a Sports folder
 }
 

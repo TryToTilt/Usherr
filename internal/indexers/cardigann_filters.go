@@ -115,7 +115,7 @@ func applyFilter(data string, f FilterBlock, vars *tmplVars) (string, error) {
 var errPageTooComplex = errors.New("the page is too complex to read")
 
 // regexFor compiles a filter's pattern and pays for running it over data.
-func regexFor(pattern, data string, budget *workBudget) (*regexp.Regexp, error) {
+func regexFor(pattern, data string, budget *workBudget) (*dotNetRegex, error) {
 	c := compileDotNetRegexCost(pattern)
 	if c.err != nil {
 		return nil, c.err
@@ -124,6 +124,15 @@ func regexFor(pattern, data string, budget *workBudget) (*regexp.Regexp, error) 
 		return nil, errPageTooComplex
 	}
 	return c.re, nil
+}
+
+// payForTimeout charges a pattern's timeout to the page: it costs a field its
+// value, and enough of them cost the rest of the page.
+func payForTimeout(err error, budget *workBudget) error {
+	if errors.Is(err, errRegexTimedOut) && !budget.spend(regexTimeoutCost) {
+		return errPageTooComplex
+	}
+	return err
 }
 
 func applyFilterWith(data string, f FilterBlock, vars *tmplVars, budget *workBudget) (string, error) {
@@ -151,11 +160,8 @@ func applyFilterWith(data string, f FilterBlock, vars *tmplVars, budget *workBud
 		if err != nil {
 			return "", err
 		}
-		m := re.FindStringSubmatch(data)
-		if len(m) < 2 {
-			return "", nil
-		}
-		return m[1], nil
+		out, err := re.firstGroup(data)
+		return out, payForTimeout(err, budget)
 	case "re_replace":
 		re, err := regexFor(argAt(args, 0), data, budget)
 		if errors.Is(err, errPageTooComplex) || errors.Is(err, errRegexTooBig) {
@@ -169,7 +175,8 @@ func applyFilterWith(data string, f FilterBlock, vars *tmplVars, budget *workBud
 		if err != nil {
 			return "", err
 		}
-		return regexReplace(re, data, rep)
+		out, err := regexReplace(re, data, rep)
+		return out, payForTimeout(err, budget)
 	case "replace":
 		rep, err := tmplArg(argAt(args, 1), vars)
 		if err != nil {
@@ -276,17 +283,23 @@ const maxFilterBytes = 96 << 20
 // could make the text larger than maxFilterBytes. Each match can add at most
 // the replacement's own length, plus the text of the whole match for each group
 // reference in it.
-func regexReplace(re *regexp.Regexp, data, replacement string) (string, error) {
+func regexReplace(re *dotNetRegex, data, replacement string) (string, error) {
 	return regexReplaceMax(re, data, replacement, maxFilterBytes)
 }
 
-// regexReplaceMax is regexReplace with a limit of its own.
-func regexReplaceMax(re *regexp.Regexp, data, replacement string, limit int) (string, error) {
+// regexReplaceMax is regexReplace with a limit of its own. Text too long for the
+// pattern's engine stays as it is, like a pattern that can't be run at all.
+func regexReplaceMax(re *dotNetRegex, data, replacement string, limit int) (string, error) {
 	rep := dotNetReplacement(replacement)
 	if (len(data)+1)*(len(rep)+1)+len(data) > limit {
 		return "", fmt.Errorf("the replacement could make the text too large")
 	}
-	return re.ReplaceAllString(data, rep), nil
+	out, err := re.replaceAll(data, rep, limit)
+	if errors.Is(err, errRegexInputTooLong) {
+		warnSkippedRegex(err)
+		return data, nil
+	}
+	return out, err
 }
 
 // firstRune is the first character of s (all of it, when it is one character).

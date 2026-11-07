@@ -29,6 +29,7 @@ export function entryLink(e: CalendarEntry): string | undefined {
   if (e.kind === 'album' && e.albumId) return `/music/album/${e.albumId}`
   if (e.kind === 'book' && e.bookId) return `/book/${e.bookId}`
   if (e.kind === 'comic' && e.comicSeriesId) return `/comics/${e.comicSeriesId}` // home fork
+  if (e.kind === 'manga' && e.mangaSeriesId) return `/manga/${e.mangaSeriesId}` // Usherr
   if (e.kind === 'sport' && e.sportLeagueId) return `/sports/league/${e.sportLeagueId}` // Usherr: a wanted game's league
   return undefined
 }
@@ -48,6 +49,8 @@ function glyphOf(kind: CalendarEntry['kind'], subtitle?: string, anime?: boolean
       return subtitle && /(^|· )Audiobook$/.test(subtitle) ? 'audiobook' : 'book'
     case 'comic':
       return 'comic'
+    case 'manga':
+      return 'manga'
     case 'sport':
       return 'sport'
     default:
@@ -57,8 +60,8 @@ function glyphOf(kind: CalendarEntry['kind'], subtitle?: string, anime?: boolean
 // The drawing for a type.
 const drawn = (g: TypeKey): GlyphKind => (g === 'anime' || g === 'sport' ? 'tv' : g)
 
-const KIND_LABEL: Record<TypeKey, string> = { movie: t('Movie'), tv: t('TV episode'), anime: t('Anime episode'), music: t('Album'), book: t('Book'), audiobook: t('Audiobook'), comic: t('Comic issue'), sport: t('Game') }
-const LEGEND_LABEL: Record<TypeKey, string> = { movie: t('Movies'), tv: t('TV'), anime: t('Anime'), music: t('Music'), book: t('Books'), audiobook: t('Audiobooks'), comic: t('Comics'), sport: t('Sports') }
+const KIND_LABEL: Record<TypeKey, string> = { movie: t('Movie'), tv: t('TV episode'), anime: t('Anime episode'), music: t('Album'), book: t('Book'), audiobook: t('Audiobook'), comic: t('Comic issue'), manga: t('Manga volume'), sport: t('Game') }
+const LEGEND_LABEL: Record<TypeKey, string> = { movie: t('Movies'), tv: t('TV'), anime: t('Anime'), music: t('Music'), book: t('Books'), audiobook: t('Audiobooks'), comic: t('Comics'), manga: t('Manga'), sport: t('Sports') }
 const STATUS_LABEL: Record<CalendarEntry['status'], string> = { downloaded: t('Have it'), downloading: t('Downloading'), missing: t('Waiting'), theaters: t('In theaters'), streams: t('Streams') }
 
 // A movie that is on the calendar twice says which of its dates this is.

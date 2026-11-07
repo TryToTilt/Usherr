@@ -20,6 +20,7 @@ const (
 	moduleMusic      = "music"
 	moduleEbooks     = "ebooks"
 	moduleAudiobooks = "audiobooks"
+	moduleManga      = "manga" // Usherr
 )
 
 var (
@@ -70,6 +71,7 @@ type modulesPayload struct {
 	Music      moduleState `json:"music"`
 	Audiobooks moduleState `json:"audiobooks"`
 	Ebooks     moduleState `json:"ebooks"`
+	Manga      moduleState `json:"manga"` // Usherr
 	// SubtitlesEnabled says whether the subtitles switch is on, so every
 	// account's pages can show or hide the subtitle parts. It is not a media
 	// type and is not changed here (see PUT /api/settings).
@@ -93,6 +95,7 @@ func (s *Server) modulesPayload() modulesPayload {
 		Music:      moduleState{Enabled: s.musicEnabled(), Available: true},
 		Audiobooks: moduleState{Enabled: s.audiobooksEnabled(), Available: true},
 		Ebooks:     moduleState{Enabled: s.ebooksEnabled(), Available: true},
+		Manga:      moduleState{Enabled: s.mangaEnabled(), Available: true},
 
 		SubtitlesEnabled: s.subtitlesEnabled(),
 
@@ -117,6 +120,7 @@ type moduleChanges struct {
 	Music      *bool `json:"music"`
 	Audiobooks *bool `json:"audiobooks"`
 	Ebooks     *bool `json:"ebooks"`
+	Manga      *bool `json:"manga"` // Usherr
 }
 
 // handlePutModules switches modules on or off (administrators) and answers
@@ -163,7 +167,8 @@ func (s *Server) setModulesIn(st settingSetter, c moduleChanges) error {
 	}
 	movies, tv, music := pick(c.Movies, s.moviesEnabled()), pick(c.TV, s.tvEnabled()), pick(c.Music, s.musicEnabled())
 	ebooks, audiobooks := pick(c.Ebooks, s.ebooksEnabled()), pick(c.Audiobooks, s.audiobooksEnabled())
-	if !movies && !tv && !music && !ebooks && !audiobooks {
+	mangaOn := pick(c.Manga, s.mangaEnabled())
+	if !movies && !tv && !music && !ebooks && !audiobooks && !mangaOn {
 		return errNoModules
 	}
 	flag := func(on bool) string {
@@ -183,6 +188,7 @@ func (s *Server) setModulesIn(st settingSetter, c moduleChanges) error {
 		{c.Music, settings.KeyMusicEnabled, music}, // the older name, kept in step
 		{c.Ebooks, settings.KeyModulesEbooks, ebooks},
 		{c.Audiobooks, settings.KeyModulesAudiobooks, audiobooks},
+		{c.Manga, settings.KeyModulesManga, mangaOn},
 	} {
 		if w.changed == nil {
 			continue
@@ -216,6 +222,11 @@ func (s *Server) requireModule(w http.ResponseWriter, module string) bool {
 	case moduleAudiobooks:
 		if !s.audiobooksEnabled() {
 			writeError(w, http.StatusConflict, "Audiobooks are switched off. Switch them on in Settings > Media types.")
+			return false
+		}
+	case moduleManga:
+		if !s.mangaEnabled() {
+			writeError(w, http.StatusConflict, "Manga is switched off. Switch it on in Settings > Media types.")
 			return false
 		}
 	}

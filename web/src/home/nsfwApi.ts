@@ -190,6 +190,104 @@ export const nsfwApi = {
   runHeldSearches: () => call<SearchStatus>('POST', '/search-now'),
   bulk: (ids: number[], action: 'want' | 'unwant' | 'removeEmpty' | 'search') => call<{ changed: number; skipped: number }>('POST', '/bulk', { ids, action }),
   importWhisparr: (body: { url: string; apiKey: string; from: string; to: string; dryRun: boolean }) => call<WhisparrReport>('POST', '/import/whisparr', body),
+
+  // Usherr: the Tools tab
+  toolsStop: () => call<NsfwJob>('POST', '/tools/stop'),
+  identify: () => call<IdentifyOverview>('GET', '/identify'),
+  identifyStart: () => call<NsfwJob>('POST', '/identify/start'),
+  identifyConfirm: (items: { id: number; stashId: string }[]) => call<NsfwJob>('POST', '/identify/confirm', { items }),
+  favorites: () => call<{ auto: boolean; last: string }>('GET', '/favorites'),
+  favoritesAuto: (on: boolean) => call<{ auto: boolean; last: string }>('PUT', '/favorites/auto', { on }),
+  favoritesPreview: () => call<FavoritesPreview>('POST', '/favorites/preview'),
+  favoritesApply: (performers: string[], studios: string[]) => call<{ performers: number; studios: number }>('POST', '/favorites/apply', { performers, studios }),
+  renameOverview: () => call<RenameOverview>('GET', '/rename'),
+  renameCheck: () => call<NsfwJob>('POST', '/rename/check'),
+  renamePlan: (id: number) => call<RenamePlanDetail>('GET', `/rename/plans/${id}`),
+  renameApply: (id: number, items: number[]) => call<NsfwJob>('POST', `/rename/plans/${id}/apply`, { items }),
+  renameUndo: (id: number) => call<NsfwJob>('POST', `/rename/plans/${id}/undo`),
+}
+
+export interface NsfwJob {
+  kind: 'identify' | 'register' | 'check' | 'apply' | 'undo'
+  phase: 'running' | 'done' | 'failed' | 'stopped'
+  planId: number
+  done: number
+  total: number
+  current?: string
+  error?: string
+  undo?: { name: string; done: boolean; note?: string }[]
+}
+
+export interface IdentifyCandidate {
+  video: Video
+  matched: string
+  submissions: number
+  length: 'agrees' | 'differs' | 'unknown'
+  stashLength: number
+  unsure: boolean
+}
+
+export interface IdentifyItem {
+  id: number
+  path: string
+  size: number
+  videoId?: number
+  oshash: string
+  duration: number
+  quality: string
+  status: 'matched' | 'none' | 'unreadable' | 'registered' | 'blocked'
+  reason?: string
+  candidates: IdentifyCandidate[]
+}
+
+export interface IdentifyOverview {
+  root: string
+  items: IdentifyItem[]
+  counts: Record<string, number>
+  job?: NsfwJob
+}
+
+export interface FavoriteSide {
+  toFollow: { stashId: string; name: string }[]
+  already: number
+  leftAlone: { stashId: string; name: string }[]
+}
+
+export interface FavoritesPreview {
+  performers: FavoriteSide
+  studios: FavoriteSide
+}
+
+export interface RenamePlan {
+  id: number
+  root: string
+  status: 'preview' | 'applied' | 'undone'
+  unchanged: number
+  createdAt: string
+  appliedAt?: string
+  undoneAt?: string
+  applied: number
+}
+
+export interface RenameOverview {
+  root: string
+  plans: RenamePlan[]
+  job?: NsfwJob
+}
+
+export interface RenamePlanDetail {
+  plan: RenamePlan
+  items: {
+    id: number
+    videoId: number
+    name: string
+    oldName: string
+    newName: string
+    sidecars: { old: string; new: string }[]
+    outside: boolean
+    status: 'eligible' | 'blocked' | 'stale' | 'applying' | 'applied' | 'failed' | 'undone'
+    reason?: string
+  }[]
 }
 
 export interface SearchStatus {

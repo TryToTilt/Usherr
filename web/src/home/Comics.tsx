@@ -16,14 +16,18 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
 import { can, isAdmin } from '../api'
 import { useAuth } from '../AuthContext'
-import { comicsApi, type ComicArcForYou, type ComicIssue, type ComicRelease, type ComicSearchLog, type ComicSeries, type ComicSettings } from './comicsApi'
+import { comicsApi, type ComicArcForYou, type ComicIssue, type ComicPages, type ComicRelease, type ComicSearchLog, type ComicSeries, type ComicSettings } from './comicsApi'
 import ComicReviewList from './ComicReview' // review list (home fork)
 import ComicWeekView from './ComicWeek' // the week's new comics (home fork)
 import { ComicArcList } from './ComicArcs' // story arcs (home fork)
 import ComicTools from './ComicTools' // library tools (home fork)
 import './comics.css'
 import type { ComicFlipHandle } from './ComicFlip'
-import ComicGuided, { type ComicGuidedHandle } from './ComicGuided' // guided view (home fork)
+import ComicGuided, { comicGuidedSource, type ComicGuidedHandle } from './ComicGuided' // guided view (home fork)
+import ComicWebtoon, { type ComicWebtoonHandle } from './ComicWebtoon' // Usherr
+import ComicReadingTab, { ComicContinueRow } from './ComicReadingViews' // Usherr
+import ComicFixMatch from './ComicFixMatch' // Usherr
+import { isLayout, keyTurn, spreadEnd, spreadOf, stepSpread, swipeTurn, tapTurn, type ReadDirection, type ReaderLayout } from './comicReading' // Usherr
 import { flipSpeeds, type FlipSpeed } from './comicFlipSpeed'
 import Shelves from './Shelves' // home fork
 import { groupShelves, letterShelves, RowsByPick, ShelfControls, useShelfView } from './shelfKit' // home fork
@@ -64,9 +68,10 @@ export { useComicsOn } from './libraryKinds'
 export default function Comics() {
   const { user } = useAuth()
   const admin = isAdmin(user)
-  const [tab, setTab] = useState<'library' | 'week' | 'arcs' | 'add' | 'review' | 'settings'>(() =>
-    new URLSearchParams(window.location.search).get('tab') === 'arcs' ? 'arcs' : new URLSearchParams(window.location.search).get('tab') === 'add' ? 'add' : 'library',
-  )
+  const [tab, setTab] = useState<'library' | 'reading' | 'week' | 'arcs' | 'add' | 'review' | 'settings'>(() => {
+    const asked = new URLSearchParams(window.location.search).get('tab')
+    return asked === 'arcs' || asked === 'add' || asked === 'reading' ? asked : 'library'
+  })
   const [reviewCount, setReviewCount] = useState(0)
   const [libText, setLibText] = useState('') // the library's search (home fork: in the top card)
   useEffect(() => {
@@ -112,6 +117,9 @@ export default function Comics() {
           <button role="tab" data-walk="cx-tab-library" aria-selected={tab === 'library'} className={tab === 'library' ? 'active' : ''} onClick={() => setTab('library')} disabled={!enabled}>
             {t('Library')}
           </button>
+          <button role="tab" data-walk="cx-tab-reading" aria-selected={tab === 'reading'} className={tab === 'reading' ? 'active' : ''} onClick={() => setTab('reading')} disabled={!enabled}>
+            {t('Reading')}
+          </button>
           <button role="tab" data-walk="cx-tab-week" aria-selected={tab === 'week'} className={tab === 'week' ? 'active' : ''} onClick={() => setTab('week')} disabled={!enabled || (admin && !settings?.keySet)}>
             {t('This week')}
           </button>
@@ -138,6 +146,7 @@ export default function Comics() {
       </div>
       </PullDrawer>
       {tab === 'library' && enabled && <ComicLibrary text={libText} onAdd={admin || can(user, 'comics') ? () => setTab('add') : undefined} />}
+      {tab === 'reading' && enabled && <ComicReadingTab />}
       {tab === 'add' && (admin || can(user, 'comics')) && <ComicAdd />}
       {tab === 'week' && enabled && <ComicWeekView admin={admin} />}
       {tab === 'arcs' && enabled && <ComicArcList admin={admin} />}
@@ -288,6 +297,7 @@ function ComicLibrary({ onAdd, text }: { onAdd?: () => void; text: string }) {
         <ShelfControls view={shelfView} />
         <PosterSizeSlider value={posterSize} />
       </div>
+      {!text.trim() && <ComicContinueRow />}
       {shelfView.on && !text.trim() && <ArcsForYou />}
       {shelfView.on ? (
         <Shelves key={shelfView.by} memory="comics" shelves={shelves} render={card} itemKey={(s) => String(s.id)} rowClass="comic-shelf" bar={<RowsByPick value={shelfView.by} onChange={shelfView.setBy} options={[
@@ -464,17 +474,19 @@ export function ComicSeriesPage() {
   const [reading, setReading] = useState<ComicIssue | null>(null)
   const [readFrom, setReadFrom] = useState(0) // a bookmark's page, or 0 for where it was left
   const [marksSeen, setMarksSeen] = useState(0) // bumped when the reader closes, to list new bookmarks
+  const [fixing, setFixing] = useState(false) // fixing the ComicVine match (Usherr)
   const [kept] = useKept()
   const keptIds = new Set(kept.map((k) => k.id))
-  const closeReader = useCallback(() => {
-    setReading(null)
-    setReadFrom(0)
-    setMarksSeen((n) => n + 1)
-  }, [])
 
   const load = useCallback(() => {
     comicsApi.get(sid).then(setData).catch((e: Error) => setError(e.message))
   }, [sid])
+  const closeReader = useCallback(() => {
+    setReading(null)
+    setReadFrom(0)
+    setMarksSeen((n) => n + 1)
+    load() // what's read now
+  }, [load])
   useEffect(() => {
     load()
     const timer = window.setInterval(load, 15000)
@@ -500,6 +512,12 @@ export function ComicSeriesPage() {
       return n
     })
   const ids = [...picked]
+  // Usherr: read or unread, for this person.
+  const mark = (issue: ComicIssue, scope: 'issue' | 'upto' | 'series', read: boolean, done: string) =>
+    act(comicsApi.markRead(issue.id, scope, read).then((r) => noteReadHere(r.issueIds, read)), done)
+  const unreadLeft = issues.some((i) => !i.read)
+  const wantIssue = (i: ComicIssue) =>
+    act(comicsApi.wantRead(series.id, i.id, !i.wantRead), i.wantRead ? t('Taken off Want to Read.') : t('Added to Want to Read.'))
 
   return (
     <div className="page-pad cx-page">
@@ -519,6 +537,19 @@ export function ComicSeriesPage() {
           <div className="cx-actions">
             <VoteButtons kind="comic" refId={series.cvId} meta={{ title: series.name, year: series.startYear, image: series.imageUrl }} />
             <ComicCatchUp seriesId={series.id} issues={issues} />
+            <button
+              className={`btn-sm${series.wantRead ? ' primary' : ''}`}
+              data-walk="cx-want-read"
+              aria-pressed={!!series.wantRead}
+              onClick={() => act(comicsApi.wantRead(series.id, 0, !series.wantRead), series.wantRead ? t('Taken off Want to Read.') : t('Added to Want to Read.'))}
+            >
+              <Icon name="bookmark" size={14} /> {t('Want to read')}
+            </button>
+            {issues.length > 0 && (
+              <button className="btn-sm" onClick={() => mark(issues[0], 'series', unreadLeft, unreadLeft ? t('The whole series is marked read.') : t('The whole series is marked unread.'))}>
+                <Icon name="check" size={14} /> {unreadLeft ? t('Mark series read') : t('Mark series unread')}
+              </button>
+            )}
           </div>
           {admin && (
             <div className="cx-actions">
@@ -530,6 +561,9 @@ export function ComicSeriesPage() {
               </button>
               <button className="btn-sm" onClick={() => act(comicsApi.refresh(series.id), t('Issue list refreshed from ComicVine, and the files in its folder checked.'))} title={t('Reads the issue list from ComicVine again, and counts files already in the folder for issues marked missing')}>
                 <Icon name="refresh" size={14} /> {t('Refresh')}
+              </button>
+              <button className="btn-sm" data-walk="cx-fix-match" onClick={() => setFixing(true)} title={t('Matched to the wrong volume, or the wrong kind of series? Fix it here. Files stay where they are.')}>
+                <Icon name="sliders" size={14} /> {t('Fix match')}
               </button>
               <button
                 className="btn-sm"
@@ -579,23 +613,34 @@ export function ComicSeriesPage() {
             )}
             <th>#</th>
             <th>{t('Title')}</th>
-            <th>{t('Out')}</th>
-            <th>{t('Status')}</th>
+            <th className="cx-col-out">{t('Out')}</th>
+            <th className="cx-col-status">{t('Status')}</th>
             <th />
           </tr>
         </thead>
         <tbody>
           {issues.map((i) => (
-            <tr key={i.id} className={i.status === 'downloaded' ? 'have' : ''}>
+            <tr key={i.id} className={`${i.status === 'downloaded' ? 'have' : ''}${i.read ? ' read' : ''}`}>
               {admin && (
                 <td>
                   <input type="checkbox" aria-label={t('Select issue {n}', { n: i.number })} checked={picked.has(i.id)} onChange={() => toggle(i.id)} />
                 </td>
               )}
               <td className="cx-num">{i.number}</td>
-              <td>{issueTitle(i) || <span className="hint">—</span>}</td>
-              <td className="hint">{day(i.storeDate || i.coverDate)}</td>
               <td>
+                {issueTitle(i) || <span className="hint">—</span>}
+                {i.read && (
+                  <span className="cx-read-tag">
+                    <Icon name="check" size={12} /> {t('Read')}
+                  </span>
+                )}
+                {!!i.page && !!i.pages && <span className="cx-read-tag hint">{t('Page {n} of {total}', { n: i.page, total: i.pages })}</span>}
+                {i.cvId < 0 && <span className="cx-read-tag hint" title={t('This issue has a file, but the volume this series is matched to has no such number.')}>{t('Not on this volume')}</span>}
+                {/* On a phone the Status column gives its room to the Read button. */}
+                {i.status === 'downloading' ? <span className="cx-read-tag cx-phone-status">{t('Downloading')}</span> : i.status !== 'downloaded' && i.wanted && <span className="cx-read-tag cx-phone-status">{t('Wanted')}</span>}
+              </td>
+              <td className="hint cx-col-out">{day(i.storeDate || i.coverDate)}</td>
+              <td className="cx-col-status">
                 {i.status === 'downloaded' ? (
                   <span className="badge downloaded">{t('Have')} {size(i.fileSize)}</span>
                 ) : i.status === 'downloading' ? (
@@ -618,7 +663,7 @@ export function ComicSeriesPage() {
                       }}
                       aria-label={t('Read issue {n}', { n: i.number })}
                     >
-                      <Icon name="book" size={14} /> {t('Read')}
+                      <Icon name="book" size={14} /> {i.page ? t('Continue') : t('Read')}
                     </button>
                     <a className="btn-sm" href={comicsApi.fileUrl(i.id)} target="_blank" rel="noreferrer" aria-label={t('Download issue {n}', { n: i.number })}>
                       <Icon name="download" size={14} />
@@ -652,6 +697,7 @@ export function ComicSeriesPage() {
                     </button>
                   </>
                 )}
+                <IssueMenu issue={i} onMark={mark} onWant={wantIssue} />
               </td>
             </tr>
           ))}
@@ -668,7 +714,61 @@ export function ComicSeriesPage() {
       />
       {reading && <ComicReader issue={reading} onClose={closeReader} startPage={readFrom} />}
       {releasesFor && <ComicReleases issue={releasesFor} onClose={() => setReleasesFor(null)} onGrabbed={() => { setReleasesFor(null); setNote(t('Downloading.')); load() }} />}
+      {fixing && (
+        <ComicFixMatch
+          series={series}
+          onClose={() => setFixing(false)}
+          onChanged={(n) => {
+            setNote(n)
+            load()
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+// Usherr: other parts of the app read these notes in this browser (Catch me up,
+// story arcs, the reader's fallback), so marking keeps them in step.
+function noteReadHere(ids: number[], read: boolean) {
+  try {
+    for (const id of ids) {
+      localStorage.removeItem(`comic-page-${id}`)
+      if (read) localStorage.setItem(`comic-done-${id}`, '1')
+      else localStorage.removeItem(`comic-done-${id}`)
+    }
+  } catch {
+    /* private mode */
+  }
+}
+
+// Usherr: one issue's read and Want to Read choices.
+function IssueMenu({ issue, onMark, onWant }: { issue: ComicIssue; onMark: (issue: ComicIssue, scope: 'issue' | 'upto', read: boolean, done: string) => unknown; onWant: (issue: ComicIssue) => unknown }) {
+  const box = useRef<HTMLDetailsElement>(null)
+  const pick = (run: () => unknown) => {
+    if (box.current) box.current.open = false
+    run()
+  }
+  return (
+    <details ref={box} className="cx-issue-menu">
+      <summary className="btn-sm" aria-label={t('More for issue {n}', { n: issue.number })} title={t('Read, unread and Want to Read')}>
+        ⋯
+      </summary>
+      <div className="cx-issue-menu-list" role="menu">
+        <button role="menuitem" className="btn-sm" onClick={() => pick(() => onMark(issue, 'issue', !issue.read, issue.read ? t('Marked unread.') : t('Marked read.')))}>
+          {issue.read ? t('Mark unread') : t('Mark read')}
+        </button>
+        <button role="menuitem" className="btn-sm" onClick={() => pick(() => onMark(issue, 'upto', true, t('Marked read up to here.')))}>
+          {t('Mark read up to here')}
+        </button>
+        <button role="menuitem" className="btn-sm" onClick={() => pick(() => onMark(issue, 'upto', false, t('Marked unread up to here.')))}>
+          {t('Mark unread up to here')}
+        </button>
+        <button role="menuitem" className="btn-sm" onClick={() => pick(() => onWant(issue))}>
+          {issue.wantRead ? t('Take off Want to Read') : t('Want to read')}
+        </button>
+      </div>
+    </details>
   )
 }
 
@@ -814,10 +914,37 @@ function keepComicPage(id: number, page: number, total: number, keepalive = fals
   saveComicPlace(id, page, total, keepalive)
 }
 
+// Usherr: the reader stays open from one issue to the next: each issue gets a
+// fresh start (its own place, pages and choices).
 export function ComicReader({ issue, onClose, startPage = 0 }: { issue: ComicIssue; onClose: () => void; startPage?: number }) {
+  const [now, setNow] = useState({ id: issue.id, from: startPage })
+  return <ComicReaderIssue key={now.id} issue={{ id: now.id }} onClose={onClose} startPage={now.from} onNext={(id) => setNow({ id, from: 0 })} />
+}
+
+function readStoredLayout(): ReaderLayout {
+  try {
+    const v = localStorage.getItem('comic-view')
+    return isLayout(v) ? v : 'flip'
+  } catch {
+    return 'flip'
+  }
+}
+
+const layoutNames = (): { id: ReaderLayout; label: string; title: string }[] => [
+  { id: 'flip', label: t('Page turn'), title: t('Turn pages like a paper comic') },
+  { id: 'slide', label: t('One page'), title: t('One page at a time, with fit to width') },
+  { id: 'double', label: t('Two pages'), title: t('Two pages side by side, the cover on its own') },
+  { id: 'webtoon', label: t('Webtoon'), title: t('One long scroll with no gaps') },
+  { id: 'panels', label: t('Panels'), title: t('Read panel by panel (guided view)') },
+]
+
+function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: number }; onClose: () => void; startPage: number; onNext: (id: number) => void }) {
   const [marksOpen, setMarksOpen] = useState(false)
-  const [info, setInfo] = useState<{ pages?: number; pdf?: boolean; title: string } | null>(null)
+  const [optsOpen, setOptsOpen] = useState(false)
+  const [info, setInfo] = useState<ComicPages | null>(null)
   const [error, setError] = useState('')
+  const [direction, setDirection] = useState<ReadDirection>('ltr')
+  const [defaultSaved, setDefaultSaved] = useState(false)
   const [page, setPage] = useState(() => {
     try {
       return Number(localStorage.getItem(`comic-page-${issue.id}`)) || 1
@@ -826,18 +953,14 @@ export function ComicReader({ issue, onClose, startPage = 0 }: { issue: ComicIss
     }
   })
   const [fit, setFit] = useState<'height' | 'width'>(() => (window.innerWidth < window.innerHeight ? 'width' : 'height'))
-  // Page turn (like a paper comic), slide (one page, zoomable fit) or
-  // panels (guided view: panel by panel).
-  const [view, setView] = useState<'flip' | 'slide' | 'panels'>(() => {
-    try {
-      const v = localStorage.getItem('comic-view')
-      return v === 'slide' || v === 'panels' ? v : 'flip'
-    } catch {
-      return 'flip'
-    }
-  })
+  // Page turn (like a paper comic), slide (one page, zoomable fit), double (two
+  // pages), webtoon (one long scroll) or panels (guided view: panel by panel).
+  const [view, setView] = useState<ReaderLayout>(readStoredLayout)
+  const rtl = direction === 'rtl' && view !== 'webtoon' // a scroll has no sides
   const flip = useRef<ComicFlipHandle>(null)
   const guided = useRef<ComicGuidedHandle>(null)
+  const guidedSource = useMemo(() => comicGuidedSource(issue.id), [issue.id])
+  const webtoon = useRef<ComicWebtoonHandle>(null)
   const [panelAt, setPanelAt] = useState({ index: -1, count: 0 })
   const onPanel = useCallback((index: number, count: number) => setPanelAt({ index, count }), [])
   const [speed, setSpeed] = useState<FlipSpeed>(() => {
@@ -865,17 +988,39 @@ export function ComicReader({ issue, onClose, startPage = 0 }: { issue: ComicIss
   const pageUrls = useMemo(() => Array.from({ length: total }, (_, i) => comicsApi.pageUrl(issue.id, i + 1)), [total, issue.id])
   // The page the flip book opens at; later turns come from the book itself.
   const [flipStart, setFlipStart] = useState(page)
-  const switchView = (to?: 'flip' | 'slide' | 'panels') => {
+  // A choice here is remembered for this series, for you. Saved quietly: if it
+  // can't be (offline), the reader still works this way until it's closed.
+  const remember = (body: { direction?: ReadDirection; layout?: ReaderLayout }) => {
+    setDefaultSaved(false)
+    if (info?.seriesId) comicsApi.readerPrefs(info.seriesId, body).catch(() => undefined)
+  }
+  const switchView = (to?: ReaderLayout) => {
     const v = to ?? (view === 'flip' ? 'slide' : 'flip')
     if (v === 'flip') setFlipStart(page)
+    if (v === 'double') setPage((p) => spreadEnd(p, total))
     setView(v)
+    remember({ layout: v })
     try {
       localStorage.setItem('comic-view', v)
     } catch {
       /* private mode */
     }
   }
+  const switchDirection = (d: ReadDirection) => {
+    setFlipStart(page) // the book is rebuilt at the page you are on
+    setDirection(d)
+    remember({ direction: d })
+  }
+  const makeDefault = () => {
+    comicsApi
+      .readerPrefs(0, { direction, layout: view })
+      .then(() => setDefaultSaved(true))
+      .catch((e: Error) => setError(e.message))
+  }
 
+  // A new onClose from the page behind mustn't open the issue over again.
+  const closeNow = useRef(onClose)
+  closeNow.current = onClose
   useEffect(() => {
     // Usherr: the page you got to is kept for you (home_positions.go), so it
     // opens there on any device; this browser's own note is the fallback. A
@@ -887,7 +1032,7 @@ export function ComicReader({ issue, onClose, startPage = 0 }: { issue: ComicIss
       .then(([r, at]) => {
         if (r.pdf) {
           window.open(comicsApi.fileUrl(issue.id), '_blank', 'noopener')
-          onClose()
+          closeNow.current()
           return
         }
         const pages = r.pages ?? 0
@@ -901,12 +1046,17 @@ export function ComicReader({ issue, onClose, startPage = 0 }: { issue: ComicIss
         // Opened from a bookmark: that page.
         const n = startPage > 0 ? startPage : from > 1 ? from : pages && local >= pages ? 1 : local
         const p = pages ? Math.min(Math.max(1, n), pages) : n
-        setPage(p)
+        // How you read this one (the file, the series, your choices): the server
+        // decides. A stored copy from before it said so reads the old way.
+        const layout = isLayout(r.layout) ? r.layout : readStoredLayout()
+        setDirection(r.direction === 'rtl' ? 'rtl' : 'ltr')
+        setView(layout)
+        setPage(layout === 'double' && pages ? spreadEnd(p, pages) : p)
         setFlipStart(p)
         setInfo(r)
       })
       .catch((e: Error) => setError(e.message))
-  }, [issue.id, onClose, startPage])
+  }, [issue.id, startPage])
   // and told as you turn the pages, and on closing
   const pageNow = useRef({ page, total: 0 })
   useEffect(() => {
@@ -922,14 +1072,27 @@ export function ComicReader({ issue, onClose, startPage = 0 }: { issue: ComicIss
     },
     [issue.id],
   )
+  // Going to a page, from the slider, a bookmark or Start over.
+  const jumpTo = (n: number) => {
+    setPage(view === 'double' ? spreadEnd(n, total) : n)
+    if (view === 'flip') flip.current?.turnTo(n)
+    if (view === 'webtoon') webtoon.current?.toPage(n)
+  }
   const startOver = () => {
-    setPage(1)
+    jumpTo(1)
     setFlipStart(1)
-    if (view === 'flip') flip.current?.turnTo(1)
   }
 
   const go = useCallback(
     (d: number) => {
+      if (view === 'webtoon') {
+        webtoon.current?.scroll(d * 0.85)
+        return
+      }
+      if (view === 'double') {
+        setPage((p) => stepSpread(p, d, total || 1))
+        return
+      }
       if (view === 'flip' && flip.current) {
         if (d > 0) flip.current.next()
         else flip.current.prev()
@@ -952,15 +1115,17 @@ export function ComicReader({ issue, onClose, startPage = 0 }: { issue: ComicIss
     } catch {
       /* private mode */
     }
-    // Load the next pages ahead.
-    for (const n of [page + 1, page + 2]) if (n <= total) new Image().src = comicsApi.pageUrl(issue.id, n)
-  }, [page, total, issue.id])
+    // Load the next pages ahead (a webtoon loads them as they come near).
+    if (view !== 'webtoon') for (const n of [page + 1, page + 2]) if (n <= total) new Image().src = comicsApi.pageUrl(issue.id, n)
+  }, [page, total, issue.id, view])
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       // Typing a bookmark's note doesn't turn pages.
       if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select')) return
-      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') go(1)
-      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(-1)
+      const turn = keyTurn(e.key, rtl)
+      if (turn !== 0) go(turn)
+      else if (view === 'webtoon' && e.key === 'ArrowDown') webtoon.current?.scroll(0.2)
+      else if (view === 'webtoon' && e.key === 'ArrowUp') webtoon.current?.scroll(-0.2)
       else if (e.key === 'Escape') onClose()
       else return
       e.preventDefault()
@@ -971,7 +1136,11 @@ export function ComicReader({ issue, onClose, startPage = 0 }: { issue: ComicIss
       window.removeEventListener('keydown', key)
       document.body.style.overflow = ''
     }
-  }, [go, onClose])
+  }, [go, onClose, rtl, view])
+
+  const shown = view === 'double' ? spreadOf(page, total) : [page]
+  const nextUp = info?.next
+  const nextHere = nextUp?.have ? nextUp : info?.nextHave
 
   return createPortal(
     <div className="cx-reader" data-walk="cx-reader" role="dialog" aria-label={info?.title ?? t('Comic reader')}>
@@ -990,8 +1159,32 @@ export function ComicReader({ issue, onClose, startPage = 0 }: { issue: ComicIss
           </button>
         )}
         {total > 0 && (
-          <button className={`btn-sm${marksOpen ? ' primary' : ''}`} onClick={() => setMarksOpen((v) => !v)} title={t('Bookmarks')} aria-label={t('Bookmarks')} aria-pressed={marksOpen}>
+          <button
+            className={`btn-sm${marksOpen ? ' primary' : ''}`}
+            onClick={() => {
+              setOptsOpen(false)
+              setMarksOpen((v) => !v)
+            }}
+            title={t('Bookmarks')}
+            aria-label={t('Bookmarks')}
+            aria-pressed={marksOpen}
+          >
             <Icon name="bookmark" size={14} />
+          </button>
+        )}
+        {total > 0 && (
+          <button
+            className={`btn-sm${optsOpen ? ' primary' : ''}`}
+            data-walk="cx-reader-opts"
+            onClick={() => {
+              setMarksOpen(false)
+              setOptsOpen((v) => !v)
+            }}
+            title={t('Reading direction and how pages show')}
+            aria-label={t('Reading direction and how pages show')}
+            aria-pressed={optsOpen}
+          >
+            <Icon name="sliders" size={14} />
           </button>
         )}
         {view !== 'panels' && (
@@ -1018,7 +1211,7 @@ export function ComicReader({ issue, onClose, startPage = 0 }: { issue: ComicIss
             {t('Speed')}: {flipSpeeds.find((s) => s.id === speed)?.label}
           </button>
         )}
-        {view === 'slide' && (
+        {(view === 'slide' || view === 'double') && (
           <button className="btn-sm" onClick={() => setFit((f) => (f === 'height' ? 'width' : 'height'))} aria-label={t('Switch fit')}>
             {fit === 'height' ? t('Fit width') : t('Fit page')}
           </button>
@@ -1030,28 +1223,52 @@ export function ComicReader({ issue, onClose, startPage = 0 }: { issue: ComicIss
             item={`comic:${issue.id}`}
             here={{ position: `page:${page}`, label: t('Page {n}', { n: page }), percent: Math.round((page / total) * 1000) / 10 }}
             onJump={(m) => {
-              const n = Math.min(pageOfMark(m.position), total)
-              setPage(n)
-              if (view === 'flip') flip.current?.turnTo(n)
+              jumpTo(Math.min(pageOfMark(m.position), total))
               setMarksOpen(false)
             }}
           />
+        </div>
+      )}
+      {optsOpen && total > 0 && (
+        <div className="cx-marks-panel cx-reader-opts" aria-label={t('Reading direction and how pages show')}>
+          <h3>{t('Reading direction')}</h3>
+          <div className="seg" role="group" aria-label={t('Reading direction')}>
+            <button className={direction === 'ltr' ? 'active' : ''} aria-pressed={direction === 'ltr'} disabled={view === 'webtoon'} onClick={() => switchDirection('ltr')}>
+              {t('Left to right')}
+            </button>
+            <button className={direction === 'rtl' ? 'active' : ''} aria-pressed={direction === 'rtl'} disabled={view === 'webtoon'} onClick={() => switchDirection('rtl')}>
+              {t('Right to left')}
+            </button>
+          </div>
+          <h3>{t('How pages show')}</h3>
+          <div className="seg cx-reader-layouts" role="group" aria-label={t('How pages show')}>
+            {layoutNames().map((l) => (
+              <button key={l.id} className={view === l.id ? 'active' : ''} aria-pressed={view === l.id} title={l.title} onClick={() => switchView(l.id)}>
+                {l.label}
+              </button>
+            ))}
+          </div>
+          <p className="hint">{t('Remembered for this series, just for you.')}</p>
+          <button className="btn-sm" disabled={defaultSaved} onClick={makeDefault}>
+            {defaultSaved ? t('Saved as your default') : t('Use these for other comics too')}
+          </button>
         </div>
       )}
       {error && <p className="error-text cx-reader-msg">{error}</p>}
       {!info && !error && <p className="hint cx-reader-msg">{t('Opening…')}</p>}
       {total > 0 && view === 'flip' && (
         <Suspense fallback={<p className="hint cx-reader-msg">{t('Opening…')}</p>}>
-          <ComicFlip ref={flip} key={`${issue.id}-${flipStart}-${speed}`} pages={pageUrls} start={flipStart} onPage={setPage} flipMs={flipMs} />
+          <ComicFlip ref={flip} key={`${issue.id}-${flipStart}-${speed}-${direction}`} pages={pageUrls} start={flipStart} onPage={setPage} flipMs={flipMs} rtl={rtl} />
         </Suspense>
       )}
-      {total > 0 && view === 'panels' && <ComicGuided ref={guided} issueId={issue.id} page={page} total={total} onPage={setPage} onPanel={onPanel} />}
-      {total > 0 && view === 'slide' && (
+      {total > 0 && view === 'panels' && <ComicGuided ref={guided} key={direction} source={guidedSource} page={page} total={total} onPage={setPage} onPanel={onPanel} rtl={rtl} />}
+      {total > 0 && view === 'webtoon' && <ComicWebtoon ref={webtoon} pageUrl={(n) => comicsApi.pageUrl(issue.id, n)} total={total} start={page} onPage={setPage} />}
+      {total > 0 && (view === 'slide' || view === 'double') && (
         <div
-          className={`cx-reader-page fit-${fit}`}
+          className={`cx-reader-page fit-${fit}${shown.length === 2 ? ' two' : ''}${rtl ? ' rtl' : ''}`}
           onClick={(e) => {
             const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-            go(e.clientX - r.left < r.width / 3 ? -1 : 1)
+            go(tapTurn((e.clientX - r.left) / r.width, rtl))
           }}
           onTouchStart={(e) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
           onTouchEnd={(e) => {
@@ -1062,25 +1279,36 @@ export function ComicReader({ issue, onClose, startPage = 0 }: { issue: ComicIss
             const dy = e.changedTouches[0].clientY - start.y
             if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
               e.preventDefault()
-              go(dx < 0 ? 1 : -1)
+              go(swipeTurn(dx, rtl))
             }
           }}
         >
-          <img key={page} src={comicsApi.pageUrl(issue.id, page)} alt={t('Page {n}', { n: page })} draggable={false} />
+          {shown.map((n) => (
+            <img key={n} src={comicsApi.pageUrl(issue.id, n)} alt={t('Page {n}', { n })} draggable={false} />
+          ))}
+        </div>
+      )}
+      {total > 0 && page >= total && !!info?.seriesId && (
+        <div className="cx-reader-end" data-walk="cx-next-issue">
+          {nextUp && !nextUp.have && <span className="hint">{t('Issue #{n} isn’t here yet.', { n: nextUp.number })}</span>}
+          {nextHere ? (
+            <button className="btn-sm primary btn-with-icon" onClick={() => onNext(nextHere.id)}>
+              {nextUp?.have ? t('Next issue') : t('Go on to #{n}', { n: nextHere.number })} <Icon name="open" size={14} />
+            </button>
+          ) : (
+            !nextUp && <span className="hint">{t('That’s the last issue of this series.')}</span>
+          )}
         </div>
       )}
       {total > 0 && (
         <input
           className="cx-reader-slider"
           type="range"
+          dir={rtl ? 'rtl' : 'ltr'}
           min={1}
           max={total}
           value={page}
-          onChange={(e) => {
-            const n = Number(e.target.value)
-            setPage(n)
-            if (view === 'flip') flip.current?.turnTo(n)
-          }}
+          onChange={(e) => jumpTo(Number(e.target.value))}
           aria-label={t('Page')}
         />
       )}

@@ -17,14 +17,16 @@ import { isAdmin } from '../api' // home fork
 import Shelves from './Shelves' // home fork
 import { groupShelves, monthShelves, RowsByPick, ShelfControls, useShelfView } from './shelfKit' // home fork
 import { PosterSizeSlider, usePosterSize } from './posterSize' // Usherr
+import NsfwTools from './NsfwTools' // Usherr
 
-type Tab = 'library' | 'following' | 'find' | 'queue' | 'settings'
+type Tab = 'library' | 'following' | 'find' | 'queue' | 'tools' | 'settings'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'library', label: t('Library') },
   { key: 'following', label: t('Following') },
   { key: 'find', label: t('Find') },
   { key: 'queue', label: t('Queue') },
+  { key: 'tools', label: t('Tools') },
 ]
 
 function fmtSize(bytes: number): string {
@@ -130,7 +132,7 @@ export default function Nsfw() {
 
   const setTab = (tg: Tab) => setParams(tg === 'library' ? {} : { tab: tg })
   const ready = admin ? settings?.enabled && settings.keySet && settings.path : memberReady
-  const shown: Tab = admin && settings && !ready ? 'settings' : !admin && (tab === 'settings' || tab === 'queue') ? 'library' : tab
+  const shown: Tab = admin && settings && !ready ? 'settings' : !admin && (tab === 'settings' || tab === 'queue' || tab === 'tools') ? 'library' : tab
 
   return (
     <div className="nsfw-page" style={posterSize.style}>
@@ -140,7 +142,7 @@ export default function Nsfw() {
       </div>
       <div className="toolbar sc-tabs">
         <div className="seg" role="tablist" aria-label={t('NSFW')}>
-          {TABS.filter((tg) => admin || (tg.key !== 'queue' && tg.key !== 'settings')).map((tg) => (
+          {TABS.filter((tg) => admin || (tg.key !== 'queue' && tg.key !== 'tools' && tg.key !== 'settings')).map((tg) => (
             <button key={tg.key} role="tab" aria-selected={shown === tg.key} className={shown === tg.key ? 'active' : ''} onClick={() => setTab(tg.key)} disabled={!ready}>
               {tg.label}
             </button>
@@ -159,6 +161,7 @@ export default function Nsfw() {
       {ready && shown === 'following' && <FollowingTab />}
       {ready && shown === 'find' && <FindTab />}
       {admin && ready && shown === 'queue' && <VideoQueue />}
+      {admin && ready && shown === 'tools' && <NsfwTools />}
     </div>
   )
 }

@@ -2,8 +2,9 @@
 // (StPageFlip, MIT): drag a corner, click or swipe. On a wide screen it is an
 // open comic, two pages side by side with the cover on its own; held upright
 // it is one page at a time. Loaded only when a comic is opened.
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { PageFlip } from 'page-flip'
+import { bookLeaves, bookPad, bookToPage, pageToBook } from './comicReading'
 
 export interface ComicFlipHandle {
   next: () => void
@@ -16,10 +17,15 @@ interface Props {
   start: number // 1-based page to open at
   onPage: (page: number) => void // 1-based, as the reader turns
   flipMs?: number // how long one page turn takes
+  rtl?: boolean // right to left: the book is built backwards (comicReading.ts)
 }
 
 
-const ComicFlip = forwardRef<ComicFlipHandle, Props>(function ComicFlip({ pages, start, onPage, flipMs = 650 }, ref) {
+const ComicFlip = forwardRef<ComicFlipHandle, Props>(function ComicFlip({ pages, start, onPage, flipMs = 650, rtl = false }, ref) {
+  const total = pages.length
+  // Worked out once: the reader builds a new book when the direction changes.
+  const [pad] = useState(() => bookPad(total, rtl, window.innerHeight <= window.innerWidth))
+  const leaves = useMemo(() => bookLeaves(total, rtl, pad), [total, rtl, pad])
   const host = useRef<HTMLDivElement>(null)
   const book = useRef<PageFlip | null>(null)
   const onPageRef = useRef(onPage)
@@ -70,11 +76,11 @@ const ComicFlip = forwardRef<ComicFlipHandle, Props>(function ComicFlip({ pages,
       maxShadowOpacity: 0.45,
       mobileScrollSupport: false,
       flippingTime: flipMs,
-      startPage: Math.max(0, Math.min(current.current - 1, pages.length - 1)),
+      startPage: pageToBook(current.current, total, rtl, pad),
     })
     pf.loadFromHTML(el.querySelectorAll<HTMLElement>('.cxf-page'))
     pf.on('flip', (e) => {
-      current.current = Number(e.data) + 1
+      current.current = bookToPage(Number(e.data), total, rtl, pad, pf.getOrientation() === 'landscape')
       onPageRef.current(current.current)
     })
     book.current = pf
@@ -93,19 +99,20 @@ const ComicFlip = forwardRef<ComicFlipHandle, Props>(function ComicFlip({ pages,
   useImperativeHandle(
     ref,
     () => ({
-      next: () => book.current?.flipNext(),
-      prev: () => book.current?.flipPrev(),
-      turnTo: (page: number) => book.current?.turnToPage(Math.max(0, Math.min(page - 1, pages.length - 1))),
+      // Forward in the comic is backward in a book built backwards.
+      next: () => (rtl ? book.current?.flipPrev() : book.current?.flipNext()),
+      prev: () => (rtl ? book.current?.flipNext() : book.current?.flipPrev()),
+      turnTo: (page: number) => book.current?.turnToPage(pageToBook(page, total, rtl, pad)),
     }),
-    [pages.length],
+    [total, rtl, pad],
   )
 
   return (
     <div className="cxf-stage">
       <div ref={host} className="cxf-book">
-        {pages.map((src, i) => (
-          <div key={src} className="cxf-page" data-density={i === 0 || i === pages.length - 1 ? 'hard' : 'soft'}>
-            <img src={src} alt={`Page ${i + 1}`} loading={Math.abs(i + 1 - start) <= 3 ? 'eager' : 'lazy'} draggable={false} />
+        {leaves.map((page, i) => (
+          <div key={page} className="cxf-page" data-density={i === 0 || i === leaves.length - 1 ? 'hard' : 'soft'}>
+            {page > 0 && <img src={pages[page - 1]} alt={`Page ${page}`} loading={Math.abs(page - start) <= 3 ? 'eager' : 'lazy'} draggable={false} />}
           </div>
         ))}
       </div>

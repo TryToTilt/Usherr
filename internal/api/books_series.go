@@ -421,6 +421,19 @@ func (s *Server) handlePutHardcover(w http.ResponseWriter, r *http.Request) {
 // looked up, so opening a page twice doesn't ask twice.
 var audioLookups sync.Map
 
+// audibleDetails asks Audnexus about an audiobook: by its ASIN when the book's
+// folder gave one, otherwise (or when Audible doesn't know that ASIN) by title
+// and author.
+func (s *Server) audibleDetails(ctx context.Context, asin, title, author string) (books.AudioDetails, error) {
+	if asin != "" {
+		d, err := s.Audnexus.Details(ctx, asin)
+		if err == nil || !errors.Is(err, books.ErrNotFound) {
+			return d, err
+		}
+	}
+	return s.Audnexus.Lookup(ctx, title, author)
+}
+
 // lookUpAudioDetailsLater fetches the narrator, running time (and, when
 // missing, the series) of a book's audiobook in the background, once per book.
 func (s *Server) lookUpAudioDetailsLater(b books.Book) {
@@ -434,12 +447,12 @@ func (s *Server) lookUpAudioDetailsLater(b books.Book) {
 		defer audioLookups.Delete(b.ID)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
-		d, err := s.Audnexus.Lookup(ctx, b.Title, b.Author)
+		d, err := s.audibleDetails(ctx, b.ASIN, b.Title, b.Author)
 		if err != nil && !errors.Is(err, books.ErrNotFound) {
 			slog.Info("books: audiobook details", "book", b.ID, "err", err)
 			return // a network problem: try again another time
 		}
-		if err := s.BookRepo.SetAudioDetails(b.ID, d); err != nil {
+		if err := s.BookRepo.MergeAudioDetails(b.ID, d); err != nil {
 			slog.Warn("books: save audiobook details", "book", b.ID, "err", err)
 			return
 		}

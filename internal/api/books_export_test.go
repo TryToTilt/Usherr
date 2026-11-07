@@ -37,3 +37,10 @@ func (s *Server) TestSetAudnexus(audibleBase, audnexusBase string) {
 
 // TestCheckFollowedAuthors runs the followed-authors check now.
 func (s *Server) TestCheckFollowedAuthors() int { return s.checkFollowedAuthors(context.Background()) }
+
+// SetAudioProberForTest swaps ffprobe for a fake until the test ends.
+func SetAudioProberForTest(t interface{ Cleanup(func()) }, probe books.AudioProber) {
+	oldProbe, oldReady := probeAudioFile, audioProberReady
+	probeAudioFile, audioProberReady = probe, func() bool { return true }
+	t.Cleanup(func() { probeAudioFile, audioProberReady = oldProbe, oldReady })
+}

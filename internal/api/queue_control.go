@@ -168,6 +168,7 @@ func (s *Server) stopItem(item queue.Item, deleteFiles bool) error {
 	if item.Status != queue.StatusQueued && item.Status != queue.StatusDownloading && item.Status != queue.StatusImporting && item.Status != queue.StatusPaused {
 		return finished
 	}
+	s.mangaDexStopped(item)               // manga hook (Usherr)
 	ref, inClient := s.clientRefFor(item) // before the folder with its hash can go
 	if s.pipelines.interrupt(item.ID, true, deleteFiles, stopWait) {
 		s.removeFromClient(ref, inClient, false)
@@ -195,6 +196,7 @@ func (s *Server) stopItem(item queue.Item, deleteFiles bool) error {
 // partial files and removes it from the list. It does not wait for the
 // pipeline to finish: it sets the final state itself.
 func (s *Server) discardItem(item queue.Item) {
+	s.mangaDexStopped(item) // manga hook (Usherr)
 	ref, inClient := s.clientRefFor(item)
 	defer s.removeFromClient(ref, inClient, false)
 	if !s.pipelines.interrupt(item.ID, true, true, stopWait) {
@@ -300,6 +302,9 @@ func (s *Server) preparePipeline(item queue.Item) (func(), error) {
 		return run, err
 	}
 	if run, ok, err := s.prepareSportsPipeline(item, protocol); ok { // sports hook (Usherr)
+		return run, err
+	}
+	if run, ok, err := s.prepareMangaPipeline(item, protocol); ok { // manga hook (Usherr)
 		return run, err
 	}
 	return nil, errors.New("This download isn't linked to a movie, show, album or book.")

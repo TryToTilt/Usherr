@@ -1,8 +1,9 @@
 import { withBase } from '../base'
 import { t } from '../i18n'
 
-// Bookmarks and highlights (reading_marks.go). item is "book:<id>" for the
-// Books library or "comic:<issue id>" for the Comics library.
+// Bookmarks and highlights (reading_marks.go). item is "book:<id>" for an ebook
+// of the Books library, "audio:<id>" for the same book's audiobook, or
+// "comic:<issue id>" for the Comics library.
 export type MarkKind = 'bookmark' | 'highlight'
 export type MarkColor = '' | 'yellow' | 'green' | 'blue' | 'pink'
 
@@ -10,7 +11,7 @@ export interface ReadingMark {
   id: number
   item: string
   kind: MarkKind
-  position: string // an EPUB CFI (a range for a highlight) or "page:<n>"
+  position: string // an EPUB CFI (a range for a highlight), "page:<n>" or an audiobook's "track:seconds"
   label: string
   excerpt: string
   note: string
@@ -54,6 +55,8 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 // The address of an item's marks: a book, or a comic issue.
 function itemPath(item: string): string {
   const [kind, id] = item.split(':')
+  if (kind === 'audio') return `/books/${id}/marks?format=audiobook`
+  if (kind === 'manga') return `/manga/volumes/${item.split(':')[2]}/marks`
   return kind === 'comic' ? `/comics/issues/${id}/marks` : `/books/${id}/marks`
 }
 

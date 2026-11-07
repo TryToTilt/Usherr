@@ -30,6 +30,76 @@ export function overallPercent(sizes: number[], track: number, fraction: number)
   return Math.round(((before + sizes[track] * f) / total) * 1000) / 10
 }
 
+// The book's one timeline: each file's real length in order, or null while one
+// isn't known. The file that is playing can fill in its own length from the
+// browser. A saved place stays "track:seconds", a spot in one real file, so a
+// place saved before the lengths were known is the same spot now.
+export function timelineOf(tracks: { duration?: number }[], track = -1, playing = 0): number[] | null {
+  if (tracks.length === 0) return null
+  const out: number[] = []
+  for (let i = 0; i < tracks.length; i++) {
+    const known = tracks[i].duration ?? 0
+    const secs = known > 0 ? known : i === track && Number.isFinite(playing) ? playing : 0
+    if (secs <= 0) return null
+    out.push(secs)
+  }
+  return out
+}
+
+export function totalTime(timeline: number[]): number {
+  return timeline.reduce((a, b) => a + b, 0)
+}
+
+// How far into the whole book a place in one file is. A place past the end of
+// its file (two readers can differ by a moment on a length) is that file's end.
+export function absoluteTime(timeline: number[], track: number, seconds: number): number {
+  if (timeline.length === 0) return 0
+  const n = Math.min(Math.max(track, 0), timeline.length - 1)
+  const secs = Number.isFinite(seconds) ? seconds : 0
+  return totalTime(timeline.slice(0, n)) + Math.min(Math.max(secs, 0), timeline[n])
+}
+
+// The file and the place in it at a point of the whole book.
+export function locateTime(timeline: number[], at: number): AudioPosition {
+  let left = Math.max(Number.isFinite(at) ? at : 0, 0)
+  for (let i = 0; i < timeline.length; i++) {
+    if (left < timeline[i] || i === timeline.length - 1) return { track: i, seconds: Math.min(left, timeline[i]) }
+    left -= timeline[i]
+  }
+  return { track: 0, seconds: 0 }
+}
+
+// How far through the book, in percent: true when the timeline is known,
+// otherwise the estimate from file sizes.
+export function bookPercent(tracks: { size: number }[], timeline: number[] | null, track: number, seconds: number, duration: number): number {
+  if (timeline) {
+    const total = totalTime(timeline)
+    return Math.round((absoluteTime(timeline, track, seconds) / total) * 1000) / 10
+  }
+  return overallPercent(
+    tracks.map((t) => t.size),
+    track,
+    duration > 0 ? seconds / duration : 0,
+  )
+}
+
+// Where to start a file at a saved place: a place past the file's end (it can
+// differ by a moment, or the file changed) is just before the end, not the start.
+export function resumePoint(at: number, duration: number): number {
+  return Number.isFinite(duration) ? Math.min(at, Math.max(0, duration - 1)) : at
+}
+
+export type RewindMode = 'off' | 'little' | 'more'
+
+// How many seconds to go back on pressing play after a pause: nothing after a
+// moment, a little after a minute, more the longer it was.
+export function smartRewind(pausedMs: number, mode: RewindMode): number {
+  if (mode === 'off' || !(pausedMs >= 3000)) return 0
+  const min = pausedMs / 60_000
+  const more = min < 1 ? 2 : min < 10 ? 5 : min < 60 ? 10 : min < 24 * 60 ? 20 : 30
+  return mode === 'more' ? more : Math.ceil(more / 2)
+}
+
 // 75 -> "1:15", 3725 -> "1:02:05".
 export function formatClock(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) seconds = 0

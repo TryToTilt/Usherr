@@ -171,7 +171,7 @@ interface RowProps {
 // again, which is what made rows flicker and jump.
 // Why a download failed and what to try, folded away until asked for.
 function FailureTips({ q, link }: { q: QueueItem; link?: string | null }) {
-  const help = failureHelp(q.error, q.protocol)
+  const help = failureHelp(q.error, q.protocol === 'mangadex' ? undefined : q.protocol)
   if (!help) return null
   return (
     <details className="qhelp" data-walk="queue-why">
@@ -244,7 +244,7 @@ function QueueDetails({ q, admin }: { q: QueueItem; admin: boolean }) {
           </>
         )}
         <dt>{t('Source')}</dt>
-        <dd>{q.protocol === 'torrent' ? 'Torrent' : 'Usenet'}</dd>
+        <dd>{q.protocol === 'mangadex' ? 'MangaDex' : q.protocol === 'torrent' ? 'Torrent' : 'Usenet'}</dd>
         {q.category && (
           <>
             <dt>{t('Category')}</dt>
@@ -334,8 +334,8 @@ function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProp
           {link ? <Link to={link}>{q.title}</Link> : <span>{q.title}</span>}
           {q.subtitle && <span className="badge">{q.subtitle}</span>}
           <span className={`badge ${q.status === 'completed' ? 'downloaded' : q.status}`}>{statusLabel(q)}</span>
-          <span className="qproto" title={q.protocol === 'torrent' ? 'Torrent' : 'Usenet'}>
-            {q.protocol === 'torrent' ? 'torrent' : 'usenet'}
+          <span className="qproto" title={q.protocol === 'mangadex' ? 'MangaDex' : q.protocol === 'torrent' ? 'Torrent' : 'Usenet'}>
+            {q.protocol === 'mangadex' ? 'mangadex' : q.protocol === 'torrent' ? 'torrent' : 'usenet'}
           </span>
           {q.category && (
             <span className="badge qcat" title={t('Torrent category')}>
@@ -373,7 +373,8 @@ function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProp
                 // home fork: the step a finished download is on, and its timer
                 <>
                   {stepLabel(q, q.sizeBytes ? formatBytes(q.sizeBytes) : '')}
-                  <Countdown ends={q.stageEnds} prefix=" · " />
+                  {/* Usherr: the live rate's estimate below wins; two different times confused */}
+                  {!(transfer && etaText(transfer.etaSec)) && <Countdown ends={q.stageEnds} prefix=" · " />}
                 </>
               ) : q.sizeBytes ? (
                 t('{pct}% of {size}', { pct: q.progressPct.toFixed(0), size: formatBytes(q.sizeBytes) })

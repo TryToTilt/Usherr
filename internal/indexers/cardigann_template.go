@@ -629,8 +629,8 @@ var (
 )
 
 // warnSkippedRegex logs (once per pattern) that a text replacement was
-// skipped because Go's regular expressions can't express it; the value is
-// left unchanged rather than failing the whole result.
+// skipped because no engine here can run it on that text; the value is left
+// unchanged rather than failing the whole result.
 func warnSkippedRegex(err error) {
 	skippedRegexMu.Lock()
 	defer skippedRegexMu.Unlock()
@@ -704,7 +704,7 @@ func isHex(s string) bool {
 // compiledRegex is a cached compile: the expression and its cost per byte of
 // text, or why it can't be used.
 type compiledRegex struct {
-	re     *regexp.Regexp
+	re     *dotNetRegex
 	weight int64
 	err    error
 }
@@ -728,10 +728,9 @@ const (
 var errRegexTooBig = errors.New("the regular expression is too complex")
 
 // compileDotNetRegex compiles a regular expression written for .NET (the
-// dialect Cardigann definitions target) with Go's RE2 engine. Constructs RE2
-// lacks (look-around, back-references, atomic groups) fail with a clear
-// error.
-func compileDotNetRegex(pattern string) (*regexp.Regexp, error) {
+// dialect Cardigann definitions target): with Go's RE2 engine when it can run
+// the pattern, otherwise with the limited backtracking one (cardigann_regex.go).
+func compileDotNetRegex(pattern string) (*dotNetRegex, error) {
 	c := compileDotNetRegexCost(pattern)
 	return c.re, c.err
 }
@@ -760,23 +759,22 @@ func buildDotNetRegex(pattern string) compiledRegex {
 	if len(pattern) > maxRegexLength {
 		return compiledRegex{err: fmt.Errorf("regular expression %q is too long: %w", shortenText(pattern, 60), errRegexTooBig)}
 	}
-	for _, bad := range []struct{ tok, what string }{
-		{"(?=", "look-ahead"}, {"(?!", "negative look-ahead"}, {"(?<=", "look-behind"},
-		{"(?<!", "negative look-behind"}, {"(?>", "atomic group"},
-	} {
-		if strings.Contains(pattern, bad.tok) {
-			return compiledRegex{err: fmt.Errorf("regular expression %q uses a %s, which is not supported", pattern, bad.what)}
-		}
-	}
 	translated := translateDotNetRegex(pattern)
+	parsed, perr := syntax.Parse(translated, syntax.Perl)
+	if perr != nil {
+		// Too big for RE2 isn't a reason to try the engine that backtracks.
+		var serr *syntax.Error
+		if errors.As(perr, &serr) && (serr.Code == syntax.ErrInvalidRepeatSize || serr.Code == syntax.ErrLarge || serr.Code == syntax.ErrNestingDepth) {
+			return compiledRegex{err: fmt.Errorf("regular expression %q is not supported: %w", pattern, perr)}
+		}
+		return buildBacktrackingRegex(pattern, translated)
+	}
 	// Matching takes time in proportion to the pattern's size times the text's:
 	// a pattern of a million steps run over a page of 16 MB never finishes. The
 	// size is measured before the real compile, which is the costly part.
 	steps := 0
-	if parsed, perr := syntax.Parse(translated, syntax.Perl); perr == nil {
-		if prog, cerr := syntax.Compile(parsed.Simplify()); cerr == nil {
-			steps = len(prog.Inst)
-		}
+	if prog, cerr := syntax.Compile(parsed.Simplify()); cerr == nil {
+		steps = len(prog.Inst)
 	}
 	if steps > maxRegexSteps {
 		return compiledRegex{err: fmt.Errorf("regular expression %q: %w", shortenText(pattern, 60), errRegexTooBig)}
@@ -785,7 +783,12 @@ func buildDotNetRegex(pattern string) compiledRegex {
 	if err != nil {
 		return compiledRegex{err: fmt.Errorf("regular expression %q is not supported: %w", pattern, err)}
 	}
-	return compiledRegex{re: re, weight: 1 + int64(steps)/16}
+	if numbersGroupsUnlikeDotNet(re) {
+		if c := buildBacktrackingRegex(pattern, translated); c.err == nil {
+			return c
+		}
+	}
+	return compiledRegex{re: &dotNetRegex{fast: re}, weight: 1 + int64(steps)/16}
 }
 
 var dotNetGroupRef = regexp.MustCompile(`\$(\d+)`)

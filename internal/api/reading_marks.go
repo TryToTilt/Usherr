@@ -7,13 +7,14 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/rdborg/mediarium/internal/books"
 	"github.com/rdborg/mediarium/internal/readmarks"
 )
 
 // Usherr: bookmarks and highlights in the ebook reader, and bookmarks in the
-// comic readers, kept per person (internal/readmarks). A book's marks are
-// listed on its page and in the reader; a comic's in the reader and on its
-// series page. Each one jumps back to where it was made.
+// audiobook player and comic readers, kept per person (internal/readmarks). A
+// book's marks are listed on its page and in the reader or player; a comic's in
+// the reader and on its series page. Each one jumps back to where it was made.
 
 var markRepos sync.Map // *Server -> *readmarks.Repo
 
@@ -56,7 +57,7 @@ func (s *Server) addMark(w http.ResponseWriter, r *http.Request, item string, hi
 		m.Kind = readmarks.Bookmark
 	}
 	if m.Kind == readmarks.Highlight && !highlights {
-		writeError(w, http.StatusBadRequest, "Comics have bookmarks, not highlights.")
+		writeError(w, http.StatusBadRequest, "Comics and audiobooks have bookmarks, not highlights.")
 		return
 	}
 	if why := m.Problem(); why != "" {
@@ -76,17 +77,29 @@ func (s *Server) addMark(w http.ResponseWriter, r *http.Request, item string, hi
 	writeJSON(w, http.StatusCreated, saved)
 }
 
+// bookMarkItem is the item a book's marks are kept under. The audiobook's are
+// apart from the ebook's (?format=audiobook): a place in sound means nothing to
+// the reader, and the other way round.
+func bookMarkItem(r *http.Request, id int64) (item string, audio bool) {
+	if r.URL.Query().Get("format") == string(books.Audiobook) {
+		return "audio:" + strconv.FormatInt(id, 10), true
+	}
+	return "book:" + strconv.FormatInt(id, 10), false
+}
+
 // GET /api/books/{id}/marks
 func (s *Server) handleBookMarks(w http.ResponseWriter, r *http.Request) {
 	if b, ok := s.bookFromPath(w, r); ok {
-		s.listMarks(w, r, "book:"+strconv.FormatInt(b.ID, 10))
+		item, _ := bookMarkItem(r, b.ID)
+		s.listMarks(w, r, item)
 	}
 }
 
 // POST /api/books/{id}/marks
 func (s *Server) handleAddBookMark(w http.ResponseWriter, r *http.Request) {
 	if b, ok := s.bookFromPath(w, r); ok {
-		s.addMark(w, r, "book:"+strconv.FormatInt(b.ID, 10), true)
+		item, audio := bookMarkItem(r, b.ID)
+		s.addMark(w, r, item, !audio)
 	}
 }
 

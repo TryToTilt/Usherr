@@ -222,16 +222,22 @@ func (s *Server) processBookImport(job *bookImportJob, found, kept []bookImportR
 	job.results = append(job.results, kept...)
 	job.mu.Unlock()
 
-	known := map[string]bool{} // paths already in the library
+	known := map[string]int64{} // paths already in the library, and their books
 	if list, err := s.BookRepo.List(); err == nil {
 		for _, b := range list {
-			known[b.EbookPath], known[b.AudioPath] = true, true
+			known[b.EbookPath], known[b.AudioPath] = b.ID, b.ID
 		}
 	}
 	imported := 0
 	for i, res := range found {
-		if known[res.Path] {
+		if res.Kind == books.Audiobook {
+			res.LocalBook = s.withAudioTags(res.LocalBook)
+		}
+		if id := known[res.Path]; id != 0 {
 			res.Status = bookAlready
+			if res.Kind == books.Audiobook {
+				s.fillBookFromScan(id, res.LocalBook) // what it has stays; what it lacks can come from its folder
+			}
 		} else {
 			res = s.importOneBook(res)
 			if res.Status == bookImported {
@@ -253,6 +259,29 @@ func (s *Server) processBookImport(job *bookImportJob, found, kept []bookImportR
 		_ = s.QueueRepo.LogActivity(0, "imported", plural(imported, "book")+" added from your books folders")
 	}
 	slog.Info("books: import finished", "found", len(found), "imported", imported)
+}
+
+// withAudioTags adds what the tags of an audiobook's first file say, when the
+// folder left something empty and ffprobe is there.
+func (s *Server) withAudioTags(lb books.LocalBook) books.LocalBook {
+	if !lb.NeedsAudioTags() || !audioProberReady() {
+		return lb
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	p, err := probeAudioFile(ctx, lb.FirstAudio)
+	if err != nil {
+		slog.Info("books: read audiobook tags", "file", lb.FirstAudio, "err", err)
+		return lb
+	}
+	books.ApplyAudioTags(&lb, p.Tags)
+	return lb
+}
+
+func (s *Server) fillBookFromScan(id int64, lb books.LocalBook) {
+	if err := s.BookRepo.FillFromScan(id, lb); err != nil {
+		slog.Warn("books: fill in from the folder", "book", id, "err", err)
+	}
 }
 
 // importOneBook finds a book on Open Library and records its file.
@@ -278,7 +307,7 @@ func (s *Server) importOneBook(res bookImportResult) bookImportResult {
 		// An audiobook Open Library doesn't carry is often on Audible: ask
 		// Audnexus before giving up, and add the book from what it says.
 		if res.Kind == books.Audiobook {
-			if d, derr := s.Audnexus.Lookup(ctx, res.Title, res.Author); derr == nil && d.ASIN != "" {
+			if d, derr := s.audibleDetails(ctx, res.ASIN, res.Title, res.Author); derr == nil && d.ASIN != "" {
 				return s.importOneBookViaAudnexus(ctx, res, d)
 			} else if derr != nil && !errors.Is(derr, books.ErrNotFound) {
 				res.Status, res.Message = bookUnmatched, "Audnexus didn't answer. Run the import again later."
@@ -379,6 +408,9 @@ func (s *Server) attachBook(ctx context.Context, res bookImportResult, match boo
 	}
 	finish(true)
 	res.Status, res.BookID = bookImported, b.ID
+	if res.Kind == books.Audiobook {
+		s.fillBookFromScan(b.ID, res.LocalBook)
+	}
 	if updated, err := s.BookRepo.Get(b.ID); err == nil {
 		s.lookUpAudioDetailsLater(updated) // narrator and length, for an audiobook
 		s.convertLater(updated)            // an EPUB copy of a Kindle book, for the reader
@@ -421,9 +453,10 @@ func (s *Server) importOneBookViaAudnexus(ctx context.Context, res bookImportRes
 		res.Status, res.Message = bookFailed, err.Error()
 		return res
 	}
-	if err := s.BookRepo.SetAudioDetails(b.ID, d); err != nil {
+	if err := s.BookRepo.MergeAudioDetails(b.ID, d); err != nil {
 		slog.Warn("books: save audiobook details", "book", b.ID, "err", err)
 	}
+	s.fillBookFromScan(b.ID, res.LocalBook)
 	res.Status, res.BookID, res.Matched = bookImported, b.ID, d.Title+" (Audible)"
 	return res
 }

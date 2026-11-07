@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"regexp"
 	"sort"
 	"strconv"
@@ -27,7 +26,7 @@ var (
 // played after unpacking.
 var ErrNeedsUnpack = errors.New("the release's archives are compressed or locked")
 
-// rarPiece is a volume's stretch of the file inside.
+// rarPiece is a volume's stretch of a file inside.
 type rarPiece struct {
 	inner      string // the file inside
 	innerSize  int64  // its whole size
@@ -48,9 +47,11 @@ func parseRARHead(b []byte) (rarPiece, error) {
 	return rarPiece{}, errors.New("not a RAR volume")
 }
 
-func parseRAR4(b []byte) (rarPiece, error) {
+func parseRAR4(b []byte) (rarPiece, error) { return parseRAR4At(b, len(rar4Sig)) }
+
+// parseRAR4At reads the first file header from pos on.
+func parseRAR4At(b []byte, pos int) (rarPiece, error) {
 	p := rarPiece{volume: -1}
-	pos := len(rar4Sig)
 	for pos+7 <= len(b) {
 		typ := b[pos+2]
 		flags := binary.LittleEndian.Uint16(b[pos+3:])
@@ -117,9 +118,11 @@ func vint(b []byte, pos int) (uint64, int, error) {
 	return 0, pos, errors.New("a damaged RAR5 number")
 }
 
-func parseRAR5(b []byte) (rarPiece, error) {
+func parseRAR5(b []byte) (rarPiece, error) { return parseRAR5At(b, len(rar5Sig)) }
+
+// parseRAR5At reads the first file header from pos on.
+func parseRAR5At(b []byte, pos int) (rarPiece, error) {
 	p := rarPiece{volume: -1}
-	pos := len(rar5Sig)
 	for pos+6 < len(b) {
 		start := pos
 		pos += 4 // header CRC
@@ -128,6 +131,9 @@ func parseRAR5(b []byte) (rarPiece, error) {
 			return p, err
 		}
 		hstart := next
+		if hsize > uint64(len(b)) {
+			return p, errors.New("a RAR header past the first article")
+		}
 		hend := hstart + int(hsize)
 		if hend > len(b) {
 			return p, errors.New("a RAR header past the first article")
@@ -195,7 +201,7 @@ func parseRAR5(b []byte) (rarPiece, error) {
 				return p, err
 			}
 			nameLen, r, err := vint(b, r)
-			if err != nil || r+int(nameLen) > hend {
+			if err != nil || nameLen > uint64(len(b)) || r+int(nameLen) > hend || extra > hsize {
 				return p, errors.New("a damaged RAR5 file header")
 			}
 			name := string(b[r : r+int(nameLen)])
@@ -211,6 +217,9 @@ func parseRAR5(b []byte) (rarPiece, error) {
 					if err == nil && rtype == 0x01 {
 						return p, ErrNeedsUnpack
 					}
+					if rsize > hsize {
+						break
+					}
 					e = x + int(rsize)
 				}
 			}
@@ -218,9 +227,15 @@ func parseRAR5(b []byte) (rarPiece, error) {
 				return p, ErrNeedsUnpack // compressed
 			}
 			p.inner, p.innerSize = name, int64(unp)
+			if dataSize > 1<<62 || unp > 1<<62 {
+				return p, errors.New("a damaged RAR5 file header")
+			}
 			p.dataOff, p.dataSize = int64(hend), int64(dataSize)
 			p.splitAfter = hflags&0x0010 != 0
 			return p, nil
+		}
+		if dataSize > 1<<62 {
+			return p, errors.New("a damaged RAR5 header")
 		}
 		pos = hend + int(dataSize)
 		if pos <= start {
@@ -280,19 +295,62 @@ func volumeOrder(name string) (int, bool) {
 	return 0, false
 }
 
-// rarStream is the biggest video stored in the release's RAR volumes.
-func rarStream(opened []*nzbStream) (*StreamFile, error) {
+// rarMaxFiles is the most files read from one volume: a limit for hostile input
+// and for the articles spent looking.
+const rarMaxFiles = 256
+
+// volumePieces is every file stored in a volume, as far as it can be told: the
+// first file's header is in the first article, and each later one is found where
+// the file before it ends, which takes reading there. A file that runs on into
+// the next volume is the last in this one, so a one-file set costs nothing more
+// (only its last volume, which ends with a small closing block, is looked at).
+func volumePieces(s *nzbStream, first rarPiece, rar5 bool) []rarPiece {
+	pieces := []rarPiece{first}
+	cur := first
+	for len(pieces) < rarMaxFiles && !cur.splitAfter {
+		pos := cur.dataOff + cur.dataSize
+		if cur.dataSize < 0 || pos < cur.dataOff || pos+7 >= s.size {
+			break
+		}
+		buf := make([]byte, min(int64(64<<10), s.size-pos))
+		n, err := s.readAt(context.Background(), buf, pos)
+		if n == 0 && err != nil {
+			break
+		}
+		var next rarPiece
+		if rar5 {
+			next, err = parseRAR5At(buf[:n], 0)
+		} else {
+			next, err = parseRAR4At(buf[:n], 0)
+		}
+		if err != nil {
+			break
+		}
+		next.dataOff += pos
+		if next.dataOff <= cur.dataOff {
+			break
+		}
+		next.volume = first.volume
+		pieces = append(pieces, next)
+		cur = next
+	}
+	return pieces
+}
+
+// rarStreams are the whole videos stored in the release's RAR volumes, and why
+// some archive was refused, if one was. A pack can hold them as one set per
+// episode or as many files in one set.
+func rarStreams(opened []*nzbStream) ([]*StreamFile, error) {
 	type vol struct {
 		s     *nzbStream
 		piece rarPiece
 		order int
-		named bool
 	}
 	byInner := map[string][]vol{}
 	var refused error
 	for _, s := range opened {
 		head := make([]byte, min(int64(64<<10), s.size))
-		n, err := s.readAt(context.Background(), head, 0, false)
+		n, err := s.readAt(context.Background(), head, 0)
 		if n == 0 && err != nil {
 			continue
 		}
@@ -308,13 +366,16 @@ func rarStream(opened []*nzbStream) (*StreamFile, error) {
 			// Names that say nothing (an obfuscated post): RAR4 volumes say
 			// their number at their end.
 			tail := make([]byte, min(int64(256), s.size))
-			if m, _ := s.readAt(context.Background(), tail, s.size-int64(len(tail)), false); m == len(tail) {
+			if m, _ := s.readAt(context.Background(), tail, s.size-int64(len(tail))); m == len(tail) {
 				piece.volume = rar4VolumeNumber(tail)
 			}
 		}
-		byInner[piece.inner] = append(byInner[piece.inner], vol{s: s, piece: piece, order: o, named: named})
+		rar5 := len(head) > len(rar5Sig)-1 && string(head[:len(rar5Sig)]) == string(rar5Sig)
+		for _, p := range volumePieces(s, piece, rar5) {
+			byInner[p.inner] = append(byInner[p.inner], vol{s: s, piece: p, order: o})
+		}
 	}
-	var best *StreamFile
+	var out []*StreamFile
 	for inner, vols := range byInner {
 		if !isVideoName(inner) {
 			continue
@@ -329,22 +390,22 @@ func rarStream(opened []*nzbStream) (*StreamFile, error) {
 		})
 		f := &StreamFile{Name: inner, Size: vols[0].piece.innerSize}
 		var off int64
+		good := true
 		for _, v := range vols {
+			end := v.piece.dataOff + v.piece.dataSize
+			if v.piece.dataSize < 0 || end < v.piece.dataOff || end > v.s.size {
+				good = false // a header that doesn't fit its volume
+				break
+			}
 			f.spans = append(f.spans, span{src: v.s, srcOff: v.piece.dataOff, off: off, n: v.piece.dataSize})
 			off += v.piece.dataSize
 		}
-		if off != f.Size {
+		if !good || off != f.Size || f.Size <= 0 {
 			continue // volumes missing, or out of order
 		}
-		if best == nil || f.Size > best.Size {
-			best = f
-		}
+		out = append(out, f)
 	}
-	if best == nil {
-		if refused != nil {
-			return nil, refused
-		}
-		return nil, fmt.Errorf("no stored video in the release's archives")
-	}
-	return best, nil
+	// The order of a map says nothing: keep it the same each time.
+	sort.Slice(out, func(a, b int) bool { return out[a].Name < out[b].Name })
+	return out, refused
 }

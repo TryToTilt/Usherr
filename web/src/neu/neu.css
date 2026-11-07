@@ -30,6 +30,7 @@
   --n-book: #c8a2ff;
   --n-audiobook: #ffa173;
   --n-comic: #a8e05f;
+  --n-manga: #8fa8ff;
   --n-hair: rgba(255, 255, 255, 0.06);
 }
 :root[data-look='neu'][data-theme='light'] {
@@ -52,6 +53,7 @@
   --n-book: #6b3fb5;
   --n-audiobook: #a2440f;
   --n-comic: #3e6b0a;
+  --n-manga: #3a53b8;
   --n-hair: rgba(27, 31, 38, 0.08);
 }
 
@@ -114,6 +116,7 @@
   --c-sports: var(--n-good);
   --c-anime: var(--n-tv);
   --c-comics: var(--n-comic);
+  --c-manga: var(--n-manga);
   --c-movie: var(--n-movie);
   --c-tv: var(--n-tv);
   --c-music: var(--n-music);

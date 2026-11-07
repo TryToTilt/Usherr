@@ -364,8 +364,9 @@ type ownOpened struct {
 }
 
 // ownOpenFirst opens the first release in the list that can be streamed
-// (up to four tries), and answers the rest of the list.
-func (s *Server) ownOpenFirst(ctx context.Context, list []indexers.Result) (ownOpened, error) {
+// (up to four tries), and answers the rest of the list. For an episode, want
+// says which, so a release that doesn't clearly hold it gets passed over.
+func (s *Server) ownOpenFirst(ctx context.Context, list []indexers.Result, want download.StreamWant) (ownOpened, error) {
 	servers, err := s.ownServers()
 	if err != nil {
 		return ownOpened{}, err
@@ -375,7 +376,7 @@ func (s *Server) ownOpenFirst(ctx context.Context, list []indexers.Result) (ownO
 		if i >= 4 {
 			break
 		}
-		u, err := s.ustreamOpen(ctx, servers, r)
+		u, err := s.ustreamOpen(ctx, servers, r, want)
 		if err != nil {
 			last = err
 			if ctx.Err() == nil {
@@ -490,6 +491,7 @@ func (s *Server) handleGetStreamingEngine(w http.ResponseWriter, r *http.Request
 		"servers":  download.StreamServerUse(),
 		"sessions": sessions,
 		"speed":    speed,
+		"holes":    download.StreamHolesFilled(), // missing articles played past as zeros, since start
 		"indexers": s.streamingIndexerLines(),
 	})
 }
@@ -611,13 +613,13 @@ func (s *Server) ownStreamOptions(w http.ResponseWriter, r *http.Request, kind s
 	if len(list) == 0 {
 		return false, errors.New("Usherr found no release of this on your indexers right now.")
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"profile": "Usherr " + quality, "options": s.offerOwnOptions(r, list)})
+	writeJSON(w, http.StatusOK, map[string]any{"profile": "Usherr " + quality, "options": s.offerOwnOptions(r, list, download.StreamWant{Season: season, Episode: episode, AirDate: q.AirDate})})
 	return true, nil
 }
 
 // offerOwnOptions keeps the first releases of a list as stream options for
 // the person asking (each with the rest in line behind it) and answers them.
-func (s *Server) offerOwnOptions(r *http.Request, list []indexers.Result) []streamOptionPayload {
+func (s *Server) offerOwnOptions(r *http.Request, list []indexers.Result, want download.StreamWant) []streamOptionPayload {
 	if len(list) > 12 {
 		list = list[:12]
 	}
@@ -640,7 +642,7 @@ func (s *Server) offerOwnOptions(r *http.Request, list []indexers.Result) []stre
 		if len(bits) > 0 {
 			label += "\n" + strings.Join(bits, " · ")
 		}
-		streams.options[oid] = streamOption{title: label, userID: user, at: time.Now(), res: &res, alts: rest}
+		streams.options[oid] = streamOption{title: label, userID: user, at: time.Now(), res: &res, alts: rest, want: want}
 		rel := parser.Parse(c.Title)
 		out = append(out, streamOptionPayload{ID: oid, Name: "Usherr", Title: label, Quality: rel.Resolution, Codec: rel.Codec})
 	}
@@ -676,7 +678,7 @@ func (s *Server) ownSearchedSource(ctx context.Context, f streamedFileRow, quali
 	if len(fresh) == 0 {
 		return nil, errors.New("Usherr found no release of this on your indexers right now.")
 	}
-	op, err := s.ownOpenFirst(ctx, fresh)
+	op, err := s.ownOpenFirst(ctx, fresh, download.StreamWant{Season: f.season, Episode: f.episode, AirDate: q.AirDate})
 	if err != nil {
 		return nil, err
 	}

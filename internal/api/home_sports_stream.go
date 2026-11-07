@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rdborg/mediarium/internal/download"
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/parser"
 	"github.com/rdborg/mediarium/internal/quality"
@@ -217,7 +218,7 @@ func (s *Server) handleSportsStream(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "No release of this game was found on your indexers right now.")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"profile": "Usherr", "options": s.offerOwnOptions(r, list)})
+	writeJSON(w, http.StatusOK, map[string]any{"profile": "Usherr", "options": s.offerOwnOptions(r, list, download.StreamWant{})})
 }
 
 // sportLanguageRank: 0 in a wanted language, 1 not said (usually English),

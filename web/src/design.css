@@ -1796,6 +1796,9 @@ fieldset.group .card, fieldset.group table { max-width: 100%; }
 :root { --c-book: #7fc8a9; --c-audiobook: #c9a0ff; }
 @media (prefers-color-scheme: light) { :root:not([data-theme='dark']) { --c-book: #1f7a55; --c-audiobook: #6b3fb5; } }
 :root[data-theme='light'] { --c-book: #1f7a55; --c-audiobook: #6b3fb5; }
+:root { --c-manga: #8fa8ff; }
+@media (prefers-color-scheme: light) { :root:not([data-theme='dark']) { --c-manga: #3a53b8; } }
+:root[data-theme='light'] { --c-manga: #3a53b8; }
 
 /* Settings, Modules: one card per kind of media, side by side, equal height */
 .module-page { display: grid; gap: 18px; }

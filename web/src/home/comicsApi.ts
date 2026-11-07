@@ -1,5 +1,6 @@
 // Home fork: the Comics module's API.
 import { t } from '../i18n'
+import type { ReadDirection, ReaderLayout } from './comicReading'
 
 export interface ComicSeries {
   id: number
@@ -16,7 +17,11 @@ export interface ComicSeries {
   have: number
   wanted: number
   inLibrary?: number // lookup results: the library id when already added
+  type?: ComicSeriesType
+  wantRead?: boolean // this person
 }
+
+export type ComicSeriesType = '' | 'comic' | 'manga' | 'webtoon' | 'collected'
 
 export interface ComicIssue {
   id: number
@@ -31,6 +36,60 @@ export interface ComicIssue {
   status: 'missing' | 'downloading' | 'downloaded'
   filePath?: string
   fileSize?: number
+  // This person: read, on their Want to Read, and where they left it.
+  read?: boolean
+  wantRead?: boolean
+  page?: number
+  pages?: number
+}
+
+// What the reader needs to open an issue.
+export interface ComicNextIssue {
+  id: number
+  number: string
+  title?: string
+  have: boolean
+}
+
+export interface ComicPages {
+  pages?: number
+  pdf?: boolean
+  title: string
+  seriesId?: number
+  direction?: ReadDirection
+  layout?: ReaderLayout | ''
+  next?: ComicNextIssue // the issue after this one
+  nextHave?: ComicNextIssue // the next one with a file, when that isn't the same
+}
+
+// One entry in someone's reading views. No issueId: a whole series on Want to Read.
+export interface ComicReadingItem {
+  seriesId: number
+  issueId?: number
+  series: string
+  number?: string
+  title?: string
+  imageUrl: string
+  status?: string
+  page?: number
+  pages?: number
+  next?: boolean
+  at: number
+}
+
+export interface ComicReadingViews {
+  continue: ComicReadingItem[]
+  want: ComicReadingItem[]
+  read: ComicReadingItem[]
+}
+
+// What choosing another ComicVine volume would do.
+export interface ComicMatchPreview {
+  series: ComicSeries
+  files: number // files that stay with an issue of the same number
+  noMatch: string[] // issue numbers with a file and no such number there
+  added: number
+  removed: number
 }
 
 export interface ComicSettings {
@@ -206,7 +265,14 @@ export const comicsApi = {
   lookup: (q: string) => call<ComicSeries[]>('GET', '/lookup?q=' + encodeURIComponent(q)),
   add: (cvId: number, want: 'all' | 'future' | 'none') => call<{ series: ComicSeries; issues: number }>('POST', '', { cvId, want }),
   get: (id: number) => call<{ series: ComicSeries; issues: ComicIssue[] }>('GET', `/${id}`),
-  update: (id: number, body: { monitorNew?: boolean }) => call<ComicSeries>('PUT', `/${id}`, body),
+  update: (id: number, body: { monitorNew?: boolean; type?: ComicSeriesType }) => call<ComicSeries>('PUT', `/${id}`, body),
+  matchPreview: (id: number, cvId: number) => call<ComicMatchPreview>('POST', `/${id}/match/preview`, { cvId }),
+  match: (id: number, cvId: number) => call<{ series: ComicSeries; found: number }>('POST', `/${id}/match`, { cvId }),
+  reading: () => call<ComicReadingViews>('GET', '/reading'),
+  markRead: (issueId: number, scope: 'issue' | 'upto' | 'series', read: boolean) => call<{ issueIds: number[] }>('PUT', '/reading/mark', { issueId, scope, read }),
+  markIdsRead: (issueIds: number[]) => call<{ issueIds: number[] }>('PUT', '/reading/mark', { issueIds, read: true }),
+  wantRead: (seriesId: number, issueId: number, want: boolean) => call<null>('PUT', '/reading/want', { seriesId, issueId, want }),
+  readerPrefs: (seriesId: number, body: { direction?: ReadDirection; layout?: ReaderLayout }) => call<null>('PUT', '/reader-prefs', { seriesId, ...body }),
   remove: (id: number) => call<{ message: string }>('DELETE', `/${id}`),
   refresh: (id: number) => call<{ added: number; found?: number }>('POST', `/${id}/refresh`), // found: files already in its folder (home fork)
   searchSeries: (id: number) => call<{ message: string }>('POST', `/${id}/search`),
@@ -215,10 +281,10 @@ export const comicsApi = {
   releases: (id: number, all: boolean, q = '') => call<ComicRelease[]>('GET', `/issues/${id}/releases?${new URLSearchParams({ ...(all ? { all: '1' } : {}), ...(q ? { q } : {}) }).toString()}`),
   grab: (id: number, r: ComicRelease) => call<{ queueId: number }>('POST', `/issues/${id}/grab`, { title: r.title, downloadUrl: r.downloadUrl, sizeBytes: r.sizeBytes, protocol: r.protocol }),
   fileUrl: (id: number) => `/api/comics/issues/${id}/file`,
-  pages: (id: number) => call<{ pages?: number; pdf?: boolean; title: string }>('GET', `/issues/${id}/pages`),
+  pages: (id: number) => call<ComicPages>('GET', `/issues/${id}/pages`),
   pageUrl: (id: number, n: number, w?: number) => `/api/comics/issues/${id}/pages/${n}${w ? `?w=${w}` : ''}`, // w: a copy that wide (home fork)
   // Guided view (home fork): a page's panels in reading order, as fractions of the page.
-  panels: (id: number, n: number) => call<{ panels: ComicPanel[]; method: string }>('GET', `/issues/${id}/pages/${n}/panels`),
+  panels: (id: number, n: number, rtl: boolean) => call<{ panels: ComicPanel[]; method: string }>('GET', `/issues/${id}/pages/${n}/panels?rtl=${rtl ? 1 : 0}`),
 }
 
 export interface ComicPanel {

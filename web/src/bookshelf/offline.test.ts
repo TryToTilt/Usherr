@@ -87,8 +87,13 @@ test('what is stored for each kind of book', () => {
   assert.ok(audio.includes('/m/api/books/5/progress?format=audiobook') && audio.includes('/m/api/books/5/listen/2') && !audio.includes('/m/api/books/5/listen/3'))
   const issue = bookPaths('issue', 9, 2, base)
   assert.deepEqual(issue, ['/api/comics/issues/9/pages', '/api/comics/issues/9/marks', '/api/home/position?item=comic:9', '/api/comics/issues/9/pages/1', '/api/comics/issues/9/pages/2'])
+  const volume = bookPaths('volume', 7, 2, base)
+  assert.deepEqual(volume, ['/api/manga/volumes/7/pages', '/api/manga/volumes/7/marks', '/api/home/position?item=manga:v:7', '/api/manga/volumes/7/pages/1', '/api/manga/volumes/7/pages/2'])
   // Every address is one the worker answers.
-  for (const p of [...comic, ...audio, ...issue]) assert.notEqual(rules.kind('GET', u(p), 'cors', p.startsWith('/m/') ? '/m' : ''), '', p)
+  for (const p of [...comic, ...audio, ...issue, ...volume]) assert.notEqual(rules.kind('GET', u(p), 'cors', p.startsWith('/m/') ? '/m' : ''), '', p)
+  // A page is the same at any width: the reader asks for a copy sized to the screen.
+  assert.equal(rules.key(u('/api/manga/volumes/7/pages/1?w=800'), ''), rules.key(u('/api/manga/volumes/7/pages/1'), ''))
+  assert.equal(keptId('volume', 7), 'manga:7')
   assert.equal(keptId('issue', 9), 'comic:9')
   assert.equal(keptId('pdf', 5), 'book:5:ebook')
   assert.equal(keptId('audiobook', 5), 'book:5:audiobook')

@@ -172,6 +172,7 @@ func (s *Server) registerVideoRoutes(admin, member routeGroup) {
 	admin.HandleFunc("POST /api/nsfw/{id}/search", on(s.handleSearchVideoNow))
 	admin.HandleFunc("GET /api/nsfw/{id}/releases", on(s.handleVideoReleases))
 	admin.HandleFunc("POST /api/nsfw/{id}/grab", on(s.handleGrabVideo))
+	s.registerNsfwToolRoutes(admin, on) // Usherr: match by fingerprint, favorites, rename
 }
 
 // Everything about videos stays behind the NSFW page, for every account,
@@ -883,6 +884,9 @@ func sinceDate(checkedAt string) string {
 	return t.AddDate(0, 0, -2).Format("2006-01-02")
 }
 
+// stashFollowPace is the wait between requests while checking follows.
+const stashFollowPace = time.Second
+
 // checkFollowed adds the new videos of followed performers and studios as
 // wanted. A first check of a follow made with backfill adds everything; at
 // most a few pages per source per run, so a big back catalogue fills in over
@@ -897,13 +901,23 @@ func (s *Server) checkFollowed(ctx context.Context) {
 	}
 	defer st.check.Unlock()
 	repo, sb := st.repo, st.stash
-	added := 0
+	added, asked := 0, false
 	addAll := func(kind, stashID, checkedAt, addedBy string) error {
 		since := sinceDate(checkedAt)
 		for page := 1; page <= 5; page++ {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			// Usherr: StashDB is asked at most once a second, however many
+			// follows there are (a favorites import can bring hundreds).
+			if asked {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(stashFollowPace):
+				}
+			}
+			asked = true
 			res, err := sb.NsfwOf(ctx, kind, stashID, page, 50, since)
 			if err != nil {
 				return err

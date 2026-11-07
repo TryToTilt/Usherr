@@ -27,6 +27,7 @@ type extraFolder struct {
 var extraFolders = map[string]extraFolder{
 	"anime":  {key: keyAnimePath, env: "ANIME_DIR"},
 	"comics": {key: keyComicsPath, env: "COMICS_DIR", made: true},
+	"manga":  {key: keyMangaPath, env: "MANGA_DIR", made: true},
 	"nsfw":   {key: keyNsfwPath, env: "NSFW_DIR", made: true, oldEnv: "SCENES_DIR", oldDir: "scenes"},
 }
 

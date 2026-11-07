@@ -51,13 +51,7 @@ func IsVideoFile(path string) bool {
 }
 
 func filepathExtLower(path string) string {
-	ext := filepath.Ext(path)
-	for i := 0; i < len(ext); i++ {
-		if ext[i] >= 'A' && ext[i] <= 'Z' {
-			ext = string(rune(ext[i]+32)) + ext[i+1:]
-		}
-	}
-	return ext
+	return strings.ToLower(filepath.Ext(path))
 }
 
 // FindOption changes what the Find functions count.

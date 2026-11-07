@@ -434,3 +434,7 @@ func MapPath(units []MoveUnit, p string) (string, bool) {
 	}
 	return "", false
 }
+
+// IsCrossDevice reports whether a rename failed because the two places are on
+// different drives.
+func IsCrossDevice(err error) bool { return isCrossDevice(err) }

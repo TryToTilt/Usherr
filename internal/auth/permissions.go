@@ -23,6 +23,7 @@ type Permissions struct {
 	// own. NSFW is off unless an administrator switches it on.
 	Audiobooks bool `json:"audiobooks"`
 	Comics     bool `json:"comics"`
+	Manga      bool `json:"manga"` // Usherr: add manga series
 	NSFW       bool `json:"nsfw"`
 	// Releases: search the indexers and pick a release to download.
 	Releases bool `json:"releases"`
@@ -50,12 +51,13 @@ const (
 	PermBooks      = "books"
 	PermAudiobooks = "audiobooks" // home fork
 	PermComics     = "comics"     // home fork
+	PermManga      = "manga"      // Usherr
 	PermNSFW       = "nsfw"       // home fork
 )
 
 // DefaultPermissions is everything a basic account may do.
 func DefaultPermissions() Permissions {
-	return Permissions{AddDirect: true, Movies: true, TV: true, Music: true, Books: true, Audiobooks: true, Comics: true, Releases: true, Manage: true, Retry: true, Subtitles: true, Play: true}
+	return Permissions{AddDirect: true, Movies: true, TV: true, Music: true, Books: true, Audiobooks: true, Comics: true, Manga: true, Releases: true, Manage: true, Retry: true, Subtitles: true, Play: true}
 }
 
 // ViewerPermissions is all a viewer account has: watching, reading and
@@ -90,6 +92,8 @@ func (p Permissions) Allows(name string) bool {
 		return p.Books
 	case PermAudiobooks:
 		return p.Audiobooks
+	case PermManga:
+		return p.Manga
 	case PermComics:
 		return p.Comics
 	case PermNSFW:

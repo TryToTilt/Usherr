@@ -34,6 +34,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | DELETE | `/api/auth/api-keys/{id}` | any account |  |
 | POST | `/api/auth/change-password` | any account |  |
 | GET | `/api/auth/ereader` | any account | GET /api/auth/ereader |
+| POST | `/api/auth/ereader/devices` | any account | POST /api/auth/ereader/devices: saves an address to send books to. |
+| DELETE | `/api/auth/ereader/devices/{id}` | any account | DELETE /api/auth/ereader/devices/{id} |
 | DELETE | `/api/auth/ereader/kobo` | any account | DELETE /api/auth/ereader/kobo |
 | POST | `/api/auth/ereader/kobo` | any account | POST /api/auth/ereader/kobo: makes a new Kobo address; the old one stops working and the next sync sends everything again. |
 | POST | `/api/auth/ereader/kobo/resync` | any account | POST /api/auth/ereader/kobo/resync: forgets what was sent to the Kobo, so the next sync sends every book again. |
@@ -149,6 +151,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/books/subjects` | any account | GET /api/books/subjects: the genres the Discover filter offers. |
 | DELETE | `/api/books/{id}` | admin | removes a book; with ?deleteFiles=true its files go to the recycle bin of their folder (or are deleted when the bin is off). |
 | GET | `/api/books/{id}` | any account |  |
+| PUT | `/api/books/{id}` | any account | PUT /api/books/{id}: saves the fields that were sent. |
 | GET | `/api/books/{id}/comic` | any account | says how many pages the comic of a book has. |
 | GET | `/api/books/{id}/comic/{n}` | any account | serves one page (n counts from 1). |
 | DELETE | `/api/books/{id}/cover` | any account | DELETE /api/books/{id}/cover: take the chosen cover away. |
@@ -157,6 +160,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/books/{id}/cover/editions` | any account | GET /api/books/{id}/cover/editions: the covers Open Library has for the book. |
 | POST | `/api/books/{id}/cover/link` | any account | POST /api/books/{id}/cover/link {"url": "https://..."} |
 | GET | `/api/books/{id}/file-cover` | any account | serves the cover of a book taken from its own file (the first page of a comic). |
+| GET | `/api/books/{id}/file-details` | any account | GET /api/books/{id}/file-details: what the book's own file says about itself. |
 | POST | `/api/books/{id}/grab` | any account |  |
 | GET | `/api/books/{id}/links` | any account | GET /api/books/{id}/links: where the book can be read or listened to, the connected Audiobookshelf and Kavita servers that have it. |
 | GET | `/api/books/{id}/listen/{n}` | any account | GET /api/books/{id}/listen/{n}: one track, with ranges for seeking. |
@@ -167,8 +171,10 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/books/{id}/progress` | any account | PUT /api/books/{id}/progress: saves where the person is. |
 | GET | `/api/books/{id}/read` | any account | GET /api/books/{id}/read: the ebook file. |
 | GET | `/api/books/{id}/releases` | any account |  |
+| POST | `/api/books/{id}/rematch` | any account | POST /api/books/{id}/rematch: makes the book the one picked from the search results, with that one's details and cover. |
 | POST | `/api/books/{id}/search` | any account |  |
-| GET | `/api/books/{id}/tracks` | any account | GET /api/books/{id}/tracks: the audiobook's tracks in order. |
+| POST | `/api/books/{id}/send` | any account | POST /api/books/{id}/send {"deviceId": 3}: emails the ebook to one of the account's own addresses and answers when the mail server has taken it. |
+| GET | `/api/books/{id}/tracks` | any account | GET /api/books/{id}/tracks: the audiobook's tracks in order, with each file's real length once it is known. |
 | PUT | `/api/books/{id}/want` | any account |  |
 
 ## calendar
@@ -234,6 +240,10 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/comics/issues/{id}/search` | admin |  |
 | GET | `/api/comics/issues/{id}/search-log` | admin |  |
 | GET | `/api/comics/lookup` | any account |  |
+| PUT | `/api/comics/reader-prefs` | any account |  |
+| GET | `/api/comics/reading` | any account |  |
+| PUT | `/api/comics/reading/mark` | any account |  |
+| PUT | `/api/comics/reading/want` | any account |  |
 | GET | `/api/comics/reviews` | admin |  |
 | POST | `/api/comics/reviews/{id}/accept` | admin |  |
 | POST | `/api/comics/reviews/{id}/reject` | admin |  |
@@ -247,6 +257,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | DELETE | `/api/comics/{id}` | admin |  |
 | GET | `/api/comics/{id}` | any account |  |
 | PUT | `/api/comics/{id}` | admin |  |
+| POST | `/api/comics/{id}/match` | admin |  |
+| POST | `/api/comics/{id}/match/preview` | admin |  |
 | POST | `/api/comics/{id}/refresh` | admin |  |
 | POST | `/api/comics/{id}/search` | admin |  |
 
@@ -460,7 +472,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/discover/watched-seeds` | any account | GET /api/home/discover/watched-seeds?kind=&who=: the titles the rail is built from, most recent first ("Because you watched The Bear, Severance…"). |
 | GET | `/api/home/discover/why` | any account | GET /api/home/discover/why?kind=&who=: for each "Because you watched" suggestion, the watched titles that led to it (up to two). |
 | GET | `/api/home/drive` | admin | GET /api/home/drive (administrators): the drive's state, address and sign-in. |
-| PUT | `/api/home/drive` | admin | PUT /api/home/drive {"on","budget","where","local","newPassword"}; local is "yes" (Plex on Usherr's computer), "no", or "" to work it out again. |
+| PUT | `/api/home/drive` | admin | PUT /api/home/drive {"on","budget","windowFrom","windowTo","where","local", "newPassword"}; local is "yes" (Plex on Usherr's computer), "no", or "" to work i... |
 | POST | `/api/home/drive/plex` | admin | POST /api/home/drive/plex: adds the drive's libraries to each connected Plex server that doesn't have them yet (a folder already in a library of the right ki... |
 | POST | `/api/home/drive/prepare` | admin | POST /api/home/drive/prepare: get one more title ready now (it counts against the day's searches). |
 | POST | `/api/home/drive/title/{id}` | admin | POST /api/home/drive/title/{id}: put a streamed title on the drive right away (the film, or a show's newest season), within today's searches. |
@@ -794,6 +806,61 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/link/peers/{id}` | admin | PUT /api/link/peers/{id} {"name"} (admin): call a linked Usherr something else here ("" for the name it gives itself). |
 | PUT | `/api/link/settings` | admin | PUT /api/link/settings (admin): the switch, the relay, this Usherr's name. |
 
+## manga
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/manga` | any account |  |
+| POST | `/api/manga` | any account |  |
+| GET | `/api/manga/anilist-list` | any account |  |
+| PUT | `/api/manga/chapters/wanted` | admin |  |
+| GET | `/api/manga/chapters/{id}/file` | any account |  |
+| GET | `/api/manga/chapters/{id}/pages` | any account |  |
+| GET | `/api/manga/chapters/{id}/pages/{n}` | any account |  |
+| GET | `/api/manga/chapters/{id}/pages/{n}/panels` | any account |  |
+| GET | `/api/manga/continue` | any account |  |
+| GET | `/api/manga/discover` | any account |  |
+| GET | `/api/manga/image` | any account |  |
+| GET | `/api/manga/lookup` | any account |  |
+| GET | `/api/manga/move` | admin |  |
+| POST | `/api/manga/move/empty` | admin |  |
+| POST | `/api/manga/move/preview` | admin |  |
+| POST | `/api/manga/move/{id}/apply` | admin |  |
+| POST | `/api/manga/move/{id}/undo` | admin |  |
+| PUT | `/api/manga/reading/chapter-mark` | any account |  |
+| PUT | `/api/manga/reading/mark` | any account |  |
+| GET | `/api/manga/reviews` | admin |  |
+| POST | `/api/manga/reviews/{id}/accept` | admin |  |
+| POST | `/api/manga/reviews/{id}/reject` | admin |  |
+| GET | `/api/manga/scan` | admin |  |
+| POST | `/api/manga/scan` | admin |  |
+| GET | `/api/manga/settings` | admin |  |
+| PUT | `/api/manga/settings` | admin | PUT /api/manga/settings {"official","fan","mangadex","nyaa"}: only what is sent changes. |
+| GET | `/api/manga/stats` | any account |  |
+| PUT | `/api/manga/volumes/wanted` | admin |  |
+| GET | `/api/manga/volumes/{id}/file` | any account |  |
+| POST | `/api/manga/volumes/{id}/grab` | admin |  |
+| GET | `/api/manga/volumes/{id}/marks` | any account |  |
+| POST | `/api/manga/volumes/{id}/marks` | any account |  |
+| GET | `/api/manga/volumes/{id}/pages` | any account |  |
+| GET | `/api/manga/volumes/{id}/pages/{n}` | any account |  |
+| GET | `/api/manga/volumes/{id}/pages/{n}/panels` | any account |  |
+| GET | `/api/manga/volumes/{id}/releases` | admin |  |
+| POST | `/api/manga/volumes/{id}/search` | admin |  |
+| DELETE | `/api/manga/{id}` | admin |  |
+| GET | `/api/manga/{id}` | any account |  |
+| PUT | `/api/manga/{id}` | admin |  |
+| GET | `/api/manga/{id}/about` | any account |  |
+| GET | `/api/manga/{id}/chapters` | any account |  |
+| POST | `/api/manga/{id}/chapters/check` | admin |  |
+| POST | `/api/manga/{id}/chapters/get` | admin |  |
+| POST | `/api/manga/{id}/chapters/tidy` | admin |  |
+| PUT | `/api/manga/{id}/mangadex` | admin |  |
+| PUT | `/api/manga/{id}/reader` | any account |  |
+| POST | `/api/manga/{id}/refresh` | admin |  |
+| POST | `/api/manga/{id}/search` | admin |  |
+| POST | `/api/manga/{id}/volumes` | admin |  |
+
 ## manual-import
 
 | Method | Path | Access | What it does |
@@ -1005,13 +1072,25 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/nsfw/check` | admin |  |
 | GET | `/api/nsfw/discover` | any account |  |
 | GET | `/api/nsfw/enabled` | any account | GET /api/nsfw/enabled: whether the NSFW 18+ section is set up, for an account allowed to see it. |
+| GET | `/api/nsfw/favorites` | admin |  |
+| POST | `/api/nsfw/favorites/apply` | admin |  |
+| PUT | `/api/nsfw/favorites/auto` | admin |  |
+| POST | `/api/nsfw/favorites/preview` | admin |  |
 | POST | `/api/nsfw/fill-details` | admin |  |
+| GET | `/api/nsfw/identify` | admin |  |
+| POST | `/api/nsfw/identify/confirm` | admin |  |
+| POST | `/api/nsfw/identify/start` | admin |  |
 | GET | `/api/nsfw/image` | any account |  |
 | POST | `/api/nsfw/import/whisparr` | admin |  |
 | GET | `/api/nsfw/lookup` | any account |  |
 | GET | `/api/nsfw/performers` | any account |  |
 | POST | `/api/nsfw/performers` | any account |  |
 | DELETE | `/api/nsfw/performers/{id}` | any account |  |
+| GET | `/api/nsfw/rename` | admin |  |
+| POST | `/api/nsfw/rename/check` | admin |  |
+| GET | `/api/nsfw/rename/plans/{id}` | admin |  |
+| POST | `/api/nsfw/rename/plans/{id}/apply` | admin |  |
+| POST | `/api/nsfw/rename/plans/{id}/undo` | admin |  |
 | GET | `/api/nsfw/schedule` | admin |  |
 | PUT | `/api/nsfw/schedule` | admin |  |
 | POST | `/api/nsfw/search-now` | admin |  |
@@ -1022,6 +1101,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/nsfw/studios` | any account |  |
 | DELETE | `/api/nsfw/studios/{id}` | any account |  |
 | GET | `/api/nsfw/tags` | any account |  |
+| POST | `/api/nsfw/tools/stop` | admin |  |
 | DELETE | `/api/nsfw/{id}` | admin |  |
 | GET | `/api/nsfw/{id}` | any account |  |
 | POST | `/api/nsfw/{id}/grab` | admin |  |
@@ -1555,4 +1635,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-1105 routes.
+1180 routes.

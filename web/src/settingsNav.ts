@@ -12,11 +12,12 @@ import { lobbyOn } from './neu/look.ts' // Usherr: the new layout
 export const SETTINGS_NAV: { to: string; label: string; icon: IconName; color: string; blurb: string; member?: boolean; notViewer?: boolean; help?: string }[] = [
   { to: '/settings/general', label: t('General'), icon: 'sliders', color: '#e7a6f2', blurb: t('The app as a whole: its language, look, address and updates.'), member: true },
   { to: '/settings/setup', label: t('Setup checklist'), icon: 'check', color: '#e7a6f2', blurb: t('Every part Mediarium can use, whether it is ready, and how to set it up.'), help: 'home-setup' }, // home fork
-  { to: '/settings/modules', label: t('Media types'), icon: 'grid', color: '#ff9f6b', blurb: t('Switch movies, shows, music, ebooks and audiobooks on or off.'), help: 'getting-started#media-types' },
+  { to: '/settings/modules', label: t('Media types'), icon: 'grid', color: '#ff9f6b', blurb: t('Switch movies, shows, music, ebooks, audiobooks and manga on or off.'), help: 'getting-started#media-types' },
   { to: '/settings/media', label: t('Folders'), icon: 'folder', color: '#7cc4f8', blurb: t('Where your movies, shows, music, books and downloads are kept.'), help: 'install-docker#why-one-data-folder-hardlinks' },
   { to: '/settings/naming', label: t('File names and importing'), icon: 'list', color: '#7cc4f8', blurb: t('How imported files are named, the info files saved next to them, and what runs after an import.'), help: 'library#file-names' },
   { to: '/settings/quality', label: t('Quality'), icon: 'star', color: '#f5c76a', blurb: t('What counts as good enough, which release wins, and which audio language you want.'), help: 'quality' },
   { to: '/settings/automation', label: t('Automatic searching'), icon: 'sliders', color: '#f0b46a', blurb: t('When Mediarium looks for things by itself, and whether it waits for Usenet or torrents.'), help: 'quality#automatic-searching' },
+  { to: '/settings/manga', label: t('Manga'), icon: 'book', color: '#8fa8ff', blurb: t('Where manga comes from: official English editions, fan scans, Nyaa, and your own files.'), help: 'manga' }, // Usherr
   { to: '/settings/indexers', label: t('Indexers & Search'), icon: 'search', color: '#a5b4fc', blurb: t('The sites Mediarium searches for releases.'), help: 'indexers' },
   { to: '/settings/usenet', label: t('Usenet'), icon: 'server', color: '#86dca4', blurb: t('Your Usenet provider and the built-in downloader.'), help: 'downloads#usenet-connections' },
   { to: '/settings/torrents', label: t('Torrents'), icon: 'magnet', color: '#86dca4', blurb: t('The built-in torrent client and its options, a debrid service, or a client you already run.'), help: 'downloads#controls-of-the-built-in-torrent-client' },
@@ -85,7 +86,7 @@ export interface SettingsGroup {
 const GROUPS: { key: string; label: string; icon: IconName; color: string; pages: string[] }[] = [
   { key: 'general', label: t('General'), icon: 'sliders', color: '#e7a6f2', pages: ['/settings/general', '/settings/setup'] }, // home fork: the setup checklist
   { key: 'modules', label: t('Media types'), icon: 'grid', color: '#ff9f6b', pages: ['/settings/modules'] },
-  { key: 'library', label: t('Library'), icon: 'folder', color: '#7cc4f8', pages: ['/settings/media', '/settings/naming', '/settings/quality', '/settings/automation'] },
+  { key: 'library', label: t('Library'), icon: 'folder', color: '#7cc4f8', pages: ['/settings/media', '/settings/naming', '/settings/quality', '/settings/automation', '/settings/manga'] },
   { key: 'indexers', label: t('Indexers & Search'), icon: 'search', color: '#a5b4fc', pages: ['/settings/indexers'] },
   { key: 'downloads', label: tc('section', 'Downloading'), icon: 'download', color: '#86dca4', pages: ['/settings/usenet', '/settings/torrents', '/settings/vpn', '/settings/download-rules', '/settings/schedules'] }, // home fork: schedules
   { key: 'metadata', label: t('Info, lists and subtitles'), icon: 'globe', color: '#c1acf7', pages: ['/settings/metadata', '/settings/lists', '/settings/subtitles'] },
@@ -158,6 +159,7 @@ export function pageTitle(pathname: string, admin = true): string {
   if (pathname.startsWith('/person/')) return t('Person') // home fork: from a cast photo
   if (pathname === '/you' || pathname.startsWith('/you/')) return t('You') // home fork
   if (pathname.startsWith('/comics')) return t('Comics') // home fork
+  if (pathname.startsWith('/manga')) return t('Manga') // Usherr
   if (pathname.startsWith('/nsfw')) return t('NSFW 18+') // home fork
   if (pathname.startsWith('/streamed')) return t('Streamed') // home fork
   if (pathname.startsWith('/library')) return t('Library')

@@ -2,12 +2,14 @@ package download
 
 import (
 	"bufio"
+	"io"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // fakeNNTPServer is a minimal in-process NNTP server for tests, so nothing
@@ -23,9 +25,45 @@ type fakeNNTPServer struct {
 	// as a connection reset would.
 	dropBodies atomic.Int32
 
+	// latency is how long a BODY takes to start answering, in nanoseconds.
+	latency atomic.Int64
+	// refuseStat makes STAT answer that the server doesn't know the command.
+	refuseStat atomic.Bool
+
 	hitsMu sync.Mutex
 	hits   map[string]int // BODY requests answered, by message-id
 	drops  map[string]int // how many more requests for a message-id are hung up on
+	hangs  map[string]int // how many more requests for a message-id are never answered
+	stats  map[string]int // STAT requests answered, by message-id
+}
+
+// hangRequests makes the next n requests for message-id go unanswered with the
+// connection left open, the way a stuck socket behaves.
+func (s *fakeNNTPServer) hangRequests(id string, n int) {
+	s.hitsMu.Lock()
+	defer s.hitsMu.Unlock()
+	if s.hangs == nil {
+		s.hangs = map[string]int{}
+	}
+	s.hangs[id] = n
+}
+
+// setBody puts an article on the server, or with nil takes it away.
+func (s *fakeNNTPServer) setBody(id string, body []byte) {
+	s.hitsMu.Lock()
+	defer s.hitsMu.Unlock()
+	if body == nil {
+		delete(s.bodies, id)
+		return
+	}
+	s.bodies[id] = body
+}
+
+func (s *fakeNNTPServer) body(id string) ([]byte, bool) {
+	s.hitsMu.Lock()
+	defer s.hitsMu.Unlock()
+	b, ok := s.bodies[id]
+	return b, ok
 }
 
 // dropRequests makes the next n requests for message-id end with the server
@@ -59,6 +97,11 @@ func (s *fakeNNTPServer) totalHits() int {
 
 func newFakeNNTPServer(t *testing.T, bodies map[string][]byte) *fakeNNTPServer {
 	t.Helper()
+	return newFakeNNTPServerTB(t, bodies)
+}
+
+func newFakeNNTPServerTB(t testing.TB, bodies map[string][]byte) *fakeNNTPServer {
+	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
@@ -67,12 +110,12 @@ func newFakeNNTPServer(t *testing.T, bodies map[string][]byte) *fakeNNTPServer {
 	port, _ := strconv.Atoi(portStr)
 
 	s := &fakeNNTPServer{listener: ln, bodies: bodies, addr: "127.0.0.1", port: port}
-	go s.serve(t)
+	go s.serve()
 	t.Cleanup(func() { ln.Close() })
 	return s
 }
 
-func (s *fakeNNTPServer) serve(t *testing.T) {
+func (s *fakeNNTPServer) serve() {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
@@ -115,18 +158,46 @@ func (s *fakeNNTPServer) handle(conn net.Conn) {
 				s.hitsMu.Unlock()
 				return
 			}
+			hang := s.hangs[msgID] > 0
+			if hang {
+				s.hangs[msgID]--
+			}
 			if s.hits == nil {
 				s.hits = map[string]int{}
 			}
 			s.hits[msgID]++
 			s.hitsMu.Unlock()
-			body, ok := s.bodies[msgID]
+			if hang {
+				_, _ = io.Copy(io.Discard, conn) // until the client gives up
+				return
+			}
+			if d := s.latency.Load(); d > 0 {
+				time.Sleep(time.Duration(d))
+			}
+			body, ok := s.body(msgID)
 			if !ok {
 				rw.WriteString("430 no such article\r\n")
 				break
 			}
 			rw.WriteString("222 body follows\r\n")
 			writeDotTerminated(rw, body)
+		case strings.HasPrefix(upper, "STAT"):
+			msgID := strings.Trim(strings.TrimSpace(line[len("STAT"):]), "<>")
+			if s.refuseStat.Load() {
+				rw.WriteString("500 command not recognized\r\n")
+				break
+			}
+			s.hitsMu.Lock()
+			if s.stats == nil {
+				s.stats = map[string]int{}
+			}
+			s.stats[msgID]++
+			s.hitsMu.Unlock()
+			if _, ok := s.body(msgID); ok {
+				rw.WriteString("223 0 <" + msgID + ">\r\n")
+			} else {
+				rw.WriteString("430 no such article\r\n")
+			}
 		case upper == "QUIT":
 			rw.WriteString("205 bye\r\n")
 			rw.Flush()

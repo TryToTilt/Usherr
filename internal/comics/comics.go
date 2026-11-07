@@ -38,6 +38,8 @@ type Series struct {
 	MonitorNew  bool   `json:"monitorNew"`
 	CheckedAt   string `json:"checkedAt,omitempty"`
 	AddedAt     string `json:"addedAt"`
+	Type        string `json:"type,omitempty"`     // comic, manga, webtoon, collected; empty: not set
+	WantRead    bool   `json:"wantRead,omitempty"` // this person, filled by FillReading
 	// Counts, filled by List.
 	Have   int `json:"have"`
 	Wanted int `json:"wanted"`
@@ -58,6 +60,11 @@ type Issue struct {
 	Status    string  `json:"status"`
 	FilePath  string  `json:"filePath,omitempty"`
 	FileSize  int64   `json:"fileSize,omitempty"`
+	// This person, filled by FillReading.
+	Read     bool `json:"read"`
+	WantRead bool `json:"wantRead,omitempty"`
+	Page     int  `json:"page,omitempty"`  // where they left it
+	Pages    int  `json:"pages,omitempty"` // of how many
 }
 
 // Released reports whether the issue is out on day now (a missing date
@@ -116,12 +123,12 @@ type Repo struct{ db *sql.DB }
 // NewRepo returns a Repo over db.
 func NewRepo(db *sql.DB) *Repo { return &Repo{db: db} }
 
-const seriesCols = `id, cv_id, name, start_year, publisher, issue_count, description, image_url, folder, monitor_new, checked_at, added_at`
+const seriesCols = `id, cv_id, name, start_year, publisher, issue_count, description, image_url, folder, monitor_new, checked_at, added_at, series_type`
 
 func scanSeries(sc interface{ Scan(...any) error }) (Series, error) {
 	var s Series
 	var mon int
-	err := sc.Scan(&s.ID, &s.CVID, &s.Name, &s.StartYear, &s.Publisher, &s.IssueCount, &s.Description, &s.ImageURL, &s.Folder, &mon, &s.CheckedAt, &s.AddedAt)
+	err := sc.Scan(&s.ID, &s.CVID, &s.Name, &s.StartYear, &s.Publisher, &s.IssueCount, &s.Description, &s.ImageURL, &s.Folder, &mon, &s.CheckedAt, &s.AddedAt, &s.Type)
 	s.MonitorNew = mon == 1
 	return s, err
 }
@@ -150,7 +157,7 @@ func (r *Repo) UpsertSeries(s Series) (Series, error) {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(cv_id) DO UPDATE SET name = excluded.name, start_year = excluded.start_year, publisher = excluded.publisher,
 			issue_count = excluded.issue_count, description = CASE WHEN excluded.description != '' THEN excluded.description ELSE comic_series.description END,
-			image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE comic_series.image_url END`,
+			image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE comic_series.image_url END, moved_to_manga = 0`,
 		s.CVID, s.Name, s.StartYear, s.Publisher, s.IssueCount, s.Description, s.ImageURL, s.Folder, b2i(s.MonitorNew))
 	if err != nil {
 		return Series{}, fmt.Errorf("save series: %w", err)
@@ -181,7 +188,7 @@ func (r *Repo) ListSeries() ([]Series, error) {
 	rows, err := r.db.Query(`SELECT ` + seriesCols + `,
 		(SELECT COUNT(*) FROM comic_issues i WHERE i.series_id = comic_series.id AND i.status = 'downloaded'),
 		(SELECT COUNT(*) FROM comic_issues i WHERE i.series_id = comic_series.id AND i.wanted = 1 AND i.status != 'downloaded')
-		FROM comic_series ORDER BY name COLLATE NOCASE, start_year`)
+		FROM comic_series WHERE moved_to_manga = 0 ORDER BY name COLLATE NOCASE, start_year`)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +197,7 @@ func (r *Repo) ListSeries() ([]Series, error) {
 	for rows.Next() {
 		var s Series
 		var mon int
-		if err := rows.Scan(&s.ID, &s.CVID, &s.Name, &s.StartYear, &s.Publisher, &s.IssueCount, &s.Description, &s.ImageURL, &s.Folder, &mon, &s.CheckedAt, &s.AddedAt, &s.Have, &s.Wanted); err != nil {
+		if err := rows.Scan(&s.ID, &s.CVID, &s.Name, &s.StartYear, &s.Publisher, &s.IssueCount, &s.Description, &s.ImageURL, &s.Folder, &mon, &s.CheckedAt, &s.AddedAt, &s.Type, &s.Have, &s.Wanted); err != nil {
 			return nil, err
 		}
 		s.MonitorNew = mon == 1
@@ -222,6 +229,9 @@ func (r *Repo) MarkChecked(id int64) error {
 // never touched).
 func (r *Repo) DeleteSeries(id int64) error {
 	_, err := r.db.Exec(`DELETE FROM comic_series WHERE id = ?`, id)
+	if err == nil {
+		_, err = r.db.Exec(`DELETE FROM comic_reader_prefs WHERE series_id = ?`, id) // series_id 0, a default, has no series
+	}
 	return err
 }
 

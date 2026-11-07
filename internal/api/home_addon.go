@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/rdborg/mediarium/internal/auth"
+	"github.com/rdborg/mediarium/internal/download"
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/metadata"
 	"github.com/rdborg/mediarium/internal/parser"
@@ -703,7 +704,7 @@ func (s *Server) handleAddonPlay(w http.ResponseWriter, r *http.Request) {
 	ustreamMu.Unlock()
 	if c.session == "" || !open {
 		ctx, cancel := context.WithTimeout(r.Context(), 150*time.Second)
-		op, err := s.ownOpenFirst(ctx, append([]indexers.Result{c.res}, c.alts...))
+		op, err := s.ownOpenFirst(ctx, append([]indexers.Result{c.res}, c.alts...), download.StreamWant{Season: c.what.season, Episode: c.what.episode})
 		cancel()
 		if err != nil {
 			c.mu.Unlock()

@@ -259,6 +259,8 @@ export function typeLabel(e: CalendarEntry): string {
       return t('Book')
     case 'comic':
       return t('Comic')
+    case 'manga':
+      return t('Manga')
     default:
       return e.status === 'theaters' ? t('In theaters') : t('Movie')
   }

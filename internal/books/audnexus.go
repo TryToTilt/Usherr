@@ -200,6 +200,23 @@ func (a *Audnexus) Lookup(ctx context.Context, title, author string) (AudioDetai
 	return *best, nil
 }
 
+// MergeAudioDetails stores what Audnexus knows only where the book has nothing
+// yet (a narrator or ASIN read from the book's folder stays), and that it was
+// looked up.
+func (r *Repo) MergeAudioDetails(id int64, d AudioDetails) error {
+	_, err := r.db.Exec(`UPDATE books SET
+			asin = CASE WHEN asin = '' THEN ? ELSE asin END,
+			narrators = CASE WHEN narrators = '' THEN ? ELSE narrators END,
+			runtime_min = CASE WHEN runtime_min = 0 THEN ? ELSE runtime_min END,
+			audio_checked_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+		WHERE id = ?`,
+		d.ASIN, strings.Join(d.Narrators, ", "), d.RuntimeMin, id)
+	if err != nil {
+		return fmt.Errorf("set audiobook details: %w", err)
+	}
+	return nil
+}
+
 // SetAudioDetails stores what Audnexus knows about a book's audiobook, and
 // that it was looked up (also when nothing was found, so it isn't asked again
 // and again).

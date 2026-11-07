@@ -1,5 +1,28 @@
 # Credits for the home fork
 
+- **MangaDex** (https://mangadex.org): chapters, when you switch that on, come through its public API
+  (https://api.mangadex.org/docs/), free and run by its volunteers. Thanks also to the scanlation groups, who translated
+  them: each is named on the Chapters tab and in every file's ComicInfo.xml (`internal/manga/mangadex.go`).
+- **Mangarr** (https://github.com/Kha-kis/manga-arr, AGPL-3.0): the way Manga reads release names (ranges before single
+  volumes, numbers as decimals so half volumes work, a language reject list, aliases from AniList) follows its ideas.
+  **Tranga** (https://github.com/C9Glax/tranga, GPL-3.0): keeping a series' volumes separate from where they come from,
+  and, by its absence, saying why a series is empty. Both written anew in Go (`internal/manga`,
+  `internal/api/home_manga*.go`); no code from either is copied.
+- **InfiniDysk** (https://github.com/infinidysk/infinidysk, MIT, © 2026 hoivikaj), the successor of **nzbdav**
+  (https://github.com/nzbdav-dev/nzbdav, MIT, © 2025 nzbdav-dev): the way Usherr's own streaming plays past a few
+  missing articles follows its gap-fill limits (2 in a row, 5 in all, 1% of the file), which containers can take it,
+  and keeping "couldn't ask" apart from "missing" (`internal/download/stream_holes.go`). The read path's article
+  timeouts and read-ahead that grows on steady reads follow what it does too (`internal/download/stream_read.go`). The
+  logic was rewritten in Go from its C#; each adapted file says so.
+- **koreader-sync-server** and **KOReader** (https://github.com/koreader, AGPL-3.0): Usherr's KOSync server
+  (`internal/api/kosync_api.go`) answers as the reference server does, and the file fingerprint and chapter
+  places (`internal/kosync`) follow KOReader. Written for Usherr in Go; no code is copied. The test values
+  for the fingerprint come from **kosync-conformance** (https://github.com/pid1/kosync-conformance, spec and
+  vectors CC0).
+- **Calibre-Web-Automated** (https://github.com/crocodilestick/Calibre-Web-Automated, GPL-3.0): the list of
+  faults that the Kindle fix mends (`internal/ebookconv/kindlefix.go`) follows what its EPUB fixer lists.
+  No code is copied.
+
 - **Pullbox** (https://github.com/pullboxapp/pullbox, GPL-3.0-or-later): the comics release checking and
   scoring, the review list for doubtful matches and the per-issue search history follow Pullbox's release
   validator, intervention queue and search log. Re-written in Go for this fork (`internal/comics/evaluate.go`,
@@ -9,6 +32,10 @@
   (GetComics posts, their host links, FlareSolverr for Cloudflare checks, packs filling a whole run) follows what
   those apps do. Written for this fork in Go (`internal/directdl`, `internal/api/home_direct.go`,
   `internal/api/home_comic_pack.go`); the MEGA download follows MEGA's public file-link format.
+- **Pullbox** and **Komga** (https://github.com/gotson/komga, MIT): the Comics tab's Continue, Want to Read and
+  Read views, next issue, and the reader's directions and webtoon view follow what those apps offer. Written anew
+  for this fork (`internal/comics/home_reading.go`, `internal/api/home_comic_reading.go`,
+  `web/src/home/ComicWebtoon.tsx`); no code from either is copied.
 - **Sportarr** (https://github.com/Sportarr/Sportarr, GPL-3.0): Usherr's Sports section works with a household's
   Sportarr through Sportarr's own API (`internal/api/home_sports_sportarr.go`); league, team and game data,
   artwork and downloads come from Sportarr and the metadata service it uses. No Sportarr code is copied.
@@ -41,3 +68,13 @@
   - Download checks (`internal/music/release_sanity.go`, `internal/music/files.go`): leaving out karaoke,
     tribute and live releases, releases far too small for the album, and files whose length doesn't fit the
     track (15 seconds or 10%).
+
+- [Audiobookshelf](https://github.com/advplyr/audiobookshelf) (GPL-3.0): the rules for reading an audiobook's folder
+  (`internal/books/scan_audio.go`): `{Narrator}`, `[ASIN]`, the series number forms, the nearest three folders as
+  author, series and title, which side files count and which tags hold the narrator and series. They are re-written
+  in Go from its `server/utils/scandir.js` and `server/scanner/`; no code of theirs is included.
+
+- [stash-box](https://github.com/stashapp/stash-box) and [Stash](https://github.com/stashapp/stash) (AGPL-3.0):
+  the NSFW 18+ module's fingerprint and favorites lookups (`internal/nsfw/identify.go`, `favorites.go`) use
+  stash-box's public GraphQL API, and its OSHASH fingerprint follows the method those projects use. No code of
+  theirs is included.

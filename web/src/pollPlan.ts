@@ -14,7 +14,7 @@ export function pollEvery(moving: boolean, fastMs: number, idleMs: number): numb
   return moving ? fastMs : idleMs
 }
 
-export type LibraryTab = 'movie' | 'tv' | 'music' | 'ebook' | 'audiobook' | 'anime' | 'comics' | 'nsfw' // Usherr: anime is read from the shows
+export type LibraryTab = 'movie' | 'tv' | 'music' | 'ebook' | 'audiobook' | 'anime' | 'comics' | 'manga' | 'nsfw' // Usherr: anime is read from the shows
 
 // What one tick of the Library page reads: only the list of the tab that is shown. The other tabs' numbers come
 // from the counts (movies and shows) or from one first read (artists and books), not from a read every few seconds.

@@ -82,13 +82,13 @@ func (s *Server) handleOPDS(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(rest, "/")
 	// Each half of the catalogue is there while its part of Usherr is on.
 	bookPart := rest == "new" || rest == "books" || rest == "authors" || rest == "series" || rest == "author" || rest == "series-books" || parts[0] == "books"
-	if bookPart && !s.ebooksEnabled() || parts[0] == "comics" && !s.comicsEnabled() {
+	if bookPart && !s.ebooksEnabled() || parts[0] == "comics" && !s.comicsEnabled() || parts[0] == "manga" && !s.mangaEnabled() {
 		http.NotFound(w, r)
 		return
 	}
 
 	switch {
-	case rest == "" && s.comicsEnabled():
+	case rest == "" && (s.comicsEnabled() || s.mangaEnabled()):
 		// Not kept: the cache follows the books, not the comics.
 		s.opdsRootFeed(w, r, v)
 	case rest == "":
@@ -136,6 +136,12 @@ func (s *Server) handleOPDS(w http.ResponseWriter, r *http.Request) {
 		s.opdsComicIssues(w, r, v, user.ID, parts[2])
 	case len(parts) >= 4 && parts[0] == "comics" && (parts[1] == "series" || parts[1] == "issues") && !v.json:
 		s.opdsComicFile(w, r, parts)
+	case rest == "manga":
+		s.opdsMangaSeriesList(w, r, v, user)
+	case len(parts) == 3 && parts[0] == "manga" && parts[1] == "series":
+		s.opdsMangaVolumes(w, r, v, user, parts[2])
+	case len(parts) >= 4 && parts[0] == "manga" && (parts[1] == "series" || parts[1] == "volumes") && !v.json:
+		s.opdsMangaFile(w, r, user, parts)
 	default:
 		http.NotFound(w, r)
 	}
@@ -263,6 +269,9 @@ func (s *Server) opdsRootFeed(w http.ResponseWriter, r *http.Request, v opdsView
 	}
 	if s.comicsEnabled() {
 		f.Entries = append(f.Entries, nav("comics", "Comics", "Comics by series, to read page by page.", opds.RelSubsection, "/comics", opds.Navigation))
+	}
+	if s.mangaEnabled() {
+		f.Entries = append(f.Entries, nav("manga", "Manga", "Manga by series, to read page by page.", opds.RelSubsection, "/manga", opds.Navigation))
 	}
 	s.writeFeed(w, r, v, f)
 }

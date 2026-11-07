@@ -42,6 +42,9 @@ const EventAudiobook = "audiobook"
 // called it off.
 const EventScreening = "screening"
 
+// Usherr: a followed manga series got a new volume.
+const EventNewVolume = "newvolume"
+
 // EventInfo describes one subscribable event for the UI.
 type EventInfo struct {
 	ID    string `json:"id"`
@@ -65,6 +68,7 @@ func EventKinds() []EventInfo {
 		{EventClientUp, "Download client back", "A download client that was down can be reached again."},
 		{EventTrashSync, "TRaSH Guides sync applied", "The update from the TRaSH Guides (automatic or by button) changed custom formats or profile scores."},
 		{EventReminder, "TV reminders", "A Live TV show you asked to be reminded of starts in five minutes."}, // Usherr
+		{EventNewVolume, "New manga volumes", "A manga series you follow got a new volume."},                  // Usherr
 		// Usherr: Read-to-Me
 		{EventAudiobook, "Audiobooks made", "Read-to-Me finished making an audiobook of an ebook, or couldn't."},
 		// Usherr: linked screenings

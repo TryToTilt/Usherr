@@ -325,6 +325,7 @@ export interface Permissions {
   books: boolean // ebooks
   audiobooks: boolean // home fork
   comics: boolean // home fork
+  manga: boolean // Usherr
   nsfw: boolean // home fork: the NSFW 18+ section (off unless switched on)
   releases: boolean // search indexers and pick releases
   manage: boolean // search now, monitoring, tags, following
@@ -334,7 +335,7 @@ export interface Permissions {
 }
 export type Permission = keyof Permissions
 
-export const DEFAULT_PERMISSIONS: Permissions = { addDirect: true, movies: true, tv: true, music: true, books: true, audiobooks: true, comics: true, nsfw: false, releases: true, manage: true, retry: true, subtitles: true, play: true }
+export const DEFAULT_PERMISSIONS: Permissions = { addDirect: true, movies: true, tv: true, music: true, books: true, audiobooks: true, comics: true, manga: true, nsfw: false, releases: true, manage: true, retry: true, subtitles: true, play: true }
 
 export interface User {
   id: number
@@ -1726,7 +1727,7 @@ export interface QueueItem {
   title: string
   subtitle?: string
   posterUrl?: string
-  protocol: 'usenet' | 'torrent'
+  protocol: 'usenet' | 'torrent' | 'mangadex'
   addedAt?: string
   completedAt?: string
   releaseTitle: string
@@ -2798,7 +2799,7 @@ export interface DashboardData {
 }
 
 export interface CalendarEntry {
-  kind: 'movie' | 'episode' | 'album' | 'book' | 'comic' | 'sport' // comic: home fork; sport: Usherr (a wanted game)
+  kind: 'movie' | 'episode' | 'album' | 'book' | 'comic' | 'manga' | 'sport' // comic: home fork; manga: a followed series' new volume; sport: Usherr (a wanted game)
   id: number
   movieId?: number
   tmdbId?: number
@@ -2817,6 +2818,7 @@ export interface CalendarEntry {
   posterUrl?: string // the poster or cover, when there is one
   formats?: ('ebook' | 'audiobook')[] // a book's wanted formats (home fork)
   comicSeriesId?: number // home fork
+  mangaSeriesId?: number // Usherr
   sportLeagueId?: number // Usherr: a wanted game's league in Sports
   anime?: boolean // Usherr: an episode of an anime series (set by the calendar page)
   backdropUrl?: string // a wide still, once it has been fetched (the calendar's Backdrops view)
@@ -2916,6 +2918,34 @@ export interface EReaderAccess {
   allowed: boolean // this account may read books on an e-reader
   opds: { on: boolean; path: string; created?: string }
   kobo: { on: boolean; path?: string; created?: string }
+  send: { devices: EReaderDevice[]; sender?: string; problem?: string } // emailing books
+  kosync: { path: string; ready: boolean } // progress sync with KOReader and Readest
+}
+export interface EReaderDevice {
+  id: number
+  name: string
+  email: string
+  kindle: boolean
+}
+// What a book's own file says about itself.
+export interface BookFileDetails {
+  title?: string
+  author?: string
+  seriesName?: string
+  seriesPosition?: string
+  year?: number
+  description?: string
+  isbn?: string
+  language?: string
+  publisher?: string
+}
+export interface BookEdit {
+  title?: string
+  author?: string
+  seriesName?: string
+  seriesPosition?: string
+  year?: number
+  description?: string
 }
 export interface BookProgress {
   bookId: number
@@ -2930,6 +2960,7 @@ export interface BookTrack {
   name: string
   size: number
   chapters?: { title: string; start: number }[] // marks inside the file (an M4B)
+  duration?: number // the file's real length in seconds, once it has been read
 }
 export interface BookWork extends BookFound {
   description?: string
@@ -2972,7 +3003,7 @@ export interface GoogleBookSearch {
 
 // ---- Modules and music -------------------------------------------------
 
-export type ModuleKey = 'movies' | 'tv' | 'music' | 'audiobooks' | 'ebooks'
+export type ModuleKey = 'movies' | 'tv' | 'music' | 'audiobooks' | 'ebooks' | 'manga'
 export interface ModuleState {
   enabled: boolean
   available: boolean // false for a module that is not built yet
@@ -3941,6 +3972,9 @@ export const api = {
   newKoboAddress: () => post<EReaderAccess>('/auth/ereader/kobo'),
   removeKoboAddress: () => del<EReaderAccess>('/auth/ereader/kobo'),
   koboSyncAgain: () => post<EReaderAccess>('/auth/ereader/kobo/resync'),
+  addEReaderDevice: (name: string, email: string) => post<EReaderAccess>('/auth/ereader/devices', { name, email }),
+  removeEReaderDevice: (id: number) => del<EReaderAccess>(`/auth/ereader/devices/${id}`),
+  sendBook: (id: number, deviceId: number) => post<{ sent: boolean; device: string; kindle: boolean; from: string }>(`/books/${id}/send`, { deviceId }),
   createAPIKey: (name: string, readOnly = false) => post<APIKey>('/auth/api-keys', { name, readOnly }),
   signInMethods: () => get<SignInMethods>('/auth/methods'),
   getSignIn: () => get<SignInSettings>('/auth/sign-in'),
@@ -4227,6 +4261,10 @@ export const api = {
   deleteMusicProfile: (id: number) => del<null>(`/music/profiles/${id}`),
   listBooks: () => request<Book[]>('/books?brief=1', { revalidate: true }),
   getBook: (id: number) => get<Book>(`/books/${id}`),
+  editBook: (id: number, data: BookEdit) => put<Book>(`/books/${id}`, data),
+  bookFileDetails: (id: number) => get<{ found: boolean; details?: BookFileDetails }>(`/books/${id}/file-details`),
+  rematchBook: (id: number, f: BookFound) =>
+    post<Book>(`/books/${id}/rematch`, { olKey: f.key, title: f.title, author: f.author, authorKey: f.authorKey, year: f.year, coverId: f.coverId, hardcoverId: f.hardcoverId, googleId: f.googleId }),
   // With an author, the books by that author come first.
   searchBooks: (q: string, author = '') =>
     get<BookFound[]>(`/books/search?q=${encodeURIComponent(q)}${author ? `&author=${encodeURIComponent(author)}` : ''}`),
@@ -4241,7 +4279,7 @@ export const api = {
     return get<BookFound[]>(`/books/discover?${q}`)
   },
   bookLinks: (id: number) => get<{ serverId: number; name: string; kind: MediaServerKind; url: string }[]>(`/books/${id}/links`),
-  bookTracks: (id: number) => get<{ tracks: BookTrack[]; format: string }>(`/books/${id}/tracks`),
+  bookTracks: (id: number) => get<{ tracks: BookTrack[]; format: string; lengthsPending?: boolean }>(`/books/${id}/tracks`),
   bookTrackUrl: (id: number, n: number) => withBase(`/api/books/${id}/listen/${n}`),
   bookFileUrl: (id: number, download = false) => withBase(`/api/books/${id}/read${download ? '?download=1' : ''}`),
   bookProgress: (id: number, format: BookFormat) => get<BookProgress>(`/books/${id}/progress?format=${format}`),

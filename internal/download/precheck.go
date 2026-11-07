@@ -95,6 +95,28 @@ func (r PrecheckResult) Hopeless() bool {
 	return !r.Skipped && r.Missing > 0 && r.EstimatedMissingBytes > r.RepairableBytes
 }
 
+// TooThinToStream reports whether a sample says a stream of the release won't
+// get far. A stream can't use PAR2 files, so they don't count for anything here,
+// but it plays past a few missing articles (stream_holes.go), so one miss in the
+// sample isn't enough: it could be the only one. Two out of a sample of 100 at
+// most is more than the 1% a stream can take.
+func (r PrecheckResult) TooThinToStream() bool {
+	return !r.Skipped && r.Missing >= 2
+}
+
+// StreamSummary is the line for a release turned down for streaming.
+func (r PrecheckResult) StreamSummary() string {
+	return fmt.Sprintf("%d of %d checked articles are not on your Usenet servers", r.Missing, r.Checked)
+}
+
+// ForStreamCheck is the NZB with only what a stream reads: its PAR2 and text
+// files say nothing about whether it will play.
+func ForStreamCheck(nzb *NZB) *NZB {
+	out := *nzb
+	out.Files = streamableFiles(nzb)
+	return &out
+}
+
 // Err is the error that ends the download when the release is hopeless, nil
 // otherwise. It is a ReleaseError, so the release goes on the blocklist.
 func (r PrecheckResult) Err() error {

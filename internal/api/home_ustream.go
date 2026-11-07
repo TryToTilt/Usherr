@@ -387,7 +387,7 @@ func (s *Server) ustreamEpisode(ctx context.Context, show string, season, episod
 			}
 			attempts++
 			tried[r.DownloadURL], tried[r.Title] = true, true
-			url, err := s.ustreamOpen(ctx, configs, r)
+			url, err := s.ustreamOpen(ctx, configs, r, download.StreamWant{Season: season, Episode: episode, AirDate: airDate})
 			if err != nil {
 				slog.Info("ustream: release skipped", "release", r.Title, "err", err)
 				continue
@@ -407,8 +407,8 @@ func (s *Server) ustreamEpisode(ctx context.Context, show string, season, episod
 
 // ustreamOpen fetches a release's NZB, checks its articles are there and
 // opens the video in it.
-func (s *Server) ustreamOpen(ctx context.Context, servers []download.ClientConfig, r indexers.Result) (string, error) {
-	data, f, err := s.ustreamFetch(ctx, servers, r)
+func (s *Server) ustreamOpen(ctx context.Context, servers []download.ClientConfig, r indexers.Result, want download.StreamWant) (string, error) {
+	data, f, err := s.ustreamFetch(ctx, servers, r, want)
 	if err != nil {
 		return "", err
 	}
@@ -421,8 +421,8 @@ func (s *Server) ustreamOpen(ctx context.Context, servers []download.ClientConfi
 }
 
 // ustreamFetch fetches a release's NZB, checks its articles are there and
-// opens the video in it: the NZB and the video, without a session.
-func (s *Server) ustreamFetch(ctx context.Context, servers []download.ClientConfig, r indexers.Result) ([]byte, *download.StreamFile, error) {
+// opens the video wanted in it: the NZB and the video, without a session.
+func (s *Server) ustreamFetch(ctx context.Context, servers []download.ClientConfig, r indexers.Result, want download.StreamWant) ([]byte, *download.StreamFile, error) {
 	key := releaseKey(r)
 	if s.nzbBad(r.DownloadURL) || s.nzbBadKey(key) { // its articles were gone today: not fetched again
 		return nil, nil, fmt.Errorf("articles missing (found earlier today)")
@@ -438,14 +438,15 @@ func (s *Server) ustreamFetch(ctx context.Context, servers []download.ClientConf
 	if err != nil {
 		return nil, nil, err
 	}
-	if res := download.Precheck(ctx, servers, nzb, download.PrecheckOptions{Timeout: 20 * time.Second}); res.Hopeless() {
+	if res := download.Precheck(ctx, servers, download.ForStreamCheck(nzb), download.PrecheckOptions{Timeout: 20 * time.Second}); res.TooThinToStream() {
 		s.markNZBBad(r.DownloadURL)
 		s.markNZBBadKey(key)
-		return nil, nil, fmt.Errorf("articles missing: %s", res.Summary())
+		return nil, nil, fmt.Errorf("articles missing: %s", res.StreamSummary())
 	}
 	octx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	f, err := download.OpenStream(octx, servers, nzb)
+	want.Release = r.Title
+	f, err := download.OpenStreamFor(octx, servers, nzb, want)
 	if err != nil {
 		if errors.Is(err, download.ErrArticleMissing) {
 			s.markNZBBadKey(key)

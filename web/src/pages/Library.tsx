@@ -210,12 +210,12 @@ const FILTERS: Record<Kind, { id: string; label: string; test: (i: Item) => bool
 // remove) and a select mode for doing them to many at once.
 // A Library tab: a kind of media, or one of the two book formats.
 // home fork: Anime, Comics and NSFW 18+ live in the Library too.
-type Tab = MediaKind | BookFormat | 'anime' | 'comics' | 'nsfw'
+type Tab = MediaKind | BookFormat | 'anime' | 'comics' | 'manga' | 'nsfw'
 // Each tab wears its kind's colour, as everywhere else.
-const TAB_COLOR: Record<Tab, string> = { movie: 'var(--c-movie)', tv: 'var(--c-tv)', anime: 'var(--c-tv)', music: 'var(--c-music)', ebook: 'var(--c-book)', audiobook: 'var(--c-audiobook)', comics: 'var(--c-comics)', nsfw: 'var(--c-nsfw)' }
+const TAB_COLOR: Record<Tab, string> = { movie: 'var(--c-movie)', tv: 'var(--c-tv)', anime: 'var(--c-tv)', music: 'var(--c-music)', ebook: 'var(--c-book)', audiobook: 'var(--c-audiobook)', manga: 'var(--c-manga)', comics: 'var(--c-comics)', nsfw: 'var(--c-nsfw)' }
 
-const TAB_LABEL: Record<Tab, string> = { movie: t('Movies'), tv: t('TV'), anime: t('Anime'), music: t('Music'), ebook: t('Ebooks'), audiobook: t('Audiobooks'), comics: t('Comics'), nsfw: t('NSFW 18+') }
-const TAB_GLYPH: Record<Tab, GlyphKind> = { movie: 'movie', tv: 'tv', anime: 'tv', music: 'music', ebook: 'book', audiobook: 'audiobook', comics: 'comic', nsfw: 'movie' }
+const TAB_LABEL: Record<Tab, string> = { movie: t('Movies'), tv: t('TV'), anime: t('Anime'), music: t('Music'), ebook: t('Ebooks'), audiobook: t('Audiobooks'), comics: t('Comics'), manga: t('Manga'), nsfw: t('NSFW 18+') }
+const TAB_GLYPH: Record<Tab, GlyphKind> = { movie: 'movie', tv: 'tv', anime: 'tv', music: 'music', ebook: 'book', audiobook: 'audiobook', comics: 'comic', manga: 'manga', nsfw: 'movie' }
 
 export default function Library() {
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -506,6 +506,7 @@ export default function Library() {
   function chooseKind(k: Tab) {
     // home fork: Comics and NSFW 18+ have pages of their own.
     if (k === 'comics') return navigate('/comics')
+    if (k === 'manga') return navigate('/manga') // Usherr
     if (k === 'nsfw') return navigate('/nsfw')
     patchUi({ kind: k, st: 'all' })
     setSelected(new Set())
@@ -825,7 +826,7 @@ export default function Library() {
     movie: active === 'movie' && movies ? movies.length + layerCounts.sm : titleCounts?.movies,
     tv: onTV && shows ? shows.length - layerCounts.animeShows + layerCounts.stv : titleCounts ? titleCounts.shows - animeIds.size : undefined,
     anime: onTV && shows ? layerCounts.animeShows + layerCounts.san : animeIds.size,
-    music: artists?.length, ebook: bookCount('ebook'), audiobook: bookCount('audiobook'), comics: undefined, nsfw: undefined,
+    music: artists?.length, ebook: bookCount('ebook'), audiobook: bookCount('audiobook'), comics: undefined, manga: undefined, nsfw: undefined,
   }
   // Usherr: the kinds as one drop-down (CompactBar.tsx); music and books show it in their own toolbars too.
   const kindSwitch = <KindPicker options={kinds.map((k) => ({ key: k, label: TAB_LABEL[k], glyph: TAB_GLYPH[k], color: TAB_COLOR[k], count: counts[k] }))} value={active} onChange={(k) => chooseKind(k as Tab)} />

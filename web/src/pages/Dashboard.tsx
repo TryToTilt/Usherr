@@ -11,6 +11,7 @@ import Icon, { type IconName } from '../components/Icon'
 import InfoTip from '../components/InfoTip'
 import Loading from '../components/Loading'
 import PosterCard from '../components/PosterCard'
+import { mangaContinueKey, mangaContinueLink, mangaContinueMeta, useMangaContinue } from '../manga/useMangaContinue'
 import { describeState, type ItemStateKey } from '../components/state'
 import { timeAgo } from '../format'
 import { locale, plural, st, t, tx } from '../i18n'
@@ -172,6 +173,23 @@ function ContinueWatching() {
       <div className="recent-row" ref={row}>
         {items.slice(0, cols).map((c) => (
           <PosterCard key={c.item} to={c.link} kind={c.kind} poster={c.posterUrl} title={c.title} meta={c.episode ? `${c.episode.split(' · ')[0]} · ${left(c)}` : left(c)} />
+        ))}
+      </div>
+    </Tile>
+  )
+}
+
+// Usherr: where you got to in your manga.
+function ContinueReading() {
+  const items = useMangaContinue()
+  const row = useRef<HTMLDivElement>(null)
+  const cols = useGridColumns(row, 6)
+  if (items.length === 0) return null
+  return (
+    <Tile icon="book" title={t('Continue reading')} tip={t('The manga you’re part way through. Open one to go on from your page.')}>
+      <div className="recent-row" ref={row} style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 180px))' }}>
+        {items.slice(0, cols).map((c) => (
+          <PosterCard key={mangaContinueKey(c)} to={mangaContinueLink(c)} kind="book" poster={c.coverUrl} title={c.series} meta={mangaContinueMeta(c)} />
         ))}
       </div>
     </Tile>
@@ -353,6 +371,7 @@ export default function Dashboard() {
       </section>
 
       <ContinueWatching /> {/* Usherr: pick up where you left off */}
+      <ContinueReading />
       <TwoStepTip />
       <InTheaters /> {/* Usherr: films in cinemas */}
 

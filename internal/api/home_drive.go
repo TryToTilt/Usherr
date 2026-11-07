@@ -46,8 +46,6 @@ const (
 
 	driveBudgetDefault = 30
 	driveBudgetMax     = 500
-	// driveEvery is how often the drive's search gets one more title ready.
-	driveEvery = 10 * time.Minute
 	// driveRetryAfter: a title with nothing on the indexers is tried again after this.
 	driveRetryAfter = 7 * 24 * time.Hour
 	// driveQuality is what the drive's search looks for: what most screens
@@ -199,7 +197,7 @@ var driveSpendMu sync.Mutex
 func (s *Server) driveUsedToday() int {
 	v, _ := s.Settings.Get(keyDriveUsed)
 	day, n, ok := strings.Cut(v, ":")
-	if !ok || day != time.Now().Format("2006-01-02") {
+	if !ok || day != s.driveWindowNow().budgetDay(driveNow()) {
 		return 0
 	}
 	c, _ := strconv.Atoi(n)
@@ -214,7 +212,7 @@ func (s *Server) driveSpend() bool {
 	if used >= s.driveBudget() {
 		return false
 	}
-	_ = s.Settings.Set(keyDriveUsed, fmt.Sprintf("%s:%d", time.Now().Format("2006-01-02"), used+1), false)
+	_ = s.Settings.Set(keyDriveUsed, fmt.Sprintf("%s:%d", s.driveWindowNow().budgetDay(driveNow()), used+1), false)
 	return true
 }
 
@@ -413,12 +411,17 @@ func (s *Server) drivePrepFile(ctx context.Context, id int64) (string, error) {
 	if len(list) == 0 {
 		return label, errors.New("no release of it on your indexers right now")
 	}
+	want, err := s.driveWant(ctx, id)
+	if err != nil {
+		return label, err
+	}
+	want.InnerFile = "" // that's for the release kept; these are new
 	var last error
 	for i, r := range list {
 		if i >= 3 {
 			break
 		}
-		data, sf, err := s.ustreamFetch(ctx, servers, r)
+		data, sf, err := s.ustreamFetch(ctx, servers, r, want)
 		if err != nil {
 			last = err
 			continue
@@ -432,8 +435,6 @@ func (s *Server) drivePrepFile(ctx context.Context, id int64) (string, error) {
 	return label, fmt.Errorf("none of the releases would open: %w", last)
 }
 
-// driveJob is the background search: one title at a time, while the drive is
-// on and the day's budget lasts.
 // driveNowGap spaces out the searches for a title got ready right away (a
 // season is one search an episode), so the indexers never see a burst.
 var driveNowGap = 5 * time.Second
@@ -499,13 +500,19 @@ func (s *Server) driveReadyTitle(titleID int64) (int, error) {
 	return len(ids), nil
 }
 
+// driveJob is the background search: one title at a time, while the drive is
+// on, inside its hours (home_drive_window.go) and while the day's budget lasts.
 func (s *Server) driveJob(ctx context.Context) {
-	if !s.driveOn() || s.driveBudget() == 0 {
+	if !s.driveOn() || s.driveBudget() == 0 || !s.driveDue(driveNow()) {
 		return
 	}
 	label, err := s.drivePrepOne(ctx)
+	if errors.Is(err, errDriveNothingToDo) {
+		return
+	}
+	_ = s.Settings.Set(keyDriveLastAt, driveNow().UTC().Format(time.RFC3339), false)
 	switch {
-	case err == nil, errors.Is(err, errDriveNothingToDo), errors.Is(err, errDriveNoBudget):
+	case err == nil, errors.Is(err, errDriveNoBudget):
 	default:
 		slog.Info("drive: couldn't get a title ready", "title", label, "err", err)
 	}
@@ -530,6 +537,15 @@ type driveStatus struct {
 	LastRead  int64  `json:"lastRead,omitempty"` // ms: the last time anything read the drive
 	Where     string `json:"where"`              // where the media server's computer has it mounted
 	PlexOn    bool   `json:"plexOn"`             // a Plex server is connected
+
+	WindowFrom int    `json:"windowFrom"` // the hours the search runs (local time); the same twice: all day
+	WindowTo   int    `json:"windowTo"`
+	InWindow   bool   `json:"inWindow"`
+	GapSeconds int    `json:"gapSeconds"` // the gap between searches when the budget is spread over the window
+	Fits       int    `json:"fits"`       // the most searches the window holds
+	Clock      string `json:"clock"`      // Usherr's clock now, "14:05"
+	Zone       string `json:"zone"`       // the time zone it's on
+	ZoneUTC    bool   `json:"zoneUTC"`    // it's on UTC: TZ probably isn't set
 }
 
 func (s *Server) driveStatus(ctx context.Context) driveStatus {
@@ -547,6 +563,14 @@ func (s *Server) driveStatus(ctx context.Context) driveStatus {
 	st.LastRead = driveLastRead.Load()
 	st.Where = s.driveWhere()
 	st.PlexOn = len(s.plexServers()) > 0
+	now := driveNow()
+	w := s.driveWindowNow()
+	st.WindowFrom, st.WindowTo, st.InWindow, st.Fits = w.From, w.To, w.contains(now), w.fits()
+	if st.Budget > 0 {
+		st.GapSeconds = int(max(time.Duration(w.hours())*time.Hour/time.Duration(st.Budget), driveMinGap) / time.Second)
+	}
+	st.Clock = now.Format("15:04")
+	st.Zone, st.ZoneUTC = driveTimeZone(now)
 	return st
 }
 
@@ -555,12 +579,15 @@ func (s *Server) handleDrive(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.driveStatus(r.Context()))
 }
 
-// PUT /api/home/drive {"on","budget","where","local","newPassword"}; local
-// is "yes" (Plex on Usherr's computer), "no", or "" to work it out again.
+// PUT /api/home/drive {"on","budget","windowFrom","windowTo","where","local",
+// "newPassword"}; local is "yes" (Plex on Usherr's computer), "no", or "" to
+// work it out again.
 func (s *Server) handlePutDrive(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		On          *bool   `json:"on"`
 		Budget      *int    `json:"budget"`
+		WindowFrom  *int    `json:"windowFrom"`
+		WindowTo    *int    `json:"windowTo"`
 		NewPassword bool    `json:"newPassword"`
 		Where       *string `json:"where"`
 		Local       *string `json:"local"`
@@ -582,6 +609,19 @@ func (s *Server) handlePutDrive(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_ = s.Settings.Set(keyDriveBudget, strconv.Itoa(*in.Budget), false)
+	}
+	for _, h := range []struct {
+		v   *int
+		key string
+	}{{in.WindowFrom, keyDriveFrom}, {in.WindowTo, keyDriveTo}} {
+		if h.v == nil {
+			continue
+		}
+		if *h.v < 0 || *h.v > 23 {
+			writeError(w, http.StatusBadRequest, "The hours go from 0 to 23.")
+			return
+		}
+		_ = s.Settings.Set(h.key, strconv.Itoa(*h.v), false)
 	}
 	if in.Where != nil {
 		where := strings.TrimSpace(*in.Where)

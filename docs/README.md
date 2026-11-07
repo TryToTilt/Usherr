@@ -18,6 +18,7 @@ The screenshots in these pages come from demo mode: the movies, shows, artists, 
 | Send torrent traffic through the built-in WireGuard VPN, and what the kill switch does | [vpn.md](./vpn.md) |
 | Add indexers: Usenet and torrent APIs, sites from the definition list, private sites, Cloudflare and FlareSolverr | [indexers.md](./indexers.md) |
 | Grab a release the moment a tracker announces it in IRC (connections, announcement templates, the test box, limits) | [irc-announce.md](./irc-announce.md) |
+| Add manga by its English title, choose official editions or fan scans, and see why nothing has come yet | [manga.md](./manga.md) |
 | Give family members their own login, see what members can do, reset a password | [accounts.md](./accounts.md) |
 | Add movies and shows by themselves from lists on Trakt, TMDB, IMDb, MDBList, Simkl and Letterboxd (import lists) | [lists.md](./lists.md) |
 | Let people ask for titles: messages when a request is answered, a limit on requests, 4K requests, problem reports | [accounts.md](./accounts.md#requests) |

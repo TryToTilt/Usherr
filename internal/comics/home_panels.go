@@ -91,41 +91,9 @@ func DetectPanels(img image.Image, opt PanelOptions) []Panel {
 // the gutter-coloured pixels. The gutter colour is the most common shade of
 // the page's outer edge.
 func toGrayPage(img image.Image) *grayPage {
-	b := img.Bounds()
-	if b.Dx() < 50 || b.Dy() < 50 {
+	lum, w, h := shrunkLuminance(img)
+	if lum == nil {
 		return nil
-	}
-	scale := float64(panelWork) / math.Max(float64(b.Dx()), float64(b.Dy()))
-	if scale > 1 {
-		scale = 1
-	}
-	w, h := int(float64(b.Dx())*scale), int(float64(b.Dy())*scale)
-	lum := make([]uint8, w*h)
-	// Average each working pixel's patch of the original (a box filter), so
-	// fine hatching doesn't read as gutter or as ink by chance.
-	for y := 0; y < h; y++ {
-		sy0 := b.Min.Y + int(float64(y)/scale)
-		sy1 := b.Min.Y + int(float64(y+1)/scale)
-		if sy1 <= sy0 {
-			sy1 = sy0 + 1
-		}
-		for x := 0; x < w; x++ {
-			sx0 := b.Min.X + int(float64(x)/scale)
-			sx1 := b.Min.X + int(float64(x+1)/scale)
-			if sx1 <= sx0 {
-				sx1 = sx0 + 1
-			}
-			var sum, n int
-			for sy := sy0; sy < sy1 && sy < b.Max.Y; sy += max(1, (sy1-sy0)/3) {
-				for sx := sx0; sx < sx1 && sx < b.Max.X; sx += max(1, (sx1-sx0)/3) {
-					sum += int(color.GrayModel.Convert(img.At(sx, sy)).(color.Gray).Y)
-					n++
-				}
-			}
-			if n > 0 {
-				lum[y*w+x] = uint8(sum / n)
-			}
-		}
 	}
 	// The gutter colour: the commonest shade (in steps of 8) along the edge.
 	var hist [32]int
@@ -186,6 +154,48 @@ func toGrayPage(img image.Image) *grayPage {
 		}
 	}
 	return g
+}
+
+// shrunkLuminance is the page at the working size, one grey byte a pixel, or nil
+// for a picture too small to read.
+func shrunkLuminance(img image.Image) ([]uint8, int, int) {
+	b := img.Bounds()
+	if b.Dx() < 50 || b.Dy() < 50 {
+		return nil, 0, 0
+	}
+	scale := float64(panelWork) / math.Max(float64(b.Dx()), float64(b.Dy()))
+	if scale > 1 {
+		scale = 1
+	}
+	w, h := int(float64(b.Dx())*scale), int(float64(b.Dy())*scale)
+	lum := make([]uint8, w*h)
+	// Average each working pixel's patch of the original (a box filter), so
+	// fine hatching doesn't read as gutter or as ink by chance.
+	for y := 0; y < h; y++ {
+		sy0 := b.Min.Y + int(float64(y)/scale)
+		sy1 := b.Min.Y + int(float64(y+1)/scale)
+		if sy1 <= sy0 {
+			sy1 = sy0 + 1
+		}
+		for x := 0; x < w; x++ {
+			sx0 := b.Min.X + int(float64(x)/scale)
+			sx1 := b.Min.X + int(float64(x+1)/scale)
+			if sx1 <= sx0 {
+				sx1 = sx0 + 1
+			}
+			var sum, n int
+			for sy := sy0; sy < sy1 && sy < b.Max.Y; sy += max(1, (sy1-sy0)/3) {
+				for sx := sx0; sx < sx1 && sx < b.Max.X; sx += max(1, (sx1-sx0)/3) {
+					sum += int(color.GrayModel.Convert(img.At(sx, sy)).(color.Gray).Y)
+					n++
+				}
+			}
+			if n > 0 {
+				lum[y*w+x] = uint8(sum / n)
+			}
+		}
+	}
+	return lum, w, h
 }
 
 // lineGutter reports whether row y (horizontal) or column x (vertical) of r
@@ -284,6 +294,135 @@ func trim(g *grayPage, r image.Rectangle) image.Rectangle {
 		r.Max.X--
 	}
 	return r
+}
+
+// A page at least this much wider than tall holds two pages side by side.
+const spreadRatio = 1.1
+
+// spineSlack is how far past the middle of a spread a panel may reach and still
+// belong to one page.
+const spineSlack = 0.05
+
+// IsSpread reports whether a page this size is a two-page spread in one picture.
+func IsSpread(w, h int) bool { return h > 0 && float64(w) > float64(h)*spreadRatio }
+
+// SpreadOrder puts the panels of a two-page spread page by page: all of the first
+// page before any of the second, keeping each page's own order. Seen as one wide
+// picture, a row running across both pages would otherwise be read across the
+// fold. A panel across the fold means the two pages can't be told apart, so the
+// order stays as it was.
+func SpreadOrder(panels []Panel, rightToLeft bool) []Panel {
+	var first, second []Panel
+	for _, p := range panels {
+		onLeft := p.X+p.W <= 0.5+spineSlack
+		onRight := p.X >= 0.5-spineSlack
+		if !onLeft && !onRight {
+			return panels
+		}
+		if onLeft == onRight { // a narrow one on the fold: with the page before it
+			if len(second) > 0 {
+				second = append(second, p)
+			} else {
+				first = append(first, p)
+			}
+			continue
+		}
+		if onRight == rightToLeft {
+			first = append(first, p)
+		} else {
+			second = append(second, p)
+		}
+	}
+	return append(first, second...)
+}
+
+const (
+	stripRatio   = 2.2  // a page this many times taller than wide is a strip of a long scroll
+	stripSpeck   = 0.12 // a piece less tall than this share of the width is lettering or a speck
+	stripTallest = 1.8  // a piece taller than this many widths doesn't fit a screen at once
+	stripStep    = 1.3  // and is shown this many widths at a time
+	stripOverlap = 0.1  // with this much of the last view kept
+	stripMinGap  = 2    // rows of the working copy that make a gutter
+)
+
+// IsStrip reports whether a page this size is a strip of a long scroll (manhwa).
+func IsStrip(w, h int) bool { return w > 0 && float64(h) >= float64(w)*stripRatio }
+
+// DetectStrip cuts a long strip along its gutters, top to bottom. A strip's panels
+// fill its width, so only rows matter, and a stretch too long for the screen is
+// shown a screen at a time, so a strip with no gutters at all still reads.
+func DetectStrip(img image.Image) []Panel {
+	b := img.Bounds()
+	if !IsStrip(b.Dx(), b.Dy()) {
+		return nil
+	}
+	lum, w, h := shrunkLuminance(img)
+	if lum == nil {
+		return nil
+	}
+	widths := float64(b.Dy()) / float64(b.Dx()) // the strip's height, in widths
+	var out []Panel
+	start := -1 // where the current piece began
+	end := func(at int) {
+		if start >= 0 {
+			from, to := float64(start)/float64(h), float64(at)/float64(h)
+			if (to-from)*widths >= stripSpeck {
+				out = append(out, stripViews(from, to, widths)...)
+			}
+		}
+		start = -1
+	}
+	gap := 0
+	for y := 0; y < h; y++ {
+		if stripGutterRow(lum[y*w : (y+1)*w]) {
+			gap++
+			if gap == stripMinGap {
+				end(y - gap + 1)
+			}
+			continue
+		}
+		gap = 0
+		if start < 0 {
+			start = y
+		}
+	}
+	end(h - gap)
+	if len(out) < 2 {
+		return nil
+	}
+	return out
+}
+
+// stripGutterRow reports whether a row of a strip is plain white or plain black,
+// nearly edge to edge. A strip's panels reach its sides, so the page's edge says
+// nothing about the gutter colour here, as it does on a normal page.
+func stripGutterRow(row []uint8) bool {
+	light, dark := 0, 0
+	for _, v := range row {
+		switch {
+		case v >= 215:
+			light++
+		case v <= 35:
+			dark++
+		}
+	}
+	need := int(gutterLine * float64(len(row)))
+	return light >= need || dark >= need
+}
+
+// stripViews shows from..to (shares of the strip's height) in views that fit a screen.
+func stripViews(from, to, widths float64) []Panel {
+	if (to-from)*widths <= stripTallest {
+		return []Panel{{X: 0, Y: from, W: 1, H: to - from}}
+	}
+	step, kept := stripStep/widths, stripOverlap/widths
+	var out []Panel
+	for at := from; ; at += step - kept {
+		if at+step >= to-kept {
+			return append(out, Panel{X: 0, Y: at, W: 1, H: to - at})
+		}
+		out = append(out, Panel{X: 0, Y: at, W: 1, H: step})
+	}
 }
 
 // ink is the share of r that isn't gutter-coloured.

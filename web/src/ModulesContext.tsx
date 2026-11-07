@@ -13,6 +13,7 @@ const FALLBACK: Modules = {
   music: { enabled: false, available: true },
   audiobooks: { enabled: false, available: false },
   ebooks: { enabled: false, available: false },
+  manga: { enabled: false, available: false },
 }
 
 interface ModulesState {

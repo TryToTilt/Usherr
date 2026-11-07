@@ -12,6 +12,7 @@ import { watchConnection } from './progress'
 const Reader = lazy(() => import('./Reader'))
 const Player = lazy(() => import('./Player'))
 const ComicIssue = lazy(() => import('./ComicIssue'))
+const MangaVolume = lazy(() => import('./MangaVolume'))
 
 // Mediarium Books: reading and listening, as an app of its own. It has no
 // Mediarium sidebar, its own name and icon when installed (its own web app
@@ -44,6 +45,7 @@ export default function BookshelfApp() {
           <Route path="read/:id" element={<Reader />} />
           <Route path="listen/:id" element={<Player />} />
           <Route path="comic/:id" element={<ComicIssue />} />
+          <Route path="manga/:id" element={<MangaVolume />} />
           <Route path="*" element={<Shelf />} />
         </Routes>
       </Suspense>

@@ -1,6 +1,56 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { buildChapters, chapterAt, formatAudioPosition, formatClock, nextSpeed, openingPage, overallPercent, parseAudioPosition, trackLabel } from './shelfMath.ts'
+import { absoluteTime, bookPercent, buildChapters, chapterAt, formatAudioPosition, formatClock, locateTime, nextSpeed, openingPage, overallPercent, parseAudioPosition, resumePoint, smartRewind, timelineOf, trackLabel } from './shelfMath.ts'
+
+test('one timeline across the files', () => {
+  const tl = [100, 50.5, 200]
+  for (const [track, seconds, at] of [[0, 0, 0], [0, 99.5, 99.5], [1, 0, 100], [1, 50, 150], [2, 10, 160.5], [2, 200, 350.5]]) {
+    assert.equal(absoluteTime(tl, track, seconds), at)
+    assert.deepEqual(locateTime(tl, at), { track, seconds })
+  }
+  assert.equal(absoluteTime(tl, 0, 100.4), 100, 'a moment past the end stays in its file')
+  assert.deepEqual(locateTime(tl, 1000), { track: 2, seconds: 200 })
+  assert.deepEqual(locateTime(tl, -5), { track: 0, seconds: 0 })
+})
+
+test('the timeline is known when every file is', () => {
+  assert.deepEqual(timelineOf([{ duration: 10 }, { duration: 20 }]), [10, 20])
+  assert.equal(timelineOf([{ duration: 10 }, {}]), null)
+  assert.equal(timelineOf([]), null)
+  assert.deepEqual(timelineOf([{ duration: 10 }, {}], 1, 30), [10, 30], 'the file playing fills in its own length')
+  assert.equal(timelineOf([{ duration: 10 }, {}], 1, Number.NaN), null)
+  assert.equal(timelineOf([{ duration: 10 }, {}, {}], 1, 30), null)
+})
+
+test('a place saved before the lengths were known carries over', () => {
+  // The same "track:seconds" means the same spot; only the percent becomes true.
+  const saved = parseAudioPosition('1:500')
+  const tracks = [{ size: 100 }, { size: 900 }]
+  assert.equal(bookPercent(tracks, null, saved.track, saved.seconds, 1000), 55, 'from sizes')
+  const tl = [3000, 1000]
+  assert.equal(bookPercent(tracks, tl, saved.track, saved.seconds, 1000), 87.5, 'true')
+  assert.equal(formatAudioPosition(locateTime(tl, absoluteTime(tl, saved.track, saved.seconds))), '1:500')
+  assert.equal(bookPercent(tracks, tl, 0, 3000.4, 3000), 75, 'rounding past a file does not move on')
+  assert.equal(resumePoint(93.5, 1000), 93.5)
+  assert.equal(resumePoint(1000.4, 1000), 999, 'just before the end, not the start')
+  assert.equal(resumePoint(50, Number.POSITIVE_INFINITY), 50)
+  assert.equal(resumePoint(50, Number.NaN), 50)
+})
+
+test('smart rewind goes back more after a longer pause', () => {
+  const sec = 1000
+  const min = 60 * sec
+  assert.equal(smartRewind(2 * sec, 'more'), 0, 'not after a moment')
+  assert.equal(smartRewind(30 * sec, 'more'), 2)
+  assert.equal(smartRewind(5 * min, 'more'), 5)
+  assert.equal(smartRewind(30 * min, 'more'), 10)
+  assert.equal(smartRewind(5 * 60 * min, 'more'), 20)
+  assert.equal(smartRewind(48 * 60 * min, 'more'), 30)
+  assert.equal(smartRewind(30 * sec, 'little'), 1)
+  assert.equal(smartRewind(48 * 60 * min, 'little'), 15)
+  assert.equal(smartRewind(48 * 60 * min, 'off'), 0)
+  assert.equal(smartRewind(Number.NaN, 'more'), 0)
+})
 
 test('audiobook positions read and write', () => {
   assert.deepEqual(parseAudioPosition('2:93.5'), { track: 2, seconds: 93.5 })

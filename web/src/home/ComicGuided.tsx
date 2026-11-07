@@ -10,6 +10,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
 import { t } from '../i18n'
 import { comicsApi, type ComicPanel } from './comicsApi'
+import { swipeTurn, tapTurn } from './comicReading'
 
 export interface ComicGuidedHandle {
   next: () => void
@@ -17,12 +18,23 @@ export interface ComicGuidedHandle {
   wholePage: () => void
 }
 
+// Where the pages and their panels come from: an issue, or a manga volume.
+export interface GuidedSource {
+  pageUrl: (n: number, width: number) => string
+  panels: (n: number, rtl: boolean) => Promise<{ panels?: ComicPanel[] }>
+}
+
+export function comicGuidedSource(issueId: number): GuidedSource {
+  return { pageUrl: (n, width) => comicsApi.pageUrl(issueId, n, width), panels: (n, rtl) => comicsApi.panels(issueId, n, rtl) }
+}
+
 interface Props {
-  issueId: number
+  source: GuidedSource
   page: number
   total: number
   onPage: (page: number) => void
   onPanel?: (index: number, count: number) => void // -1: the whole page
+  rtl?: boolean // panels, taps and swipes run right to left
 }
 
 const MARGIN = 0.03 // a little of the gutter around each panel, as a share of the page
@@ -41,7 +53,7 @@ function pageWidth(): number {
   return Math.min(2400, Math.max(1200, Math.ceil((px * 1.6) / 400) * 400))
 }
 
-const ComicGuided = forwardRef<ComicGuidedHandle, Props>(function ComicGuided({ issueId, page, total, onPage, onPanel }, ref) {
+const ComicGuided = forwardRef<ComicGuidedHandle, Props>(function ComicGuided({ source, page, total, onPage, onPanel, rtl = false }, ref) {
   const stage = useRef<HTMLDivElement>(null)
   const [view, setView] = useState({ w: 0, h: 0 })
   const [shown, setShown] = useState<Shown | null>(null)
@@ -69,17 +81,17 @@ const ComicGuided = forwardRef<ComicGuidedHandle, Props>(function ComicGuided({ 
     let live = true
     for (const n of [page, page + 1]) {
       if (n > total || panels[n]) continue
-      comicsApi
-        .panels(issueId, n)
+      source
+        .panels(n, rtl)
         .then((r) => live && setPanels((m) => ({ ...m, [n]: r.panels ?? [] })))
         .catch(() => live && setPanels((m) => ({ ...m, [n]: [] })))
     }
-    if (page < total) new Image().src = comicsApi.pageUrl(issueId, page + 1, width)
+    if (page < total) new Image().src = source.pageUrl(page + 1, width)
     return () => {
       live = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetched once per page
-  }, [issueId, page, total])
+  }, [source, page, total])
 
   // The turned page is decoded first; the old one stays up until then. A
   // page that doesn't arrive is asked for again (twice), then says so.
@@ -87,7 +99,7 @@ const ComicGuided = forwardRef<ComicGuidedHandle, Props>(function ComicGuided({ 
     let live = true
     let tries = 0
     setTrouble('')
-    const base = comicsApi.pageUrl(issueId, page, width)
+    const base = source.pageUrl(page, width)
     const slow = window.setTimeout(() => live && setTrouble((t) => t || 'slow'), 12000)
     const load = () => {
       const src = tries === 0 ? base : `${base}&try=${tries}-${attempt}`
@@ -116,7 +128,7 @@ const ComicGuided = forwardRef<ComicGuidedHandle, Props>(function ComicGuided({ 
       live = false
       window.clearTimeout(slow)
     }
-  }, [issueId, page, width, attempt])
+  }, [source, page, width, attempt])
 
   const list = shown ? panels[shown.page] : undefined
   // A new page starts on its first panel (or its last, going back), without gliding there.
@@ -172,7 +184,7 @@ const ComicGuided = forwardRef<ComicGuidedHandle, Props>(function ComicGuided({ 
       className="cx-guided"
       onClick={(e) => {
         const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-        if (e.clientX - r.left < r.width / 3) prev()
+        if (tapTurn((e.clientX - r.left) / r.width, rtl) < 0) prev()
         else next()
       }}
       onTouchStart={(e) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
@@ -184,7 +196,7 @@ const ComicGuided = forwardRef<ComicGuidedHandle, Props>(function ComicGuided({ 
         const dy = e.changedTouches[0].clientY - start.y
         if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
           e.preventDefault()
-          if (dx < 0) next()
+          if (swipeTurn(dx, rtl) > 0) next()
           else prev()
         }
       }}

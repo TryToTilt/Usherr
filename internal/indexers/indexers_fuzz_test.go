@@ -130,14 +130,18 @@ func FuzzDates(f *testing.F) {
 }
 
 func FuzzCompileRegex(f *testing.F) {
-	for _, s := range []string{`\d+`, `(?<=a)b`, `é`, `\p{IsCyrillic}`, `\p{`, `\p{IsX`, `\u12`, `(`, `[`, `a{1000}{1000}`, `(a*)*b`, "\\", `\é`, strings.Repeat("(", 300), `(?i)x`, `\k<a>`, `(?<n>a)\k<n>`} {
+	for _, s := range []string{
+		`\d+`, `(?<=a)b`, `é`, `\p{IsCyrillic}`, `\p{`, `\p{IsX`, `\u12`, `(`, `[`, `a{1000}{1000}`, `(a*)*b`, "\\", `\é`, strings.Repeat("(", 300), `(?i)x`, `\k<a>`, `(?<n>a)\k<n>`,
+		`(a+)+(?=b)`, `(a|a)*(?!a)b`, `(?>a+)b`, `(a)\1`, `(?=(.*))`, `(?=a){2147483647}`, `(?=a)a{2147483647}`, `(?=x)(?:(?:a{1000}){1000}){1000}`, `(?<1>a)(?<1>b)`, `(?<n>a)(b)`, `(?(1)a|b)`, `(?<a-b>c)`, `(?#x)`, `(?x) a # b`, `[a-z-[aeiou]]`, `\Gb`, `\Z`,
+		strings.Repeat(`(?=`, 1000) + strings.Repeat(`)`, 1000), strings.Repeat(`(?=a)|`, 680),
+	} {
 		f.Add(s, "aaaaaaaaaaaaaaaaaaaaaaaa!")
 	}
 	f.Fuzz(func(t *testing.T, pattern, input string) {
 		start := time.Now()
 		re, err := compileDotNetRegex(pattern)
 		if err == nil {
-			_ = re.FindStringSubmatch(input)
+			_, _ = re.firstGroup(input)
 			_, _ = regexReplace(re, input, "$1-$2-${3}")
 		}
 		slow(t, start, 5*time.Second, "regular expression")

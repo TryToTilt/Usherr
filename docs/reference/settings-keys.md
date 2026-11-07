@@ -123,6 +123,7 @@ The keys the app stores in its settings table. You normally change these from th
 | `metadata.tvmaze_air_times` | "0" stops Mediarium looking up the time episodes air on TVmaze (the calendar then only knows days); anything else (including unset) leaves it on |
 | `modules.audiobooks` | "1" switches it on; unset or "0" leaves it off |
 | `modules.ebooks` | "1" switches it on; unset or "0" leaves it off |
+| `modules.manga` | "1" switches it on; unset or "0" leaves it off (Usherr) |
 | `modules.movies` | "0" switches movies off; anything else (including unset) leaves them on |
 | `modules.music` | "1" switches music on; unset or "0" leaves it off (unset falls back to music.enabled) |
 | `modules.tv` | "0" switches TV off; anything else (including unset) leaves it on |

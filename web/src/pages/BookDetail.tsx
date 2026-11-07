@@ -5,7 +5,9 @@ import { ReadToMeButton } from '../home/ReadToMe' // Usherr
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, can, isAdmin, type Book, type BookFormat, type QueueItem, type SearchResult } from '../api'
 import { useAuth } from '../AuthContext'
+import BookEditDialog from '../components/BookEditDialog'
 import ChangeCoverDialog from '../components/ChangeCoverDialog'
+import SendToDevice from '../components/SendToDevice'
 import { useConfirm } from '../components/ConfirmProvider'
 import Icon from '../components/Icon'
 import KindGlyph from '../components/KindGlyph'
@@ -49,6 +51,7 @@ function BookPage({ id }: { id?: string }) {
   const { on } = useModules()
   const [book, setBook] = useState<Book | null>(null)
   const [changingCover, setChangingCover] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [error, setError] = useState('')
   const [links, setLinks] = useState<{ serverId: number; name: string; kind: string; url: string }[]>([])
@@ -160,6 +163,11 @@ function BookPage({ id }: { id?: string }) {
           {(admin || can(me, 'manage')) && (
             <div className="title-actions">
               {can(me, 'manage') && (
+                <button className="btn-with-icon" onClick={() => setEditing(true)}>
+                  <Icon name="edit" size={16} /> {t('Edit details')}
+                </button>
+              )}
+              {can(me, 'manage') && (
                 <button className="btn-with-icon" onClick={() => setChangingCover(true)}>
                   <Icon name="image" size={16} /> {t('Change cover')}
                 </button>
@@ -175,6 +183,17 @@ function BookPage({ id }: { id?: string }) {
       </section>
 
       {changingCover && <ChangeCoverDialog book={book} onClose={() => setChangingCover(false)} onChanged={load} />}
+      {editing && (
+        <BookEditDialog
+          book={book}
+          onClose={() => setEditing(false)}
+          onChanged={load}
+          onChangeCover={() => {
+            setEditing(false)
+            setChangingCover(true)
+          }}
+        />
+      )}
 
       <div className="book-formats">
         {formats.map((f) => (
@@ -294,6 +313,7 @@ function FormatPanel({ book, format, queue, onChanged }: { book: Book; format: B
             <Icon name="search" size={16} /> {searching ? t('Searching…') : t('Search now')}
           </button>
         )}
+        {format === 'ebook' && st.status === 'downloaded' && can(me, 'play') && <SendToDevice book={book} />}
         {format === 'ebook' && st.status === 'downloaded' && st.format === 'epub' && can(me, 'manage') && <ReadToMeButton bookId={book.id} title={book.title} onChanged={onChanged} />}
         {can(me, 'releases') && (
           <button className="btn-with-icon" onClick={() => (open ? setOpen(false) : showReleases())}>
@@ -301,7 +321,7 @@ function FormatPanel({ book, format, queue, onChanged }: { book: Book; format: B
           </button>
         )}
       </div>
-      {format === 'ebook' && st.status === 'downloaded' && can(me, 'play') && <BookMarks bookId={book.id} />}
+      {st.status === 'downloaded' && can(me, 'play') && <BookMarks bookId={book.id} format={format} />}
       {open && (
         <div className="book-releases">
           {releaseError && <p className="error-text">{releaseError}</p>}
@@ -318,13 +338,15 @@ function FormatPanel({ book, format, queue, onChanged }: { book: Book; format: B
   )
 }
 
-// Usherr: your bookmarks and highlights in this book; each opens the reader there.
-function BookMarks({ bookId }: { bookId: number }) {
+// Usherr: your bookmarks and highlights in this book; each opens the reader or
+// player there. An audiobook's are its own.
+function BookMarks({ bookId, format }: { bookId: number; format: BookFormat }) {
   const [list, setList] = useState<ReadingMark[]>([])
+  const item = format === 'audiobook' ? `audio:${bookId}` : `book:${bookId}`
   useEffect(() => {
     const load = () =>
       marksApi
-        .list(`book:${bookId}`)
+        .list(item)
         .then(setList)
         .catch(() => setList([]))
     load()
@@ -338,14 +360,15 @@ function BookMarks({ bookId }: { bookId: number }) {
       document.removeEventListener('visibilitychange', onFocus)
       window.removeEventListener('focus', onFocus)
     }
-  }, [bookId])
+  }, [item])
   if (list.length === 0) return null
+  const open = format === 'audiobook' ? listenPath(bookId) : readPath(bookId)
   return (
     <div className="book-marks">
       <h3>
-        <Icon name="bookmark" size={15} /> {t('Your bookmarks and highlights')}
+        <Icon name="bookmark" size={15} /> {format === 'audiobook' ? t('Your bookmarks') : t('Your bookmarks and highlights')}
       </h3>
-      <Marks item={`book:${bookId}`} list={list} onChange={setList} onJump={(m) => openBookApp(`${readPath(bookId)}?at=${m.id}`)} />
+      <Marks item={item} list={list} onChange={setList} onJump={(m) => openBookApp(`${open}?at=${m.id}`)} />
     </div>
   )
 }

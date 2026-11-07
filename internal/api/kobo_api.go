@@ -509,7 +509,8 @@ func (s *Server) koboSync(w http.ResponseWriter, r *http.Request, k koboAccess) 
 			continue // the file can't be read right now (a drive that is off); do not remove or send it
 		}
 		sig := fileSig(st)
-		if has && e.FileSig == sig {
+		// Usherr: a corrected title goes to the Kobo too (books_edit.go).
+		if has && e.FileSig == sig && e.Title == b.Title {
 			continue
 		}
 		if count >= koboSyncLimit {

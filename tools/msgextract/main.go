@@ -30,7 +30,7 @@ import (
 )
 
 // dirs are the packages whose sentences reach the screen.
-var dirs = []string{"internal/api", "internal/indexers", "internal/problems", "internal/health", "internal/plainerror", "internal/inputcheck", "internal/vpn", "internal/library", "internal/store", "internal/musictidy"}
+var dirs = []string{"internal/api", "internal/indexers", "internal/problems", "internal/health", "internal/plainerror", "internal/inputcheck", "internal/vpn", "internal/library", "internal/store", "internal/musictidy", "internal/nsfw"}
 
 // out is the file the list is written to.
 const out = "web/src/serverText.json"

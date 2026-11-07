@@ -23,6 +23,7 @@ Open **Library**, then the **Ebooks** or **Audiobooks** tab, and press **Add**. 
 Administrators see an **Import** button on the Ebooks and Audiobooks tabs. Press **Start import** and Mediarium reads that folder, looks each book up on Open Library, and adds what it recognises to your library as downloaded, **where it is**. Nothing is moved, renamed or changed. For an audiobook that Open Library does not have, Mediarium asks Audible (through Audnexus) before giving up, and adds the book with the narrator, length, series and release date Audible has. Such a book has no "More about this book" link, because there is no Open Library page for it.
 
 - It understands the usual layouts: `Author/Title/book.epub` (Mediarium, Calibre), `Author/Title.epub`, `Author - Title.epub`, and for audiobooks `Author/Title/` or `Author/Series/Title/` with the audio files inside. `CD 1` or `Disc 2` folders count as part of the book above them. A year like `(2021)`, Calibre's `(123)` and notes like `[Unabridged]` are ignored, and so are series numbers like `1 - `.
+- Audiobook folders can say more, the way Audiobookshelf reads them: `Author/Series/Vol 2 - Title {Narrator} [B0015T963C]` gives the series and its number (`Book 2`, `Vol. 2`, `2. Title`), the narrator and the Audible ASIN. Beside the audio it reads `metadata.json`, an `.opf` file, `desc.txt` (the description) and `reader.txt` (the narrator, first line), and tags in the first audio file (composer or narrator, ASIN, series, year). What it finds only fills in what a book doesn't have: anything already set stays, and running the import again fills in the empty parts of books you already have. Files are only read, never changed. A book with an ASIN is looked up on Audible by that number.
 - Titles are compared the forgiving way: accents and apostrophes don't matter (`L'Etranger` finds *L’étranger*), a number counts the same as the number written out (`George Orwell - 1984.epub` finds *Nineteen Eighty-Four*), and a name with the title first (`1984 - George Orwell.epub`) is tried that way round too. The author always has to match.
 - An ebook folder with the same book in several formats counts once, with the best format.
 - When it's done you see how many were added, already there and not found. The list shows the ones not found, with the path on disk and how the name was read, so you can rename the folder and run it again. **Show all** lists everything.
@@ -55,8 +56,20 @@ Each book has a page with its cover, author, year and description, and a panel f
 - **Want the ebook / Want the audiobook**: switch a format off to stop looking for it, or on to start.
 - **Search now** looks for that format straight away and downloads the best release it finds.
 - **Choose a release** lists what your indexers have for the book, best first, so you can pick one yourself. Under each release is the category number the indexer filed it in (for example 7020 or a German books category), so you can tell apart releases that look alike.
+- **Edit details** corrects a book that was matched wrongly. See below.
+- **Send to e-reader** emails the ebook to your Kindle or another e-reader. See [Sending a book by email](#sending-a-book-by-email).
 - **Change cover** gives the book a cover of your own. See below.
 - **Remove** (administrators) takes the book out of your library. Tick **Also delete its files** to remove the ebook file and the audiobook folder as well. They go to the recycle bin first when it is on.
+
+### Editing a book's details
+
+**Edit details** (on the book's page, for administrators and for accounts that may manage books) opens a window with three ways to put a book right, so you no longer have to delete it and add it again:
+
+- **By hand**: title, author, series, number in the series, year and description. A series you set stays: the look-ups that fill in a series leave it alone. Changing the author to another name drops the link to the old author's page.
+- **What the book's file says**: for an EPUB, the title, author, series, year and description inside the file are listed where they differ, each with a **Use this** button.
+- **Match it again**: search Open Library, Hardcover and Google Books and pick the right book. Its title, author, year, description and cover replace the old ones, a cover you chose included, and its series and audiobook details are looked up again. Formats, files and reading places stay. A book already in your library under another entry can't be picked.
+
+**Files are never moved or renamed.** A file stays in the folder it was filed in, under its old name, so a correction can't lose anything. Usherr doesn't write the corrected details into the file either. The catalogue for reading apps shows the corrections at once; a Kobo picks up a new title at its next sync, and other corrected details only when it next gets the file.
 
 ### Changing a cover
 
@@ -144,7 +157,7 @@ Downloading a better ebook later (an EPUB after a PDF) replaces the file. A wors
 
 - EPUB books are shown a page at a time (two side by side on a wide screen). Turn pages with the arrows at the sides, the arrow keys, Page Up / Page Down or the space bar, or by swiping on a touch screen.
 - **Contents** (the list button) jumps to a chapter. The slider at the bottom jumps to any place in the book and shows how far through you are. The first time a book is opened the percentages take a moment to work out; they're kept in that browser after that.
-- **Aa** sets the text size, the page colour (light, sepia or dark), the font (book or plain) and how a page turn looks: **Slide** (the page slides out and the next slides in), **Fade** or **None**, with a **Turn speed** (fast, normal or slow). The turn animation is switched off by itself when your device is set to reduce motion. Your choice is remembered in that browser. The screen button goes full screen.
+- **Aa** sets the text size, the page colour (light, sepia, dark or black for OLED screens), the font (the book's own, or Book, Classic, Plain, Clear or Typewriter, which are fonts your device already has), the line spacing, the margins, justified text (as published, on or off) and how a page turn looks: **Curl**, **Slide** (the page slides out and the next slides in) or **None**, with a **Turn speed** (fast, normal or slow). The turn animation is switched off by itself when your device is set to reduce motion. Your choice is remembered in that browser. The screen button goes full screen. A footnote mark opens the note in a small card over the page; close it and you are where you were.
 - PDF books open in the browser's own PDF viewer.
 - Kindle books (MOBI, AZW and AZW3) open in the reader too. Mediarium turns them into EPUB with its own converter the first time (in well under a second, one book at a time) and keeps that copy in its cache folder (`/config/cache/epub`), so your library folder is never changed and your e-reader or Kavita see no extra files. A freshly downloaded Kindle book is converted straight away in the background. Copies nobody opens for 90 days are removed. Books locked with DRM can't be converted; the reader says so and offers the original as a download.
 - Scripts inside a book never run.
@@ -154,11 +167,13 @@ Downloading a better ebook later (an EPUB after a PDF) replaces the file. A wors
 ### The player
 
 - An audiobook's files play in order as its chapters (named after the files, with "01 - " and the like left off). A whole book in one M4B file uses the chapter marks stored inside it instead, with their own titles; the slider and the time left are then for the chapter, not the whole file. The list button shows them all.
-- **−30** and **+30** skip half a minute; the arrows go to the previous or next chapter. Space plays and pauses, and the arrow keys skip.
+- The skip buttons go back and forward 30 seconds until you change them; the arrows go to the previous or next chapter. Space plays and pauses, and the arrow keys skip. Once the book's timeline is known (see below), a skip carries on into the next or previous file.
+- **Player settings** (the sliders button at the top) choose the skip lengths, from 5 to 60 seconds, and **Go back after a pause**: when you press play again the book goes back a few seconds, and more the longer it was paused (up to 15 seconds with **A little**, 30 with **More**), also when you come back to it days later. **Never** switches it off. These are kept in that browser.
+- **Bookmark** keeps the spot you are at with one press. The bookmark button at the top lists them with their notes, and each one goes back there. They are also on the book's page, under the audiobook panel, and they are yours alone. An audiobook's bookmarks are apart from the same book's ebook bookmarks.
 - The speed button goes round 0.8×, 1×, 1.2×, 1.5×, 1.75× and 2× (remembered in that browser).
 - **Sleep timer** goes round 15, 30, 45 and 60 minutes, **End of chapter** (also inside a one-file M4B), and off.
-- On a phone, the lock screen and headphone buttons work, with the cover showing.
-- How far through the book you are is worked out from the files' sizes, so it's close rather than exact.
+- On a phone, the lock screen and headphone buttons work, with the cover showing. Lock screens that have a progress bar show the whole book and can be dragged; the skips use your skip lengths. What a lock screen offers differs by phone and browser.
+- **One timeline.** Usherr reads each file's real length with ffprobe: right away for a book you open, and for the rest of the library a little at a time, one file after another, between 2 and 9 in the morning (it carries on after a restart, and leaves links to other drives alone). Once they are known you get a slider for the whole book, the time left in the book, each chapter's start time in the list, and an exact percent. Until then the percent is worked out from the files' sizes, so it's close rather than exact. Your saved place doesn't move when this happens: it is kept as a spot in a file, so only the percent shown for it becomes true.
 
 ![The audiobook player: the cover, the chapter you are on, play, 30-second skips, speed and the sleep timer](images/player.png)
 
@@ -246,6 +261,43 @@ To go back to Kobo's own store, put the old `api_endpoint` line back.
 - *The Kobo asks me to sign in again.* Sign in on the Kobo as usual; Mediarium passes that on to Kobo.
 
 **Not tested on a real Kobo yet.** Mediarium's Kobo sync follows the way Kobo's store talks to a device, as the open source servers that already do this (Calibre-Web, Komga) have worked out. It is tested here with a program that plays the part of a Kobo and replays those requests, not on a physical Kobo, because none was at hand. If you try it on yours, please say how it went on Mediarium's GitHub page, with the model and firmware version.
+
+### Sending a book by email
+
+Kindles and some other e-readers have their own email address: a book sent there lands on the device.
+
+1. An administrator sets up an **email notification** (**Settings > Notifications**). Its mail server sends the books, the same one as password reset emails. Nothing else needs setting up.
+2. Save your device's address under **Profile > Read on an e-reader > Send by email**, with a name such as "My Kindle". Each account has its own addresses, up to 8. A book only ever goes to an address you saved.
+3. **On Amazon**, add the address books come from (the card shows it) to the approved list: *Manage Your Content and Devices > Preferences > Personal Document Settings*. Until then Amazon drops the email without a word, and Usherr can't tell.
+4. On a book's page, press **Send to e-reader** and pick the device.
+
+What goes out:
+
+- **To a Kindle address** (`@kindle.com`): an EPUB goes as a mended copy, because Amazon refuses EPUBs for small faults. A page without an XML declaration gets one, a book without a language is set to English, a picture with no source goes, and contents links to a page's own body tag are straightened. A MOBI or AZW3 goes as an EPUB made by Usherr's converter, since Amazon no longer takes those. A PDF goes as it is. Comics and books locked with DRM are refused.
+- **To any other address**: the file as it is.
+- Your library's file is never changed.
+
+The limit is **50 MB**, Amazon's own; a bigger book gets a clear message and isn't sent. Your mail server may allow less (with base64, a 50 MB book is a 68 MB email; many servers stop at 25 MB) and then its refusal is shown. You can send 20 books an hour. **Activity** shows each send and why one failed. Usherr knows only that the mail server took the email: Amazon may still refuse the book later, and then writes to you.
+
+### Keeping your place with KOReader and Readest
+
+KOReader and Readest can sync your reading place with a "KOSync" server. Usherr is one, for the books on your account.
+
+1. Make an app password on your profile, as for OPDS (an app password made before Usherr kept them can't sign in here: make a new one, and give it to your other apps).
+2. In KOReader, open a book, then find **Progress sync**. Choose **Custom sync server** and enter the address on your profile (`https://your-usherr/kosync`). Choose **Login** with your user name and the app password. **Register** is turned down: accounts are only made in Usherr. In Readest, it is under the book's KOReader Sync settings.
+3. Keep **Document matching** on **Binary**, the setting KOReader starts on. The other setting, by file name, works too unless two books have the same file name.
+
+Usherr finds the book by a fingerprint of the file, the way KOReader does, so **your device needs the same file** Usherr has. Download it from the OPDS catalogue. Another copy of the same book, or the KEPUB a Kobo gets, isn't recognised: its place still syncs between your KOReader devices but not with Usherr's reader.
+
+What syncs, and what can't:
+
+| | From KOReader or Readest to Usherr | From Usherr to KOReader or Readest |
+|---|---|---|
+| **EPUB** | The percentage. Usherr's reader opens at that percentage, which can be a little off because the two count pages differently. | The start of the chapter you were in. Its exact place can't be converted, because Usherr's reader and KOReader describe a place in different ways. You land up to a chapter back, never ahead. |
+| **PDF, comics** | The exact page. | The exact page. |
+| **MOBI, AZW3** | The percentage. | Nothing: Usherr's reader shows a converted copy, so its place doesn't exist in the original file. |
+
+Between your KOReader devices the exact place is kept word for word, as long as Usherr's reader hasn't moved since. The newest report wins; KOReader asks before it jumps, unless you changed that. A report of 0% doesn't overwrite a place further on, so a quick look at a book loses nothing. Highlights and bookmarks don't sync.
 
 ## Comics
 

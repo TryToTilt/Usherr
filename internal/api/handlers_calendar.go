@@ -36,6 +36,7 @@ type calendarEntryPayload struct {
 	// issue's series in the library.
 	Formats       []string `json:"formats,omitempty"`
 	ComicSeriesID int64    `json:"comicSeriesId,omitempty"`
+	MangaSeriesID int64    `json:"mangaSeriesId,omitempty"` // Usherr
 	SportLeagueID int64    `json:"sportLeagueId,omitempty"` // Usherr: a wanted game's league in Sports
 	// BackdropURL and LogoURL are the wide still and the title logo of a movie or
 	// show, for the Backdrops view. They appear once they have been fetched in
@@ -126,6 +127,7 @@ func (s *Server) moduleCalendarEntries() ([]calendarEntryPayload, error) {
 	}
 	out := append(albums, bookEntries...)
 	out = append(out, s.comicCalendarEntries()...)       // home fork: comics too
+	out = append(out, s.mangaCalendarEntries()...)       // Usherr: new manga volumes
 	return append(out, s.sportCalendarEntries()...), nil // Usherr: wanted games
 }
 

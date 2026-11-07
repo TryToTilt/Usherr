@@ -15,7 +15,7 @@ import KindGlyph from './KindGlyph'
 export interface LobbyLine {
   to: string
   label: string
-  glyph: 'movie' | 'tv' | 'music' | 'book' | 'audiobook' | 'comic'
+  glyph: 'movie' | 'tv' | 'music' | 'book' | 'audiobook' | 'comic' | 'manga'
   color: string
   active: boolean
 }
@@ -101,7 +101,7 @@ export function LobbyNav({ lines, admin, sportsOn, downloads, needs, settingsMen
 // for administrators.
 export function LobbyTabs({ admin, needs }: { admin: boolean; needs: number }) {
   const { pathname } = useLocation()
-  const library = /^\/(library|series|title|show|streamed|comics|nsfw|person|book|music)(\/|$)/.test(pathname)
+  const library = /^\/(library|series|title|show|streamed|comics|manga|nsfw|person|book|music)(\/|$)/.test(pathname)
   const tabs: { to: string; icon: IconName; label: string; end?: boolean; on?: boolean; count?: number }[] = [
     { to: '/', icon: 'home', label: t('Home'), end: true },
     { to: '/search', icon: 'search', label: t('Search'), on: pathname.startsWith('/discover') },

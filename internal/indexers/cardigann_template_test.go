@@ -92,8 +92,14 @@ func TestDotNetRegex(t *testing.T) {
 		{`[\p{IsCyrillic}]+`, "Матрица Matrix", "", " Matrix", true},
 		{`\u00a0`, "a\u00a0b", " ", "a b", true},
 		{"a\\ b", "a b", "-", "-", true},
-		{`MULTI(?!FRENCH)`, "MULTI", "", "", false},
-		{`(?<=x)y`, "xy", "", "", false},
+		{`MULTI(?!FRENCH)`, "MULTI MULTIFRENCH", "x", "x MULTIFRENCH", true},
+		{`(?<=x)y`, "xy y", "z", "xz y", true},
+		{`(?>a+)b`, "aab", "c", "c", true},
+		{`(a)\1`, "aab", "$1", "ab", true},
+		{`[\p{IsCyrillic}]+(?= )`, "Матрица Matrix", "", " Matrix", true},
+		{` (?=b)`, "a b", " ", "a b", true},
+		{`(`, "", "", "", false},
+		{`(?=x`, "", "", "", false},
 	}
 	for _, tt := range tests {
 		re, err := compileDotNetRegex(tt.pattern)
@@ -104,7 +110,10 @@ func TestDotNetRegex(t *testing.T) {
 		if err != nil {
 			continue
 		}
-		if got := re.ReplaceAllString(tt.in, dotNetReplacement(tt.rep)); got != tt.want {
+		got, err := regexReplace(re, tt.in, tt.rep)
+		if err != nil {
+			t.Errorf("%q on %q: %v", tt.pattern, tt.in, err)
+		} else if got != tt.want {
 			t.Errorf("%q on %q: got %q, want %q", tt.pattern, tt.in, got, tt.want)
 		}
 	}
@@ -122,7 +131,9 @@ func TestFilters(t *testing.T) {
 		{"regexp group", "Size: 1.5 GB", FilterBlock{"regexp", `([\d.]+ \w+)`}, "1.5 GB"},
 		{"regexp no match", "nothing", FilterBlock{"regexp", `(\d+)`}, ""},
 		{"re_replace", "a.b.c", FilterBlock{"re_replace", []any{`\.`, " "}}, "a b c"},
-		{"re_replace unsupported leaves value", "MULTI", FilterBlock{"re_replace", []any{`MULTI(?!x)`, "y"}}, "MULTI"},
+		{"re_replace broken leaves value", "MULTI", FilterBlock{"re_replace", []any{`MULTI(`, "y"}}, "MULTI"},
+		{"re_replace look-ahead", "MULTI", FilterBlock{"re_replace", []any{`MULTI(?!x)`, "y"}}, "y"},
+		{"regexp look-around", "a Movie b", FilterBlock{"regexp", `(?<![a-z])(Movie)(?![a-z])`}, "Movie"},
 		{"replace", "Hello World", FilterBlock{"replace", []any{"World", "There"}}, "Hello There"},
 		{"split", "/torrent/123/name/", FilterBlock{"split", []any{"/", 2}}, "123"},
 		{"split negative", "a-b-c", FilterBlock{"split", []any{"-", -1}}, "c"},
@@ -163,7 +174,7 @@ func TestFilters(t *testing.T) {
 
 func TestFilterErrors(t *testing.T) {
 	for _, f := range []FilterBlock{
-		{"nosuchfilter", nil}, {"split", []any{"/", 9}}, {"regexp", `(?<=a)b`}, {"dateparse", "yyyy-MM-dd"},
+		{"nosuchfilter", nil}, {"split", []any{"/", 9}}, {"regexp", `(?<=a)(b`}, {"dateparse", "yyyy-MM-dd"},
 		{"diacritics", "keep"}, {"jsonjoinarray", []any{"$.x", ","}},
 	} {
 		if _, err := applyFilters("not-a-date/x", []FilterBlock{f}, nil); err == nil {

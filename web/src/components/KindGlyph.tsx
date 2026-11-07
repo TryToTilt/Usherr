@@ -10,7 +10,7 @@ import { neuKind } from '../neu/icons' // Usherr Neu
 // cards, the dashboard and anywhere the shape is the hero. The record is the
 // one exception to "body in the kind's colour": it is always grey-blue vinyl
 // with the colour on its label, the same as the record on music posters.
-export type GlyphKind = 'movie' | 'tv' | 'music' | 'book' | 'audiobook' | 'comic' // comic: Usherr
+export type GlyphKind = 'movie' | 'tv' | 'music' | 'book' | 'audiobook' | 'comic' | 'manga' // comic, manga: Usherr
 
 export default function KindGlyph({ kind, size = 28, variant = 'line' }: { kind: GlyphKind; size?: number; variant?: 'line' | 'solid' }) {
   const id = useId().replace(/:/g, '')
@@ -85,6 +85,12 @@ export default function KindGlyph({ kind, size = 28, variant = 'line' }: { kind:
         <>
           <path className="tint" fill={body} d="M6 5h20a3 3 0 0 1 3 3v11a3 3 0 0 1-3 3H15l-6 5v-5H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z" />
           <path className="pages" d="M9 11h14M9 16h9" />
+        </>
+      )}
+      {kind === 'manga' && (
+        <>
+          <path className="tint" fill={body} d="M16 8.5C13 6 8.5 5 4 5.5v19c4.5-.5 9 .5 12 3 3-2.5 7.5-3.5 12-3v-19C23.5 5 19 6 16 8.5z" />
+          <path className="pages" d="M16 8.5v19M8 11h4M8 15.5h4M20 11h4" />
         </>
       )}
       {kind === 'audiobook' && (

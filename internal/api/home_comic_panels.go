@@ -135,15 +135,20 @@ type pagePanels struct {
 
 // comicPagePanels returns page n's panels, working them out when they
 // aren't kept yet.
-func (s *Server) comicPagePanels(ctx context.Context, is comics.Issue, sr comics.Series, n int) (pagePanels, error) {
+func (s *Server) comicPagePanels(ctx context.Context, is comics.Issue, sr comics.Series, n int, rtl bool) (pagePanels, error) {
 	var res pagePanels
 	info, err := os.Stat(is.FilePath)
 	if err != nil {
 		return res, err
 	}
-	var stored string
-	err = s.db.QueryRowContext(ctx, `SELECT method, panels FROM comic_panels WHERE issue_id = ? AND page = ? AND file_size = ?`, is.ID, n, info.Size()).Scan(&res.Method, &stored)
-	if err == nil && json.Unmarshal([]byte(stored), &res.Panels) == nil {
+	// What is kept fits only if it was put in the order wanted now.
+	kept := func() bool {
+		var stored string
+		var was int
+		err := s.db.QueryRowContext(ctx, `SELECT method, panels, rtl FROM comic_panels WHERE issue_id = ? AND page = ? AND file_size = ?`, is.ID, n, info.Size()).Scan(&res.Method, &stored, &was)
+		return err == nil && panelOrderFits(was, rtl, sr) && json.Unmarshal([]byte(stored), &res.Panels) == nil
+	}
+	if kept() {
 		return res, nil
 	}
 	pages, err := s.comicPages(is.ID, is.FilePath)
@@ -156,15 +161,27 @@ func (s *Server) comicPagePanels(ctx context.Context, is comics.Issue, sr comics
 	panelWorkMu.Lock()
 	defer panelWorkMu.Unlock()
 	// Another request may have worked it out meanwhile.
-	if err := s.db.QueryRowContext(ctx, `SELECT method, panels FROM comic_panels WHERE issue_id = ? AND page = ? AND file_size = ?`, is.ID, n, info.Size()).Scan(&res.Method, &stored); err == nil {
-		if json.Unmarshal([]byte(stored), &res.Panels) == nil {
-			return res, nil
-		}
+	if kept() {
+		return res, nil
 	}
-	res = detectPagePanels(s.panelDetector(ctx), pages[n-1], comics.IsManga(sr))
+	res = detectPagePanels(s.panelDetector(ctx), pages[n-1], rtl)
 	b, _ := json.Marshal(res.Panels)
-	_, _ = s.db.ExecContext(ctx, `INSERT OR REPLACE INTO comic_panels (issue_id, page, file_size, method, panels) VALUES (?, ?, ?, ?, ?)`, is.ID, n, info.Size(), res.Method, string(b))
+	order := 0
+	if rtl {
+		order = 1
+	}
+	_, _ = s.db.ExecContext(ctx, `INSERT OR REPLACE INTO comic_panels (issue_id, page, file_size, method, panels, rtl) VALUES (?, ?, ?, ?, ?, ?)`, is.ID, n, info.Size(), res.Method, string(b), order)
 	return res, nil
+}
+
+// panelOrderFits reports whether panels kept with order was (1 right to left, 0
+// left to right, -1 from before the order was noted, when the publisher decided)
+// are in the order wanted.
+func panelOrderFits(was int, rtl bool, sr comics.Series) bool {
+	if was < 0 {
+		return comics.PublisherManga(sr) == rtl
+	}
+	return (was == 1) == rtl
 }
 
 // detectPagePanels works out one page file's panels. A page that can't be
@@ -180,19 +197,48 @@ func detectPagePanels(ai *panelai.Detector, file string, manga bool) pagePanels 
 	if err != nil {
 		return res
 	}
-	if ai != nil {
-		if ps, err := ai.Panels(img, manga); err == nil {
-			res.Method = "ai"
-			if len(ps) > 1 { // one panel is the whole page: nothing to guide through
-				res.Panels = ps
-			}
-			return res
+	b := img.Bounds()
+	// A strip of a long scroll is read top to bottom, by its gutters.
+	if comics.IsStrip(b.Dx(), b.Dy()) {
+		for _, p := range comics.DetectStrip(img) {
+			res.Panels = append(res.Panels, panelai.Panel{X: p.X, Y: p.Y, W: p.W, H: p.H})
 		}
+		return res
 	}
-	for _, p := range comics.DetectPanels(img, comics.PanelOptions{RightToLeft: manga}) {
+	var list []comics.Panel
+	if ps, err := aiPanels(ai, img, manga); err == nil {
+		res.Method = "ai"
+		if len(ps) > 1 { // one panel is the whole page: nothing to guide through
+			list = ps
+		}
+	} else {
+		list = comics.DetectPanels(img, comics.PanelOptions{RightToLeft: manga})
+	}
+	if comics.IsSpread(b.Dx(), b.Dy()) { // two pages in one picture: one, then the other
+		list = comics.SpreadOrder(list, manga)
+	}
+	for _, p := range list {
 		res.Panels = append(res.Panels, panelai.Panel{X: p.X, Y: p.Y, W: p.W, H: p.H})
 	}
 	return res
+}
+
+var errNoPanelAI = errors.New("no AI panel models")
+
+// aiPanels is what the AI detector finds, or an error when it isn't there or failed.
+func aiPanels(ai *panelai.Detector, img image.Image, manga bool) ([]comics.Panel, error) {
+	if ai == nil {
+		return nil, errNoPanelAI
+	}
+	ps, err := ai.Panels(img, manga)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]comics.Panel, len(ps))
+	for i, p := range ps {
+		out[i] = comics.Panel{X: p.X, Y: p.Y, W: p.W, H: p.H}
+	}
+	return out, nil
 }
 
 // GET /api/comics/issues/{id}/pages/{n}/panels: page n's panels in reading
@@ -208,14 +254,19 @@ func (s *Server) handleComicPagePanels(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "No such page.")
 		return
 	}
-	res, err := s.comicPagePanels(r.Context(), is, sr, n)
+	// ?rtl= is the way this person reads it; without it, the series decides.
+	rtl := comics.IsManga(sr)
+	if v := r.URL.Query().Get("rtl"); v != "" {
+		rtl = v == "1"
+	}
+	res, err := s.comicPagePanels(r.Context(), is, sr, n, rtl)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "No such page.")
 		return
 	}
 	s.background(func() {
 		for k := n + 1; k <= n+3; k++ {
-			if _, err := s.comicPagePanels(context.Background(), is, sr, k); err != nil {
+			if _, err := s.comicPagePanels(context.Background(), is, sr, k, rtl); err != nil {
 				return
 			}
 		}

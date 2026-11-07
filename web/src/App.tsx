@@ -137,6 +137,11 @@ const VideoDetail = lazy(() => import('./home/Nsfw').then((m) => ({ default: m.V
 const Comics = lazy(() => import('./home/Comics'))
 const ComicSeriesPage = lazy(() => import('./home/Comics').then((m) => ({ default: m.ComicSeriesPage })))
 const ComicArcPage = lazy(() => import('./home/ComicArcs').then((m) => ({ default: m.ComicArcPage })))
+const Manga = lazy(() => import('./manga/Manga')) // Usherr
+const AddManga = lazy(() => import('./manga/AddManga'))
+const MangaDiscover = lazy(() => import('./manga/MangaDiscover'))
+const MangaSeries = lazy(() => import('./manga/MangaSeries'))
+const MangaSettings = lazy(() => import('./manga/MangaSettings'))
 const TV = lazy(() => import('./home/TV'))
 const Streamed = lazy(() => import('./home/Streamed'))
 const ReadToMePage = lazy(() => import('./home/ReadToMePage')) // Usherr: Read-to-Me
@@ -279,6 +284,10 @@ function Gate() {
         <Route path="/comics" element={<Comics />} />
         <Route path="/comics/:id" element={<ComicSeriesPage />} />
         <Route path="/comics/arc/:id" element={<ComicArcPage />} />
+        <Route path="/manga" element={<Manga />} /> {/* Usherr */}
+        <Route path="/manga/add" element={<AddManga />} />
+        <Route path="/manga/discover" element={<MangaDiscover />} />
+        <Route path="/manga/:id" element={<MangaSeries />} />
         <Route path="/tv" element={<TV />} />
         <Route path="/streamed" element={<Streamed />} />
         <Route path="/read-to-me" element={<ReadToMePage />} />
@@ -289,6 +298,7 @@ function Gate() {
         <Route path="/settings" element={<SettingsLayout />}>
           <Route index element={<Navigate to="general" replace />} />
           <Route path="modules" element={<AdminOnly><ModulesSettings /></AdminOnly>} />
+          <Route path="manga" element={<AdminOnly><MangaSettings /></AdminOnly>} /> {/* Usherr */}
           <Route path="media" element={<AdminOnly><MediaSettings /></AdminOnly>} />
           <Route path="naming" element={<AdminOnly><NamingSettings /></AdminOnly>} />
           <Route path="quality" element={<AdminOnly><QualitySettings /></AdminOnly>} />

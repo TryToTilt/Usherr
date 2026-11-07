@@ -95,16 +95,21 @@ func ReadComicInfoFrom(zr *zip.Reader) (info ComicInfo, ok bool) {
 			return ComicInfo{}, false
 		}
 		defer rc.Close()
-		var x comicInfoXML
-		if err := xml.NewDecoder(io.LimitReader(rc, maxComicInfo)).Decode(&x); err != nil {
-			return ComicInfo{}, false
-		}
-		return ComicInfo{
-			Title: strings.TrimSpace(x.Title), Series: strings.TrimSpace(x.Series), Number: strings.TrimSpace(x.Number),
-			Writer: strings.TrimSpace(x.Writer), Summary: strings.TrimSpace(x.Summary), Year: parseComicYear(x.Year), Manga: strings.TrimSpace(x.Manga),
-		}, true
+		return ParseComicInfo(rc)
 	}
 	return ComicInfo{}, false
+}
+
+// ParseComicInfo reads a ComicInfo.xml. ok is false when it can't be read.
+func ParseComicInfo(r io.Reader) (info ComicInfo, ok bool) {
+	var x comicInfoXML
+	if err := xml.NewDecoder(io.LimitReader(r, maxComicInfo)).Decode(&x); err != nil {
+		return ComicInfo{}, false
+	}
+	return ComicInfo{
+		Title: strings.TrimSpace(x.Title), Series: strings.TrimSpace(x.Series), Number: strings.TrimSpace(x.Number),
+		Writer: strings.TrimSpace(x.Writer), Summary: strings.TrimSpace(x.Summary), Year: parseComicYear(x.Year), Manga: strings.TrimSpace(x.Manga),
+	}, true
 }
 
 // DisplayTitle is the name a comic goes by in the library: "Series #3: Title",

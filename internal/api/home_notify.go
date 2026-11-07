@@ -97,7 +97,17 @@ func (s *Server) weeklyDigest(since time.Time) (title, message string, ok bool) 
 	var movies, books, audiobooks, albums []string
 	shows := map[string]int{}
 	var showOrder []string
-	comicCount := 0
+	comicCount, mangaCount := 0, 0
+	mangaIDs := map[int64]bool{} // Usherr: manga, the same way
+	if mr, err := s.db.Query(`SELECT queue_id FROM manga_downloads`); err == nil {
+		for mr.Next() {
+			var id int64
+			if mr.Scan(&id) == nil {
+				mangaIDs[id] = true
+			}
+		}
+		mr.Close()
+	}
 	seen := map[string]bool{}
 	add := func(list *[]string, name string) {
 		if name != "" && !seen[name] {
@@ -111,6 +121,8 @@ func (s *Server) weeklyDigest(since time.Time) (title, message string, ok bool) 
 			continue
 		case comicIDs[it.id]:
 			comicCount++
+		case mangaIDs[it.id]:
+			mangaCount++
 		case it.series > 0:
 			if sr, err := s.MovieRepo.GetSeries(it.series); err == nil {
 				if _, ok := shows[sr.Title]; !ok {
@@ -168,6 +180,9 @@ func (s *Server) weeklyDigest(since time.Time) (title, message string, ok bool) 
 	list("Albums", albums)
 	if comicCount > 0 {
 		lines = append(lines, fmt.Sprintf("Comics: %d new issue%s", comicCount, map[bool]string{true: "", false: "s"}[comicCount == 1]))
+	}
+	if mangaCount > 0 {
+		lines = append(lines, fmt.Sprintf("Manga: %d new download%s", mangaCount, map[bool]string{true: "", false: "s"}[mangaCount == 1]))
 	}
 	if len(lines) == 0 {
 		return "", "", false

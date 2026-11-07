@@ -146,7 +146,7 @@ function CatchUpDialog({ tmdbId, season: s0, episode: e0, onClose }: { tmdbId: n
 
 // Catch me up for a comic series: up to the last issue read to the end in
 // this browser, or one you choose. From ComicVine's issue summaries.
-export function ComicCatchUp({ seriesId, issues }: { seriesId: number; issues: { id: number; number: string }[] }) {
+export function ComicCatchUp({ seriesId, issues }: { seriesId: number; issues: { id: number; number: string; read?: boolean }[] }) {
   const [on, setOn] = useState(false)
   const [open, setOpen] = useState(false)
   useEffect(() => {
@@ -160,9 +160,9 @@ export function ComicCatchUp({ seriesId, issues }: { seriesId: number; issues: {
   let lastRead = ''
   let lastOrder = -1
   for (const i of issues) {
-    let done = false
+    let done = !!i.read
     try {
-      done = localStorage.getItem(`comic-done-${i.id}`) === '1'
+      done = done || localStorage.getItem(`comic-done-${i.id}`) === '1'
     } catch {
       // no storage
     }

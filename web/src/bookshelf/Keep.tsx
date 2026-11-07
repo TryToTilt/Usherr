@@ -40,6 +40,8 @@ export function warmFor(kind: KeptKind): () => Promise<unknown> {
       return () => import('./Player')
     case 'issue':
       return () => Promise.all([import('./ComicIssue'), import('../home/ComicFlip')])
+    case 'volume':
+      return () => Promise.all([import('./MangaVolume'), import('./curl/imageCurl')])
   }
 }
 

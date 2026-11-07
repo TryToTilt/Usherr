@@ -14,7 +14,7 @@ import './library.css'
 
 type Tab = { to: string; label: string; glyph: GlyphKind; color: string; key: string }
 
-export default function LibraryTabs({ current }: { current: 'comics' | 'nsfw' }) {
+export default function LibraryTabs({ current }: { current: 'comics' | 'manga' | 'nsfw' }) {
   const admin = isAdmin(useAuth().user)
   const navigate = useNavigate()
   const { on } = useModules()
@@ -32,6 +32,7 @@ export default function LibraryTabs({ current }: { current: 'comics' | 'nsfw' })
     ...(on('audiobooks') ? [{ key: 'audiobook', to: '/library?kind=audiobook', label: t('Audiobooks'), glyph: 'audiobook' as const, color: 'var(--c-audiobook)' }] : []),
     ...(on('music') ? [{ key: 'music', to: '/library?kind=music', label: t('Music'), glyph: 'music' as const, color: 'var(--c-music)' }] : []),
     ...(comicsOn ? [{ key: 'comics', to: '/comics', label: t('Comics'), glyph: 'comic' as const, color: 'var(--c-comics)' }] : []),
+    ...(on('manga') ? [{ key: 'manga', to: '/manga', label: t('Manga'), glyph: 'manga' as const, color: 'var(--c-manga)' }] : []),
     ...(nsfwOn ? [{ key: 'nsfw', to: '/nsfw', label: t('NSFW 18+'), glyph: 'movie' as const, color: 'var(--c-nsfw)' }] : []),
   ]
   return (

@@ -22,6 +22,9 @@ import (
 	"time"
 
 	"github.com/nwaples/rardecode/v2"
+
+	"github.com/rdborg/mediarium/internal/books"
+	"github.com/rdborg/mediarium/internal/comics"
 )
 
 const comicCacheKeep = 20
@@ -73,16 +76,27 @@ func pageNameLess(a, b string) bool {
 // comicPages unpacks an issue's pages (once) and returns their files in
 // reading order.
 func (s *Server) comicPages(issueID int64, file string) ([]string, error) {
+	return s.pagesInCache(strconv.FormatInt(issueID, 10), file)
+}
+
+// pagesInCache unpacks a comic file's pages (once) into the named folder of the
+// page cache and returns their files in reading order.
+func (s *Server) pagesInCache(name, file string) ([]string, error) {
+	return s.pagesInCacheBy(name, file, unpackComic)
+}
+
+// pagesInCacheBy is pagesInCache with its own way of unpacking.
+func (s *Server) pagesInCacheBy(name, file string, unpack func(file, dir string) error) ([]string, error) {
 	comicCacheMu.Lock()
 	defer comicCacheMu.Unlock()
-	dir := filepath.Join(s.issuePagesDir(), strconv.FormatInt(issueID, 10))
+	dir := filepath.Join(s.issuePagesDir(), name)
 	done := filepath.Join(dir, ".done")
 	if _, err := os.Stat(done); err != nil {
 		_ = os.RemoveAll(dir)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, err
 		}
-		if err := unpackComic(file, dir); err != nil {
+		if err := unpack(file, dir); err != nil {
 			_ = os.RemoveAll(dir)
 			return nil, err
 		}
@@ -186,6 +200,13 @@ func unpackComic(file, dir string) error {
 			if err != nil {
 				return fmt.Errorf("read the comic: %w", err)
 			}
+			if !h.IsDir && strings.EqualFold(filepath.Base(h.Name), comicInfoName) {
+				// A RAR is slow to open again, so its ComicInfo is kept with the pages.
+				if b, err := io.ReadAll(io.LimitReader(rc, 1<<20)); err == nil {
+					_ = os.WriteFile(filepath.Join(dir, comicInfoName), b, 0o644)
+				}
+				continue
+			}
 			if h.IsDir || !isPageImage(h.Name) {
 				continue
 			}
@@ -227,7 +248,45 @@ func (s *Server) handleComicPages(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"pages": len(pages), "title": sr.Name + " #" + is.Number})
+	user := requestUserID(r)
+	repo := s.comicRepo()
+	how := comics.ResolveReader(sr, s.comicFileManga(is), repo.ReaderPrefsFor(user, sr.ID), repo.ReaderPrefsFor(user, 0))
+	out := map[string]any{"pages": len(pages), "title": sr.Name + " #" + is.Number, "seriesId": sr.ID, "direction": how.Direction, "layout": how.Layout}
+	if list, err := repo.Issues(sr.ID); err == nil {
+		next, have := comics.NextIssues(list, is.ID)
+		if next != nil {
+			out["next"] = comicNextIssue{ID: next.ID, Number: next.Number, Title: next.Title, Have: next.Status == comics.StatusDownloaded}
+		}
+		if have != nil && have != next {
+			out["nextHave"] = comicNextIssue{ID: have.ID, Number: have.Number, Title: have.Title, Have: true}
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// comicNextIssue is what comes after an issue, for the reader's last page.
+type comicNextIssue struct {
+	ID     int64  `json:"id"`
+	Number string `json:"number"`
+	Title  string `json:"title,omitempty"`
+	Have   bool   `json:"have"`
+}
+
+const comicInfoName = "ComicInfo.xml"
+
+// comicFileManga is the Manga value of an issue's ComicInfo.xml ("" when it
+// has none): read from a ZIP, or from what was kept when a RAR was unpacked.
+func (s *Server) comicFileManga(is comics.Issue) string {
+	if info, ok := books.ReadComicInfo(is.FilePath); ok {
+		return info.Manga
+	}
+	f, err := os.Open(filepath.Join(s.issuePagesDir(), strconv.FormatInt(is.ID, 10), comicInfoName))
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	info, _ := books.ParseComicInfo(f)
+	return info.Manga
 }
 
 // GET /api/comics/issues/{id}/pages/{n}: one page (1-based).

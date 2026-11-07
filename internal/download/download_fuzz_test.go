@@ -49,6 +49,39 @@ func checkOutputName(t *testing.T, name string) {
 	}
 }
 
+// FuzzRARHeaders: the headers of an archive are a stranger's bytes too. Reading
+// them never panics, and what comes back can't point before the start.
+func FuzzRARHeaders(f *testing.F) {
+	f.Add(rar4Volume("Show.S01E01.mkv", 50000, 120000, 0x30, true))
+	f.Add(append(rar4Start(), rar4File("a.mkv", []byte("data"), 4, false, false)...))
+	f.Add(append([]byte(nil), rar5Sig...))
+	f.Add(append(append([]byte(nil), rar5Sig...), 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01, 2, 2, 1, 1))
+	f.Add(append(append([]byte(nil), rar5Sig...), rar5Header([]byte{2, 2, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01})...))
+	f.Fuzz(func(t *testing.T, b []byte) {
+		check := func(p rarPiece, err error) {
+			if err == nil && (p.dataOff < 0 || p.dataSize < -1<<62) {
+				t.Fatalf("%+v", p)
+			}
+		}
+		check(parseRARHead(b))
+		check(parseRAR4At(b, 0))
+		check(parseRAR5At(b, 0))
+	})
+}
+
+// FuzzPickNames: whatever files are called, picking one never panics.
+func FuzzPickNames(f *testing.F) {
+	f.Add("Show.S01E02.mkv", "[1/2] \"x\"", int64(5), 1, 2)
+	f.Add("../../..\\a", "", int64(-5), 0, 0)
+	f.Fuzz(func(t *testing.T, name, subject string, size int64, season, episode int) {
+		if _, err := pickVideo([]videoCand{{name: name, subject: subject, size: size, head: []byte(name)}}, StreamWant{Season: season, Episode: episode, Release: subject, InnerFile: name}, 0, false); err != nil && len(name) > 1<<20 {
+			t.Fatal(err)
+		}
+		narrowBySubject([]NZBFile{{Subject: subject}}, StreamWant{Season: season, Episode: episode, InnerFile: name})
+		postPlace(subject)
+	})
+}
+
 // FuzzOutputFileNames: whatever a post's subject says, the name it is saved
 // under is a plain, short, unique file name.
 func FuzzOutputFileNames(f *testing.F) {

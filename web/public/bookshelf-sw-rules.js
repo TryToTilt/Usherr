@@ -18,6 +18,7 @@
     /^\/api\/books\/\d+\/comic\/\d+$/, // a page of a comic in the Books library
     /^\/api\/books\/\d+\/listen\/\d+$/, // an audiobook track
     /^\/api\/comics\/issues\/\d+\/pages\/\d+$/, // a page of a Comics library issue
+    /^\/api\/manga\/volumes\/\d+\/pages\/\d+$/, // a page of a manga volume
   ]
   var DATA = [
     /^\/api\/onboarding\/status$/,
@@ -28,11 +29,12 @@
     /^\/api\/books\/\d+$/,
     /^\/api\/books\/\d+\/(progress|marks|tracks|comic|file-cover|own-cover)$/,
     /^\/api\/comics\/issues\/\d+\/(pages|marks)$/,
+    /^\/api\/manga\/volumes\/\d+\/(pages|marks)$/,
     /^\/api\/home\/position$/,
   ]
 
-  // A page of a Comics library issue is the same page at any width (?w=).
-  var ANY_WIDTH = /^\/api\/comics\/issues\/\d+\/pages\/\d+$/
+  // A page of a Comics library issue or a manga volume is the same page at any width (?w=).
+  var ANY_WIDTH = /^\/api\/(comics\/issues|manga\/volumes)\/\d+\/pages\/\d+$/
 
   // rel is a path without the app's base ("/mediarium"), or null when the
   // address isn't the app's.

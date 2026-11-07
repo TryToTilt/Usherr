@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rdborg/mediarium/internal/download"
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/mediaservers"
 )
@@ -523,7 +524,7 @@ func TestNZBFetchedOnce(t *testing.T) {
 	if !s.nzbBad(link) {
 		t.Fatal("not remembered as bad")
 	}
-	if _, err := s.ustreamOpen(context.Background(), nil, indexers.Result{DownloadURL: link}); err == nil || fetches != 1 {
+	if _, err := s.ustreamOpen(context.Background(), nil, indexers.Result{DownloadURL: link}, download.StreamWant{}); err == nil || fetches != 1 {
 		t.Fatalf("a broken release was tried again: %v (fetches %d)", err, fetches)
 	}
 }

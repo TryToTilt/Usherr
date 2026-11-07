@@ -32,6 +32,8 @@ type ereaderRuntime struct {
 	// the catalogue can never lock the owner out of the web page.
 	failIP   *auth.LoginLimiter
 	failUser *auth.LoginLimiter
+	// sends counts the books each account emailed lately (books_send.go).
+	sends *auth.LoginLimiter
 	// kepub limits conversions to one at a time (the work is heavy and a
 	// Kobo asks for a whole shelf at once).
 	kepubMu sync.Mutex
@@ -69,6 +71,7 @@ func (s *Server) ereaderState() *ereaderRuntime {
 	rt.once.Do(func() {
 		rt.failIP = auth.NewLoginLimiter(ereaderIPAttempts, ereaderWindow)
 		rt.failUser = auth.NewLoginLimiter(ereaderUserAttempts, ereaderWindow)
+		rt.sends = auth.NewLoginLimiter(sendsPerHour, time.Hour)
 		rt.feeds = opds.NewCache(opdsCacheEntries, opdsCacheBytes)
 		rt.storeBase = defaultKoboStore
 		rt.storeHTTP = &http.Client{
@@ -108,8 +111,8 @@ func (s *Server) ereaderUserAllowed(userID int64) (bool, string) {
 // opdsUserAllowed is the same for the OPDS catalogue, which has comics as
 // well: it is open while ebooks or comics are on.
 func (s *Server) opdsUserAllowed(userID int64) (bool, string) {
-	if !s.ebooksEnabled() && !s.comicsEnabled() {
-		return false, "Ebooks and comics are switched off in Usherr."
+	if !s.ebooksEnabled() && !s.comicsEnabled() && !s.mangaEnabled() {
+		return false, "Ebooks, comics and manga are switched off in Usherr."
 	}
 	return s.accountMayRead(userID)
 }

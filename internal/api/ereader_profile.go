@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/rdborg/mediarium/internal/auth"
+	"github.com/rdborg/mediarium/internal/ereader"
 )
 
 // The profile page's "E-readers" card: each account makes (and can remove)
@@ -23,12 +24,27 @@ type ereaderKoboPayload struct {
 	Created string `json:"created,omitempty"`
 }
 
+// ereaderSendPayload is sending books by email (books_send.go).
+type ereaderSendPayload struct {
+	Devices []ereader.Device `json:"devices"`
+	Sender  string           `json:"sender,omitempty"`  // the address books come from, to approve on Amazon
+	Problem string           `json:"problem,omitempty"` // why books can't be emailed now
+}
+
+// ereaderKOSyncPayload is progress sync with KOReader and Readest (kosync_api.go).
+type ereaderKOSyncPayload struct {
+	Path  string `json:"path"`  // "/kosync", the page adds the address it is opened at
+	Ready bool   `json:"ready"` // the app password can sign in there
+}
+
 type ereaderPayload struct {
-	Username string             `json:"username"`
-	Ebooks   bool               `json:"ebooks"` // ebooks are switched on
-	Allowed  bool               `json:"allowed"`
-	OPDS     ereaderOPDSPayload `json:"opds"`
-	Kobo     ereaderKoboPayload `json:"kobo"`
+	Username string               `json:"username"`
+	Ebooks   bool                 `json:"ebooks"` // ebooks are switched on
+	Allowed  bool                 `json:"allowed"`
+	OPDS     ereaderOPDSPayload   `json:"opds"`
+	Kobo     ereaderKoboPayload   `json:"kobo"`
+	Send     ereaderSendPayload   `json:"send"`
+	KOSync   ereaderKOSyncPayload `json:"kosync"`
 }
 
 func (s *Server) ereaderPayloadFor(u *auth.User) (ereaderPayload, error) {
@@ -37,8 +53,15 @@ func (s *Server) ereaderPayloadFor(u *auth.User) (ereaderPayload, error) {
 		return ereaderPayload{}, err
 	}
 	allowed, _ := s.ereaderUserAllowed(u.ID)
+	devices, err := s.EReader.Devices(u.ID)
+	if err != nil {
+		return ereaderPayload{}, err
+	}
+	_, sender, problem := s.sendMailProblem()
 	p := ereaderPayload{Username: u.Username, Ebooks: s.ebooksEnabled(), Allowed: allowed,
-		OPDS: ereaderOPDSPayload{On: acc.OPDS, Path: s.cfg.URLBase + "/opds/", Created: acc.OPDSCreated}}
+		OPDS:   ereaderOPDSPayload{On: acc.OPDS, Path: s.cfg.URLBase + "/opds/", Created: acc.OPDSCreated},
+		Send:   ereaderSendPayload{Devices: devices, Sender: sender, Problem: problem},
+		KOSync: ereaderKOSyncPayload{Path: s.cfg.URLBase + "/kosync", Ready: s.EReader.KOSyncReady(u.ID)}}
 	if acc.Kobo {
 		token, err := s.EReader.KoboToken(u.ID)
 		if err != nil {

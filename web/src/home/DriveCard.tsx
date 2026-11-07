@@ -30,6 +30,19 @@ interface DriveStatus {
   lastRead?: number
   where: string
   plexOn: boolean
+  windowFrom: number
+  windowTo: number
+  inWindow: boolean
+  gapSeconds: number // the gap between searches when the day's budget is spread over the hours
+  fits: number // the most searches those hours hold
+  clock: string
+  zone: string
+  zoneUTC: boolean
+}
+
+// The hour as the person's own clock writes it: "2 AM" or "02".
+function hourLabel(h: number) {
+  return new Date(2026, 0, 1, h).toLocaleTimeString([], { hour: 'numeric' })
 }
 
 interface PlexLibrariesResult {
@@ -205,7 +218,7 @@ export default function DriveCard() {
           <div className="drive-row">
             <label>
               {t('Searches a day')}{' '}
-              <InfoTip text={t('How many titles the drive may look for each day, besides the ones that are played. Each look is one search on your indexers, which have daily limits of their own, so they are spread out: one every ten minutes at most.')} />
+              <InfoTip text={t('How many titles the drive may look for each day, besides the ones that are played. Each look is one search on your indexers, which have daily limits of their own, so they are spread evenly over the hours below, never closer than a minute apart.')} />
               <input type="number" min={0} max={500} defaultValue={st.budget} style={{ width: 90, marginLeft: 8 }} onBlur={(e) => Number(e.target.value) !== st.budget && void put({ budget: Number(e.target.value) }, t('Saved.'))} />
             </label>
             <span className="hint">{t('{n} used today', { n: st.usedToday })}</span>
@@ -214,6 +227,34 @@ export default function DriveCard() {
             </button>
           </div>
           {note && <p className="hint">{note}</p>}
+          <div className="drive-row" data-walk="drive-window">
+            <label>
+              {t('Look only from')}{' '}
+              <InfoTip text={t('The drive’s own search runs only in these hours, so that during the day your streams have the Usenet connections to themselves. The same hour twice means all day. What you start yourself, like adding a stream or Get one ready now, isn’t held back.')} />
+              <select value={st.windowFrom} onChange={(e) => void put({ windowFrom: Number(e.target.value) }, t('Saved.'))} style={{ marginLeft: 8 }}>
+                {Array.from({ length: 24 }, (_, h) => (
+                  <option key={h} value={h}>
+                    {hourLabel(h)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {t('to')}{' '}
+              <select value={st.windowTo} aria-label={t('Look only until')} onChange={(e) => void put({ windowTo: Number(e.target.value) }, t('Saved.'))}>
+                {Array.from({ length: 24 }, (_, h) => (
+                  <option key={h} value={h}>
+                    {hourLabel(h)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="hint">
+              {st.budget > 0 && t('About one every {n} min.', { n: Math.max(1, Math.round(st.gapSeconds / 60)) })} {t('Usherr’s clock says {clock} ({zone}).', { clock: st.clock, zone: st.zone })}
+            </span>
+          </div>
+          {st.budget > st.fits && <p className="hint">{t('These hours hold {n} searches at most, one a minute. Make them longer to use all {budget}.', { n: st.fits, budget: st.budget })}</p>}
+          {st.zoneUTC && <p className="notice notice-warn">{t('Usherr’s clock is on UTC, so these hours are UTC hours, not yours. Set TZ to your time zone in Usherr’s compose file (for example TZ=America/Chicago) and recreate the container.')}</p>}
 
           <h3 className="drive-h">
             {t('Mount it on the computer that runs Plex')} <InfoTip text={t('Usherr runs in Docker and can’t make a drive letter on Windows itself. rclone does it, with WinFsp, the free Windows add-on rclone needs for drives. Both come from their own websites; Usherr doesn’t install anything.')} />

@@ -32,6 +32,7 @@ declare module 'page-flip' {
     turnToPage(page: number): void
     getCurrentPageIndex(): number
     getPageCount(): number
+    getOrientation(): 'portrait' | 'landscape'
     destroy(): void
   }
 }

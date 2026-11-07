@@ -36,8 +36,9 @@ var (
 	ErrTooMany = errors.New("too many marks")
 )
 
-// ItemPattern is what an item may be: book:<id> or comic:<issue id>.
-var ItemPattern = regexp.MustCompile(`^(book|comic):[1-9][0-9]{0,17}$`)
+// ItemPattern is what an item may be: book:<id> (an ebook), audio:<id> (the
+// same book's audiobook, whose places are "track:seconds") or comic:<issue id>.
+var ItemPattern = regexp.MustCompile(`^(book|audio|comic|manga:v):[1-9][0-9]{0,17}$`)
 
 // Mark is one bookmark or highlight.
 type Mark struct {

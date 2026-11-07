@@ -104,6 +104,7 @@ type bookTrack struct {
 	Name     string          `json:"name"`
 	Size     int64           `json:"size"`
 	Chapters []books.Chapter `json:"chapters,omitempty"` // marks inside the file (an M4B), when it has two or more
+	Duration float64         `json:"duration,omitempty"` // the file's real length in seconds, once it has been read
 }
 
 // chapterCache keeps the chapters read from each file, by path, size and
@@ -210,28 +211,39 @@ func leadingNumber(s string) (int, string) {
 	return n, s[i:]
 }
 
-// GET /api/books/{id}/tracks: the audiobook's tracks in order.
+// GET /api/books/{id}/tracks: the audiobook's tracks in order, with each file's
+// real length once it is known. lengthsPending says some are being read now
+// (opening a book reads them); ask again in a moment.
 func (s *Server) handleBookTracks(w http.ResponseWriter, r *http.Request) {
 	b, ok := s.bookFromPath(w, r)
 	if !ok {
 		return
 	}
-	folder, rels, err := s.audiobookTracks(b)
+	files, err := s.audioFilesOf(b)
 	if err != nil {
 		writeStreamFolderError(w, err)
 		return
 	}
-	out := make([]bookTrack, 0, len(rels))
-	for i, rel := range rels {
-		t := bookTrack{Index: i, Name: strings.TrimSuffix(path.Base(rel), path.Ext(rel))}
-		full := filepath.Join(folder.Dir, filepath.FromSlash(rel))
-		if st, err := os.Stat(full); err == nil {
+	stored, err := s.BookRepo.AudioLengths(b.ID)
+	if err != nil {
+		slog.Warn("books: read stored lengths", "book", b.ID, "err", err)
+		stored = nil
+	}
+	out := make([]bookTrack, 0, len(files))
+	for i, f := range files {
+		t := bookTrack{Index: i, Name: strings.TrimSuffix(path.Base(f.rel), path.Ext(f.rel))}
+		if st, err := os.Stat(f.full); err == nil {
 			t.Size = st.Size()
-			t.Chapters = fileChapters(full, st)
+			t.Chapters = fileChapters(f.full, st)
+			t.Duration = audioFileSeconds(stored, f)
 		}
 		out = append(out, t)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"tracks": out, "format": b.AudioFormat})
+	pending := err == nil && lengthsMissing(stored, files) && audioProberReady()
+	if pending {
+		s.readLengthsSoon(b)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tracks": out, "format": b.AudioFormat, "lengthsPending": pending})
 }
 
 // GET /api/books/{id}/listen/{n}: one track, with ranges for seeking.

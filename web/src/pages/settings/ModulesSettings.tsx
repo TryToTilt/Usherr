@@ -57,6 +57,14 @@ const MODULES: ModuleInfo[] = [
     blurb: t('Audiobooks ready for your player, filed by author.'),
     points: [t('M4B first, then MP3 and the rest'), t('Chapters kept in order'), t('Listen in Mediarium Books, with a sleep timer'), t('Your place is saved on every device')],
   },
+  {
+    key: 'manga',
+    name: t('Manga'),
+    glyph: 'manga',
+    color: 'var(--c-manga)',
+    blurb: t('Add a series by its English title and get its volumes.'),
+    points: [t('Official English editions first; fan scans only if you choose'), t('Says plainly why nothing has come yet'), t('Your own files count too'), t('Kept apart from Comics')],
+  },
 ]
 
 // The switchboard: which kinds of media Mediarium looks after. A module that

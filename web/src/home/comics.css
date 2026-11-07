@@ -34,6 +34,7 @@
 .cx-issues { width: 100%; border-collapse: collapse; }
 .cx-issues th, .cx-issues td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border, rgba(127,127,127,0.15)); vertical-align: middle; }
 .cx-issues tr.have td { opacity: 0.85; }
+.cx-phone-status { display: none; }
 .cx-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cx-row-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .cx-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: grid; place-items: center; z-index: 50; padding: 16px; }
@@ -47,7 +48,11 @@
 @media (max-width: 600px) {
   .cx-series-head { flex-direction: column; }
   .cx-series-head img { width: 110px; }
-  .cx-issues th:nth-child(4), .cx-issues td:nth-child(4) { display: none; }
+  .cx-col-out, .cx-col-status { display: none; }
+  .cx-issues .cx-phone-status { display: inline-flex; }
+  .cx-issues th, .cx-issues td { padding: 6px 4px; }
+  .cx-issues .cx-row-actions { display: table-cell; width: 1%; white-space: nowrap; text-align: right; }
+  .cx-issues .cx-row-actions > * { display: inline-flex; vertical-align: middle; align-items: center; gap: 4px; margin-left: 4px; }
 }
 
 /* reader */
@@ -65,6 +70,32 @@
 .cx-reader-page.fit-height img { max-height: 100%; max-width: 100%; object-fit: contain; }
 .cx-reader-page.fit-width img { width: 100%; max-width: 1100px; height: auto; }
 .cx-reader-slider { width: calc(100% - 32px); margin: 6px 16px 10px; }
+/* two pages side by side; a right-to-left comic puts the earlier page on the right */
+.cx-reader-page.two.fit-height img { max-width: 50%; }
+.cx-reader-page.two.fit-width img { width: 50%; max-width: 550px; }
+.cx-reader-page.rtl { flex-direction: row-reverse; }
+/* webtoon: one long scroll with no gaps. A page not loaded yet holds a screen's height. */
+.cx-webtoon { position: relative; overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+.cx-webtoon-page { display: block; width: 100%; max-width: 900px; height: auto; min-height: 100vh; margin: 0 auto; user-select: none; }
+/* the last page: what to read next */
+.cx-reader-end { position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); z-index: 2; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 10px; max-width: calc(100% - 24px); padding: 8px 12px; border-radius: 14px; background: rgba(0, 0, 0, 0.78); }
+.cx-reader-opts { display: grid; gap: 8px; justify-items: start; }
+.cx-reader-opts h3 { margin: 4px 0 0; font-size: 0.95em; }
+.cx-reader-layouts { flex-wrap: wrap; }
+/* your reading */
+.cx-reading-tabs { margin: 0 0 14px; }
+.cx-reading-item { position: relative; }
+.cx-reading-remove { position: absolute; top: 6px; right: 6px; padding: 4px 6px; }
+.cx-read-tag { display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; font-size: 0.85em; white-space: nowrap; }
+.cx-read-tag svg { color: var(--good, #4caf7a); }
+.cx-issue-menu { position: relative; display: inline-block; }
+.cx-issue-menu > summary { list-style: none; cursor: pointer; }
+.cx-issue-menu > summary::-webkit-details-marker { display: none; }
+.cx-issue-menu-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; display: grid; gap: 4px; min-width: 190px; padding: 6px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35); }
+.cx-issue-menu-list .btn-sm { justify-content: flex-start; text-align: left; }
+.cx-match-preview { display: grid; gap: 8px; }
+.cx-match-preview h3 { margin: 0; }
+.cx-match-preview ul { margin: 0; padding-left: 18px; }
 
 /* page-turn view (ComicFlip) */
 .cxf-stage { overflow: hidden; display: flex; align-items: center; justify-content: center; padding: 8px; min-height: 0; }

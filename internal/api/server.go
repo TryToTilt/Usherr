@@ -92,6 +92,7 @@ type Server struct {
 	BookRepo          *books.Repo       // ebooks and audiobooks (books_api.go)
 	EReader           *ereader.Repo     // e-reader password and Kobo sync address (ereader_*.go)
 	ereader           ereaderRuntime    // limits and store address for the e-reader routes (ereader_auth.go)
+	kosyncRT          kosyncRuntime     // Usherr: the look over the library for KOSync (kosync_api.go)
 	OpenLibrary       *books.Client
 	Requests          *requests.Repo
 	Audnexus          *books.Audnexus
@@ -464,6 +465,7 @@ func (s *Server) Routes() http.Handler {
 	// E-readers: the OPDS catalogue and Kobo sync sign in their own way (ereader_auth.go).
 	s.opdsRoutes(root)
 	s.koboRoutes(root)
+	s.kosyncRoutes(root) // Usherr: progress sync for KOReader and Readest
 	// Usherr: the Subsonic API for phone music apps signs in with app passwords (subsonic.go).
 	root.Handle("/rest/", s.busyGuard(http.HandlerFunc(s.handleSubsonic)))
 	// The Stremio and Nuvio add-on signs in with the key in its address (home_addon.go).
@@ -511,6 +513,8 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("POST /api/auth/ereader/kobo", s.handleNewKoboToken)
 	member.HandleFunc("DELETE /api/auth/ereader/kobo", s.handleRemoveKoboToken)
 	member.HandleFunc("POST /api/auth/ereader/kobo/resync", s.handleKoboResync)
+	member.HandleFunc("POST /api/auth/ereader/devices", s.handleAddEReaderDevice)
+	member.HandleFunc("DELETE /api/auth/ereader/devices/{id}", s.handleRemoveEReaderDevice)
 	member.HandleFunc("GET /api/auth/passkeys", s.handleListPasskeys)
 	member.HandleFunc("POST /api/auth/passkeys/register/begin", s.handlePasskeyRegisterBegin)
 	member.HandleFunc("POST /api/auth/passkeys/register/finish", s.handlePasskeyRegisterFinish)
@@ -907,6 +911,10 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/books/import/retry", s.handleRetryBookImport)
 	admin.HandleFunc("POST /api/books/import/match", s.handleMatchBookImport)
 	member.HandleFunc("GET /api/books/{id}", s.handleGetBook)
+	manage.HandleFunc("PUT /api/books/{id}", s.handleEditBook)
+	manage.HandleFunc("GET /api/books/{id}/file-details", s.handleBookFileDetails)
+	manage.HandleFunc("POST /api/books/{id}/rematch", s.handleRematchBook)
+	play.HandleFunc("POST /api/books/{id}/send", s.handleSendBook)
 	manage.HandleFunc("PUT /api/books/{id}/want", s.handleSetBookWant)
 	manage.HandleFunc("POST /api/books/{id}/search", s.handleSearchBookNow)
 	admin.HandleFunc("DELETE /api/books/{id}", s.handleDeleteBook)
@@ -1125,6 +1133,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/rename", s.handleRename)
 	s.registerVideoRoutes(admin, member) // videos hook (home fork)
 	s.registerComicRoutes(admin, member) // comics hook (home fork)
+	s.registerMangaRoutes(admin, member) // manga hook (Usherr)
 	s.registerReadingMarkRoutes(member)  // Usherr: bookmarks and highlights
 	admin.HandleFunc("POST /api/downloads/manual", s.handleManualDownload)
 	admin.HandleFunc("GET /api/manual-import", s.handleManualImportList)

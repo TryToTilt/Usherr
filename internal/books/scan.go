@@ -29,6 +29,13 @@ type LocalBook struct {
 	// A comic's own words about itself (ComicInfo.xml), when it has them.
 	Series   string `json:"series,omitempty"`
 	Position string `json:"position,omitempty"`
+	// What an audiobook's folder, the files beside it and its tags say (scan_audio.go).
+	Narrators   string `json:"narrators,omitempty"`
+	ASIN        string `json:"asin,omitempty"`
+	Description string `json:"-"`
+	FirstAudio  string `json:"-"` // the first audio file, for its tags
+	Loose       bool   `json:"-"` // a file right in the library's root, not a folder of its own
+	TagsRead    bool   `json:"-"`
 }
 
 var (
@@ -237,7 +244,9 @@ func ScanEbooks(root string) ([]LocalBook, error) {
 
 // ScanAudiobooks lists the audiobooks under root: every folder that holds
 // audio files is one book, with "CD 1", "Disc 2" and "Part 3" folders counted
-// as part of the folder above them.
+// as part of the folder above them. Besides the author and title, the folder's
+// name and the files beside the audio can give the narrator, series, ASIN and
+// description (scan_audio.go).
 func ScanAudiobooks(root string) ([]LocalBook, error) {
 	found := map[string]LocalBook{}
 	err := walkFollowing(root, func(path string, d fs.DirEntry, err error) error {
@@ -266,11 +275,14 @@ func ScanAudiobooks(root string) ([]LocalBook, error) {
 		}
 		cur, ok := found[key]
 		if !ok {
-			author, title, year := Guess(relParts(root, key), loose)
-			if title == "" {
+			cur = guessAudiobook(relParts(root, key), loose)
+			if !loose {
+				readSideFilesInto(dir, &cur)
+			}
+			if cur.Title == "" {
 				return nil
 			}
-			cur = LocalBook{Path: at, Author: author, Title: title, Year: year, Format: ext}
+			cur.Path, cur.Format, cur.FirstAudio, cur.Loose = at, ext, path, loose
 		}
 		cur.Files++
 		if AudioRank(ext) > AudioRank(cur.Format) {

@@ -83,7 +83,7 @@ func Compose(eventType string, it Item, links Links, at time.Time) Event {
 	switch it.Media {
 	case "album", "audiobook":
 		watch = "ready to listen to"
-	case "ebook", "comic": // comic: home fork
+	case "ebook", "comic", "manga": // comic, manga: home fork
 		watch = "ready to read"
 	}
 
@@ -129,6 +129,10 @@ func Compose(eventType string, it Item, links Links, at time.Time) Event {
 		ev.Title = "Needs your decision: " + name
 		ev.Lead = fmt.Sprintf("A file for %s already exists. Choose what to do in Activity.", name)
 		rows = []Detail{{"Title", it.Title}, {"Existing file", it.Path}, {"Release", it.Release}}
+	case EventNewVolume: // Usherr
+		ev.Title = "New: " + name
+		ev.Lead = fmt.Sprintf("%s is new. It's on the calendar, and if you follow new volumes it's wanted now.", name)
+		rows = []Detail{{"Title", it.Title}}
 	case EventSubtitle:
 		ev.Title = "Subtitles added: " + name
 		ev.Lead = fmt.Sprintf("Added %s subtitles for %s.", it.Language, name)

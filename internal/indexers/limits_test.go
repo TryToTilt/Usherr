@@ -196,7 +196,7 @@ func TestCostlyRegularExpressions(t *testing.T) {
 		t.Fatalf("a %d character pattern: %v", len(long), err)
 	}
 	// failures are remembered, not worked out again on every row
-	bad := `(?=x)y`
+	bad := `(?=x)(`
 	compileDotNetRegex(bad)
 	regexCacheMu.Lock()
 	c, ok := regexCache[bad]
@@ -206,7 +206,8 @@ func TestCostlyRegularExpressions(t *testing.T) {
 	}
 
 	// a re_replace that is too costly is refused when the definition loads;
-	// one Go merely can't express still loads (it leaves the text as it is)
+	// a broken one still loads (it leaves the text as it is), and so does one
+	// only the backtracking engine can run
 	def := func(pattern string) *Definition {
 		d := &Definition{ID: "x", Links: []string{"https://www.example.org/"}, Search: SearchBlock{
 			Paths: []SearchPath{{Path: "s"}},
@@ -224,7 +225,10 @@ func TestCostlyRegularExpressions(t *testing.T) {
 		t.Error("a very long re_replace pattern was accepted")
 	}
 	if p := def(`(?<=a)b`).Problems(); len(p) != 0 {
-		t.Errorf("a look-behind re_replace should still load: %v", p)
+		t.Errorf("a look-behind re_replace should load: %v", p)
+	}
+	if p := def(`(b`).Problems(); len(p) != 0 {
+		t.Errorf("a broken re_replace should still load: %v", p)
 	}
 
 	// one page can only run so much pattern work

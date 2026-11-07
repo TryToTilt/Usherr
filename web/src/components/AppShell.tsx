@@ -64,7 +64,7 @@ const NAV: { to: string; label: string; icon: IconName; sec: SectionKey; end?: b
 
 // The lines under "Library" in the left menu: what each one is called, the glyph
 // it wears and its colour (the same as the Library's tabs).
-const LIBRARY_LINE: Record<LibraryTab, { label: string; glyph: 'movie' | 'tv' | 'music' | 'book' | 'audiobook' | 'comic'; color: string }> = {
+const LIBRARY_LINE: Record<LibraryTab, { label: string; glyph: 'movie' | 'tv' | 'music' | 'book' | 'audiobook' | 'comic' | 'manga'; color: string }> = {
   movie: { label: t('Movies'), glyph: 'movie', color: 'var(--c-movie)' },
   tv: { label: t('TV shows'), glyph: 'tv', color: 'var(--c-tv)' },
   music: { label: t('Music'), glyph: 'music', color: 'var(--c-music)' },
@@ -72,6 +72,7 @@ const LIBRARY_LINE: Record<LibraryTab, { label: string; glyph: 'movie' | 'tv' | 
   audiobook: { label: t('Audiobooks'), glyph: 'audiobook', color: 'var(--c-audiobook)' },
   anime: { label: t('Anime'), glyph: 'tv', color: 'var(--c-tv)' }, // Usherr
   comics: { label: t('Comics'), glyph: 'comic', color: 'var(--c-comics)' }, // Usherr
+  manga: { label: t('Manga'), glyph: 'manga', color: 'var(--c-manga)' }, // Usherr
   nsfw: { label: t('NSFW 18+'), glyph: 'movie', color: 'var(--c-nsfw)' }, // Usherr
 }
 
@@ -93,7 +94,7 @@ function backFallback(path: string): string | undefined {
 // the left.
 
 // home fork: where each page was left, for the session, by its address.
-const MAIN_PAGES = new Set(['/', '/discover', '/library', '/comics', '/nsfw', '/calendar', '/queue', '/music/playlists', '/upcoming', '/sports'])
+const MAIN_PAGES = new Set(['/', '/discover', '/library', '/comics', '/manga', '/nsfw', '/calendar', '/queue', '/music/playlists', '/upcoming', '/sports'])
 const spotKey = (path: string, search: string) => `page:${path}${search}`
 function spotOf(key: string): number {
   try {
@@ -304,7 +305,7 @@ function Shell() {
     }
     return 'dashboard'
   })()
-  const inLibrary = /^\/(library|comics|nsfw|streamed)(\/|$)/.test(location.pathname) // Usherr: its own Library pages too
+  const inLibrary = /^\/(library|comics|manga|nsfw|streamed)(\/|$)/.test(location.pathname) // Usherr: its own Library pages too
 
   // The sub menus under Library and under Settings. Only a click on the group
   // opens one (and only one is open at a time); being on one of its pages or

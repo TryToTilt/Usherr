@@ -36,6 +36,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rdborg/mediarium/internal/download"
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/parser"
 )
@@ -254,8 +255,9 @@ type streamSession struct {
 	// and when this one breaks.
 	engine   string
 	alts     []indexers.Result
-	ownToken string // the own engine's session, closed when the stream ends
-	gen      int    // how many times another release was asked for: the video address changes with it
+	ownToken string              // the own engine's session, closed when the stream ends
+	gen      int                 // how many times another release was asked for: the video address changes with it
+	want     download.StreamWant // which episode, when it's one
 }
 
 // streamOption is a title stream offered to the page, kept here so the
@@ -267,6 +269,7 @@ type streamOption struct {
 	// Usherr's own engine: the release, and the others in line after it.
 	res  *indexers.Result
 	alts []indexers.Result
+	want download.StreamWant // which episode, when it's one
 }
 
 type streamStore struct {
@@ -533,13 +536,13 @@ func (s *Server) handleStreamStart(w http.ResponseWriter, r *http.Request) {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 150*time.Second)
 		defer cancel()
-		op, err := s.ownOpenFirst(ctx, list)
+		op, err := s.ownOpenFirst(ctx, list, opt.want)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "Usherr couldn't start that: "+ownOpenError(err))
 			return
 		}
 		ss.target, ss.lanURL, ss.streamFor, ss.release = op.url, op.lanURL, "title", op.release
-		ss.engine, ss.alts, ss.ownToken = engineUsherr, op.rest, op.token
+		ss.engine, ss.alts, ss.ownToken, ss.want = engineUsherr, op.rest, op.token, opt.want
 	case req.Option != "":
 		ss.target, ss.lanURL, ss.streamFor, ss.release = c.internalURL(opt.url), opt.url, "title", firstLine(opt.title)
 	case req.DownloadURL != "":
@@ -700,7 +703,7 @@ func (s *Server) handleStreamNext(w http.ResponseWriter, r *http.Request) {
 	}
 	streams.mu.Lock()
 	alts := append([]indexers.Result(nil), ss.alts...)
-	engine, broke := ss.engine, ss.release
+	engine, broke, want := ss.engine, ss.release, ss.want
 	streams.mu.Unlock()
 	if engine == engineUsherr && broke != "" {
 		s.noteStream(broke, "", false) // it broke part-way, or wasn't right
@@ -711,7 +714,7 @@ func (s *Server) handleStreamNext(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 150*time.Second)
 	defer cancel()
-	op, err := s.ownOpenFirst(ctx, alts)
+	op, err := s.ownOpenFirst(ctx, alts, want)
 	if err != nil {
 		streams.mu.Lock()
 		ss.alts = nil

@@ -302,9 +302,10 @@ func (r *Repo) ListFollowedSeries() ([]FollowedSeries, error) {
 	return out, rows.Err()
 }
 
-// SetSeries records a book's series and place in it.
+// SetSeries records a look-up's series and place for a book. A series a person
+// set by hand (edit.go) stays.
 func (r *Repo) SetSeries(id int64, name, position string) error {
-	if _, err := r.db.Exec(`UPDATE books SET series_name = ?, series_position = ? WHERE id = ?`, name, position, id); err != nil {
+	if _, err := r.db.Exec(`UPDATE books SET series_name = ?, series_position = ? WHERE id = ? AND series_locked = 0`, name, position, id); err != nil {
 		return fmt.Errorf("set book series: %w", err)
 	}
 	return nil
