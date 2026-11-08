@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.62.1] - 2026-11-07
+
+### Fixed
+
+- **GitHub's checks pass again:** the MangaDex credit is written by the licence-list tool instead of by hand, and an unused lookup in the manga search is gone.
+
 ## [2.62.0] - 2026-11-07
 
 ### Show me how

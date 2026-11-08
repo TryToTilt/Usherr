@@ -267,6 +267,8 @@ const dataSources = `## Data from other services
 | [TVmaze](https://www.tvmaze.com) | the time episodes air, shown on the calendar | CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/) |
 
 Air times from TVmaze. Only a show's TheTVDB or IMDb id, or its name and year, is sent to it, and it can be switched off under Settings > Metadata.
+
+Chapters from [MangaDex](https://mangadex.org), when you switch that on in Settings > Manga, under its [acceptable use policy](https://api.mangadex.org/docs/): MangaDex and the scanlation groups are credited in the app and in each file, and it's not for ads or paid access. The chapters belong to their authors and translators. Most aren't licensed.
 `
 
 func render(goMods, npm, fonts []component) []byte {

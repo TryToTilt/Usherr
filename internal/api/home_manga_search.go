@@ -443,16 +443,12 @@ func (s *Server) huntManga(ctx context.Context) {
 	}
 	defer st.hunt.Unlock()
 	repo := s.mangaRepo()
-	list, err := repo.ListSeries()
-	if err != nil {
-		return
-	}
 	// A series' details are refreshed at night, by mangaRefreshJob (home_manga_find.go).
 	usual, nyaa, err := s.mangaInstances(s.currentMangaSources().Nyaa)
 	if err != nil || !anyIndexerAvailable(append(usual, nyaa...)) {
 		return
 	}
-	list, err = repo.ListSeries()
+	list, err := repo.ListSeries()
 	if err != nil {
 		return
 	}
