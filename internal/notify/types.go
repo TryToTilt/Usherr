@@ -42,6 +42,9 @@ const EventAudiobook = "audiobook"
 // called it off.
 const EventScreening = "screening"
 
+// Usherr: Crews: a crew invite, a film a friend sent, a crew ending.
+const EventCrew = "crew"
+
 // Usherr: a followed manga series got a new volume.
 const EventNewVolume = "newvolume"
 
@@ -73,6 +76,8 @@ func EventKinds() []EventInfo {
 		{EventAudiobook, "Audiobooks made", "Read-to-Me finished making an audiobook of an ebook, or couldn't."},
 		// Usherr: linked screenings
 		{EventScreening, "Linked screenings", "A linked Usherr invited you to a screening, moved it or called it off."},
+		// Usherr: Crews
+		{EventCrew, "Crews", "A linked Usherr invited you to a crew, a friend sent you a film, or a crew ended."},
 		// Usherr: Service checks
 		{EventServiceDown, "Service down", "A service on the Service checks list stopped answering."},
 		{EventServiceUp, "Service back", "A service that was down answers again."},

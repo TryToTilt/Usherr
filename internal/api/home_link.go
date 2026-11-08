@@ -26,6 +26,8 @@ import (
 
 	"github.com/rdborg/mediarium/internal/brand"
 	"github.com/rdborg/mediarium/internal/link"
+	"github.com/rdborg/mediarium/internal/link/crew"
+	"github.com/rdborg/mediarium/internal/link/rewards"
 	"github.com/rdborg/mediarium/internal/link/screening"
 	"github.com/rdborg/mediarium/internal/netguard"
 )
@@ -66,6 +68,8 @@ type linkState struct {
 	joinWait time.Duration
 	// scr is linked screenings' share (home_link_screenings.go).
 	scr linkScreeningState
+	// crew is Crews' share (home_crews.go).
+	crew linkCrewState
 }
 
 // linkIdentity is this Usherr's identity, made the first time it's needed.
@@ -97,6 +101,7 @@ func (s *Server) StartLink() (stop func()) {
 
 func (s *Server) stopLink() {
 	s.stopScreeningJob()
+	s.stopCrewJob()
 	l := &s.linkS
 	l.mu.Lock()
 	n := l.node
@@ -135,12 +140,25 @@ func (s *Server) restartLink() {
 	if err := screening.RegisterRoom(n.Registry(), linkBook{s}, linkBook{s}); err != nil { // step 3: synced playback
 		log.Printf("link: the playback messages couldn't be set up: %v", err)
 	}
+	if err := rewards.Register(n.Registry(), linkBook{s}); err != nil { // step 5: stubs and stamps
+		log.Printf("link: the reward messages couldn't be set up: %v", err)
+	}
+	if err := screening.RegisterChat(n.Registry(), linkBook{s}, linkBook{s}); err != nil { // step 4: chat and reactions
+		log.Printf("link: the chat messages couldn't be set up: %v", err)
+	}
+	if err := screening.RegisterParty(n.Registry(), linkBook{s}, linkBook{s}); err != nil { // the party: lobby, intermission, verdict
+		log.Printf("link: the party messages couldn't be set up: %v", err)
+	}
+	if err := crew.Register(n.Registry(), crewBook{s}); err != nil { // Crews
+		log.Printf("link: the crew messages couldn't be set up: %v", err)
+	}
 	l := &s.linkS
 	l.mu.Lock()
 	l.node = n
 	l.mu.Unlock()
 	n.Start(context.Background())
 	s.startScreeningJob()
+	s.startCrewJob()
 }
 
 // linkNode is the running node, or nil when linking is off.
@@ -275,6 +293,7 @@ func (st linkStore) ForgetPeer(ctx context.Context, id, by string) error {
 	_, err := st.s.db.ExecContext(ctx, `UPDATE link_peers SET status = 'unlinked', unlinked_by = ?, their_id = '', their_x = '' WHERE their_id = ?`, by, id)
 	if err == nil && linked {
 		st.s.screeningsForgetPeer(ctx, row) // step 2: its screenings go, on both sides
+		st.s.crewsForgetPeer(ctx, row)      // Crews: its crews go; it leaves the crews run here
 	}
 	return err
 }

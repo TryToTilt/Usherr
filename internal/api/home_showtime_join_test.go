@@ -51,8 +51,8 @@ func TestJoinAShowtimeByItsCode(t *testing.T) {
 }
 
 // A party joined by its code gives a ticket stub in this Usherr too, with no
-// Discord link: at the door when the film starts; stamped by hand in the half
-// hour after the credits, or by the player reaching the credits.
+// Discord link: at the door when the film starts; stamped by hand from the
+// film's start until half an hour after its end, or by the player at 90%.
 func TestJoinedPartyGivesAStubHere(t *testing.T) {
 	tmdb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/movie/68726") {
@@ -89,20 +89,25 @@ func TestJoinedPartyGivesAStubHere(t *testing.T) {
 	server.TestShowtimeAt(first, time.Now().Add(-time.Minute).UnixMilli())
 	server.TestShowtimeJob(context.Background())
 	got := stubs()
-	if len(got) != 1 || got[0]["here"] != true || got[0]["title"] != "Pacific Rim" || got[0]["stamped"] != false || got[0]["stampUntil"] != nil {
+	if len(got) != 1 || got[0]["here"] != true || got[0]["title"] != "Pacific Rim" || got[0]["stamped"] != false || got[0]["stampUntil"] == nil || got[0]["no"].(float64) < 1 {
 		t.Fatalf("the stub at the door: %v", got)
 	}
+	// Stamp it works from the film's start (not before) until half an hour
+	// after its end.
 	stamp := fmt.Sprintf("%s/api/home/stubs/%d/stamp", base, first)
-	if st, body := doJSONStatus(t, admin, http.MethodPost, stamp, nil); st != http.StatusConflict || !strings.Contains(body["error"].(string), "opens at the credits") {
-		t.Errorf("stamping before the credits: %d %v", st, body)
+	server.TestStubsAt(first, time.Now().Add(time.Minute).UnixMilli())
+	if st, body := doJSONStatus(t, admin, http.MethodPost, stamp, nil); st != http.StatusConflict || !strings.Contains(body["error"].(string), "opens when the film starts") {
+		t.Errorf("stamping before the film: %d %v", st, body)
 	}
-	server.TestShowtimeAt(first, time.Now().Add(-132*time.Minute).UnixMilli())
-	server.TestShowtimeJob(context.Background())
-	if got := stubs(); got[0]["stampUntil"] == nil {
-		t.Fatalf("stamping didn't open at the credits: %v", got)
+	server.TestStubsAt(first, time.Now().Add(-3*time.Hour).UnixMilli())
+	server.TestStubsUntil(first, time.Now().Add(-time.Minute).UnixMilli())
+	if st, body := doJSONStatus(t, admin, http.MethodPost, stamp, nil); st != http.StatusConflict || !strings.Contains(body["error"].(string), "is over") {
+		t.Errorf("stamping long after: %d %v", st, body)
 	}
+	server.TestStubsAt(first, time.Now().Add(-time.Minute).UnixMilli())
+	server.TestStubsUntil(first, time.Now().Add(time.Hour).UnixMilli())
 	if st, _ := doJSONStatus(t, admin, http.MethodPost, stamp, nil); st != http.StatusNoContent {
-		t.Errorf("stamp: %d", st)
+		t.Errorf("stamp while the film plays: %d", st)
 	}
 	if got := stubs(); got[0]["stamped"] != true || got[0]["stampUntil"] != nil {
 		t.Errorf("stamped: %v", got)
@@ -122,8 +127,8 @@ func TestJoinedPartyGivesAStubHere(t *testing.T) {
 	if got := stubs(); got[0]["stamped"] != false {
 		t.Fatalf("stamped before the credits: %v", got)
 	}
-	put(7800)
+	put(7080) // 90% of 7860 s
 	if got := stubs(); len(got) != 2 || got[0]["stamped"] != true {
-		t.Errorf("stamped at the credits: %v", got)
+		t.Errorf("stamped at 90%%: %v", got)
 	}
 }

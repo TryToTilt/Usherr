@@ -1,0 +1,33 @@
+/* Usherr: linked screenings, reactions pinned to the moment (Reactions.tsx) */
+.rx-HA { --rx: var(--warning); }
+.rx-EEK { --rx: var(--danger); }
+.rx-WOW { --rx: var(--accent); }
+.rx-NOPE { --rx: var(--accent-2); }
+.rx-CLAP { --rx: var(--info); }
+/* The five buttons: the word in its colour. */
+.rx-bar { position: relative; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.rx-btn { min-height: 44px; min-width: 60px; padding: 0 0.85rem; border-radius: 14px; color: var(--rx); font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; letter-spacing: 0.02em; }
+.rx-big { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.5rem; }
+.rx-big .rx-btn { min-height: 52px; min-width: 0; padding: 0; font-size: 0.95rem; }
+.rx-error { flex-basis: 100%; color: var(--warning); font-size: 0.8rem; }
+.rx-pop { position: absolute; bottom: calc(100% + 4px); font-family: var(--font-display); font-weight: 700; font-size: 1.35rem; color: var(--rx); pointer-events: none; animation: rx-pop 1.2s ease-out forwards; }
+@keyframes rx-pop { 0% { transform: scale(0.6); opacity: 0; } 30% { transform: scale(1.15); opacity: 1; } 100% { transform: translateY(-60px); opacity: 0; } }
+/* The heat bars, above a thin progress bar. */
+.rx-heat-wrap { display: flex; flex-direction: column; gap: 0; }
+.rx-heat { position: relative; height: 26px; }
+.rx-heat-bar { position: absolute; bottom: 0; width: 6px; margin-left: -3px; border-radius: 3px 3px 0 0; background: var(--rx); opacity: 0.9; }
+.rx-progress { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.rx-progress span { display: block; height: 100%; background: var(--warning); }
+.rx-heat-legend { display: flex; justify-content: space-between; gap: 0.5rem; margin-top: 6px; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim); }
+/* Over the film: each reaction floats up from the bottom and fades. */
+.rx-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 3; }
+.rx-float { position: absolute; bottom: 40px; display: inline-flex; flex-direction: column; align-items: center; padding: 6px 12px; border-radius: 14px; background: var(--rx); color: var(--on-accent); font-family: var(--font-display); font-weight: 700; font-size: 1.15rem; line-height: 1.1; white-space: nowrap; animation: rx-float 2.5s ease-out forwards; }
+.rx-float small { font-family: var(--font-body); font-weight: 600; font-size: 0.65rem; opacity: 0.85; }
+@keyframes rx-float { 0% { transform: translateY(20px) scale(0.7); opacity: 0; } 15% { transform: none; opacity: 1; } 100% { transform: translateY(-220px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .rx-float { animation: rx-fade 2.5s linear forwards; }
+  .rx-pop { animation: rx-fade 1.2s linear forwards; }
+}
+@keyframes rx-fade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+/* In the player: the bars and the buttons under the film. */
+.hp-react { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem; }

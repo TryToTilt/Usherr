@@ -3,9 +3,9 @@
 // 1-based and in reading order; "forward" is on towards the end of the issue.
 
 export type ReadDirection = 'ltr' | 'rtl'
-export type ReaderLayout = 'flip' | 'slide' | 'double' | 'webtoon' | 'panels'
+export type ReaderLayout = 'flip' | 'slide' | 'double' | 'webtoon' | 'wide' | 'panels'
 
-const layouts: readonly string[] = ['flip', 'slide', 'double', 'webtoon', 'panels']
+const layouts: readonly string[] = ['flip', 'slide', 'double', 'webtoon', 'wide', 'panels']
 
 export function isLayout(v: unknown): v is ReaderLayout {
   return typeof v === 'string' && layouts.includes(v)

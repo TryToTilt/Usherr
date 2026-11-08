@@ -364,10 +364,12 @@ func (s *Server) showtimeJob(ctx context.Context) {
 				cancel()
 			}
 			set("playing")
-			s.guestDoor(ctx, st) // Usherr: a party joined by its code gets its stub at the door
+			s.guestDoor(ctx, st)  // Usherr: a party joined by its code gets its stub at the door
+			s.rewardDoor(ctx, st) // Usherr: rewards, a linked screening's stubs (home_link_rewards.go)
 		case (st.State == "booked" || st.State == "preshow") && !now.Before(at.Add(5*time.Minute)):
 			_, _ = s.db.ExecContext(ctx, `UPDATE showtimes SET state = 'playing' WHERE id = ?`, st.ID) // missed its moment (the server was off): not started late
 			go s.partyStateChanged(st.ID, "playing", true)                                             // Usherr: nor announced late
+			s.rewardDoor(ctx, st)                                                                      // Usherr: but the stubs are still handed out
 		}
 	}
 }

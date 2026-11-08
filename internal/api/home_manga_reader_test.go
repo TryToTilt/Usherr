@@ -555,3 +555,27 @@ func TestMangaSeriesSourcesOverride(t *testing.T) {
 		t.Fatalf("official only beats the settings: %+v", got)
 	}
 }
+
+// The download's own archives sit at the top and were unpacked before; only a
+// RAR set in a folder below (left by opening a publisher's ZIPs) is opened here.
+func TestMangaNestedRarsLeaveTheTopAlone(t *testing.T) {
+	dir := t.TempDir()
+	for _, p := range []string{"top.part1.rar", filepath.Join("Release", "notes.txt")} {
+		full := filepath.Join(dir, p)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("not really"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if openNestedRars(dir) {
+		t.Fatal("nothing below the top to open")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "Release", "vol.rar"), []byte("broken"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if openNestedRars(dir) {
+		t.Fatal("a broken set isn't opened")
+	}
+}

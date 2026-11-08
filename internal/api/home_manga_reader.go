@@ -332,6 +332,9 @@ func (s *Server) mangaContinueFor(r *http.Request, seriesID int64) []manga.Conti
 // mangaPlaceSaved is told each place the reader sends: reaching the last page
 // finishes the volume, read here or later from a device that was offline.
 func (s *Server) mangaPlaceSaved(user int64, item string, position, duration float64) {
+	if s.dexOnlinePlaceSaved(user, item, position, duration) { // a MangaDex chapter read online
+		return
+	}
 	if id, ok := manga.ChapterOfItem(item); ok {
 		if duration > 0 && position >= duration {
 			_ = s.mangaRepo().MarkChaptersRead(user, []int64{id}, true, time.Now())

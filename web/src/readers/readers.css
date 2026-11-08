@@ -1,0 +1,43 @@
+/* Usherr: what the shared reading options add to the Manga and Comics readers
+   (ReaderSettings.tsx). Nothing here changes a reader until an option is chosen. */
+
+.rd-no-header > .cx-reader-bar { visibility: hidden; height: 0; padding: 0; overflow: hidden; }
+.rd-header-btn { position: fixed; top: 8px; right: 8px; z-index: 1002; opacity: 0.55; }
+.rd-header-btn:hover, .rd-header-btn:focus-visible { opacity: 1; }
+
+/* the pages, through the options' filter */
+.cx-reader .cx-reader-page img, .cx-reader .cx-webtoon-page, .cx-reader .rd-wide-page, .cx-reader .cx-guided-layer img, .cx-reader .cxf-page img, .cx-reader .cxf-book canvas { filter: var(--rd-filter, none); }
+.mr-reader .mr-view .mr-sheet img, .mr-reader .mr-view .mr-stage canvas, .mr-reader .mr-view .cx-guided-layer img, .mr-reader .mr-view .cx-webtoon-page, .mr-reader .mr-view .rd-wide-page { filter: var(--rd-filter, var(--mr-filter, none)); }
+
+.rd-light { color: #1a1a1a; }
+.rd-light .cx-reader-bar { background: rgba(255, 255, 255, 0.8); color: #1a1a1a; }
+
+/* the progress bar */
+.cx-reader-slider.rd-side { position: absolute; top: 64px; bottom: 24px; width: max(18px, var(--rd-size, 4px)); margin: 0; writing-mode: vertical-lr; direction: ltr; z-index: 3; }
+.cx-reader-slider.rd-left { left: 6px; }
+.cx-reader-slider.rd-right { right: 6px; }
+.rd-thin { position: relative; height: var(--rd-size, 4px); background: rgba(127, 127, 127, 0.35); cursor: pointer; }
+.rd-thin > i { position: absolute; inset: 0 auto 0 0; background: var(--accent, #6aa0ff); }
+.rd-thin.rd-rtl > i { inset: 0 0 0 auto; }
+.rd-thin.rd-side { position: absolute; top: 64px; bottom: 24px; height: auto; width: var(--rd-size, 4px); z-index: 3; }
+.rd-thin.rd-side > i { inset: 0 0 auto 0; }
+.rd-thin.rd-left { left: 0; }
+.rd-thin.rd-right { right: 0; }
+.rd-page-number { position: absolute; right: 12px; bottom: 10px; z-index: 3; padding: 2px 8px; border-radius: 10px; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 0.82rem; font-variant-numeric: tabular-nums; pointer-events: none; }
+
+/* where a tap goes */
+.rd-zones { position: fixed; inset: 56px 0 40px; z-index: 5; display: grid; grid-template-columns: 1fr 2fr; pointer-events: none; }
+.rd-zones:has(.back.right) { grid-template-columns: 2fr 1fr; }
+.rd-zone { display: flex; align-items: center; justify-content: center; padding: 12px; text-align: center; font-weight: 800; color: #fff; }
+.rd-zone.back { background: rgba(255, 255, 255, 0.14); }
+.rd-zones:has(.back.right) .rd-zone.on { order: -1; }
+
+/* the settings */
+.rd-row { display: flex; align-items: center; gap: 10px; }
+.rd-keys { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 6px 0 0; font-size: 0.9em; }
+.rd-keys dt { font-weight: 700; white-space: nowrap; }
+.rd-keys dd { margin: 0; }
+
+/* the wide strip */
+.rd-wide { display: flex; flex-direction: row; align-items: center; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; min-height: 0; height: 100%; scroll-snap-type: none; }
+.rd-wide-page { display: block; height: 100%; width: auto; min-width: 60vw; max-width: none; object-fit: contain; flex: none; user-select: none; }

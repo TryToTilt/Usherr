@@ -55,6 +55,7 @@ const NAV: { to: string; label: string; icon: IconName; sec: SectionKey; end?: b
   { to: '/library', label: t('Library'), icon: 'film', sec: 'library' },
   { to: '/calendar', label: t('Upcoming'), icon: 'calendar', sec: 'calendar' },
   { to: '/showtime', label: t('Showtime'), icon: 'clock', sec: 'live' }, // Usherr: Showtimes at home, the screen and the bookings
+  { to: '/crews', label: t('Crews'), icon: 'chat', sec: 'live' }, // Usherr: Crews, the crew space between parties
   { to: '/sports', label: t('Sports'), icon: 'trophy', sec: 'live' }, // Usherr: Sports
   { to: '/tv', label: t('Live TV'), icon: 'tv', sec: 'live' }, // Mediarium TV (home fork): the one kind of media outside the Library
   { to: '/marquee/manage', label: t('Marquee'), icon: 'monitor', sec: 'live' }, // Usherr: the lobby display (administrators)

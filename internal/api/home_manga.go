@@ -150,6 +150,8 @@ func (s *Server) registerMangaRoutes(admin, member routeGroup) {
 	s.registerMangaFindRoutes(member, on)
 	s.registerMangaChapterRoutes(admin, member, on)
 	s.registerMangaMoveRoutes(admin, on)
+	s.registerMangaAccountRoutes(member, on)       // each person's own MangaDex account
+	s.registerMangaBrowseRoutes(admin, member, on) // MangaDex in Discover, and reading online
 }
 
 // ---- settings ----
@@ -432,6 +434,9 @@ func (s *Server) handleMangaLookup(w http.ResponseWriter, r *http.Request) {
 			f.InLibrary = have.ID
 		}
 		f.CoverURL = s.mangaImage(f.CoverURL)
+		if !s.dexOn() {
+			f.MangaDexID = ""
+		}
 		out = append(out, f)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"results": out, "hiddenAdult": hiddenAdult, "hiddenNovels": hiddenNovels})

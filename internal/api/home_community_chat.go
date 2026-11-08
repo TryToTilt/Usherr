@@ -21,12 +21,15 @@ import (
 	"github.com/rdborg/mediarium/internal/auth"
 	"github.com/rdborg/mediarium/internal/community"
 	"github.com/rdborg/mediarium/internal/community/discord"
+	"github.com/rdborg/mediarium/internal/link/screening"
 )
 
-// chatEvent is pushed to the pages showing a party's chat.
+// chatEvent is pushed to the pages showing a party's chat. Usherr: a
+// linked screening's message is a linkChatOut, and its reactions come as
+// kind "react" with a reactionOut (home_link_chat.go).
 type chatEvent struct {
-	Kind    string            `json:"kind"` // new, edit or delete
-	Message community.Message `json:"message"`
+	Kind    string `json:"kind"` // new, edit, delete or react
+	Message any    `json:"message"`
 }
 
 // chatHub sends a party's messages to the pages open on its chat.
@@ -36,7 +39,9 @@ type chatHub struct {
 	// synced: the threads whose history was read since Usherr started.
 	synced map[int64]bool
 	sends  *auth.LoginLimiter
-	once   sync.Once
+	// Usherr: a linked screening's chat and reactions, each person's rate.
+	linkSays, linkReacts *screening.Limiter
+	once                 sync.Once
 }
 
 func (h *chatHub) init() {
@@ -44,6 +49,8 @@ func (h *chatHub) init() {
 		h.subs = map[int64]map[chan chatEvent]struct{}{}
 		h.synced = map[int64]bool{}
 		h.sends = auth.NewLoginLimiter(20, time.Minute)
+		h.linkSays = screening.NewLimiter(partySayEvery, partySayBurst)
+		h.linkReacts = screening.NewLimiter(partyReactEvery, partyReactBurst)
 	})
 }
 
@@ -233,6 +240,10 @@ func (s *Server) chatParty(w http.ResponseWriter, r *http.Request) (showtime, pa
 // GET /api/home/showtimes/{id}/chat (member): the party's chat so far, and
 // whether you can post in it.
 func (s *Server) handlePartyChat(w http.ResponseWriter, r *http.Request) {
+	if room, ok := s.linkChatRoom(r); ok { // Usherr: a linked screening chats over the link
+		s.handleLinkChat(w, r, room)
+		return
+	}
 	st, p, ok := s.chatParty(w, r)
 	if !ok {
 		return
@@ -267,9 +278,15 @@ func (s *Server) handlePartyChat(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/home/showtimes/{id}/chat/events (member): the chat, live.
 func (s *Server) handlePartyChatEvents(w http.ResponseWriter, r *http.Request) {
-	st, _, ok := s.chatParty(w, r)
-	if !ok {
-		return
+	var id int64
+	if room, ok := s.linkChatRoom(r); ok { // Usherr: a linked screening's chat and reactions
+		id = room.ShowtimeID
+	} else {
+		st, _, ok := s.chatParty(w, r)
+		if !ok {
+			return
+		}
+		id = st.ID
 	}
 	rc := http.NewResponseController(w)
 	h := w.Header()
@@ -277,8 +294,8 @@ func (s *Server) handlePartyChatEvents(w http.ResponseWriter, r *http.Request) {
 	h.Set("Cache-Control", "no-store")
 	h.Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
-	ch := s.chat.subscribe(st.ID)
-	defer s.chat.unsubscribe(st.ID, ch)
+	ch := s.chat.subscribe(id)
+	defer s.chat.unsubscribe(id, ch)
 	write := func(line string) bool {
 		if _, err := fmt.Fprint(w, line); err != nil {
 			return false
@@ -310,6 +327,10 @@ func (s *Server) handlePartyChatEvents(w http.ResponseWriter, r *http.Request) {
 // POST /api/home/showtimes/{id}/chat {"text"} (member): say something in the
 // party's thread, under your linked Discord name.
 func (s *Server) handlePartyChatSend(w http.ResponseWriter, r *http.Request) {
+	if room, ok := s.linkChatRoom(r); ok { // Usherr: a linked screening chats over the link
+		s.handleLinkChatSend(w, r, room)
+		return
+	}
 	st, p, ok := s.chatParty(w, r)
 	if !ok {
 		return

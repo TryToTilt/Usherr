@@ -57,6 +57,7 @@ type linkScreeningState struct {
 	stop   chan struct{}         // ends the screening job
 	room   roomHub               // step 3: the browsers in a screening room (home_link_room.go)
 	beats  map[int64]roomBeatSent
+	lobby  map[string]lobbySent // the party's lobby: what was last sent (home_link_party.go)
 }
 
 // ---- keys ----
@@ -249,6 +250,7 @@ func (b linkBook) RSVPIn(ctx context.Context, guest link.Peer, r screening.RSVP)
 		return err
 	}
 	s.screeningRosterSoon(showtime)
+	go s.rewardLate(showtime) // step 5: someone who comes once it started gets a stub too
 	return nil
 }
 
@@ -522,6 +524,7 @@ func (s *Server) screeningRosterSoon(showtimeID int64) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		_ = s.sendRoster(ctx, showtimeID)
+		s.sendLobbyRoster(ctx, showtimeID, false) // the party's seat map (home_link_party.go)
 	})
 }
 
@@ -776,6 +779,8 @@ func (s *Server) screeningJob(ctx context.Context) {
 		s.screeningTell(id, false)
 	}
 	s.screeningRecipes(ctx) // step 3: the pre-shows starting soon
+	s.rewardJob(ctx)        // step 5: stubs and stamps still to send (home_link_rewards.go)
+	s.lobbyJob(ctx)         // the party: seat maps, lobby.seat, votes still to send (home_link_party.go)
 	_, _ = s.db.ExecContext(ctx, `DELETE FROM link_screenings_in WHERE at_ms < ?`, now.Add(-2*screeningKeep).UnixMilli())
 }
 

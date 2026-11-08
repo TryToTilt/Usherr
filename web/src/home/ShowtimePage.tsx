@@ -20,7 +20,8 @@ import { PartyChat } from './PartyChat' // Usherr: Community, the watch party ch
 import { JoinedSetup } from './JoinedSetup' // Usherr: a friend's party, not linked yet
 import { InviteLinked, LinkedScreenings } from './LinkedScreenings' // Usherr: linked screenings
 import { ScreeningRoom } from './ScreeningRoom' // Usherr: linked screenings, step 3: the screening room
-import type { RoomLink } from './roomLink'
+import { useRoomLink, type RoomLink } from './roomLink'
+import { HostPartyButtons, PartyMoments } from './Party' // Usherr: the party: lobby, intermission, verdict
 import { Link } from 'react-router-dom'
 import './showtime.css'
 
@@ -64,11 +65,21 @@ async function watchStreamed(s: Showtime): Promise<StreamStart> {
 // screening's film follows its room, from where it's got to.
 async function startFilm(s: Showtime, ahead?: Promise<StreamStart> | null, room?: { sync: RoomLink; startAt: number }) {
   if (s.libraryId) {
-    playTitle('movie', s.libraryId, s.title, { noPreshow: true, party: s.party ? s.id : undefined, sync: room?.sync, startAt: room?.startAt }) // its pre-show has played; Usherr: its party's chat
+    playTitle('movie', s.libraryId, s.title, { noPreshow: true, party: s.party || room ? s.id : undefined, sync: room?.sync, startAt: room?.startAt }) // its pre-show has played; Usherr: its party's chat (a linked screening's too)
     return
   }
   const st = await (ahead ?? Promise.reject(new Error('none'))).catch(() => findStream(s))
-  playStream(st, s.title, undefined, { about: { kind: 'movie', tmdbId: s.tmdbId }, noPreshow: true, party: s.party ? s.id : undefined, sync: room?.sync, startAt: room?.startAt }) // its pre-show has played; Usherr: its party's chat
+  playStream(st, s.title, undefined, { about: { kind: 'movie', tmdbId: s.tmdbId }, noPreshow: true, party: s.party || room ? s.id : undefined, sync: room?.sync, startAt: room?.startAt }) // its pre-show has played; Usherr: its party's chat (a linked screening's too)
+}
+
+// LinkedParty: Usherr. A linked screening's party (the lobby, the
+// intermission, the verdict), where its room says the film has got to.
+function LinkedParty({ s }: { s: Showtime }) {
+  const { link, room } = useRoomLink(s.id)
+  const at = link?.at() ?? null
+  const state = at?.state
+  const preshow = state === 'preshow' && room ? room.preshowSeconds + (at?.position ?? 0) : null
+  return <PartyMoments showtimeId={s.id} title={s.title} film={state === 'film' || state === 'paused'} preshow={preshow} preshowTotal={room?.preshowSeconds} pausedAt={state === 'paused' ? at?.position : undefined} />
 }
 
 // BookFilm: book a film from the Showtime page itself: search, pick, then
@@ -341,6 +352,11 @@ export default function ShowtimePage() {
                   <Icon name="play" size={18} /> {error ? t('Try again') : t('Start the film')}
                 </button>
               )}
+              {due && (next.mine || admin) && (
+                <p className="sht-row-btns">
+                  <HostPartyButtons showtimeId={next.id} />
+                </p>
+              )}
               {error && <p className="error-text">{error}</p>}
             </div>
           </>
@@ -353,7 +369,18 @@ export default function ShowtimePage() {
         )}
       </section>
 
-      {next?.party && !next.party.waiting && <PartyChat showtimeId={next.id} />}
+      {next && room && <LinkedParty key={next.id} s={next} />}
+      {next && !room && (
+        <PartyMoments
+          key={next.id}
+          showtimeId={next.id}
+          title={next.title}
+          film={!!due}
+          preshow={preStart !== null && !due && serverNow >= preStart ? (serverNow - preStart) / 1000 : null}
+          preshowTotal={preStart !== null ? (next.atMs - preStart) / 1000 : undefined}
+        />
+      )}
+      {next && ((next.party && !next.party.waiting) || room) && <PartyChat showtimeId={next.id} />}
       {(() => {
         // Usherr: the first friend's party still to set up (any of them, not only the next on screen)
         const j = (list ?? []).find((s) => s.party?.joined && (s.party.waiting || s.party.needLink) && s.state !== 'done')
@@ -361,6 +388,11 @@ export default function ShowtimePage() {
       })()}
 
       <LinkedScreenings />
+      {linkOn && (
+        <p className="hint">
+          {t('Your crews: a chat, a shared watchlist and a vote on the next film, between parties.')} <Link to="/crews">{t('Open Crews')}</Link>
+        </p>
+      )}
       <BookFilm />
       <JoinParty onJoined={load} />
 

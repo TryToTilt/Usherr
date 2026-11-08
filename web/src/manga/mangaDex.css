@@ -1,0 +1,14 @@
+/* Usherr: your own MangaDex account in Manga: its settings card, the series
+   page's follow and status bar, and the shelves. */
+.mg-mdx-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.mg-mdx-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mg-mdx-field span { font-size: 0.85rem; font-weight: 700; }
+.mg-mdx-field input { width: 100%; min-width: 0; }
+.mg-mdx-steps { margin: 8px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.mg-mdx-bad { color: var(--mg-warn, var(--warning)); font-weight: 700; }
+.mg-mdx-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.mg-mdx-status select { width: auto; max-width: 100%; }
+.mg-mdx-lists { position: relative; }
+.mg-mdx-listpick { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; min-width: 200px; max-width: min(320px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 6px; background: var(--mg-bg, var(--surface)); }
+.mg-mdx-listpick label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.mg-mdx-listpick input { width: auto; min-height: 0; flex: none; margin: 0; }

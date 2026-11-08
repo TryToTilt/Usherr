@@ -22,6 +22,9 @@ import { browserCaps } from './browserCaps' // Usherr: what this browser decodes
 import PartyOverlay from './PartyOverlay' // Usherr: Community, the watch party chat over the film
 import type { RoomLink } from './roomLink' // Usherr: linked screenings, step 3
 import { RoomBar, RoomPaused, useRoomFollow } from './RoomFollow' // Usherr: ... the player follows the host
+import { HeatStrip, ReactButtons, ReactionLayer, useReactions } from './Reactions' // Usherr: linked screenings, step 4: reactions pinned to the moment
+import { PartyStage } from './Party' // Usherr: the party: the intermission and the verdict over the film
+import type { Reaction } from './reactionMath'
 
 const PreshowRun = lazy(() => import('./PreshowRun')) // Usherr: the pre-show before the film
 
@@ -545,6 +548,23 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
   // Usherr: linked screenings, step 3. In a linked screening, the film
   // follows the host (and the host's own controls go to everyone).
   const follow = useRoomFollow(videoRef, req.sync, !!plan, plan?.converted ? (plan.shift ?? 0) : 0, !!plan?.converted, (at) => setRedo((r) => ({ ...r, at })))
+  // Usherr: linked screenings, step 4. Reactions: a screening's as they're
+  // sent (and again as the film plays past them), or a film's kept ones for
+  // someone watching it later, at the same second.
+  const reactSrc =
+    req.sync && req.party
+      ? { showtimeId: req.party }
+      : !req.party && titled && req.kind === 'movie'
+        ? { film: { movie: req.id } }
+        : !req.party && req.stream && req.about?.kind === 'movie'
+          ? { film: { tmdb: req.about.tmdbId } }
+          : null
+  const floatNow = useRef<((r: Reaction) => void) | null>(null)
+  const reactions = useReactions(reactSrc, (r) => floatNow.current?.(r))
+  const filmLength = () => {
+    const d = videoRef.current?.duration
+    return Math.max(reactions.runtime, d && Number.isFinite(d) ? d + (plan?.converted ? (plan.shift ?? 0) : 0) : 0)
+  }
   const convertInstead = () => {
     if (retried.current || plan?.mode !== 'direct' || plan.converted || !titled) return false
     retried.current = true
@@ -1304,6 +1324,7 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
         ) : (
           <div className="hp-stage" ref={stageRef} onDoubleClick={overlay ? stageFullscreen : undefined}>
             {overlay && req.party && <PartyOverlay showtimeId={req.party} />}
+            {reactSrc && (req.party || reactions.list.length > 0) && <ReactionLayer list={reactions.list} position={fileTime} liveRef={floatNow} />}
             <video ref={videoRef} controls controlsList={overlay ? 'nofullscreen' : undefined} autoPlay playsInline onEnded={() => req.onEnded?.()} onError={() => plan?.mode === 'direct' && !convertInstead() && !failOver() && setFailed(true)}>
               {subSrc && <track key={subSrc} kind="subtitles" src={subSrc} srcLang={sub?.lang} label={sub?.lang ?? t('Subtitles')} default />}
             </video>
@@ -1316,6 +1337,7 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
               </div>
             )}
             {req.sync && <RoomPaused link={req.sync} follow={follow} />}
+            {req.sync && req.party && <PartyStage showtimeId={req.party} title={req.title} ended={follow?.state === 'ended'} position={fileTime} />}
             {inIntro && !req.sync && (
               <button className="hp-skip primary btn-with-icon" onClick={skipIntro}>
                 <Icon name="chevron-right" size={16} /> {t('Skip intro')}
@@ -1338,6 +1360,12 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
                 </label>
               </div>
             )}
+          </div>
+        )}
+        {reactSrc && !error && !failed && (req.party || reactions.list.length > 0) && (
+          <div className="hp-react">
+            <HeatStrip list={reactions.list} length={filmLength()} position={fileTime} label={!!req.party} />
+            {req.sync && req.party && <ReactButtons showtimeId={req.party} position={fileTime} />}
           </div>
         )}
         {req.sync && !error && !failed && <RoomBar link={req.sync} follow={follow} position={fileTime} />}

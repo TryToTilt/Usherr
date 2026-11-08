@@ -45,10 +45,14 @@ func mangaAniListProblem(err error) string {
 func (s *Server) mangaFoundForPage(r *http.Request, found []manga.Found) []manga.Found {
 	have, _ := s.mangaRepo().LibraryIDs()
 	adult := s.canSeeAdultManga(r)
+	dex := s.dexOn()
 	out := make([]manga.Found, 0, len(found))
 	for _, f := range found {
 		if f.IsNovel || (f.IsAdult && !adult) {
 			continue
+		}
+		if !dex {
+			f.MangaDexID = "" // only for reading online, which needs MangaDex on
 		}
 		f.InLibrary = have[f.AniListID]
 		f.CoverURL = s.mangaImage(f.CoverURL)

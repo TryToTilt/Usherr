@@ -76,6 +76,7 @@ export function LobbyNav({ lines, admin, sportsOn, downloads, needs, settingsMen
       {sportsOn && <Item to="/sports" icon="trophy" label={t('Sports')} />}
       <p className="lobby-head">{t('Together')}</p>
       <Item to="/showtime" icon="clock" label={t('Movie night')} />
+      <Item to="/crews" icon="chat" label={t('Crews')} />
       <Item to="/calendar" icon="calendar" label={t('Coming up')} active={inUpcoming && !inServer} />
       <Item to="/you" icon="user" label={t('You')} active={mine} />
       <Item to="/help" icon="info" label={t('Help')} />

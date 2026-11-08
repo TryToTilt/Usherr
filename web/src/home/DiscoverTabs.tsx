@@ -38,7 +38,8 @@ export function useDiscoverTabs(admin: boolean): DTab[] {
   if (on('audiobooks')) tabs.push('audiobook')
   if (on('music')) tabs.push('music')
   if (comicsOn) tabs.push('comics')
-  if (nsfwOn) tabs.push('nsfw')
+  // Usherr: NSFW 18+ is only reached from its own page, never from Discover.
+  void nsfwOn
   if (tabs.length === 0) tabs.push('movie')
   return tabs
 }

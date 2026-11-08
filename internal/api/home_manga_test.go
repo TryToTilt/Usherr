@@ -649,3 +649,31 @@ func TestMangaFolderProblemStopsGrabs(t *testing.T) {
 		t.Fatalf("a grab went ahead with nowhere to file it: %v", err)
 	}
 }
+
+// A pack taken for a series counts as the download of each volume it holds,
+// so the volumes aren't fetched one by one while it runs.
+func TestMangaPackCoversItsVolumes(t *testing.T) {
+	s, repo, _ := mangaTestServer(t)
+	sr := addSeries(t, repo, "One-Punch Man", 35, 1)
+	id, err := s.QueueRepo.Enqueue(queue.Item{ReleaseTitle: "One-Punch Man v01-33 (2014-2026) (Digital) (1r0n, Rillant)", NZBURL: "magnet:?xt=urn:btih:x", Protocol: queue.Protocol("torrent")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.LinkDownload(manga.Download{QueueID: id, SeriesID: sr.ID, Class: string(manga.ClassFan)}); err != nil {
+		t.Fatal(err)
+	}
+	volumes, _ := repo.Volumes(sr.ID)
+	for _, v := range volumes {
+		busy, err := repo.ActiveForVolume(v.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := v.Number != "34" && v.Number != "35"; busy != want {
+			t.Fatalf("volume %s busy=%v", v.Number, busy)
+		}
+	}
+	_ = s.QueueRepo.SetStatus(id, queue.StatusFailed, "gone")
+	if busy, _ := repo.ActiveForVolume(volumes[0].ID); busy {
+		t.Fatal("a failed pack still covers its volumes")
+	}
+}

@@ -15,6 +15,7 @@ import MangaCover from './MangaCover'
 import { FoundTile, MangaPortal, useOnePress, type OnePress } from './MangaDiscover'
 import { mangaApi, type MangaAbout, type MangaDetail, type MangaFound, type MangaRelease, type MangaReview, type MangaVolume } from './mangaApi'
 import MangaChapters from './MangaChapters'
+import MangaDexSeriesBar from './MangaDexSeriesBar'
 import { chapterStatus, chapterWhy, FORMAT_LABEL, mangaStatus, mangaWhen, mangaWhy, stateLabel } from './mangaStatus'
 import './manga.css'
 
@@ -223,6 +224,7 @@ export default function MangaSeries() {
                 </div>
               )}
             </div>
+            <MangaDexSeriesBar seriesId={s.id} onReadChanged={load} />
             <div className="mg-tools">
               {haveFiles && mainVolume && (
                 <button className="btn-sm primary" data-walk="manga-read" onClick={() => setReading({ id: mainVolume, chapter: mainChapter })}>

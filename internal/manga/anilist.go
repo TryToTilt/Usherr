@@ -81,7 +81,7 @@ type Found struct {
 	Score       int      `json:"score,omitempty"`      // 0 to 100
 	ListStatus  string   `json:"listStatus,omitempty"` // on an AniList list: reading or planning
 	Relation    string   `json:"relation,omitempty"`   // how it is related to another series
-	MangaDexID  string   `json:"-"`                    // when AniList links to its MangaDex entry
+	MangaDexID  string   `json:"mangadexId,omitempty"` // when AniList links to its MangaDex entry
 }
 
 const mediaFields = `id title { romaji english native } synonyms format status startDate { year } volumes countryOfOrigin isAdult

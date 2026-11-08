@@ -27,7 +27,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"math"
 	"net/http"
 	"strconv"
@@ -333,6 +332,9 @@ func (s *Server) roomBeats(ctx context.Context) {
 			s.linkS.scr.room.changed(id) // the pre-show ran into the film, the film ended
 		}
 		s.roomSend(ctx, r, cur)
+		if cur.State == screening.StatePaused {
+			s.interSend(ctx, r, false) // the intermission, while it's on (home_link_party.go)
+		}
 	}
 }
 
@@ -823,6 +825,7 @@ func (s *Server) handleShowtimeHostRSVP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	s.screeningRosterSoon(id)
+	go s.rewardLate(id) // step 5: a stub for someone who comes once it started
 	answers := s.hostHousehold(ctx, st)
 	writeJSON(w, http.StatusOK, map[string]any{"mine": answers[requestUserID(r)], "hostGoing": goingOf(answers)})
 }
@@ -909,40 +912,7 @@ func (s *Server) handleRoomEvents(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rc := http.NewResponseController(w)
-	h := w.Header()
-	h.Set("Content-Type", "text/event-stream")
-	h.Set("Cache-Control", "no-store")
-	h.Set("X-Accel-Buffering", "no")
-	w.WriteHeader(http.StatusOK)
-	hub := &s.linkS.scr.room
-	ch := hub.subscribe(room.ShowtimeID)
-	defer hub.unsubscribe(room.ShowtimeID, ch)
-	write := func(line string) bool {
-		if _, err := fmt.Fprint(w, line); err != nil {
-			return false
-		}
-		return rc.Flush() == nil
-	}
-	if !write("retry: 3000\n: hello\n\n") {
-		return
-	}
-	ping := time.NewTicker(20 * time.Second)
-	defer ping.Stop()
-	for {
-		select {
-		case <-r.Context().Done():
-			return
-		case <-ping.C:
-			if !write(": ping\n\n") {
-				return
-			}
-		case <-ch:
-			if !write("data: {\"t\":\"changed\"}\n\n") {
-				return
-			}
-		}
-	}
+	s.roomEventStream(w, r, room.ShowtimeID) // home_link_party.go
 }
 
 // POST /api/home/showtimes/{id}/room/playback {"state": "film"|"paused"|"ended", "position"?}:

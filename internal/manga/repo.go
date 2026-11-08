@@ -397,12 +397,42 @@ func (r *Repo) DownloadFor(queueID int64) (Download, error) {
 	return d, err
 }
 
-// ActiveForVolume reports whether a volume has a download running or waiting.
+// ActiveForVolume reports whether a volume has a download running or waiting:
+// its own, or a pack of the series whose name holds its number.
 func (r *Repo) ActiveForVolume(volumeID int64) (bool, error) {
 	var n int
 	err := r.db.QueryRow(`SELECT COUNT(*) FROM manga_downloads d JOIN download_queue q ON q.id = d.queue_id
 		WHERE d.volume_id = ? AND q.status IN `+activeQueue, volumeID).Scan(&n)
-	return n > 0, err
+	if err != nil || n > 0 {
+		return n > 0, err
+	}
+	// Usherr: a pack taken for the series covers its volumes while it runs, so
+	// they aren't fetched one by one beside it.
+	var seriesID int64
+	var number string
+	if err := r.db.QueryRow(`SELECT series_id, number FROM manga_volumes WHERE id = ?`, volumeID).Scan(&seriesID, &number); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	rows, err := r.db.Query(`SELECT q.release_title FROM manga_downloads d JOIN download_queue q ON q.id = d.queue_id
+		WHERE d.series_id = ? AND d.volume_id = 0 AND d.source = '' AND q.status IN `+activeQueue, seriesID)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var title string
+		if err := rows.Scan(&title); err != nil {
+			return false, err
+		}
+		name := Parse(title)
+		if name.Kind == KindWhole || (name.Kind == KindPack && name.Holds(number)) {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
 }
 
 // ActiveRelease reports whether this release is already downloading for the

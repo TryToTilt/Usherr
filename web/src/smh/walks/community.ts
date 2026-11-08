@@ -187,10 +187,10 @@ export const ticketStubs: Walkthrough = {
     {
       kind: 'say',
       title: t('On the way out'),
-      text: t('At the credits, the party’s thread shows Get my stub stamped. Press it within 30 minutes: your stub says you stayed to the end.'),
+      text: t('Stayed to the end? Press Stamp it on your stub, any time from the film’s start until 30 minutes after it ends. Usherr’s player stamps it for you at 90%, and in Discord the party’s thread has a button too.'),
     },
-    { kind: 'go', to: '/you/stubs', title: t('Your ticket stubs'), text: t('Under You. In Discord, /stubs lists them too. A friend’s party joined with its showtime code gets a stub here as well, stamped when your player reaches the credits.') },
-    { kind: 'done', title: t('Start a collection'), text: t('Every party you go to adds one.') },
+    { kind: 'go', to: '/you/stubs', title: t('Your ticket stubs'), text: t('Under You, with your badge cabinet. Save as picture makes a picture of a stub on your computer. A friend’s party joined with its showtime code, or a linked Usherr’s screening, gets a stub here as well.') },
+    { kind: 'done', title: t('Start a collection'), text: t('Every party you go to adds one, and badges follow: first party, five nights, night owl and more.') },
   ],
 }
 

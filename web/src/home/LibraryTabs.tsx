@@ -33,7 +33,8 @@ export default function LibraryTabs({ current }: { current: 'comics' | 'manga' |
     ...(on('music') ? [{ key: 'music', to: '/library?kind=music', label: t('Music'), glyph: 'music' as const, color: 'var(--c-music)' }] : []),
     ...(comicsOn ? [{ key: 'comics', to: '/comics', label: t('Comics'), glyph: 'comic' as const, color: 'var(--c-comics)' }] : []),
     ...(on('manga') ? [{ key: 'manga', to: '/manga', label: t('Manga'), glyph: 'manga' as const, color: 'var(--c-manga)' }] : []),
-    ...(nsfwOn ? [{ key: 'nsfw', to: '/nsfw', label: t('NSFW 18+'), glyph: 'movie' as const, color: 'var(--c-nsfw)' }] : []),
+    // Usherr: NSFW 18+ is only in this list on its own page.
+    ...(nsfwOn && current === 'nsfw' ? [{ key: 'nsfw', to: '/nsfw', label: t('NSFW 18+'), glyph: 'movie' as const, color: 'var(--c-nsfw)' }] : []),
   ]
   return (
     // Usherr: the same drop-down as the Library's (CompactBar.tsx)

@@ -143,11 +143,13 @@ type MangaDex struct {
 	APIGap    time.Duration
 	AtHomeGap time.Duration
 	ImageGap  time.Duration
+	Uploads   string // where covers are: uploads.mangadex.org, or a test copy (mdbrowse.go)
 
 	mu        sync.Mutex
 	nextAPI   time.Time
 	nextHome  time.Time
 	nextImage time.Time
+	nextCover time.Time
 	pause     *DexError
 
 	reportOnce sync.Once
@@ -158,14 +160,15 @@ type MangaDex struct {
 // NewMangaDex returns a client. base "" is MangaDex itself; another base is a
 // test copy, which is then told the reports too.
 func NewMangaDex(userAgent, base string) *MangaDex {
-	report := dexReportURL
+	report, uploads := dexReportURL, dexUploadsURL
 	if base == "" {
 		base = dexBaseURL
 	} else {
 		report = strings.TrimRight(base, "/") + "/network/report"
+		uploads = strings.TrimRight(base, "/") + "/uploads"
 	}
 	return &MangaDex{
-		Base: strings.TrimRight(base, "/"), ReportURL: report, UserAgent: userAgent,
+		Base: strings.TrimRight(base, "/"), ReportURL: report, UserAgent: userAgent, Uploads: uploads,
 		HTTP: &http.Client{Timeout: 30 * time.Second}, Images: &http.Client{Timeout: 2 * time.Minute},
 		APIGap: dexAPIGap, AtHomeGap: dexAtHomeGap, ImageGap: dexImageGap,
 	}
@@ -283,7 +286,10 @@ func (c *MangaDex) get(ctx context.Context, path string, q url.Values, next *tim
 		c.hold(DexBusy, waitFrom(resp.Header, dexBusyWait), "")
 	}
 	if err := json.Unmarshal(data, out); err != nil {
-		return c.hold(DexDown, time.Now().Add(dexDownWait), "the answer couldn't be read")
+		// Usherr: an answer in a shape Usherr doesn't expect is Usherr's to fix,
+		// not MangaDex being away, so nothing else is held up by it.
+		slog.Warn("manga: a MangaDex answer couldn't be read", "path", path, "err", err)
+		return fmt.Errorf("MangaDex's answer to %s couldn't be read", path)
 	}
 	return nil
 }

@@ -115,6 +115,7 @@ func (s *Server) StartAutomation() *automation.Scheduler {
 		automation.Job{Name: "manga-scan", Interval: time.Hour, Run: s.heavy(s.mangaScanJob)},                    // Usherr: the manga folder, once a night between 2 and 9
 		automation.Job{Name: "manga-refresh", Interval: mangaRefreshJobEvery, Run: s.heavy(s.mangaRefreshJob)},   // Usherr: each series' details from AniList, a little between 2 and 9
 		automation.Job{Name: "manga-chapters", Interval: mangaDexJobEvery, Run: s.heavy(s.mangaDexJob)},          // Usherr: chapters from MangaDex, only once it's switched on
+		automation.Job{Name: "manga-mangadex-accounts", Interval: mdJobEvery, Run: s.mangaDexAccountJob},         // Usherr: people's own MangaDex accounts, synced both ways
 		automation.Job{Name: "home-scores", Interval: scoresEvery, Run: s.heavy(s.scoresJob)},                    // home fork: critic scores from MDBList
 		automation.Job{Name: "home-gaps", Interval: gapsEvery, Run: s.heavy(s.gapsJob)},                          // home fork: complete your library
 		automation.Job{Name: "home-taste", Interval: tasteJobEvery, Run: s.heavy(s.tasteJob)},                    // home fork: titles' traits for the taste engine

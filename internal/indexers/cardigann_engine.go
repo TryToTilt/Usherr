@@ -132,6 +132,15 @@ func (m *CardigannManager) Test(ctx context.Context, inst Instance) (TestResult,
 			return TestResult{}, err
 		}
 	}
+	// Usherr: a site set to one category of its own (Manga's Nyaa searches
+	// only "Literature - English-translated") has no films or TV to show, so
+	// ask once more for anything at all before calling it empty.
+	if len(results) == 0 {
+		results, err = sess.search(ctx, "", nil)
+		if err != nil {
+			return TestResult{}, err
+		}
+	}
 	via := sess.viaFlareSolverr.Load()
 	return TestResult{Releases: len(results), ViaFlareSolverr: via}, nil
 }

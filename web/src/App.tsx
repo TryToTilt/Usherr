@@ -40,6 +40,7 @@ const PartyChatPage = lazy(() => import('./home/PartyChat')) // Usherr: Communit
 const LobbyHome = lazy(() => import('./pages/LobbyHome')) // Usherr: Home in the new layout
 const ServerHub = lazy(() => import('./pages/ServerHub')) // Usherr: the new layout's Server area
 const ShowtimePage = lazy(() => import('./home/ShowtimePage')) // Usherr: Showtimes at home
+const Crews = lazy(() => import('./home/Crews')) // Usherr: Crews, the crew space between parties
 const SportsPage = lazy(() => import('./home/Sports')) // Usherr: Sports
 const SportsLeaguePage = lazy(() => import('./home/Sports').then((m) => ({ default: m.SportsLeaguePage }))) // Usherr
 
@@ -142,6 +143,7 @@ const AddManga = lazy(() => import('./manga/AddManga'))
 const MangaDiscover = lazy(() => import('./manga/MangaDiscover'))
 const MangaSeries = lazy(() => import('./manga/MangaSeries'))
 const MangaSettings = lazy(() => import('./manga/MangaSettings'))
+const MangaDexAccountPage = lazy(() => import('./manga/MangaDexAccount')) // Usherr: each person's own MangaDex account
 const TV = lazy(() => import('./home/TV'))
 const Streamed = lazy(() => import('./home/Streamed'))
 const ReadToMePage = lazy(() => import('./home/ReadToMePage')) // Usherr: Read-to-Me
@@ -269,6 +271,8 @@ function Gate() {
         <Route path="/marquee/manage" element={<AdminOnly><MarqueeHub /></AdminOnly>} /> {/* Usherr */}
         <Route path="/preshow/manage" element={<AdminOnly><PreshowSettings /></AdminOnly>} /> {/* Usherr */}
         <Route path="/showtime" element={<ShowtimePage />} /> {/* Usherr: Showtimes at home */}
+        <Route path="/crews" element={<Crews />} /> {/* Usherr: Crews */}
+        <Route path="/crews/:id" element={<Crews />} /> {/* Usherr: Crews */}
         <Route path="/showtime/chat/:id" element={<PartyChatPage />} /> {/* Usherr: Community, the watch party chat */}
         <Route path="/sports" element={<SportsPage />} /> {/* Usherr: Sports */}
         <Route path="/sports/league/:id" element={<SportsLeaguePage />} /> {/* Usherr */}
@@ -299,6 +303,7 @@ function Gate() {
           <Route index element={<Navigate to="general" replace />} />
           <Route path="modules" element={<AdminOnly><ModulesSettings /></AdminOnly>} />
           <Route path="manga" element={<AdminOnly><MangaSettings /></AdminOnly>} /> {/* Usherr */}
+          <Route path="manga-account" element={<MangaDexAccountPage />} /> {/* Usherr: for every account */}
           <Route path="media" element={<AdminOnly><MediaSettings /></AdminOnly>} />
           <Route path="naming" element={<AdminOnly><NamingSettings /></AdminOnly>} />
           <Route path="quality" element={<AdminOnly><QualitySettings /></AdminOnly>} />

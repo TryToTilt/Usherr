@@ -374,12 +374,15 @@ func TestTicketStubs(t *testing.T) {
 		t.Errorf("in, late: %q", got)
 	}
 
-	// Too early to stamp: it opens at the credits.
-	if got := press("777000000000000001", "Pal", fmt.Sprintf("stub:stamp:%d", id)); !strings.Contains(got, "opens at the credits") {
-		t.Errorf("stamping before the credits: %q", got)
+	// Too early to stamp: it opens when the film starts (here, moved back).
+	server.TestShowtimeAt(id, time.Now().Add(10*time.Minute).UnixMilli())
+	server.TestStubsAt(id, time.Now().Add(10*time.Minute).UnixMilli())
+	if got := press("777000000000000001", "Pal", fmt.Sprintf("stub:stamp:%d", id)); !strings.Contains(got, "opens when the film starts") {
+		t.Errorf("stamping before the film: %q", got)
 	}
 	// The credits: the stamp button goes up.
 	server.TestShowtimeAt(id, time.Now().Add(-3*time.Minute).UnixMilli())
+	server.TestStubsAt(id, time.Now().Add(-3*time.Minute).UnixMilli())
 	server.TestShowtimeJob(context.Background())
 	said = fd.waitCalls(t, "POST", "/channels/800000000000000005/messages", 2)
 	if raw, _ := json.Marshal(said[1].Body); !strings.Contains(string(raw), fmt.Sprintf("stub:stamp:%d", id)) || !strings.Contains(string(raw), "That's a wrap") {

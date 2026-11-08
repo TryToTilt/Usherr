@@ -112,6 +112,7 @@ type usherr struct {
 	store *link.MemStore
 	book  *book
 	room  *room
+	chat  *chatRec
 }
 
 func start(t *testing.T, url, name string) *usherr {
@@ -120,13 +121,16 @@ func start(t *testing.T, url, name string) *usherr {
 	if err != nil {
 		t.Fatal(err)
 	}
-	u := &usherr{id: id, store: link.NewMemStore(), book: newBook(), room: &room{}}
+	u := &usherr{id: id, store: link.NewMemStore(), book: newBook(), room: &room{}, chat: &chatRec{}}
 	u.book.me = id.ID()
 	u.Node = link.NewNode(link.NodeOptions{Identity: id, Store: u.store, Relay: url, DefaultRelay: url, Name: func() string { return name }, GroupKey: u.book.groupKey})
 	if err := screening.Register(u.Registry(), u.book); err != nil {
 		t.Fatal(err)
 	}
 	if err := screening.RegisterRoom(u.Registry(), u.book, u.room); err != nil {
+		t.Fatal(err)
+	}
+	if err := screening.RegisterChat(u.Registry(), u.book, u.chat); err != nil {
 		t.Fatal(err)
 	}
 	u.Start(t.Context())

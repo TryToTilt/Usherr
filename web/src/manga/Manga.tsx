@@ -12,8 +12,10 @@ import { plural, t } from '../i18n'
 import { useModules } from '../ModulesContext'
 import { useLive } from '../useLive'
 import MangaCover from './MangaCover'
+import MangaDexShelves from './MangaDexShelves'
 import { mangaApi, type MangaContinue, type MangaReview, type MangaSeries, type MangaSources, type MangaStats } from './mangaApi'
 import { FORMAT_LABEL, mangaStatus, sourcesOf, stateLabel } from './mangaStatus'
+import { browseApi, type DexContinue } from './browseApi'
 import './manga.css'
 
 const MangaReader = lazy(() => import('./MangaReader'))
@@ -33,7 +35,8 @@ export default function Manga() {
   const [error, setError] = useState('')
   const [reading, setReading] = useState<MangaContinue[]>([])
   const [stats, setStats] = useState<MangaStats | null>(null)
-  const [open, setOpen] = useState<{ id: number; chapter: boolean } | null>(null)
+  const [open, setOpen] = useState<{ id: number; chapter: boolean; dex?: string } | null>(null)
+  const [online, setOnline] = useState<DexContinue[]>([]) // MangaDex chapters read online
   const enabled = on('manga')
 
   const load = useCallback(() => {
@@ -55,6 +58,10 @@ export default function Manga() {
       .stats()
       .then(setStats)
       .catch(() => undefined)
+    browseApi
+      .continueRow()
+      .then(setOnline)
+      .catch(() => setOnline([]))
     if (admin) {
       mangaApi
         .reviews()
@@ -111,6 +118,9 @@ export default function Manga() {
             <Link className="btn-sm" to="/manga/discover">
               {t('Discover')}
             </Link>
+            <Link className="btn-sm" to="/settings/manga-account">
+              {t('MangaDex account')}
+            </Link>
             <Link className="btn-sm primary" to="/manga/add" data-walk="manga-add">
               {t('+ Add a series')}
             </Link>
@@ -129,7 +139,7 @@ export default function Manga() {
           </Link>
         </section>
       )}
-      {reading.length > 0 && (
+      {reading.length + online.length > 0 && (
         <section className="mg-stack" aria-label={t('Continue reading')}>
           <h2>{t('Continue reading')}</h2>
           {stats && stats.volumes + stats.chapters > 0 && <p className="mg-hint">{[stats.volumes > 0 ? plural(stats.volumes, '{n} volume read', '{n} volumes read') : '', stats.chapters > 0 ? plural(stats.chapters, '{n} chapter read', '{n} chapters read') : '', t('{n} this month', { n: stats.thisMonth })].filter(Boolean).join(' · ')}</p>}
@@ -149,14 +159,31 @@ export default function Manga() {
                 </button>
               )
             })}
+            {online.map((c) => {
+              const pct = c.pages > 0 ? Math.round((c.page / c.pages) * 100) : 0
+              return (
+                <button key={`d${c.dexChapterId}`} className="mg-cont" onClick={() => setOpen({ id: 0, chapter: true, dex: c.dexChapterId })}>
+                  <MangaCover title={c.series} src={c.coverUrl} small />
+                  <span style={{ minWidth: 0 }}>
+                    <span className="t">{c.series}</span>
+                    <span className="s">{t('Chapter {n}, page {page} of {pages}', { n: c.number, page: c.page, pages: c.pages })}</span>
+                    <span className="mg-bar" aria-hidden="true">
+                      <i style={{ width: `${pct}%` }} />
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
           </div>
         </section>
       )}
+      <MangaDexShelves />
       {open !== null && (
         <Suspense fallback={null}>
           <MangaReader
             volumeId={open.id}
             chapter={open.chapter}
+            dex={open.dex}
             onClose={() => {
               setOpen(null)
               window.setTimeout(load, 400)

@@ -458,6 +458,25 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/continue` | any account | GET /api/home/continue (member): what you're part way through. |
 | GET | `/api/home/convert` | admin | GET /api/home/convert (administrators): who converts for the player. |
 | PUT | `/api/home/convert` | admin | PUT /api/home/convert {"with": "" \| "jellyfin" \| "plex" \| "usherr"}. |
+| GET | `/api/home/crews` | any account | GET /api/home/crews: the crews this Usherr is in or invited to, the linked Usherrs a crew can be made with, and the asker's sharing switch. |
+| POST | `/api/home/crews` | any account | POST /api/home/crews {"name", "peers": [link ids]}: make a crew with linked Usherrs. |
+| PUT | `/api/home/crews/sharing` | any account | PUT /api/home/crews/sharing {"on"}: the asker's own "Share what I watch with my crews". |
+| DELETE | `/api/home/crews/{id}` | any account | DELETE /api/home/crews/{id}: end a crew run here (whoever made it, or an administrator). |
+| GET | `/api/home/crews/{id}` | any account | GET /api/home/crews/{id}: the crew space: chat, shared watchlist, votes, clubs and what the crew is watching. |
+| PUT | `/api/home/crews/{id}` | any account | PUT /api/home/crews/{id} {"name", "peers"}: rename a crew run here, or change who's in it (whoever made it, or an administrator). |
+| POST | `/api/home/crews/{id}/chat` | any account | POST /api/home/crews/{id}/chat {"text"}: a line in the crew chat (plain text, up to 500 characters). |
+| POST | `/api/home/crews/{id}/clubs` | any account | POST /api/home/crews/{id}/clubs {"name", "weekday", "minute", "every", "mode", "preshowMin"}: start a film club: a night, how often, and who picks (whose tur... |
+| DELETE | `/api/home/crews/{id}/clubs/{kid}` | any account | DELETE /api/home/crews/{id}/clubs/{kid}: end a club you started. |
+| PUT | `/api/home/crews/{id}/clubs/{kid}` | any account | PUT /api/home/crews/{id}/clubs/{kid} {"op": "join"\|"leave"\|"pick", film}: join or leave a club, or (on your turn) pick the next night's film. |
+| POST | `/api/home/crews/{id}/decline` | any account | POST /api/home/crews/{id}/decline: say no to a crew invite. |
+| POST | `/api/home/crews/{id}/join` | any account | POST /api/home/crews/{id}/join: the asker joins a crew (and, for an invite, this Usherr says yes). |
+| POST | `/api/home/crews/{id}/leave` | any account | POST /api/home/crews/{id}/leave: the asker leaves a crew. |
+| POST | `/api/home/crews/{id}/list` | any account | POST /api/home/crews/{id}/list {"tmdbId", "title", "year", "poster"}: add a film to the shared watchlist. |
+| DELETE | `/api/home/crews/{id}/list/{tmdb}` | any account | DELETE /api/home/crews/{id}/list/{tmdb}: take a film you added off the shared watchlist. |
+| POST | `/api/home/crews/{id}/send` | any account | POST /api/home/crews/{id}/send {"tmdbId", "title", "year", "poster", "to", "toWho", "note"}: send a film to a friend in the crew: it shows in the crew chat a... |
+| POST | `/api/home/crews/{id}/votes` | any account | POST /api/home/crews/{id}/votes {"films": [tmdb], "closesMs", "atMs", "preshowMin", "preshowTheme"}: open a vote on the next film, from the shared watchlist. |
+| PUT | `/api/home/crews/{id}/votes/{vid}` | any account | PUT /api/home/crews/{id}/votes/{vid} {"tmdbId"}: the asker's vote (0 takes it back). |
+| GET | `/api/home/crews/{id}/wrapped` | any account | GET /api/home/crews/{id}/wrapped?year= (member, in the crew): the crew's year in review (the year the page offers, else last year). |
 | GET | `/api/home/diary` | any account | GET /api/home/diary?year=&kind=: your Diary, newest first, and the years it covers. |
 | POST | `/api/home/diary` | any account | POST /api/home/diary {kind, tmdbId, watchedOn, stars, note, rewatch}: log something by hand. |
 | GET | `/api/home/diary/import` | any account | GET /api/home/diary/import: how the latest import is getting on. |
@@ -528,6 +547,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/news/settings` | admin | GET /api/home/news/settings (administrators). |
 | PUT | `/api/home/news/settings` | admin | PUT /api/home/news/settings {on, sources, dailyBudget}: only what's sent changes. |
 | POST | `/api/home/news/test` | admin | POST /api/home/news/test {url}: does a feed answer, and with what? |
+| GET | `/api/home/party-badges` | any account | GET /api/home/party-badges (member): your badges, from your ticket stubs (the bot's, through your linked Discord account, and the ones here, including linked... |
 | GET | `/api/home/person/{id}` | any account | GET /api/home/person/{id}: someone's page: who they are, and the films and shows they're best known for (directed, wrote, or starred in). |
 | POST | `/api/home/playing` | any account | POST /api/home/playing: Usherr's player says what it plays now. |
 | DELETE | `/api/home/playing/{key}` | any account | DELETE /api/home/playing/{key}: the player closed. |
@@ -566,6 +586,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/preshow/trailers/{id}/file` | any account | GET /api/home/preshow/trailers/{id}/file: the downloaded trailer. |
 | GET | `/api/home/providers` | any account | GET /api/home/providers: the services of the country, with the ones you pay for. |
 | POST | `/api/home/quiet` | admin | POST /api/home/quiet {"minutes":120,"when":"now"\|"finish"} holds every heavy task for a while; {"minutes":0} ends it. |
+| GET | `/api/home/reactions/film` | any account | GET /api/home/reactions/film?tmdb=N or ?movie=<library id> (member): a film's reactions from all its linked screenings kept here, without who sent them, so s... |
 | GET | `/api/home/readtome/book` | signed in | GET /api/home/readtome/book?bookId=: what making this book into an audiobook involves, for the dialog. |
 | GET | `/api/home/readtome/cast` | signed in | GET /api/home/readtome/cast?bookId=: the book's characters (with how many lines each has), how many lines are known, and the AI's progress. |
 | POST | `/api/home/readtome/cast/ai` | signed in | POST /api/home/readtome/cast/ai {bookId}: the AI goes through the book's dialogue now (in the background; GET cast says how far it is). |
@@ -635,6 +656,15 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/home/showtimes/{id}/linked` | any account | GET /api/home/showtimes/{id}/linked: the linked Usherrs, which are invited and what they answered (whoever booked it, or an administrator). |
 | PUT | `/api/home/showtimes/{id}/linked` | any account | PUT /api/home/showtimes/{id}/linked {"peers":[link ids]}: share it with these linked Usherrs (and no others). |
 | PUT | `/api/home/showtimes/{id}/linked/rsvp` | any account | PUT /api/home/showtimes/{id}/linked/rsvp {"answer": "going"\|"not"}: someone in the host's household says whether they're coming to a shared showtime. |
+| GET | `/api/home/showtimes/{id}/party` | any account | GET /api/home/showtimes/{id}/party (member): a showtime's party: the lobby's seats and pre-show, the intermission, the verdict. |
+| POST | `/api/home/showtimes/{id}/party/credits` | any account | POST /api/home/showtimes/{id}/party/credits (member; the host): roll the credits: the film ends for everyone and the verdict opens. |
+| GET | `/api/home/showtimes/{id}/party/events` | any account | GET /api/home/showtimes/{id}/party/events (member): "changed" whenever the party (or a linked screening's room) changes. |
+| POST | `/api/home/showtimes/{id}/party/intermission` | any account | POST /api/home/showtimes/{id}/party/intermission {"action": "start"\|"more"\|"end"} (member; the host): an intermission for everyone at a linked screening: the... |
+| POST | `/api/home/showtimes/{id}/party/seat` | any account | POST /api/home/showtimes/{id}/party/seat {"seated": bool} (member): Take my seat (or leave it). |
+| PUT | `/api/home/showtimes/{id}/party/status` | any account | PUT /api/home/showtimes/{id}/party/status {"status": "snacks"\|"drinks"\|"break"\|"back"\|""} (member): what you're up to at the intermission, for everyone to see. |
+| POST | `/api/home/showtimes/{id}/party/verdict` | any account | POST /api/home/showtimes/{id}/party/verdict {"stars": 1-10, "line"?, "share"?, "review"?} (member): your verdict at the credits. |
+| POST | `/api/home/showtimes/{id}/react` | any account | POST /api/home/showtimes/{id}/react {"word", "pos"?} (member): a reaction (HA, EEK, WOW, NOPE or CLAP) at a linked screening, pinned to the second of the fil... |
+| GET | `/api/home/showtimes/{id}/reactions` | any account | GET /api/home/showtimes/{id}/reactions (member): a linked screening's reactions, its heat bars and its most-reacted moment. |
 | GET | `/api/home/showtimes/{id}/room` | any account | GET /api/home/showtimes/{id}/room: a linked screening's room: where the film is (this Usherr's clock), who controls it, and the relay. |
 | GET | `/api/home/showtimes/{id}/room/events` | any account | GET /api/home/showtimes/{id}/room/events: "changed" whenever the host moves the film (the page asks for the room again). |
 | POST | `/api/home/showtimes/{id}/room/pause` | any account | POST /api/home/showtimes/{id}/room/pause: pause, when the host lets anyone: at the host, it pauses; at a guest, the host is asked. |
@@ -673,8 +703,10 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/home/streaming/import/preview` | admin | POST /api/home/streaming/import/preview {config?}: what StreamNZB has and what Usherr has of it already. |
 | GET | `/api/home/stubs` | any account | GET /api/home/stubs (member): your ticket stubs: the bot's (through your linked Discord account) and the ones for friends' parties you joined with a code, ne... |
 | DELETE | `/api/home/stubs/{from}/{id}` | any account | DELETE /api/home/stubs/{from}/{id} (member): remove one of your ticket stubs. |
+| GET | `/api/home/stubs/{from}/{id}/poster` | any account | GET /api/home/stubs/{from}/{id}/poster (member): the poster on one of your stubs, from this server, so the browser can draw it into a picture of the stub. |
 | POST | `/api/home/stubs/{from}/{id}/restore` | any account | POST /api/home/stubs/{from}/{id}/restore (member): bring a removed stub back. |
-| POST | `/api/home/stubs/{id}/stamp` | any account | POST /api/home/stubs/{id}/stamp (member): stamp your own stub for a joined party yourself, in the half hour after its film ends. |
+| POST | `/api/home/stubs/{from}/{id}/stamp` | any account | POST /api/home/stubs/{id}/stamp (member): stamp your own stub yourself, from the film's start until half an hour after its end. |
+| POST | `/api/home/stubs/{id}/stamp` | any account | POST /api/home/stubs/{id}/stamp (member): stamp your own stub yourself, from the film's start until half an hour after its end. |
 | GET | `/api/home/taste` | any account | GET /api/home/taste?kind=: your taste in short: whether there's enough to go on, what it's built from, and what you lean towards and away from. |
 | POST | `/api/home/taste/scores` | any account | POST /api/home/taste/scores {kind, ids}: your match for each title, for the Library's "For you", and which of them you've seen (a title you've watched is par... |
 | GET | `/api/home/taste/title` | any account | GET /api/home/taste/title?kind=&id=: your match for one title, and why. |
@@ -819,9 +851,26 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/manga/chapters/{id}/pages/{n}` | any account |  |
 | GET | `/api/manga/chapters/{id}/pages/{n}/panels` | any account |  |
 | GET | `/api/manga/continue` | any account |  |
+| POST | `/api/manga/dex/chapters/{id}/download` | admin |  |
+| GET | `/api/manga/dex/chapters/{id}/pages` | any account |  |
+| GET | `/api/manga/dex/chapters/{id}/pages/{n}` | any account |  |
+| GET | `/api/manga/dex/chapters/{id}/pages/{n}/panels` | any account |  |
+| GET | `/api/manga/dex/continue` | any account |  |
+| GET | `/api/manga/dex/covers/{id}/{file}` | any account |  |
+| GET | `/api/manga/dex/hub` | any account |  |
+| GET | `/api/manga/dex/random` | any account |  |
+| GET | `/api/manga/dex/search` | any account |  |
+| GET | `/api/manga/dex/tags` | any account |  |
+| GET | `/api/manga/dex/titles/{id}` | any account |  |
 | GET | `/api/manga/discover` | any account |  |
 | GET | `/api/manga/image` | any account |  |
 | GET | `/api/manga/lookup` | any account |  |
+| DELETE | `/api/manga/md/account` | any account |  |
+| GET | `/api/manga/md/account` | any account |  |
+| PUT | `/api/manga/md/account` | any account |  |
+| GET | `/api/manga/md/cover` | any account |  |
+| GET | `/api/manga/md/shelves` | any account |  |
+| POST | `/api/manga/md/sync` | any account |  |
 | GET | `/api/manga/move` | admin |  |
 | POST | `/api/manga/move/empty` | admin |  |
 | POST | `/api/manga/move/preview` | admin |  |
@@ -856,6 +905,10 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/manga/{id}/chapters/get` | admin |  |
 | POST | `/api/manga/{id}/chapters/tidy` | admin |  |
 | PUT | `/api/manga/{id}/mangadex` | admin |  |
+| GET | `/api/manga/{id}/md` | any account |  |
+| PUT | `/api/manga/{id}/md/follow` | any account |  |
+| PUT | `/api/manga/{id}/md/lists/{list}` | any account |  |
+| PUT | `/api/manga/{id}/md/status` | any account |  |
 | PUT | `/api/manga/{id}/reader` | any account |  |
 | POST | `/api/manga/{id}/refresh` | admin |  |
 | POST | `/api/manga/{id}/search` | admin |  |
@@ -1635,4 +1688,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-1180 routes.
+1233 routes.

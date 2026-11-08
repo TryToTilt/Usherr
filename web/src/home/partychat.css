@@ -40,3 +40,29 @@
 .cr-list { max-height: 28rem; }
 .cr-stars { color: #ef9f27; font-weight: 400; }
 .cr-link { margin-left: 0.5rem; font-size: 0.78rem; font-weight: 400; }
+/* Usherr: linked screenings, the chat over the link (spoilers, houses) */
+.pc-sub { font-size: 0.85rem; color: var(--text-dim); margin-right: auto; }
+.pc-house { font-weight: 400; color: var(--text-dim); font-size: 0.78rem; margin-left: 0.4rem; }
+.pc-spoiler { margin-top: 0.15rem; padding: 0.35rem 0.65rem; border-radius: 8px; font-size: 0.85rem; color: var(--text-dim); background: var(--surface-2); }
+.pc-spoil { flex: none; font-size: 0.85rem; white-space: nowrap; }
+.po-spoiler { font-style: italic; opacity: 0.8; }
+/* The screening on a phone (PartyPhone.tsx) */
+.pp-phone { display: flex; flex-direction: column; gap: 0.75rem; min-height: calc(100dvh - 7rem); }
+.pp-head { display: flex; flex-direction: column; gap: 0.6rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
+.pp-film { display: flex; align-items: center; gap: 0.65rem; }
+.pp-poster { width: 44px; height: 62px; flex: none; border-radius: 4px 8px 8px 8px; object-fit: cover; background: var(--surface-2); border: 1px solid var(--border); }
+.pp-title { display: flex; flex-direction: column; min-width: 0; font-size: 0.85rem; color: var(--text-dim); }
+.pp-title strong { font-family: var(--font-display); font-size: 1.1rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-clock { margin-left: auto; font-family: var(--font-mono); font-size: 0.95rem; color: var(--warning); font-variant-numeric: tabular-nums; }
+.pp-remote { display: flex; gap: 0.5rem; }
+.pp-remote button { min-height: 44px; border-radius: 12px; font-weight: 600; }
+.pp-main { flex: 1 1 0; justify-content: center; }
+.pp-inter { flex: 1 1 0; border: 1px solid var(--warning); background: transparent; color: var(--warning); }
+.pp-back { width: 44px; flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.pp-ask { align-self: flex-start; }
+.pp-list { flex: 1 1 auto; min-height: 12rem; max-height: calc(100dvh - 26rem); overflow-y: auto; display: flex; flex-direction: column; gap: 0.7rem; padding: 0.25rem 0; }
+.pp-react { align-self: center; margin: 0; font-size: 0.78rem; color: var(--text-dim); }
+.pp-react b { color: var(--rx); }
+.pp-say { flex-wrap: wrap; }
+.pp-say input { min-height: 48px; border-radius: 14px; font-size: 1rem; }
+.pp-say button { min-height: 48px; border-radius: 14px; padding: 0 1rem; }

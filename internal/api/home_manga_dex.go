@@ -251,6 +251,7 @@ func (s *Server) checkMangaDexSeries(ctx context.Context, sr manga.Series) error
 	if sr.Status == "finished" || sr.Status == "cancelled" {
 		every = mangaDexFinishedEvery
 	}
+	every = s.mdCheckEvery(d.DexID, every) // the follow feed of a connected account watches it
 	// Spread out by series, so they don't all come due together.
 	d.NextAt = now.Add(every + time.Duration(sr.ID%48)*5*time.Minute).UTC().Format(time.RFC3339)
 	if err := save(); err != nil {

@@ -14,7 +14,14 @@ Tap a volume that's on disk to read it, or press **Continue** on the series' pag
 - **Page turn:** Curl, Slide or None, in the reader's settings. It's the same choice as the book reader's, on each device. A device asking for less motion just turns.
 - **Panels:** press **Panels** in the reader and the page glides from panel to panel, the same as in Comics, for chapters as well as volumes. Manga goes right to left, manhwa top to bottom, and your choice is kept for the series. **Whole page** shows the page, and the next tap goes on to the first panel. A picture of two pages is read one page, then the other. A page with no panels to find (a cover, a splash page) is shown whole, and on an upright phone a wide one is shown a page at a time. PDFs read by the page, because their pages are drawn in your browser.
 - **Pairs of pages:** if a series' two-page pictures come out split across a turn, tick **Shift the pairs by one page** (it shows when two pages are on screen). It's kept for the series.
-- **More for this device**, under the sliders button: **Fit** (whole page, width, height or actual size; a page too big for the screen scrolls), **Trim white borders**, **Brightness** and **Dark pages**, which turns white paper black. A curl only turns a whole page, so other fits slide instead.
+- **Wide strip:** every page side by side in one strip you scroll across, right to left for manga. It's under **How pages show**, next to the long scroll.
+- **More reading options**, under the sliders button: **Fit** (whole page, width, height or actual size; a page too big for the screen scrolls), **Trim white borders**, **Brightness** and **Dark pages**, which turns white paper black. A curl only turns a whole page, so other fits slide instead. Then the options the Comics reader has too:
+  - **Progress bar:** normal (the bar you drag, with a tick a page), a thin line, or hidden; at the bottom, left or right, and how thick. With it hidden, a small page number shows in the corner, unless you untick it.
+  - **Hide the header** for more page. A small button in the corner brings it back, and so does the **M** key.
+  - **Tap and click hints:** show where to tap once, arrows on the mouse pointer that point the way a click turns, or none.
+  - **Greyscale**, **Dim the pages**, and the **Background**: the reader's dark, Usherr's theme, white or black.
+  - **Keyboard shortcuts** lists the keys.
+  These are kept for each series on this device, and the last ones you chose are where a new series starts. Out of the box nothing looks or works differently.
 - **Saving a page:** hold a finger on it, or right-click, then **Save page**.
 - **The screen stays on** while you read, where the browser allows it (on a phone that usually needs an https address), until 15 minutes pass with no turn.
 - **The last page** offers the next volume, or says it isn't here yet.
@@ -24,9 +31,33 @@ CBZ and CBR read as they are. A PDF's pages are drawn in your browser, a few at 
 
 ## Discover
 
-**Manga > Discover** shows what's trending, popular or new on AniList, and you can pick a genre. It needs no key or account, and only accounts allowed to add manga see it. 18+ series and novels aren't on these shelves.
+**Manga > Discover** is the one place to find manga, without leaving Usherr. It shows what's trending, popular or new on AniList, and you can pick a genre. It needs no key or account, and only accounts allowed to add manga see it. 18+ series and novels aren't on these shelves.
 
 **Add** on a tile is one press. **Add gets** above the tiles says what that press wants: all volumes, new volumes only or nothing yet, remembered on this device. A series with no official English edition known waits, and its page says why and offers fan scans. Tap a cover for more about it first.
+
+**Search** at the top looks on AniList, and on MangaDex too when it's on. A title both know shows once. With MangaDex on, **More filters** searches by tags (press once to want one, twice to leave it out), status, readers (shounen, seinen...), original language, year, sort order and **Has chapters to read in your language**, and **Random title** opens one at random.
+
+**New official volumes** shows official English volumes your indexers brought in over the last two months. It comes from your own downloads, so it never searches anything.
+
+### With MangaDex on
+
+When **MangaDex** is on in **Settings > Manga**, Discover adds its rows. With it off, none of this shows and MangaDex isn't asked anything.
+
+- **Popular new titles:** the most followed of those added in the last month, with their tags and description.
+- **Latest updates:** the newest chapters in your language, with the group who translated each, when it came out, and its comments. Press one to read it.
+- **Seasonal**, **Recommended** and **Self-published:** the MangaDex staff's own public lists, the same ones its home page shows. Usherr finds them from the staff's Staff Picks list. A row whose list can't be found just isn't shown.
+- **Recently added** to MangaDex.
+- **Reading online:** chapters you're part way through. They're in Manga's Continue row too.
+
+Every tile has **Add**, and **Read now** when MangaDex has chapters to read in your language. Tap a cover for its details and chapter list. For an administrator, **Follow its chapters from MangaDex** adds the series and follows its chapters in one go.
+
+**Reading online** opens the chapter in Usherr's own manga reader, with everything above: curl, panels, direction, the long scroll and wide strip. Nothing is downloaded. Your place is kept like any chapter's, and finishing one that's also in your library marks that one read. A chapter picker sits in the reader's bar, and the last page offers the next chapter. For an administrator, **Download this chapter** under the sliders button hands it to the usual chapter download, once the series is in the library; that takes the copy your series prefers, which may be another group's.
+
+How the pages travel: **Usherr fetches each page and passes it on**, so your browser never talks to MangaDex. That way Usherr can report every image to MangaDex's page servers as their rules ask, never sends a login to them, asks for a new page server when one fails, and falls back to the smaller **data saver** copy. Pages are kept on the server for 30 minutes at most, for turning back and the panel view, then deleted. **Data saver** in **Settings > Manga** takes the smaller copies to begin with.
+
+18+ titles stay out, as everywhere in Manga. An account allowed 18+ content, on a server with the **NSFW** section set up, gets a **Show 18+ titles from MangaDex** switch; even then they show only while it's ticked.
+
+MangaDex's answers are kept for a few minutes and shared by everyone, so many people browsing ask it no more than one. Browsing uses the same gentle pace as chapter downloads.
 
 **From an AniList list** takes a user name and shows what that person is reading and plans to read. The list has to be public. There's no sign-in, and nothing on AniList changes.
 
@@ -135,7 +166,7 @@ When a pack holds a volume twice, the better copy is filed: an official edition 
 
 ## Chapters from MangaDex
 
-[MangaDex](https://mangadex.org) hosts chapters translated by fans. **It's off until you switch it on** in **Settings > Manga**, and with it off Usherr never asks it anything. Official editions stay the default: a series only uses MangaDex if you choose to follow its chapters. No MangaDex account is needed, and Usherr doesn't use one.
+[MangaDex](https://mangadex.org) hosts chapters translated by fans. **It's off until you switch it on** in **Settings > Manga**, and with it off Usherr never asks it anything. Official editions stay the default: a series only uses MangaDex if you choose to follow its chapters. No MangaDex account is needed for chapters. Each person can also connect their own account, to keep follows and reading the same in both places: see [Your own MangaDex account](#your-own-mangadex-account).
 
 The **Chapters** tab on a series appears once the switch is on. Choose **New ones** or **All of them** there, or switch on **Also follow new chapters** when adding a series. **Official only** under *Sources for this series* keeps MangaDex away from that series.
 
@@ -182,6 +213,27 @@ Files you already have stay when a chapter is later taken down. The chapter says
 
 **"Fan scan" means it isn't licensed.** Most of what's on MangaDex is unlicensed. If a series has an English publisher, consider buying it.
 
+## Your own MangaDex account
+
+**Optional, and off until you connect it.** Everyone in the house connects their own, at **Settings > MangaDex account** (administrators also find it at the bottom of **Settings > Manga**). Nobody else sees it.
+
+**Making a client.** MangaDex only offers *personal API clients* for now. Sign in on mangadex.org, open **Settings > API Clients**, and make a new personal client. Once MangaDex approves it, put its **client id** and **secret**, and your **username** and **password**, into Usherr. A personal client signs in **without two-factor login**, even when your account uses it, so keep the secret as safe as your password.
+
+**How it's kept.** All four are stored encrypted with the server's key, the same way indexer passwords are. They're never logged, never shown again (the page just says it's saved), and only ever sent to MangaDex's sign-in and API addresses, never to its image servers. Usherr renews the sign-in by itself. If MangaDex turns it down, Usherr stops asking and the page says **MangaDex didn't accept the sign-in** until you save it again. **Disconnect** deletes the sign-in and everything Usherr kept from MangaDex. Your follows and reading status in Usherr stay.
+
+**What stays the same in both places:**
+
+- **Follows.** Series you follow on MangaDex come into Manga: matched to a series you already have by its MangaDex or AniList link, otherwise added. An added series wants no volumes. It follows new chapters from MangaDex only if MangaDex chapters are switched on in **Settings > Manga**; otherwise nothing downloads for it, and the account page says why. Accounts without the Manga permission only get series that are already in the library. **Follow** on a series page follows on MangaDex too.
+- **Read chapters.** Chapters you finish in Usherr are marked read on MangaDex a minute or two later, all at once. Chapters you read on MangaDex show as read here, every half hour and whenever you open the series. A volume here whose chapters are all read on MangaDex counts as read. A change on one side is kept, and unreading on one side unreads on the other.
+- **Reading status:** Reading, On hold, Plan to read, Reading again, Completed or Dropped, on the series page.
+- **Lists.** Your MDLists show as shelves on the Manga page. On a series page, **MangaDex lists** puts it in a list or takes it out.
+
+The Manga page also gets **New chapters for series you follow** (from MangaDex's follow feed, one request for all of them) and **Recently read on MangaDex**. While a connected account follows a series on MangaDex, Usherr checks that series' chapters by itself only once a day, as the feed says when there's something new.
+
+**18+ series.** Series MangaDex rates erotica or pornographic aren't added or shown in Manga unless the NSFW section is switched on and your account may see it.
+
+**How gently it syncs.** Read marks you make here wait until they've been still for a little while, then go up in one request. A light sync every half hour asks a few things: the feed, your history, your statuses, your follows if you have 100 or fewer, and the read marks of what you're reading. The whole sync (every follow, every series' read marks, adding followed series) runs once a night between 2 and 9. **Sync now** does a day-sized one, at most every 10 minutes. Everything waits while MangaDex is away.
+
 ## Bring manga over from Comics
 
 **Settings > Manga** lists comic series Comics knows as manga, by the kind you gave them or their publisher. Nothing happens until you press a button, and it's never done for you.
@@ -214,7 +266,9 @@ Manga is in the **OPDS** catalogue next to Comics, so Panels, Chunky and KOReade
 
 ## Data from MangaDex
 
-Only with its switch on, and only for series you follow by chapter or ask about on the tab, Usherr asks MangaDex for that series' entry and chapters, and stores what's on the tab. It sends nothing about you beyond the usual address and `Usherr/<version>`.
+Only with its switch on, and only for series you follow by chapter or ask about on the tab, Usherr asks MangaDex for that series' entry and chapters, and stores what's on the tab. Browsing Discover and reading online ask it only for what's on your screen, kept a few minutes and not stored, except which chapters you read online and where you got to, kept for you like any other reading. It sends nothing about you beyond the usual address and `Usherr/<version>`.
+
+With your own account connected, Usherr also signs in as you and reads and changes your follows, read marks, reading status and lists, and reads your follow feed and reading history. It keeps your lists, feed and history, and the titles and covers of the series in them, so the Manga page can show them. Covers come from MangaDex's image server without your sign-in.
 
 ## Data from AniList
 

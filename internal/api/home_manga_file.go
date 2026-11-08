@@ -131,6 +131,25 @@ func openWrappedManga(dir string) {
 	}
 }
 
+// openNestedRars unpacks the RAR sets in a download's folders below the top:
+// the top holds the download's own archives, which were unpacked already.
+// It says whether any set was opened.
+func openNestedRars(dir string) bool {
+	primaries, _ := organizer.FindPrimaryArchivesDeep(dir)
+	opened := false
+	for _, p := range primaries {
+		if filepath.Dir(p) == filepath.Clean(dir) || !strings.EqualFold(filepath.Ext(p), ".rar") {
+			continue
+		}
+		if err := organizer.NewExtractor().Extract(p, filepath.Dir(p)); err != nil {
+			slog.Info("manga: open a RAR set in a download", "file", filepath.Base(p), "err", err)
+			continue
+		}
+		opened = true
+	}
+	return opened
+}
+
 // mangaHolds says in words what a download with nothing to file does hold.
 func mangaHolds(dir string) string {
 	kinds := map[string]bool{}
@@ -409,6 +428,15 @@ func (s *Server) runMangaPipeline(queueID int64, sr manga.Series, d manga.Downlo
 		return fail(errors.New(why))
 	}
 	openWrappedManga(dir)
+	// Usherr: publishers' releases often come as ZIPs that each hold one piece
+	// of a RAR set (vol.rar in a.zip, vol.r00 in b.zip...). Opening the ZIPs
+	// leaves that set in the release's folder: unpack it, then look again.
+	for round := 0; round < 2 && len(mangaFiles(dir)) == 0; round++ {
+		if !openNestedRars(dir) {
+			break
+		}
+		openWrappedManga(dir)
+	}
 	files := mangaFiles(dir)
 	if len(files) == 0 {
 		return wrongKind(mangaHolds(dir))

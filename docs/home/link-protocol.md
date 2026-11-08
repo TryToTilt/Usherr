@@ -137,7 +137,9 @@ Names are shown as plain text: control characters are taken out and they're
 cut to 60 characters.
 
 The list is fixed in code (`link.Registry`); step 2 adds the screening
-types below, and later steps `playback`, `chat`, `reward`. No message can
+types below, step 3 `playback`, step 4 `chat.*` and `react.*`, and step 5
+`reward.stub` and `reward.stamp`, Crews the `crew.*` types, and the party
+`lobby.*`, `room.status`, `room.intermission` and `verdict.*`. No message can
 ask for a file, a library listing or settings.
 
 ### Group envelopes (screening keys)
@@ -247,6 +249,134 @@ piece has the host's length, so the pre-show starts and ends at the same
 moment everywhere; a piece that ends early leaves the welcome card for the
 rest of its slot. Moving the screening starts the pre-show and playback
 over.
+
+### Chat and reactions (step 4)
+
+Code: `internal/link/screening/chat.go`, `internal/api/home_link_chat.go`,
+`web/src/home/PartyChat.tsx`, `PartyOverlay.tsx`, `reactions.ts` and
+`PartyPhone.tsx` (the phone page).
+
+| type | way | envelope | body (largest) | does |
+|---|---|---|---|---|
+| `chat.send` | guest → host | pair | `{"v","sid","id","name","text","spoiler"?,"pos"}` (4 KB) | someone at a guest Usherr said something: plain text, at most 500 characters; `spoiler` blurs it until tapped; `pos` is the second of the film it was said at |
+| `chat.msg` | host → everyone | group (fanout) | `{"v","sid","id","name","house"?,"text","spoiler"?,"pos","at"}` (4 KB) | something said at the screening, passed on by the host: `house` is the Usherr it was said at, `at` unix ms |
+| `react.send` | guest → host | pair | `{"v","sid","id","name","word","pos"}` (512 B) | a reaction: `word` is `HA`, `EEK`, `WOW`, `NOPE` or `CLAP` |
+| `react.moment` | host → everyone | group (fanout) | `{"v","sid","id","name","house"?,"word","pos","at"}` (512 B) | a reaction at the screening, pinned to second `pos` of the film |
+
+Guests are linked to the host, not to each other, so the host's Usherr is
+the hub: it keeps what a guest's people say or send and passes it on to
+everyone else at the screening, sealed with the screening key (never back
+to the Usherr it came from, which has it). `id` is a UUID the sender makes;
+each message is kept once, by screening and id.
+
+Who may send what: `chat.send` and `react.send` only from an Usherr invited
+to that screening, in the pair's envelope; `chat.msg` and `react.moment`
+only sealed with the screening's key, by its host, with the key's `sid`.
+Text is shown as plain text only (no markup, no links that open by
+themselves): control and format characters are taken out, a line break is
+a space. Names are cut to 60 characters.
+
+**Rates.** Each person may send a burst of 6 messages, then one a second,
+and a burst of 5 reactions, then one a second, on their own Usherr. At the
+host, each guest Usherr (for its whole household) may send a burst of 12
+messages, then one a second, and a burst of 20 reactions, then five a
+second; anything over is dropped.
+
+**Pinned to the moment.** The host takes a guest's `pos` while it's within
+15 seconds of where the room is (else the room's position); after the
+screening, someone playing it back pins to where they are. Each Usherr
+keeps the last 500 messages and 5,000 reactions of every screening, the
+reactions also by film (TMDB id), so they float up again at the same second
+for anyone who plays that part later, and a film's most-reacted moment can
+be found. Nothing said is written to the logs.
+
+### Rewards (step 5)
+
+Code: `internal/link/rewards`, `internal/api/home_link_rewards.go` (stubs
+and stamps), `internal/api/home_rewards.go` (badges).
+
+| type | way | envelope | body (largest) | does |
+|---|---|---|---|---|
+| `reward.stub` | host → guest | pair | `{"v","sid","film":{"tmdb","title","year"?,"runtime"?,"poster"?},"at","host","seat","count","no","with"?}` (4 KB) | at the door (when the film starts), a block of seats for the guest's people: seats `seat` … `seat+count-1` (1 and up; 0 is the host's), stub numbers `no` … `no+count-1`, numbered by the host. `with`: who else is there (≤ 40 names: the host's household and the other Usherrs). A new block follows when more of its people come once it started. |
+| `reward.stamp` | guest → host | pair | `{"v","sid","seats":[n]}` (1 KB, ≤ 80 seats) | these of its seats were stamped (they stayed to the end) |
+| `reward.stamp` | host → guest | pair | the same | every seat of that guest the host holds stamped, said back after each guest stamp, so both sides agree |
+
+Who may send what: `reward.stub` only from the Usherr hosting that `sid`.
+`reward.stamp` from a guest only for seats the host gave that guest (an
+Usherr not invited, or a seat of another guest, is refused); `reward.stamp`
+to a guest only from that screening's host. Like every message, both are
+signed by the sender's key, so a stub or a stamp can't be made up by anyone
+else. Nothing about a screening's stubs goes beyond its own Usherrs.
+
+A guest's Usherr gives a stub to each of its people who said I'm in, in the
+order they said so. Stamp it works from the film's start until half an hour
+after its end; Usherr's player stamps at 90%. A stamp not yet confirmed is
+sent again every 10 minutes for two days.
+
+Badges (first party, five nights, regular, season ticket, perfect
+attendance, night owl, house lights, double feature) are worked out by each
+Usherr from its own people's stubs, those from linked Usherrs included; they
+aren't sent over the link.
+
+### Lobby, intermission and verdict (the party)
+
+Code: `internal/link/screening/party.go` (the messages, their checks and who
+may send what), `internal/api/home_link_party.go` (what they do),
+`web/src/home/Party.tsx` and `partyLink.ts`.
+
+| type | way | envelope | body (largest) | does |
+|---|---|---|---|---|
+| `lobby.seat` | guest → host | pair | `{"v","sid","people":[{"id","name","seated"?}]}` (4 KB, ≤ 20 people) | the guest's people who said I'm in, in the order they said so (the order its stubs' seats go in), and whether each has pressed Take my seat. `id` is a person's token (8–32 hex), made by their own Usherr for this screening with its own key, so it says nothing about who they are elsewhere. Sent when someone takes or leaves a seat, and every minute while it changes (again every 5 minutes) from 3 hours before the film. |
+| `lobby.roster` | host → everyone | group (fanout) | `{"v","sid","seq","seats":[{"seat","id"?,"name"?,"house"?,"seated"?}]}` (12 KB, ≤ 120 seats) | the seat map: seat 0 is the host's (Row A, Seat 1), eight a row, in the order the stubs are handed out at the door (the host's household, then a block for each guest Usherr in the order they answered); seats already handed out keep their number. A seat with no `name` is held for someone at `house` not named yet. `seq` goes up with each one; an older one is ignored. |
+| `room.status` | guest → host | pair | `{"v","sid","id","name","status"}` (512 B) | at the intermission, what someone is up to: `snacks`, `drinks`, `break` or `back` (`""` takes it back). Taken only while the intermission is on. |
+| `room.intermission` | host → everyone | group (fanout) | `{"v","sid","seq","on","until"?,"statuses"?:[{"name","house"?,"status"}]}` (12 KB, ≤ 100 statuses) | the intermission is on (until `until`, unix ms, the relay's clock, like `playback`) or over, with everyone's status. Sent on every change, and with the paused heartbeat while it's on. The film itself is paused and resumed with `playback`. |
+| `verdict.vote` | guest → host | pair | `{"v","sid","id","stars","share"?,"name"?}` (512 B) | someone's stars for the film, 1–10 (half stars out of five). `name` only with `share` (dropped otherwise). Sent again (for 12 hours) until it gets through. |
+| `verdict.tally` | host → everyone | group (fanout) | `{"v","sid","seq","count","total","shared"?:[{"name","house"?,"stars"}]}` (12 KB, ≤ 100 names) | the crew's verdict: how many voted, their stars added up (the average is `total / count / 2` out of five), and the names and stars of those who share. `count` ≤ 2,000; `total` between `count` and `count × 10`. |
+
+Who may send what (dropped otherwise, counted as `refused`): `lobby.seat`,
+`room.status` and `verdict.vote` only from an Usherr invited to that
+screening, in the pair's envelope, at most 10 at once and then one every 2
+seconds per Usherr; `lobby.roster`, `room.intermission` and `verdict.tally`
+only sealed with that screening's key, by its host, with the key's `sid`.
+Names are cut to 60 characters and shown as plain text.
+
+Nothing else about the party travels: a verdict's one line stays in that
+person's own Diary (and their review, if they choose), no user ids, and a
+voter's name only when they chose to share it. Only the host calls the
+intermission (pausing the film for everyone, a 10-minute countdown, 5 more
+minutes at a time, at most an hour from now) and rolls the credits
+(`playback` `ended`), which opens the verdict everywhere.
+
+### Crews
+
+Code: `internal/link/crew` (the messages, their checks and who may send
+what), `internal/api/home_crews*.go` (what they do). Every body has
+`"v":1` and is read strictly; `cid` is the crew's id, a UUID its owner made.
+
+A crew is a named group of linked Usherrs ("houses"). The Usherr that made
+it owns it and is the hub: it invites houses it is linked with, every house
+talks to the owner alone (two houses in a crew needn't be linked with each
+other), and the owner sends each house the latest. Each house has a number
+in the crew; the owner is 1. All are pair envelopes.
+
+| type | way | body (largest) | does |
+|---|---|---|---|
+| `crew.invite` | owner → house | `{"v","cid","rev","name","by","you","houses":[{"h","id","name","state","people"?}]}` (8 KB, ≤ 12 houses, ≤ 12 people each) | the crew as it is now; the first is the invite. `you` is the receiving house's number; `id` each house's link identity (so the host of a vote can share the screening with the houses it is linked with); `people` the names of who opted in there |
+| `crew.answer` | house → owner | `{"v","cid","answer","people"?}` (1 KB) | `join` (with who opted in), `decline`, `leave` |
+| `crew.end` | owner → house | `{"v","cid"}` (1 KB) | the crew ended, or this house is no longer in it |
+| `crew.chat` | house → owner → every other house | `{"v","cid","mid","h"?,"who","text","at","card"?:{"tmdb","title","year"?,"poster"?,"note"?,"to"?,"toWho"?}}` (4 KB) | a chat line: plain text, ≤ 500 characters (shown as text, never HTML). `card` is a film sent to house `to` (person `toWho`); that house tells its people. `h` is set by the owner. |
+| `crew.list` | house → owner: `add`, `remove`, `have`; owner → house: `all` | `{"v","cid","op","film"?,"who"?,"has"?:[{"tmdb","has"}],"items"?:[…],"seq"?}` (14 KB, ≤ 40 films) | the shared watchlist. `have`: whether this house has each film, `yes` / `getting` / `no`, never anything else. `all` carries every film with who added it and each house's answer, and a `seq` (an older one that comes late is ignored). |
+| `crew.vote` | house → owner: `open`, `cast`; owner → house: `ballot` | `{"v","cid","op","vid"?,"who"?,"tmdb"?,"films"?,"closes"?,"at"?,"pre"?,"ballot"?}` (10 KB, 2–8 films) | the next film vote: whoever opens it hosts; one vote per person (`tmdb` 0 takes it back). The ballot has who voted for what and each house's answer, its `state` (`open`, `closed`, `booked`, `nobody`) and the `winner`. The host's house books the winner in its Showtime and shares it with the crew's houses it is linked with (`screening.offer`). |
+| `crew.club` | house → owner: `add`, `join`, `leave`, `pick`, `remove`; owner → house: `all` | `{"v","cid","op","kid"?,"who"?,"def"?,"film"?,"clubs"?,"seq"?}` (14 KB, ≤ 6 clubs, ≤ 24 seats) | film clubs: a weekday and time (the owner's), every 1 or 2 weeks, `pick` (turns) or `vote`. Two days before a night the owner books the picker's pick (a closed ballot with one film) or opens a vote from the list. |
+| `crew.activity` | house → owner → every other house | `{"v","cid","lines":[{"h"?,"who","kind","title","part"?,"stars"?,"at"}]}` (4 KB, ≤ 10 lines) | what people who turned on sharing themselves watched (`finished`, `watched`, `rated`), from the Diary; nothing NSFW |
+
+Who may send what (dropped otherwise, counted as `refused`): `crew.invite`
+and `crew.end` only from the crew's owner (an invite for a crew known from
+another owner, or one this Usherr owns, is refused); `crew.answer` only
+from a house invited to or in a crew this Usherr owns; everything else from
+the owner (only `all` and `ballot`) or from a house that joined (never
+`all` or `ballot`). Unlinking removes the crews a link owns, and takes it
+out of the crews this Usherr owns.
 
 ## Invite codes
 

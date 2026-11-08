@@ -1,0 +1,23 @@
+/* Usherr: rewards, the badge cabinet (You → Ticket stubs). */
+.badge-cabinet { display: flex; flex-direction: column; gap: 0.85rem; margin-bottom: 0.5rem; }
+.badge-head { display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; }
+.badge-head h2 { margin: 0; font-family: var(--font-display); font-size: 1.15rem; }
+.badge-grid { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr)); }
+.badge-tile { min-height: 7rem; border-radius: 14px; border: 2px solid transparent; background: var(--surface-2); color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.45rem; padding: 0.5rem 0.35rem; font: inherit; cursor: pointer; }
+.badge-tile:hover { border-color: var(--border); }
+.badge-tile.picked { border-color: var(--accent); }
+.badge-tile:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.badge-tile:not(.on) { opacity: 0.75; }
+.badge-mark { width: 3.1rem; height: 3.1rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 700; font-size: 0.92rem; background: var(--surface); color: var(--text-faint); }
+.badge-tile.on .badge-mark.tone-accent { background: var(--accent); color: var(--on-accent); }
+.badge-tile.on .badge-mark.tone-warning { background: var(--warning); color: var(--bg); }
+.badge-tile.on .badge-mark.tone-accent-2 { background: var(--accent-2); color: var(--bg); }
+.badge-tile.on .badge-mark.tone-danger { background: var(--danger); color: var(--bg); }
+.badge-tile.on .badge-mark.tone-info { background: var(--info); color: var(--bg); }
+.badge-tile.soon .badge-mark { border: 2px dashed var(--border); }
+.badge-name { font-size: 0.78rem; font-weight: 600; text-align: center; line-height: 1.2; }
+.badge-detail { padding: 0.85rem 1rem; border-radius: 14px; background: var(--surface-2); }
+.badge-detail strong { font-family: var(--font-display); font-size: 1.02rem; }
+.badge-detail p { margin: 0.25rem 0 0; color: var(--text-dim); font-size: 0.88rem; }
+.badge-detail .badge-state { color: var(--text-faint); font-size: 0.82rem; }
+.badge-detail .badge-state.on { color: var(--accent); }

@@ -212,9 +212,15 @@ the pages like paper (two side by side on a wide screen). *Catch me up* recaps a
 up to where you stopped, and **Story arcs** lists what to read in which order.
 
 The sliders button in the reader sets the **reading direction** and how pages show:
-page turn, one page, two pages, panels, or **webtoon** (one long scroll). It's remembered
-for each series, just for you, and *Use these for other comics too* makes it your default.
+page turn, one page, two pages, panels, **webtoon** (one long scroll) or **wide strip**
+(every page side by side, scrolled across). It's remembered for each series, just for you,
+and *Use these for other comics too* makes it your default.
 A file marked right to left, or a series set to manga, opens right to left by itself.
+**More reading options** there are the same as the Manga reader's: the progress bar (normal,
+a thin line or hidden; bottom, left or right; how thick), a page number when it's hidden,
+hiding the header (the **M** key brings it back), tap and pointer hints, greyscale, dim pages,
+the background (dark, Usherr's theme, white or black), fit, and a list of keyboard shortcuts.
+They're kept for each series on this device. Nothing changes until you choose.
 
 The **Reading** tab has **Continue**, **Want to Read** and **Read**, each your own. The last
 page offers the next issue. The **⋯** beside an issue marks it, or everything up to it,

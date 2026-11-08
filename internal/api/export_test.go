@@ -409,6 +409,18 @@ func (s *Server) TestShowtimeAt(id, atMs int64) {
 }
 func (s *Server) TestShowtimeJob(ctx context.Context) { s.showtimeJob(ctx) }
 
+// TestStubsAt moves the start of a party's ticket stubs (stamping opens
+// then), and TestStubsUntil when their stamping closes.
+func (s *Server) TestStubsAt(showtimeID, atMs int64) {
+	_, _ = s.db.Exec(`UPDATE community_stubs SET at_ms = ? WHERE showtime_id = ?`, atMs, showtimeID)
+}
+func (s *Server) TestStubsUntil(showtimeID, untilMs int64) {
+	_, _ = s.db.Exec(`UPDATE community_stubs SET stamp_until = ? WHERE showtime_id = ?`, untilMs, showtimeID)
+}
+
+// TestRewardJob runs the rewards' part of the screening job once.
+func (s *Server) TestRewardJob(ctx context.Context) { s.rewardJob(ctx) }
+
 // ShowtimeCodeForTest is the showtime code another Usherr's card shows.
 func ShowtimeCodeForTest(tmdbID int, atMs int64, preshowMin int) string {
 	return encodeShowtimeCode(showtimeCode{TMDBID: tmdbID, AtMs: atMs, PreshowMin: preshowMin})

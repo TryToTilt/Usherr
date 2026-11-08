@@ -18,6 +18,7 @@ export const SETTINGS_NAV: { to: string; label: string; icon: IconName; color: s
   { to: '/settings/quality', label: t('Quality'), icon: 'star', color: '#f5c76a', blurb: t('What counts as good enough, which release wins, and which audio language you want.'), help: 'quality' },
   { to: '/settings/automation', label: t('Automatic searching'), icon: 'sliders', color: '#f0b46a', blurb: t('When Mediarium looks for things by itself, and whether it waits for Usenet or torrents.'), help: 'quality#automatic-searching' },
   { to: '/settings/manga', label: t('Manga'), icon: 'book', color: '#8fa8ff', blurb: t('Where manga comes from: official English editions, fan scans, Nyaa, and your own files.'), help: 'manga' }, // Usherr
+  { to: '/settings/manga-account', label: t('MangaDex account'), icon: 'book', color: '#8fa8ff', blurb: t('Connect your own MangaDex account, so your follows, read chapters and lists stay the same in both.'), member: true, notViewer: true, help: 'manga' }, // Usherr
   { to: '/settings/indexers', label: t('Indexers & Search'), icon: 'search', color: '#a5b4fc', blurb: t('The sites Mediarium searches for releases.'), help: 'indexers' },
   { to: '/settings/usenet', label: t('Usenet'), icon: 'server', color: '#86dca4', blurb: t('Your Usenet provider and the built-in downloader.'), help: 'downloads#usenet-connections' },
   { to: '/settings/torrents', label: t('Torrents'), icon: 'magnet', color: '#86dca4', blurb: t('The built-in torrent client and its options, a debrid service, or a client you already run.'), help: 'downloads#controls-of-the-built-in-torrent-client' },
@@ -86,7 +87,7 @@ export interface SettingsGroup {
 const GROUPS: { key: string; label: string; icon: IconName; color: string; pages: string[] }[] = [
   { key: 'general', label: t('General'), icon: 'sliders', color: '#e7a6f2', pages: ['/settings/general', '/settings/setup'] }, // home fork: the setup checklist
   { key: 'modules', label: t('Media types'), icon: 'grid', color: '#ff9f6b', pages: ['/settings/modules'] },
-  { key: 'library', label: t('Library'), icon: 'folder', color: '#7cc4f8', pages: ['/settings/media', '/settings/naming', '/settings/quality', '/settings/automation', '/settings/manga'] },
+  { key: 'library', label: t('Library'), icon: 'folder', color: '#7cc4f8', pages: ['/settings/media', '/settings/naming', '/settings/quality', '/settings/automation', '/settings/manga', '/settings/manga-account'] },
   { key: 'indexers', label: t('Indexers & Search'), icon: 'search', color: '#a5b4fc', pages: ['/settings/indexers'] },
   { key: 'downloads', label: tc('section', 'Downloading'), icon: 'download', color: '#86dca4', pages: ['/settings/usenet', '/settings/torrents', '/settings/vpn', '/settings/download-rules', '/settings/schedules'] }, // home fork: schedules
   { key: 'metadata', label: t('Info, lists and subtitles'), icon: 'globe', color: '#c1acf7', pages: ['/settings/metadata', '/settings/lists', '/settings/subtitles'] },
@@ -152,6 +153,7 @@ export function pageTitle(pathname: string, admin = true): string {
   if (pathname.startsWith('/search')) return tc('noun', 'Search')
   if (pathname.startsWith('/title')) return t('Movie')
   if (pathname === '/showtime') return t('Showtime') // Usherr: Showtimes at home
+  if (pathname.startsWith('/crews')) return t('Crews') // Usherr: Crews
   if (pathname.startsWith('/sports')) return t('Sports') // Usherr
   if (pathname.startsWith('/read-to-me')) return t('Read to me') // Usherr
   if (pathname.startsWith('/show') || pathname.startsWith('/series')) return t('TV show')

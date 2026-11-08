@@ -9,6 +9,7 @@ import { plural, t } from '../i18n'
 import { endPreshow, playPreshowTimeline } from './Player'
 import { preshowApi } from './preshowApi'
 import { useRoomLink, type RoomLink } from './roomLink'
+import { HostPartyButtons } from './Party' // Usherr: the party: intermission, roll credits
 import { clockLabel, inLabel, type Showtime } from './showtimes'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -120,6 +121,11 @@ export function ScreeningRoom({ showtime: s, joined, onJoin, start }: { showtime
         </button>
       )}
       {state === 'paused' && <p className="sht-armed">{room.canControl ? t('Paused for everyone') : t('Host paused')}</p>}
+      {room.canControl && (state === 'film' || state === 'paused') && (
+        <p className="sht-row-btns">
+          <HostPartyButtons showtimeId={s.id} />
+        </p>
+      )}
       {state === 'ended' && <p className="hint">{t('That’s the end of the screening. Thanks for coming!')}</p>}
       {busy && <p className="sht-armed">{t('Starting the film…')}</p>}
       {room.canControl && state !== 'ended' && (

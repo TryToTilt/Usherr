@@ -239,7 +239,8 @@ export default function Library() {
   const booksOn = on('ebooks') || on('audiobooks')
   // The tabs: movies, TV and music (whichever are on), then ebooks and audiobooks.
   // The left menu lists the same ones (see libraryTabs.ts); Usherr adds Anime, Comics and NSFW 18+.
-  const kinds: Tab[] = libraryTabs(on, { comics: comicsOn, nsfw: nsfwOn })
+  // Usherr: NSFW 18+ is reached from its own page only, not from the Library's picker.
+  const kinds: Tab[] = libraryTabs(on, { comics: comicsOn, nsfw: nsfwOn }).filter((k) => k !== 'nsfw')
   // The Library opens on the first tab (Movies) unless the address asks for another;
   // a kind that is switched off cannot be shown, so the first that is on opens instead.
   const active: Tab = activeLibraryTab(kinds, ui.kind)

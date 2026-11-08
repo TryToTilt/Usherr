@@ -30,7 +30,7 @@ func VolumeOfItem(item string) (int64, bool) {
 // ReaderPrefs is how someone reads a series. Empty means not chosen.
 type ReaderPrefs struct {
 	Direction string `json:"direction"` // ltr or rtl
-	Layout    string `json:"layout"`    // single, double, webtoon or panels
+	Layout    string `json:"layout"`    // single, double, webtoon, wide (one strip across) or panels
 	Shift     int    `json:"shift"`     // two pages at a time: 1 pairs start a page later, -1 they don't, 0 not chosen
 }
 
@@ -40,7 +40,7 @@ func ValidDirection(d string) bool { return d == "" || d == "ltr" || d == "rtl" 
 // ValidLayout reports whether l is a reader layout ("" leaves it unchosen: two
 // pages on a wide screen, one on a narrow one).
 func ValidLayout(l string) bool {
-	return l == "" || l == "single" || l == "double" || l == "webtoon" || l == "panels"
+	return l == "" || l == "single" || l == "double" || l == "webtoon" || l == "wide" || l == "panels"
 }
 
 // ResolveReader works out how someone reads a volume. Their own choice comes

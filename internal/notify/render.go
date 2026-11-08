@@ -236,6 +236,8 @@ func eventTag(ev Event) string {
 		return "headphones"
 	case EventScreening:
 		return "clapper"
+	case EventCrew: // Usherr: Crews
+		return "popcorn"
 	}
 	if ev.Type == "test" {
 		return "bell"

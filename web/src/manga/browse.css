@@ -1,0 +1,52 @@
+/* Usherr: MangaDex's rows in Manga > Discover (BrowseHub.tsx), in the Manga look. */
+
+.bh-section { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.bh-section h2 { margin: 0; }
+.bh-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.bh-nav { display: inline-flex; align-items: center; gap: 8px; }
+
+/* a row of tiles, scrolled across */
+.bh-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(140px, 160px); gap: 18px; overflow-x: auto; padding: 4px 2px 10px; scroll-snap-type: x proximity; }
+.bh-row > * { scroll-snap-align: start; }
+.bh-tile { text-decoration: none; color: inherit; }
+.bh-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* popular new titles */
+.bh-carousel { display: grid; grid-auto-flow: column; grid-auto-columns: 100%; overflow-x: auto; scroll-snap-type: x mandatory; gap: 16px; border-radius: 18px; }
+.bh-hero { scroll-snap-align: start; display: grid; grid-template-columns: minmax(120px, 220px) 1fr; gap: 20px; padding: 16px; border-radius: 18px; background: var(--mg-well, var(--surface-2)); box-shadow: var(--mg-in, none); min-width: 0; }
+.bh-hero > button.cover { padding: 0; border: 0; background: none; box-shadow: none; cursor: pointer; align-self: start; }
+.bh-hero-text { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.bh-hero-text h3 { margin: 0; font-size: 1.35rem; }
+.bh-clamp { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 560px) {
+  .bh-hero { grid-template-columns: 96px 1fr; gap: 12px; padding: 12px; }
+  .bh-clamp { -webkit-line-clamp: 3; }
+}
+
+/* latest updates */
+.bh-updates { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px 16px; }
+.bh-update { display: grid; grid-template-columns: 56px 1fr; gap: 10px; align-items: start; min-width: 0; }
+.bh-update > button.cover { padding: 0; border: 0; background: none; box-shadow: none; cursor: pointer; }
+.bh-update-text, .bh-chapter { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: start; padding: 4px 6px; border: 0; border-radius: 10px; background: none; box-shadow: none; color: inherit; cursor: pointer; }
+.bh-update-text:hover, .bh-chapter:hover { background: var(--mg-well, var(--surface-2)); }
+.bh-update-text .t, .bh-chapter .t { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bh-update-text .s, .bh-chapter .s { font-size: 0.85rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bh-lang { padding: 0 6px; font-size: 0.68rem; }
+
+/* a title's chapters */
+.bh-chapters { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 40vh; overflow: auto; }
+
+/* the search panel */
+.bh-search .mg-search input { flex: 1; min-width: 0; }
+.bh-filters { display: flex; flex-direction: column; gap: 10px; }
+.bh-filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.bh-filter-row label { display: inline-flex; align-items: center; gap: 6px; }
+.bh-chip { cursor: pointer; border: 0; }
+.bh-chip.in { color: var(--accent); }
+.bh-chip.out { color: var(--mg-warn, #c66); text-decoration: line-through; }
+
+/* in the reader */
+.mr-dex-credit { display: block; font-size: 0.76rem; opacity: 0.75; overflow: hidden; text-overflow: ellipsis; }
+.mr-dex-pick { max-width: 14em; }
+.mr-dex-box { display: grid; gap: 6px; justify-items: start; }
+.mr-dex-box h3 { margin: 4px 0 0; font-size: 0.95em; }

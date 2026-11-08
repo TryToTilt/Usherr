@@ -52,7 +52,7 @@ export interface MangaVolume {
 }
 
 export type ReadDirection = 'ltr' | 'rtl'
-export type MangaLayout = '' | 'single' | 'double' | 'webtoon' | 'panels'
+export type MangaLayout = '' | 'single' | 'double' | 'webtoon' | 'wide' | 'panels'
 
 export interface MangaNextVolume {
   id: number
@@ -262,6 +262,7 @@ export interface MangaFound {
   siteUrl?: string
   listStatus?: 'reading' | 'planning'
   relation?: string
+  mangadexId?: string // AniList's link to MangaDex, when MangaDex is on
 }
 
 export interface MangaLookup {

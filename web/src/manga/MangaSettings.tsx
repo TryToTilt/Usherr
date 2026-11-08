@@ -9,6 +9,7 @@ import ExtraFolder from '../home/ExtraFolder'
 import { t } from '../i18n'
 import { useModules } from '../ModulesContext'
 import { mangaApi, type MangaNyaaState, type MangaScanResult, type MangaSettings as MangaSettingsData, type MangaSourceSettings } from './mangaApi'
+import { MangaDexAccountCard } from './MangaDexAccount'
 import MangaMove from './MangaMove'
 import { chapterStatus, looksIn, nyaaLines, nyaaWarning } from './mangaStatus'
 import './manga.css'
@@ -203,6 +204,7 @@ export default function MangaSettings() {
       </section>
 
       {enabled && <MangaMove />}
+      {enabled && <MangaDexAccountCard />}
     </div>
   )
 }

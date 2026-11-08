@@ -691,6 +691,9 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("POST /api/home/stubs/{id}/stamp", s.handleStampStub)                // Usherr: a joined party's stub, stamped by hand (home_community_guest.go)
 	member.HandleFunc("DELETE /api/home/stubs/{from}/{id}", s.handleHideStub)              // Usherr: remove one of your stubs (kept hidden, can be brought back)
 	member.HandleFunc("POST /api/home/stubs/{from}/{id}/restore", s.handleRestoreStub)     // Usherr: bring a removed stub back
+	member.HandleFunc("POST /api/home/stubs/{from}/{id}/stamp", s.handleStampStub)         // Usherr: rewards, stamp any of your stubs from the film's start
+	member.HandleFunc("GET /api/home/stubs/{from}/{id}/poster", s.handleStubPoster)        // Usherr: rewards, a stub's poster for its picture (home_rewards.go)
+	member.HandleFunc("GET /api/home/party-badges", s.handlePartyBadges)                   // Usherr: rewards, your badges
 	member.HandleFunc("GET /api/home/reviews", s.handleReviews)                            // Usherr: reviews from the community
 	member.HandleFunc("POST /api/home/reviews", s.handlePostReview)                        // Usherr
 	member.HandleFunc("DELETE /api/home/reviews", s.handleDeleteReview)                    // Usherr
@@ -705,6 +708,25 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("GET /api/home/screenings", s.handleScreeningsIn)                    // Usherr: screenings linked Usherrs invited this one to
 	member.HandleFunc("PUT /api/home/screenings/{id}/rsvp", s.handleScreeningRSVP)         // Usherr
 	member.HandleFunc("POST /api/home/screenings/{id}/check", s.handleScreeningCheck)      // Usherr
+	member.HandleFunc("GET /api/home/crews", s.handleCrews)                                // Usherr: Crews, the crew space between parties (home_crews_http.go)
+	member.HandleFunc("POST /api/home/crews", s.handleCreateCrew)                          // Usherr
+	member.HandleFunc("PUT /api/home/crews/sharing", s.handleCrewSharing)                  // Usherr: the asker's own "Share what I watch"
+	member.HandleFunc("GET /api/home/crews/{id}", s.handleCrew)                            // Usherr
+	member.HandleFunc("PUT /api/home/crews/{id}", s.handleEditCrew)                        // Usherr
+	member.HandleFunc("DELETE /api/home/crews/{id}", s.handleEndCrew)                      // Usherr
+	member.HandleFunc("POST /api/home/crews/{id}/join", s.handleJoinCrew)                  // Usherr
+	member.HandleFunc("POST /api/home/crews/{id}/leave", s.handleLeaveCrew)                // Usherr
+	member.HandleFunc("POST /api/home/crews/{id}/decline", s.handleDeclineCrew)            // Usherr
+	member.HandleFunc("POST /api/home/crews/{id}/chat", s.handleCrewChat)                  // Usherr
+	member.HandleFunc("POST /api/home/crews/{id}/send", s.handleCrewSend)                  // Usherr
+	member.HandleFunc("POST /api/home/crews/{id}/list", s.handleCrewListAdd)               // Usherr
+	member.HandleFunc("DELETE /api/home/crews/{id}/list/{tmdb}", s.handleCrewListRemove)   // Usherr
+	member.HandleFunc("POST /api/home/crews/{id}/votes", s.handleCrewOpenVote)             // Usherr
+	member.HandleFunc("PUT /api/home/crews/{id}/votes/{vid}", s.handleCrewCastVote)        // Usherr
+	member.HandleFunc("POST /api/home/crews/{id}/clubs", s.handleCrewAddClub)              // Usherr
+	member.HandleFunc("PUT /api/home/crews/{id}/clubs/{kid}", s.handleCrewClub)            // Usherr
+	member.HandleFunc("DELETE /api/home/crews/{id}/clubs/{kid}", s.handleCrewEndClub)      // Usherr
+	member.HandleFunc("GET /api/home/crews/{id}/wrapped", s.handleCrewWrapped)             // Usherr: Crew Wrapped (home_crew_wrapped.go)
 	member.HandleFunc("POST /api/home/community/link", s.handleCommunityLink)              // Usherr
 	member.HandleFunc("DELETE /api/home/community/link", s.handleCommunityUnlink)          // Usherr
 	member.HandleFunc("GET /api/home/stack", s.handleGetStack)                             // Usherr: your stack
@@ -729,6 +751,19 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("POST /api/home/showtimes/{id}/room/playback", s.handleRoomPlayback) // the host plays, pauses, seeks
 	member.HandleFunc("POST /api/home/showtimes/{id}/room/pause", s.handleRoomPause)       // anyone can pause, when the host allows it
 	member.HandleFunc("PUT /api/home/showtimes/{id}/room/settings", s.handleRoomSettings)
+	// Usherr: linked screenings, step 4 (home_link_chat.go): reactions pinned
+	// to the second of the film (the chat is the party chat's routes).
+	member.HandleFunc("POST /api/home/showtimes/{id}/react", s.handleLinkReact)
+	member.HandleFunc("GET /api/home/showtimes/{id}/reactions", s.handleLinkReactions)
+	// Usherr: the party: lobby, intermission, verdict (home_link_party.go).
+	member.HandleFunc("GET /api/home/showtimes/{id}/party", s.handleParty)
+	member.HandleFunc("GET /api/home/showtimes/{id}/party/events", s.handlePartyEvents)
+	member.HandleFunc("POST /api/home/showtimes/{id}/party/seat", s.handlePartySeat)
+	member.HandleFunc("POST /api/home/showtimes/{id}/party/intermission", s.handlePartyIntermission)
+	member.HandleFunc("PUT /api/home/showtimes/{id}/party/status", s.handlePartyStatus)
+	member.HandleFunc("POST /api/home/showtimes/{id}/party/credits", s.handlePartyCredits)
+	member.HandleFunc("POST /api/home/showtimes/{id}/party/verdict", s.handlePartyVerdict)
+	member.HandleFunc("GET /api/home/reactions/film", s.handleFilmReactions)
 
 	// home fork: Discover recipes and the services each person pays for
 	member.HandleFunc("GET /api/home/recipes", s.handleListRecipes)

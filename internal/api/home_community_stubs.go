@@ -41,6 +41,16 @@ type stub struct {
 	// (home_community_guest.go). StampUntil: it can be stamped by hand until then.
 	Here       bool  `json:"here,omitempty"`
 	StampUntil int64 `json:"stampUntil,omitempty"`
+	// Usherr: rewards (home_rewards.go). No: the stub's number; Stars: your
+	// stars for the film (1 to 10), when you rated it; Runtime: the film's
+	// minutes; Linked: handed out by this linked Usherr (Agreed: it
+	// confirmed the stamp); Hosted: you hosted it.
+	No      int    `json:"no"`
+	Stars   int    `json:"stars,omitempty"`
+	Runtime int    `json:"runtime,omitempty"`
+	Linked  string `json:"linked,omitempty"`
+	Agreed  bool   `json:"agreed,omitempty"`
+	Hosted  bool   `json:"hosted,omitempty"`
 }
 
 // stampFor is how long the stamp button works after the credits.
@@ -100,20 +110,21 @@ func (s *Server) stampButton(ctx context.Context, in community.Interaction) stri
 		return "That button isn't known."
 	}
 	var title string
-	var until, stamped int64
-	if s.db.QueryRowContext(ctx, `SELECT title, stamp_until, stamped_ms FROM community_stubs WHERE backend = 'discord' AND external_id = ? AND showtime_id = ?`,
-		in.User.ID, id).Scan(&title, &until, &stamped) != nil {
+	var at, until, stamped int64
+	if s.db.QueryRowContext(ctx, `SELECT title, at_ms, stamp_until, stamped_ms FROM community_stubs WHERE backend = 'discord' AND external_id = ? AND showtime_id = ?`,
+		in.User.ID, id).Scan(&title, &at, &until, &stamped) != nil {
 		return "You don't have a stub for this one: stubs are handed out at the door, to everyone who pressed **I'm in** on the party's card."
 	}
 	switch {
 	case stamped > 0:
 		return fmt.Sprintf("Your **%s** stub is already stamped. ✅", title)
-	case until == 0:
-		return "Stamping opens at the credits: come back when the film ends."
+	case until == 0 || time.Now().UnixMilli() < at:
+		return "Stamping opens when the film starts."
 	case time.Now().UnixMilli() > until:
-		return "The stamping is over for this film: the button works for 30 minutes after the credits."
+		return "The stamping is over for this film: it works until 30 minutes after the film ends."
 	}
 	_, _ = s.db.ExecContext(ctx, `UPDATE community_stubs SET stamped_ms = ? WHERE backend = 'discord' AND external_id = ? AND showtime_id = ?`, time.Now().UnixMilli(), in.User.ID, id)
+	s.stubStamped(ctx, "discord", in.User.ID, id) // Usherr: rewards (home_link_rewards.go)
 	// Said in the thread too, so a guest's own Usherr (joined by the code, its
 	// bot in this server) stamps their stub there (home_community_joined.go).
 	if p, ok := s.partyOf(ctx, id); ok {
@@ -144,7 +155,7 @@ func (s *Server) giveStubs(ctx context.Context, st showtime, p party) []string {
 	for _, g := range going {
 		names = append(names, g.name)
 	}
-	give := func(id, name string, seat int) {
+	give := func(id, name string, seat int, hosted bool) {
 		var guests []string
 		for _, n := range names {
 			if n != name {
@@ -154,9 +165,11 @@ func (s *Server) giveStubs(ctx context.Context, st showtime, p party) []string {
 		if seat > 0 && p.Host != "" && p.Host != name && !containsString(guests, p.Host) {
 			guests = append([]string{p.Host}, guests...)
 		}
-		_, _ = s.db.ExecContext(ctx, `INSERT OR IGNORE INTO community_stubs (backend, external_id, showtime_id, name, kind, tmdb_id, title, year, poster, host, seat, guests, at_ms)
-			VALUES ('discord', ?, ?, ?, 'movie', ?, ?, ?, ?, ?, ?, ?, ?)`,
-			id, st.ID, name, st.TMDBID, st.Title, st.Year, st.PosterURL, p.Host, seat, strings.Join(guests, "\n"), st.AtMs)
+		_, _ = s.db.ExecContext(ctx, `INSERT OR IGNORE INTO community_stubs (backend, external_id, showtime_id, name, kind, tmdb_id, title, year, poster, host, seat, guests, at_ms,
+				stamp_until, runtime, hosted, serial)
+			VALUES ('discord', ?, ?, ?, 'movie', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, `+sqlNextStubNo+`)`,
+			id, st.ID, name, st.TMDBID, st.Title, st.Year, st.PosterURL, p.Host, seat, strings.Join(guests, "\n"), st.AtMs,
+			stubStampUntil(st), st.Runtime, hosted)
 	}
 	got := []string{}
 	hostGoing := false
@@ -164,11 +177,11 @@ func (s *Server) giveStubs(ctx context.Context, st showtime, p party) []string {
 		if g.id == hostID {
 			hostGoing = true
 		}
-		give(g.id, g.name, i+1)
+		give(g.id, g.name, i+1, g.id == hostID)
 		got = append(got, g.name)
 	}
 	if hostID != "" && !hostGoing {
-		give(hostID, p.Host, 0)
+		give(hostID, p.Host, 0, true)
 		got = append([]string{p.Host}, got...)
 	}
 	return got
@@ -189,9 +202,10 @@ func (s *Server) lateStub(ctx context.Context, st showtime, p party, who communi
 		}
 		rows.Close()
 	}
-	_, _ = s.db.ExecContext(ctx, `INSERT OR IGNORE INTO community_stubs (backend, external_id, showtime_id, name, kind, tmdb_id, title, year, poster, host, seat, guests, at_ms)
-		VALUES ('discord', ?, ?, ?, 'movie', ?, ?, ?, ?, ?, ?, ?, ?)`,
-		who.ID, st.ID, who.Name, st.TMDBID, st.Title, st.Year, st.PosterURL, p.Host, n+1, strings.Join(guests, "\n"), st.AtMs)
+	_, _ = s.db.ExecContext(ctx, `INSERT OR IGNORE INTO community_stubs (backend, external_id, showtime_id, name, kind, tmdb_id, title, year, poster, host, seat, guests, at_ms,
+			stamp_until, runtime, serial)
+		VALUES ('discord', ?, ?, ?, 'movie', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, `+sqlNextStubNo+`)`,
+		who.ID, st.ID, who.Name, st.TMDBID, st.Title, st.Year, st.PosterURL, p.Host, n+1, strings.Join(guests, "\n"), st.AtMs, stubStampUntil(st), st.Runtime)
 }
 
 // stubsOf are someone's stubs, newest first.
@@ -203,7 +217,8 @@ func (s *Server) stubsOf(ctx context.Context, externalID string) []stub {
 // bot's), or 'here' (a guest's, by account id).
 func (s *Server) stubsFrom(ctx context.Context, backend, externalID string) []stub {
 	out := []stub{}
-	rows, err := s.db.QueryContext(ctx, `SELECT showtime_id, kind, tmdb_id, title, year, poster, host, seat, guests, at_ms, stamped_ms > 0, stamp_until
+	rows, err := s.db.QueryContext(ctx, `SELECT showtime_id, kind, tmdb_id, title, year, poster, host, seat, guests, at_ms, stamped_ms > 0, stamp_until,
+			serial, runtime, issuer, agreed_ms > 0, hosted
 		FROM community_stubs WHERE backend = ? AND external_id = ? AND hidden_ms = 0 ORDER BY at_ms DESC`, backend, externalID)
 	if err != nil {
 		return out
@@ -213,15 +228,18 @@ func (s *Server) stubsFrom(ctx context.Context, backend, externalID string) []st
 		var sb stub
 		var guests string
 		var until int64
-		if rows.Scan(&sb.ShowtimeID, &sb.Kind, &sb.TMDBID, &sb.Title, &sb.Year, &sb.Poster, &sb.Host, &sb.Seat, &guests, &sb.AtMs, &sb.Stamped, &until) != nil {
+		var issuer string
+		if rows.Scan(&sb.ShowtimeID, &sb.Kind, &sb.TMDBID, &sb.Title, &sb.Year, &sb.Poster, &sb.Host, &sb.Seat, &guests, &sb.AtMs, &sb.Stamped, &until,
+			&sb.No, &sb.Runtime, &issuer, &sb.Agreed, &sb.Hosted) != nil {
 			continue
 		}
-		if backend == "here" {
-			sb.Here = true
-			if !sb.Stamped && until > time.Now().UnixMilli() {
-				sb.StampUntil = until
-			}
+		sb.Here = backend == "here"
+		// Usherr: rewards. Stamp it works from the film's start until half an
+		// hour after its end, for everyone with a stub (home_rewards.go).
+		if !sb.Stamped && until > time.Now().UnixMilli() {
+			sb.StampUntil = until
 		}
+		sb.Linked = issuer
 		sb.Guests = []string{}
 		if guests != "" {
 			sb.Guests = strings.Split(guests, "\n")
@@ -288,6 +306,7 @@ func (s *Server) handleStubs(w http.ResponseWriter, r *http.Request) {
 	}
 	list = append(list, s.stubsFrom(r.Context(), "here", strconv.FormatInt(u.ID, 10))...)
 	sort.SliceStable(list, func(i, j int) bool { return list[i].AtMs > list[j].AtMs })
+	list = s.stubsDress(r.Context(), u.ID, list) // Usherr: rewards (home_rewards.go)
 	writeJSON(w, http.StatusOK, map[string]any{"stubs": list, "linked": ext != "", "nowMs": time.Now().UnixMilli()})
 }
 

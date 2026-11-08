@@ -29,6 +29,8 @@ import ComicReadingTab, { ComicContinueRow } from './ComicReadingViews' // Usher
 import ComicFixMatch from './ComicFixMatch' // Usherr
 import { isLayout, keyTurn, spreadEnd, spreadOf, stepSpread, swipeTurn, tapTurn, type ReadDirection, type ReaderLayout } from './comicReading' // Usherr
 import { flipSpeeds, type FlipSpeed } from './comicFlipSpeed'
+import ReaderSettings, { cursorHint, HeaderButton, readerClass, ReaderProgress, readerStyle, TapZones, useReaderOptions, WideStrip, type WideStripHandle } from '../readers/ReaderSettings' // Usherr: options shared with the Manga reader
+import { COMICS_OPTIONS, isHeaderKey } from '../readers/readerOptions'
 import Shelves from './Shelves' // home fork
 import { groupShelves, letterShelves, RowsByPick, ShelfControls, useShelfView } from './shelfKit' // home fork
 import { locale, plural, t } from '../i18n'
@@ -935,6 +937,7 @@ const layoutNames = (): { id: ReaderLayout; label: string; title: string }[] => 
   { id: 'slide', label: t('One page'), title: t('One page at a time, with fit to width') },
   { id: 'double', label: t('Two pages'), title: t('Two pages side by side, the cover on its own') },
   { id: 'webtoon', label: t('Webtoon'), title: t('One long scroll with no gaps') },
+  { id: 'wide', label: t('Wide strip'), title: t('Every page side by side, scrolled across') },
   { id: 'panels', label: t('Panels'), title: t('Read panel by panel (guided view)') },
 ]
 
@@ -958,6 +961,8 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
   const [view, setView] = useState<ReaderLayout>(readStoredLayout)
   const rtl = direction === 'rtl' && view !== 'webtoon' // a scroll has no sides
   const flip = useRef<ComicFlipHandle>(null)
+  const wideView = useRef<WideStripHandle>(null)
+  const [zones, setZones] = useState(false)
   const guided = useRef<ComicGuidedHandle>(null)
   const guidedSource = useMemo(() => comicGuidedSource(issue.id), [issue.id])
   const webtoon = useRef<ComicWebtoonHandle>(null)
@@ -985,6 +990,7 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
   }
   const touch = useRef<{ x: number; y: number } | null>(null)
   const total = info?.pages ?? 0
+  const [opts, changeOpts] = useReaderOptions(info?.seriesId ? `comic:${info.seriesId}` : '', COMICS_OPTIONS)
   const pageUrls = useMemo(() => Array.from({ length: total }, (_, i) => comicsApi.pageUrl(issue.id, i + 1)), [total, issue.id])
   // The page the flip book opens at; later turns come from the book itself.
   const [flipStart, setFlipStart] = useState(page)
@@ -1054,9 +1060,15 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
         setPage(layout === 'double' && pages ? spreadEnd(p, pages) : p)
         setFlipStart(p)
         setInfo(r)
+        if (layout === 'slide' || layout === 'double' || layout === 'flip') setZones(true) // shown only when the hints ask for it
       })
       .catch((e: Error) => setError(e.message))
   }, [issue.id, startPage])
+  useEffect(() => {
+    if (!zones) return
+    const tm = window.setTimeout(() => setZones(false), 5000)
+    return () => window.clearTimeout(tm)
+  }, [zones])
   // and told as you turn the pages, and on closing
   const pageNow = useRef({ page, total: 0 })
   useEffect(() => {
@@ -1077,6 +1089,7 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
     setPage(view === 'double' ? spreadEnd(n, total) : n)
     if (view === 'flip') flip.current?.turnTo(n)
     if (view === 'webtoon') webtoon.current?.toPage(n)
+    if (view === 'wide') wideView.current?.toPage(n)
   }
   const startOver = () => {
     jumpTo(1)
@@ -1087,6 +1100,10 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
     (d: number) => {
       if (view === 'webtoon') {
         webtoon.current?.scroll(d * 0.85)
+        return
+      }
+      if (view === 'wide') {
+        wideView.current?.scroll(d * 0.85)
         return
       }
       if (view === 'double') {
@@ -1116,7 +1133,7 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
       /* private mode */
     }
     // Load the next pages ahead (a webtoon loads them as they come near).
-    if (view !== 'webtoon') for (const n of [page + 1, page + 2]) if (n <= total) new Image().src = comicsApi.pageUrl(issue.id, n)
+    if (view !== 'webtoon' && view !== 'wide') for (const n of [page + 1, page + 2]) if (n <= total) new Image().src = comicsApi.pageUrl(issue.id, n)
   }, [page, total, issue.id, view])
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -1127,6 +1144,7 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
       else if (view === 'webtoon' && e.key === 'ArrowDown') webtoon.current?.scroll(0.2)
       else if (view === 'webtoon' && e.key === 'ArrowUp') webtoon.current?.scroll(-0.2)
       else if (e.key === 'Escape') onClose()
+      else if (isHeaderKey(e.key)) toggleHeader.current()
       else return
       e.preventDefault()
     }
@@ -1137,13 +1155,15 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
       document.body.style.overflow = ''
     }
   }, [go, onClose, rtl, view])
+  const toggleHeader = useRef<() => void>(() => undefined)
+  toggleHeader.current = () => changeOpts({ header: !opts.header })
 
   const shown = view === 'double' ? spreadOf(page, total) : [page]
   const nextUp = info?.next
   const nextHere = nextUp?.have ? nextUp : info?.nextHave
 
   return createPortal(
-    <div className="cx-reader" data-walk="cx-reader" role="dialog" aria-label={info?.title ?? t('Comic reader')}>
+    <div className={`cx-reader ${readerClass(opts)}`} data-walk="cx-reader" role="dialog" aria-label={info?.title ?? t('Comic reader')} style={readerStyle(opts)}>
       <div className="cx-reader-bar" data-walk="cx-reader-bar">
         <button className="btn-sm" onClick={onClose} aria-label={t('Close the reader')}>
           <Icon name="x" size={16} />
@@ -1187,7 +1207,7 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
             <Icon name="sliders" size={14} />
           </button>
         )}
-        {view !== 'panels' && (
+        {view !== 'panels' && view !== 'wide' && (
           <button className="btn-sm" data-walk="cx-view-toggle" onClick={() => switchView()} title={view === 'flip' ? t('Show one page at a time, with fit to width') : t('Turn pages like a paper comic')}>
             {view === 'flip' ? t('Slide') : t('Page turn')}
           </button>
@@ -1217,6 +1237,7 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
           </button>
         )}
       </div>
+      {!opts.header && total > 0 && <HeaderButton onShow={() => changeOpts({ header: true })} />}
       {marksOpen && total > 0 && (
         <div className="cx-marks-panel" aria-label={t('Bookmarks')}>
           <Marks
@@ -1230,29 +1251,37 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
         </div>
       )}
       {optsOpen && total > 0 && (
-        <div className="cx-marks-panel cx-reader-opts" aria-label={t('Reading direction and how pages show')}>
-          <h3>{t('Reading direction')}</h3>
-          <div className="seg" role="group" aria-label={t('Reading direction')}>
-            <button className={direction === 'ltr' ? 'active' : ''} aria-pressed={direction === 'ltr'} disabled={view === 'webtoon'} onClick={() => switchDirection('ltr')}>
-              {t('Left to right')}
-            </button>
-            <button className={direction === 'rtl' ? 'active' : ''} aria-pressed={direction === 'rtl'} disabled={view === 'webtoon'} onClick={() => switchDirection('rtl')}>
-              {t('Right to left')}
-            </button>
-          </div>
-          <h3>{t('How pages show')}</h3>
-          <div className="seg cx-reader-layouts" role="group" aria-label={t('How pages show')}>
-            {layoutNames().map((l) => (
-              <button key={l.id} className={view === l.id ? 'active' : ''} aria-pressed={view === l.id} title={l.title} onClick={() => switchView(l.id)}>
-                {l.label}
-              </button>
-            ))}
-          </div>
-          <p className="hint">{t('Remembered for this series, just for you.')}</p>
+        <ReaderSettings
+          label={t('Reading direction and how pages show')}
+          direction={direction}
+          onDirection={switchDirection}
+          directionDisabled={view === 'webtoon'}
+          layouts={layoutNames()}
+          layout={view}
+          onLayout={(id) => switchView(id as ReaderLayout)}
+          opts={opts}
+          onOpts={changeOpts}
+          rememberedHint={t('Remembered for this series, just for you.')}
+          more={
+            (view === 'slide' || view === 'double') && (
+              <>
+                <h3>{t('Fit')}</h3>
+                <div className="seg" role="group" aria-label={t('Fit')}>
+                  <button className={fit === 'height' ? 'active' : ''} aria-pressed={fit === 'height'} onClick={() => setFit('height')}>
+                    {t('Fit page')}
+                  </button>
+                  <button className={fit === 'width' ? 'active' : ''} aria-pressed={fit === 'width'} onClick={() => setFit('width')}>
+                    {t('Fit width')}
+                  </button>
+                </div>
+              </>
+            )
+          }
+        >
           <button className="btn-sm" disabled={defaultSaved} onClick={makeDefault}>
             {defaultSaved ? t('Saved as your default') : t('Use these for other comics too')}
           </button>
-        </div>
+        </ReaderSettings>
       )}
       {error && <p className="error-text cx-reader-msg">{error}</p>}
       {!info && !error && <p className="hint cx-reader-msg">{t('Opening…')}</p>}
@@ -1263,9 +1292,12 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
       )}
       {total > 0 && view === 'panels' && <ComicGuided ref={guided} key={direction} source={guidedSource} page={page} total={total} onPage={setPage} onPanel={onPanel} rtl={rtl} />}
       {total > 0 && view === 'webtoon' && <ComicWebtoon ref={webtoon} pageUrl={(n) => comicsApi.pageUrl(issue.id, n)} total={total} start={page} onPage={setPage} />}
+      {total > 0 && view === 'wide' && <WideStrip ref={wideView} pageUrl={(n) => comicsApi.pageUrl(issue.id, n)} total={total} start={page} rtl={direction === 'rtl'} onPage={setPage} />}
+      {total > 0 && zones && opts.hints === 'overlay' && (view === 'slide' || view === 'double' || view === 'flip') && <TapZones rtl={rtl} onDone={() => setZones(false)} />}
       {total > 0 && (view === 'slide' || view === 'double') && (
         <div
           className={`cx-reader-page fit-${fit}${shown.length === 2 ? ' two' : ''}${rtl ? ' rtl' : ''}`}
+          onMouseMove={opts.hints === 'cursor' ? (e) => cursorHint(e, rtl) : undefined}
           onClick={(e) => {
             const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
             go(tapTurn((e.clientX - r.left) / r.width, rtl))
@@ -1300,18 +1332,7 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
           )}
         </div>
       )}
-      {total > 0 && (
-        <input
-          className="cx-reader-slider"
-          type="range"
-          dir={rtl ? 'rtl' : 'ltr'}
-          min={1}
-          max={total}
-          value={page}
-          onChange={(e) => jumpTo(Number(e.target.value))}
-          aria-label={t('Page')}
-        />
-      )}
+      {total > 0 && <ReaderProgress opts={opts} page={page} total={total} rtl={rtl} onJump={jumpTo} />}
     </div>,
     document.body,
   )

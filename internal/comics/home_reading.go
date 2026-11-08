@@ -51,7 +51,7 @@ func ValidDirection(d string) bool { return d == "" || d == "ltr" || d == "rtl" 
 // ValidLayout reports whether l is a reader layout ("" leaves it unchosen).
 func ValidLayout(l string) bool {
 	switch l {
-	case "", "flip", "slide", "double", "webtoon", "panels":
+	case "", "flip", "slide", "double", "webtoon", "wide", "panels":
 		return true
 	}
 	return false

@@ -162,17 +162,31 @@ Like a cinema's: a stub for each watch party you went to.
   bot posts **Get my stub stamped** in the party's thread. It works for 30
   minutes, and only on your own stub. A stamped stub says *Stayed to the end*.
   If the host stops the party during the film, the stamp button goes up then.
+- **Stamp it in Usherr:** every stub under **You → Ticket stubs** has a
+  **Stamp it** button from the film's start until 30 minutes after it ends,
+  for the host and every guest. Usherr's player stamps it by itself once
+  you've watched 90% of the film.
 - **Your stubs:** in Usherr under **You → Ticket stubs** (with your Discord
-  account linked), drawn as tickets with the film, the night, your seat, the
-  host and who else was there. In Discord, `/stubs` lists yours.
+  account linked), drawn as tickets with the film's poster, the night, your
+  row and seat, the host, who else was there and the stub's number. A stamped
+  stub has a round **SEEN** stamp, with your stars if you rated the film.
+  **Save as picture** makes a PNG of it on your computer (Usherr never posts
+  it anywhere). In Discord, `/stubs` lists yours.
+- **Badges:** above your stubs, the badge cabinet: First party, Five nights,
+  Regular (10), Season ticket (25), Perfect attendance (every party you were
+  invited to in a month, three or more), Night owl (a party that ended after
+  2 AM), House lights (hosted five) and Double feature (two films one night).
+  Pick one to see how it's earned and when you got it. They're worked out
+  from your stubs, linked Usherrs' parties included.
 - **A friend's party, in your own Usherr:** a friend's bot can't reach your
   Usherr, and its `/link` codes only work in theirs. Paste the party's
   showtime code under **Showtime → Join a watch party** instead: your own
   Usherr gives you a stub at the door when the film starts, with nothing
-  linked. It's stamped by itself when Usherr's player reaches the credits. If
-  the film played somewhere else (the TV) or the host ended the party early,
-  press **Stamp it** on the stub in the half hour after the film's end. The
+  linked. It's stamped by itself at 90%, or press **Stamp it**. The
   friend's bot keeps its own stub for you too: `/stubs` in their server.
+- **A linked Usherr's screening:** its host hands your Usherr a stub for
+  each of your people who said I'm in, numbered by the host. A stamp you make
+  at home goes back to the host, which confirms it.
 
 Nobody can prove from afar that someone really watched, since each Usherr is
 on its own. The stamp makes a stub mean something: it takes being there at the

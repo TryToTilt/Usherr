@@ -5,6 +5,62 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.61.2] - 2026-11-07
+
+### Fixed
+
+- **A manga pack you take stops single volumes being fetched beside it.** While a pack runs, every volume its name holds counts as on its way, so the regular search no longer downloads those volumes one by one as well.
+
+## [2.61.1] - 2026-11-07
+
+### Fixed
+
+- **A new MangaDex account syncs.** With no reading statuses yet, MangaDex answers in a slightly different shape, and Usherr took it for MangaDex being away: syncing, browsing and chapter downloads all waited up to an hour. That answer is read now, and an answer Usherr can’t read is reported instead of pausing everything.
+
+## [2.61.0] - 2026-11-07
+
+### Added
+
+- **Connect your own MangaDex account to Manga.** Optional, and each person connects their own at Settings > MangaDex account, with a personal API client from mangadex.org. The sign-in is saved encrypted and never shown again. Your follows, read chapters, reading status and lists then stay the same in Usherr and on MangaDex. Series you follow there come into Manga, and the Manga page shows new chapters of what you follow, what you read lately on MangaDex, and your lists. 18+ series stay out unless the NSFW section is on for you. Heavy syncing waits for the night, between 2 and 9. Disconnect deletes everything Usherr kept from it.
+- **Manga > Discover is the one place to find manga.** It keeps AniList's shelves and adds a search at the top (AniList, and MangaDex when it's on, with a title both know shown once), and a **New official volumes** row from what your indexers brought in. Every tile has the same look, with **Add** and, with MangaDex on, **Read now**.
+- **MangaDex in Discover**, when its source is on in Settings > Manga: popular new titles, the latest chapters with the group who translated each, the staff's seasonal, recommended and self-published lists, and recently added. **More filters** searches MangaDex by tags, status, readers, original language, year and sort, and **Random title** picks one. 18+ titles stay out unless the NSFW section is set up, your account may see it, and you tick the switch.
+- **Read MangaDex chapters online** in Usherr's own manga reader, without downloading: curl, panels, direction and all. Usherr fetches the pages and passes them on, reporting each one to MangaDex's page servers as their rules ask, and keeps them half an hour at most. Your place is kept, a chapter picker sits in the bar, the next chapter is a press away, and **Download this chapter** hands it to the usual chapter download.
+- **New reading options in both the Manga and Comics readers:** a **Wide strip** that runs across, a progress bar that can be normal (now with a tick a page), a thin line or hidden, at the bottom, left or right, a page number when it's hidden, hide the header (M brings it back), tap and pointer hints, greyscale, dim pages, a white, black or theme background, and a list of keyboard shortcuts. Kept per series. Nothing changes until you choose.
+
+## [2.60.1] - 2026-11-07
+
+### Changed
+
+- **NSFW 18+ is only on its own page.** It’s no longer a choice in Discover’s or the Library’s media picker, even for administrators. The NSFW 18+ link in the menu still opens it.
+
+## [2.60.0] - 2026-11-07
+
+### Added
+
+- **Ticket stubs over the link.** When a linked Usherr's screening starts, its host hands your Usherr a stub for each of your people who said I'm in, numbered by the host and signed with its key. A stamp you make at home goes back to the host, and the host confirms it, so both sides agree. Nobody outside the screening sees any of it.
+- **Collectible stubs.** Each stub shows the film's poster (the library's own when the film is there), the date, time, row and seat, who hosted, and its number. Stamped, it gets a round **SEEN** stamp with your stars if you rated the film. **Save as picture** makes a PNG of the stub on your computer; Usherr never posts it anywhere.
+- **Badge cabinet** under You, Ticket stubs: First party, Five nights, Regular, Season ticket, Perfect attendance (every party you were invited to in a month, three or more), Night owl, House lights and Double feature, each with how to earn it and when you did. Parties at linked Usherrs count too. Loudest scream, Class clown, Good taste and Generous are on the shelf as coming soon.
+- **Chat with everyone at a linked screening, no Discord needed.** The party chat on the Showtime page and on your phone now reaches every Usherr at the screening. Mark a message as a spoiler and it stays blurred until someone taps it.
+- **Reactions pinned to the moment.** Tap HA, EEK, WOW, NOPE or CLAP and it floats up over the picture in every house at once. Each one is kept at its second of the film, so anyone who watches that part later sees it float up too, and small bars under the picture show where the crew reacted most.
+- **A phone page for the screening.** What's playing and where it's got to, the chat, the five reactions, and for the host a remote: pause or play for everyone and back 10 seconds.
+- **Crews: your movie-night group between parties.** Make a crew with Usherrs you're linked with (Movie night > Crews). Each one gets an invite, and in each house only the people who join it themselves are in it.
+  - **Chat** that keeps going between parties. Plain text, up to 500 characters.
+  - **A shared watchlist.** Anyone in the crew can add a film. Each one shows who added it and whether each house has it: yes, getting it, or not yet. Nothing else about anyone's library is shared. **Add to my list** puts it on your own list, and **Send to** sends it to a friend: it shows in the chat as a card, and their Usherr lets them know.
+  - **Vote on the next film.** Pick films from the shared watchlist and when it plays. A film not everyone can play is marked. One vote each. When voting closes, the winner is booked in Showtime for the crew, with the pre-show whoever started the vote picked.
+  - **Film clubs.** A night, every week or every other week, and who picks: turns, or the crew's vote. Join or leave any time. Two days before each night, Usherr books the pick or opens the vote, and keeps count of the nights in a row.
+  - **What the crew is watching**, for people who turn on **Share what I watch with my crews** themselves. It's off until you do, and nobody can turn it on for you. Nothing NSFW, ever.
+- **Four more badges.** Loudest scream (the most EEKs of anyone at one party, three or more), Class clown (the most HAs of anyone in a month, ten or more), Good taste (a film you picked or voted for wins a crew vote three times) and Generous (five stars for ten films or shows) are now earned like the rest.
+- **Crew Wrapped.** Each crew gets its year in review on the Crews page: the button shows from December 1 through January, and **Past Wrapped** opens earlier years. Five slides: how many parties and hours the crew had together and on which nights, the crew's favourite and most divisive film from the stars people shared, the year's most-reacted moment, whose picks won the votes, and next year. **Save as picture** makes a PNG of any slide on your computer; Usherr never posts it anywhere. A year without a party says so instead of showing zeros.
+- **A lobby before the film.** The Showtime page counts down to the film, shows which part of the pre-show is playing in step, and has a seat map of who's coming. Press **Take my seat** when you're settled in; everyone else shows as on the way. Your seat is the one printed on your stub. Works for your own showtimes too.
+- **Intermission.** The host of a linked screening can call an intermission from the player, the Showtime page or the phone page. The film pauses everywhere, everyone sees a 10-minute countdown and when it's back, and the host can add 5 minutes or resume for everyone. Guests can say what they're up to: getting snacks, refilling drinks, a quick break or back in their seat.
+- **The verdict at the credits.** When the film ends (or the host presses **Roll credits**), everyone gives it stars, half stars too, and a line if they like. It goes to your own Diary, and to your review if you tick that. The crew's card shows the average and how many voted, with names only for people who choose to share, plus the most-reacted moment. Then **Collect your stub**, stamped with your stars.
+
+### Fixed
+
+- **Manga volumes packed as ZIPs of a RAR set are read.** Publishers’ releases often put each piece of a RAR set in its own ZIP. Usherr opened the ZIPs but not the set inside, so the volume failed with "holds only R00, R01, RAR, ZIP files". A **Retry** on such a download now finishes it without fetching it again.
+- **Testing an indexer set to books only works.** Manga’s Nyaa searches only its English-translated literature, and **Test** asked it for films and TV, so it always said "returned no releases" though manga searches worked. Test now asks once more for anything at all.
+- **A guest's stub gets stamped.** **Stamp it** now works for everyone at a party, host and guests, from the film's start until 30 minutes after it ends, instead of only in the half hour after the credits. Usherr's player stamps it at 90% of the film instead of 95%, and that now includes the stubs your Discord account keeps here.
+
 ## [2.59.1] - 2026-11-07
 
 ### Fixed

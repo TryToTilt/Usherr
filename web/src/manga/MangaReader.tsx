@@ -2,7 +2,7 @@
 // bottom for manhwa, or panel by panel as the Comics reader does it, remembered per
 // series. Two pages on a wide screen, one on a phone. It stays open from one volume
 // to the next: each gets a fresh start.
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal, flushSync } from 'react-dom'
 import type { ImageCurl, ImageLoader, ImageTurn, CurlPicture } from '../bookshelf/curl/imageCurl'
 import type { CurlDrag, TurnDir } from '../bookshelf/curl/pageCurl'
@@ -21,8 +21,12 @@ import { lastOf, pageBox, pageRatio, pageWidthFor, panelsOrHalves, placeFitted, 
 import { trimPage, type TrimmedPage } from './pageTrim'
 import type { PdfPages } from './pdfPages'
 import { lookFilter, saveLook, storedLook, type ReaderLook } from './readerLook'
+import ReaderSettings, { cursorHint, HeaderButton, readerClass, ReaderProgress, readerStyle, resolvedBackground, useReaderOptions, WideStrip, type WideStripHandle } from '../readers/ReaderSettings'
+import { isHeaderKey } from '../readers/readerOptions'
+import { browseApi, dexItem, saveDexPlace, saveDexPrefs, storedDexPrefs, type DexReading } from './browseApi'
 import { saveTurnEffect, storedTurnEffect, type TurnEffect } from './turnEffect'
 import './manga.css'
+import './browse.css'
 
 const BACKGROUND = '#0b0b0d'
 const BACKGROUND_DARK_PAGES = '#f4f4f2' // the dark-pages filter turns it into BACKGROUND
@@ -32,10 +36,22 @@ const LONG_PRESS_MS = 600
 const READ_AHEAD = 4 // spreads fetched ahead of the one being read
 
 // volumeId is a chapter's id when chapter is set: it reads the same, and the last
-// page can go from one to the other.
-export default function MangaReader({ volumeId, chapter = false, startPage = 0, onClose }: { volumeId: number; chapter?: boolean; startPage?: number; onClose: () => void }) {
-  const [now, setNow] = useState({ id: volumeId, chapter, from: startPage })
-  return <ReaderVolume key={`${now.chapter ? 'c' : 'v'}${now.id}`} volumeId={now.id} chapter={now.chapter} startPage={now.from} onClose={onClose} onNext={(id, isChapter) => setNow({ id, chapter: isChapter, from: 0 })} />
+// page can go from one to the other. dex is a MangaDex chapter read online, through
+// Usherr: then volumeId is unused.
+export default function MangaReader({ volumeId = 0, chapter = false, dex = '', startPage = 0, onClose }: { volumeId?: number; chapter?: boolean; dex?: string; startPage?: number; onClose: () => void }) {
+  const [now, setNow] = useState({ id: volumeId, chapter, dex, from: startPage })
+  return (
+    <ReaderVolume
+      key={now.dex ? `d${now.dex}` : `${now.chapter ? 'c' : 'v'}${now.id}`}
+      volumeId={now.id}
+      chapter={now.chapter || !!now.dex}
+      dex={now.dex}
+      startPage={now.from}
+      onClose={onClose}
+      onNext={(id, isChapter) => setNow({ id, chapter: isChapter, dex: '', from: 0 })}
+      onDex={(id) => setNow({ id: 0, chapter: true, dex: id, from: 0 })}
+    />
+  )
 }
 
 interface Press {
@@ -49,8 +65,9 @@ interface Press {
   turn: 1 | -1
 }
 
-function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volumeId: number; chapter: boolean; startPage: number; onClose: () => void; onNext: (id: number, chapter: boolean) => void }) {
-  const [info, setInfo] = useState<MangaPages | null>(null)
+function ReaderVolume({ volumeId, chapter, dex, startPage, onClose, onNext, onDex }: { volumeId: number; chapter: boolean; dex: string; startPage: number; onClose: () => void; onNext: (id: number, chapter: boolean) => void; onDex: (id: string) => void }) {
+  const [info, setInfo] = useState<(MangaPages & { dex?: DexReading }) | null>(null)
+  const [dexNote, setDexNote] = useState('')
   const [error, setError] = useState('')
   const [page, setPage] = useState(1)
   const [direction, setDirection] = useState<ReadDirection>('rtl')
@@ -59,7 +76,6 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
   const [effect, setEffect] = useState<TurnEffect>(storedTurnEffect)
   const [look, setLook] = useState<ReaderLook>(storedLook)
   const [optsOpen, setOptsOpen] = useState(false)
-  const [moreOpen, setMoreOpen] = useState(false)
   const [marksOpen, setMarksOpen] = useState(false)
   const [hint, setHint] = useState(false)
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 })
@@ -74,6 +90,7 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
   const stage = useRef<HTMLDivElement>(null)
   const sheet = useRef<HTMLDivElement>(null)
   const webtoon = useRef<ComicWebtoonHandle>(null)
+  const wideView = useRef<WideStripHandle>(null)
   const guidedView = useRef<ComicGuidedHandle>(null)
   const loaderRef = useRef<ImageLoader | null>(null)
   const turning = useRef(false)
@@ -86,9 +103,12 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
   const sizes = info?.sizes
   const isPdf = !!info?.pdf
   const scroll = layout === 'webtoon' && !isPdf // a PDF's pages are drawn a few at a time
+  const wide = layout === 'wide' && !isPdf // one strip across
   const guided = layout === 'panels' && !isPdf
-  const flat = scroll || guided // the views that aren't pages laid out on the stage
+  const flat = scroll || wide || guided // the views that aren't pages laid out on the stage
   const rtl = direction === 'rtl' && !scroll
+  const optsScope = info?.seriesId ? `manga:${info.seriesId}` : info?.dex ? `dex:${info.dex.mangaId}` : ''
+  const [opts, changeOpts] = useReaderOptions(optsScope)
   const wideScreen = stageSize.w >= 900 && stageSize.w > stageSize.h
   const twoUp = !flat && (layout === 'double' || (layout === '' && wideScreen))
   const reduced = reducedMotion()
@@ -102,7 +122,9 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
   const box = useMemo(() => pageBox(stageSize.w, stageSize.h, ratio, twoUp), [stageSize, ratio, twoUp])
 
   // The page as it comes from the server or the PDF, before any trimming.
-  const rawUrl = useCallback((n: number) => (isPdf ? (pdfUrls[n] ?? '') : (chapter ? mangaApi.chapterPageUrl : mangaApi.pageUrl)(volumeId, n, widest > 0 ? widest : undefined)), [isPdf, pdfUrls, chapter, volumeId, widest])
+  // A page as the server has it: from MangaDex through Usherr, or from a file here.
+  const serverUrl = useCallback((n: number, width?: number) => (dex ? browseApi.pageUrl(dex, n) : (chapter ? mangaApi.chapterPageUrl : mangaApi.pageUrl)(volumeId, n, width)), [dex, chapter, volumeId])
+  const rawUrl = useCallback((n: number) => (isPdf ? (pdfUrls[n] ?? '') : serverUrl(n, widest > 0 ? widest : undefined)), [isPdf, pdfUrls, serverUrl, widest])
   const pageUrl = useCallback((n: number) => (trimming ? (trims[rawUrl(n)]?.url ?? '') : rawUrl(n)), [trimming, trims, rawUrl])
   // A trimmed page has its own shape. What pairs with what stays as the scan has it.
   const liveSizes = useMemo<readonly PageSize[] | undefined>(() => {
@@ -127,6 +149,7 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
     else setWidest((w) => (w < 0 ? w : Math.max(w, wantWidth)))
   }, [wantWidth, stageSize.w])
 
+  const pageBackground = resolvedBackground(opts)
   const pictureOf = useCallback(
     (i: number): CurlPicture | null => {
       const spread = spreads[i]
@@ -134,14 +157,14 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
       const w = box.x1 - box.x0
       const h = box.y1 - box.y0
       return {
-        key: `${spread.join('-')}@${w}x${h}${rtl ? 'r' : ''}${twoUp ? 'd' : ''}${trimming ? 't' : ''}${look.dark ? 'k' : ''}${widest}`,
+        key: `${spread.join('-')}@${w}x${h}${rtl ? 'r' : ''}${twoUp ? 'd' : ''}${trimming ? 't' : ''}${look.dark ? 'k' : ''}${widest}${pageBackground ?? ''}`,
         width: w,
         height: h,
-        background: look.dark ? BACKGROUND_DARK_PAGES : BACKGROUND,
+        background: look.dark ? BACKGROUND_DARK_PAGES : (pageBackground ?? BACKGROUND),
         items: placeSpread(spread, i, box, liveSizes, ratio, twoUp, rtl).map((p) => ({ url: pageUrl(p.n), x: p.x, y: p.y, w: p.w, h: p.h })),
       }
     },
-    [spreads, box, liveSizes, ratio, twoUp, rtl, pageUrl, widest, trimming, look.dark],
+    [spreads, box, liveSizes, ratio, twoUp, rtl, pageUrl, widest, trimming, look.dark, pageBackground],
   )
 
   // The panel-by-panel view, from the same code as the Comics reader. On a screen
@@ -150,10 +173,10 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
   sizesNow.current = sizes
   const guidedSource = useMemo<GuidedSource>(
     () => ({
-      pageUrl: (n, width) => (chapter ? mangaApi.chapterPageUrl : mangaApi.pageUrl)(volumeId, n, width),
-      panels: (n, panelsRtl) => mangaApi.panels(volumeId, n, panelsRtl, chapter).then((r) => ({ panels: panelsOrHalves(r.panels ?? [], sizesNow.current?.[n - 1], panelsRtl, window.innerWidth < window.innerHeight) })),
+      pageUrl: (n, width) => serverUrl(n, width),
+      panels: (n, panelsRtl) => (dex ? browseApi.panels(dex, n, panelsRtl) : mangaApi.panels(volumeId, n, panelsRtl, chapter)).then((r) => ({ panels: panelsOrHalves(r.panels ?? [], sizesNow.current?.[n - 1], panelsRtl, window.innerWidth < window.innerHeight) })),
     }),
-    [volumeId, chapter],
+    [volumeId, chapter, dex, serverUrl],
   )
   const onPanel = useCallback((i: number, count: number) => setPanelAt({ index: i, count }), [])
 
@@ -161,14 +184,16 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
 
   const closeNow = useRef(onClose)
   closeNow.current = onClose
+  const hintsNow = useRef(opts.hints)
+  hintsNow.current = opts.hints
   useEffect(() => {
     // Your place is kept for you, so it opens there on any device. A volume read to
     // the end has no place, and opens at the first page.
-    const kept = fetch(`/api/home/position?item=manga:${chapter ? 'c' : 'v'}:${volumeId}`, { credentials: 'include' })
+    const kept = fetch(`/api/home/position?item=${dex ? dexItem(dex) : `manga:${chapter ? 'c' : 'v'}:${volumeId}`}`, { credentials: 'include' })
       .then((x) => (x.ok ? (x.json() as Promise<{ position?: number }>) : null))
       .catch(() => null)
     let gone = false
-    Promise.all([chapter ? mangaApi.chapterPages(volumeId) : mangaApi.pages(volumeId), kept])
+    Promise.all([dex ? browseApi.pages(dex) : chapter ? mangaApi.chapterPages(volumeId) : mangaApi.pages(volumeId), kept])
       .then(async ([answer, at]) => {
         // A PDF's pages are drawn here, from the file.
         let r = answer
@@ -184,12 +209,17 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
         if (gone) return
         const pages = r.pages ?? 0
         const from = startPage > 0 ? startPage : at?.position ? Math.round(at.position) : 1
-        setDirection(r.direction === 'ltr' ? 'ltr' : 'rtl')
-        setLayout(r.layout === 'single' || r.layout === 'double' || r.layout === 'webtoon' || r.layout === 'panels' ? r.layout : '')
+        // A MangaDex series not in the library: how you read it is kept on this device.
+        const dexOf = (r as MangaPages & { dex?: DexReading }).dex
+        const own: { direction?: string; layout?: string } = dexOf && !r.seriesId ? storedDexPrefs(dexOf.mangaId) : {}
+        const dir = own.direction ?? r.direction
+        const lay = own.layout ?? r.layout
+        setDirection(dir === 'ltr' ? 'ltr' : 'rtl')
+        setLayout(lay === 'single' || lay === 'double' || lay === 'webtoon' || lay === 'wide' || lay === 'panels' ? lay : '')
         setShift(!!r.shift)
         setPage(pages ? Math.min(Math.max(1, from), pages) : 1)
         setInfo(r)
-        if (r.layout !== 'webtoon') {
+        if (lay !== 'webtoon' && lay !== 'wide' && hintsNow.current === 'overlay') {
           try {
             if (!localStorage.getItem(HINT_KEY)) {
               localStorage.setItem(HINT_KEY, '1')
@@ -206,7 +236,7 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
       pdf.current?.destroy()
       pdf.current = null
     }
-  }, [volumeId, chapter, startPage])
+  }, [volumeId, chapter, dex, startPage])
 
   useEffect(() => {
     if (!hint) return
@@ -378,22 +408,24 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
   useEffect(() => {
     if (!total) return
     pageNow.current = { page, total }
-    const tm = window.setTimeout(() => saveMangaPlace(volumeId, page, total, false, chapter), 1200)
+    const tm = window.setTimeout(() => (dex ? saveDexPlace(dex, page, total) : saveMangaPlace(volumeId, page, total, false, chapter)), 1200)
     return () => window.clearTimeout(tm)
-  }, [page, total, volumeId, chapter])
+  }, [page, total, volumeId, chapter, dex])
   useEffect(
     () => () => {
       const at = pageNow.current
-      if (at.total > 0) saveMangaPlace(volumeId, at.page, at.total, true, chapter)
+      if (at.total <= 0) return
+      if (dex) saveDexPlace(dex, at.page, at.total, true)
+      else saveMangaPlace(volumeId, at.page, at.total, true, chapter)
     },
-    [volumeId, chapter],
+    [volumeId, chapter, dex],
   )
 
   // ---- turning ----
 
   // What a turn needs, as it is now: gestures and timers outlive a render.
-  const live = useRef({ index, spreads, rtl, twoUp, box, curl, turnEffect, pictureOf, scroll, guided })
-  live.current = { index, spreads, rtl, twoUp, box, curl, turnEffect, pictureOf, scroll, guided }
+  const live = useRef({ index, spreads, rtl, twoUp, box, curl, turnEffect, pictureOf, scroll, wide, guided })
+  live.current = { index, spreads, rtl, twoUp, box, curl, turnEffect, pictureOf, scroll, wide, guided }
 
   const dirOf = (d: 1 | -1): TurnDir => (d > 0 ? 'next' : 'prev')
 
@@ -431,6 +463,10 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
         webtoon.current?.scroll(d * 0.85)
         return
       }
+      if (l.wide) {
+        wideView.current?.scroll(d * 0.85)
+        return
+      }
       if (l.guided) {
         if (d > 0) guidedView.current?.next()
         else guidedView.current?.prev()
@@ -460,6 +496,7 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
   const jumpTo = (n: number) => {
     const to = Math.min(Math.max(1, n), total || 1)
     if (scroll) webtoon.current?.toPage(to)
+    if (wide) wideView.current?.toPage(to)
     setHint(false)
     setPage(to)
   }
@@ -564,6 +601,7 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
       else if (live.current.scroll && e.key === 'ArrowDown') webtoon.current?.scroll(0.2)
       else if (live.current.scroll && e.key === 'ArrowUp') webtoon.current?.scroll(-0.2)
       else if (e.key === 'Escape') closeNow.current()
+      else if (isHeaderKey(e.key)) toggleHeader.current()
       else return
       e.preventDefault()
     }
@@ -574,11 +612,14 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
       document.body.style.overflow = ''
     }
   }, [turn])
+  const toggleHeader = useRef<() => void>(() => undefined)
+  toggleHeader.current = () => changeOpts({ header: !opts.header })
 
   // ---- your choices ----
 
   const remember = (body: { direction?: ReadDirection; layout?: MangaLayout; shift?: 1 | -1 }) => {
     if (info?.seriesId) mangaApi.readerPrefs(info.seriesId, body).catch(() => undefined)
+    else if (info?.dex && (body.direction || body.layout)) saveDexPrefs(info.dex.mangaId, { direction: body.direction, layout: body.layout })
   }
   const chooseDirection = (d: ReadDirection) => {
     setDirection(d)
@@ -614,21 +655,53 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
   const nextHere = nextUp?.have ? nextUp : info?.nextHave
   const item = `manga:v:${volumeId}`
   const filter = lookFilter(look)
+  const dexInfo = info?.dex
+  const getChapter = () => {
+    if (!dexInfo) return
+    setDexNote(t('Starting the download…'))
+    browseApi
+      .download(dexInfo.chapterId)
+      .then((r) => setDexNote(r.message))
+      .catch((e: Error) => setDexNote(e.message))
+  }
   const shownLayout = layout || (wideScreen ? 'double' : 'single')
   const canFullScreen = !!document.fullscreenEnabled
   const scrollsSideways = !!fitted && fitted.box.x1 - fitted.box.x0 > stageSize.w
 
+  const layoutChoices = [
+    { id: 'single', label: t('One page') },
+    { id: 'double', label: t('Two pages') },
+    { id: 'webtoon', label: t('Long scroll') },
+    { id: 'wide', label: t('Wide strip'), title: t('Every page side by side, scrolled across'), disabled: isPdf },
+    { id: 'panels', label: t('Panels'), disabled: isPdf },
+  ].map((l) => (l.id === 'webtoon' ? { ...l, disabled: isPdf } : l))
+  const style = { ...readerStyle(opts, filter) }
+
   return createPortal(
-    <div className="cx-reader mr-reader" role="dialog" aria-label={info?.title ?? t('Manga reader')} style={filter ? ({ '--mr-filter': filter } as CSSProperties) : undefined}>
+    <div className={`cx-reader mr-reader ${readerClass(opts)}`} role="dialog" aria-label={info?.title ?? t('Manga reader')} style={style}>
       <div className="cx-reader-bar">
         <button className="btn-sm" onClick={onClose} aria-label={t('Close the reader')}>
           <Icon name="x" size={16} />
         </button>
-        <span className="cx-reader-title">{info?.title}</span>
+        <span className="cx-reader-title">
+          {info?.title}
+          {dexInfo && dexInfo.groups.length > 0 && <small className="mr-dex-credit">{t('Translated by {groups}', { groups: dexInfo.groups.join(' & ') })}</small>}
+        </span>
         <span className="cx-reader-count">
-          {total ? `${scroll ? `${page} / ${total}` : counter} · ${percent}%` : ''}
+          {total ? `${scroll || wide ? `${page} / ${total}` : counter} · ${percent}%` : ''}
           {guided && panelAt.count > 0 && panelAt.index >= 0 ? ` · ${t('panel {n} of {count}', { n: panelAt.index + 1, count: panelAt.count })}` : ''}
         </span>
+        {dexInfo && (dexInfo.chapters?.length ?? 0) > 1 && (
+          <select className="mr-dex-pick" value={dexInfo.chapterId} onChange={(e) => onDex(e.target.value)} aria-label={t('Chapter')}>
+            {!dexInfo.chapters?.some((c) => c.id === dexInfo.chapterId) && <option value={dexInfo.chapterId}>{info?.number}</option>}
+            {dexInfo.chapters?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.number === 'Oneshot' ? t('Oneshot') : t('Chapter {n}', { n: c.number })}
+                {c.title ? ` · ${c.title}` : ''}
+              </option>
+            ))}
+          </select>
+        )}
         {total > 0 && !chapter && (
           <button
             className={`btn-sm${marksOpen ? ' primary' : ''}`}
@@ -673,6 +746,7 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
           </button>
         )}
       </div>
+      {!opts.header && total > 0 && <HeaderButton onShow={() => changeOpts({ header: true })} />}
       {marksOpen && total > 0 && (
         <div className="cx-marks-panel" aria-label={t('Bookmarks')}>
           <Marks
@@ -686,32 +760,55 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
         </div>
       )}
       {optsOpen && total > 0 && (
-        <div className="cx-marks-panel cx-reader-opts" aria-label={t('How you read this series')}>
-          <h3>{t('Reading direction')}</h3>
-          <div className="seg" role="group" aria-label={t('Reading direction')}>
-            <button className={direction === 'rtl' ? 'active' : ''} aria-pressed={direction === 'rtl'} disabled={scroll} onClick={() => chooseDirection('rtl')}>
-              {t('Right to left')}
-            </button>
-            <button className={direction === 'ltr' ? 'active' : ''} aria-pressed={direction === 'ltr'} disabled={scroll} onClick={() => chooseDirection('ltr')}>
-              {t('Left to right')}
-            </button>
-          </div>
-          <h3>{t('How pages show')}</h3>
-          <div className="seg cx-reader-layouts" role="group" aria-label={t('How pages show')}>
-            {(
-              [
-                ['single', t('One page')],
-                ['double', t('Two pages')],
-                ['webtoon', t('Long scroll')],
-                ['panels', t('Panels')],
-              ] as const
-            ).map(([id, label]) => (
-              <button key={id} className={shownLayout === id ? 'active' : ''} aria-pressed={shownLayout === id} disabled={(id === 'webtoon' || id === 'panels') && isPdf} onClick={() => chooseLayout(id)}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <p className="hint">{t('Remembered for this series, just for you.')}</p>
+        <ReaderSettings
+          label={t('How you read this series')}
+          direction={direction}
+          onDirection={chooseDirection}
+          directionDisabled={scroll}
+          directionFirst="rtl"
+          layouts={layoutChoices}
+          layout={shownLayout}
+          onLayout={(id) => chooseLayout(id as MangaLayout)}
+          opts={opts}
+          onOpts={changeOpts}
+          rememberedHint={info?.seriesId ? t('Remembered for this series, just for you.') : t('Remembered for this series on this device.')}
+          more={
+            <>
+              {!flat && (
+                <>
+                  <h3>{t('Fit')}</h3>
+                  <div className="seg mr-fits" role="group" aria-label={t('Fit')}>
+                    {(
+                      [
+                        ['page', t('Whole page')],
+                        ['width', t('Width')],
+                        ['height', t('Height')],
+                        ['original', t('Actual size')],
+                      ] as const
+                    ).map(([id, label]) => (
+                      <button key={id} className={look.fit === id ? 'active' : ''} aria-pressed={look.fit === id} onClick={() => changeLook({ fit: id })}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="mr-check">
+                    <input type="checkbox" checked={look.trim} onChange={(e) => changeLook({ trim: e.target.checked })} />
+                    <span>{t('Trim white borders')}</span>
+                  </label>
+                </>
+              )}
+              <h3>{t('Brightness')}</h3>
+              <input className="mr-bright" type="range" min={30} max={100} value={look.brightness} onChange={(e) => changeLook({ brightness: Number(e.target.value) })} aria-label={t('Brightness')} />
+              <label className="mr-check">
+                <input type="checkbox" checked={look.dark} onChange={(e) => changeLook({ dark: e.target.checked })} />
+                <span>
+                  {t('Dark pages')}
+                  <small className="hint">{t('White paper turns black, for reading in the dark.')}</small>
+                </span>
+              </label>
+            </>
+          }
+        >
           {twoUp && (
             <label className="mr-check">
               <input type="checkbox" checked={shift} onChange={(e) => chooseShift(e.target.checked)} />
@@ -740,48 +837,29 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
               <p className="hint">{reduced ? t('Your device asks for less motion, so pages just turn.') : t('The same choice as the book reader, on this device.')}</p>
             </>
           )}
-          <details className="mr-more" open={moreOpen} onToggle={(e) => setMoreOpen(e.currentTarget.open)}>
-            <summary>{t('More for this device')}</summary>
-            {!flat && (
-              <>
-                <h3>{t('Fit')}</h3>
-                <div className="seg mr-fits" role="group" aria-label={t('Fit')}>
-                  {(
-                    [
-                      ['page', t('Whole page')],
-                      ['width', t('Width')],
-                      ['height', t('Height')],
-                      ['original', t('Actual size')],
-                    ] as const
-                  ).map(([id, label]) => (
-                    <button key={id} className={look.fit === id ? 'active' : ''} aria-pressed={look.fit === id} onClick={() => changeLook({ fit: id })}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <label className="mr-check">
-                  <input type="checkbox" checked={look.trim} onChange={(e) => changeLook({ trim: e.target.checked })} />
-                  <span>{t('Trim white borders')}</span>
-                </label>
-              </>
-            )}
-            <h3>{t('Brightness')}</h3>
-            <input className="mr-bright" type="range" min={30} max={100} value={look.brightness} onChange={(e) => changeLook({ brightness: Number(e.target.value) })} aria-label={t('Brightness')} />
-            <label className="mr-check">
-              <input type="checkbox" checked={look.dark} onChange={(e) => changeLook({ dark: e.target.checked })} />
-              <span>
-                {t('Dark pages')}
-                <small className="hint">{t('White paper turns black, for reading in the dark.')}</small>
-              </span>
-            </label>
-          </details>
-        </div>
+          {dexInfo && (
+            <div className="mr-dex-box">
+              <h3>{t('From MangaDex')}</h3>
+              <p className="hint">
+                {dexInfo.chapterTitle ? `${dexInfo.chapterTitle}. ` : ''}
+                {dexInfo.groups.length > 0 ? t('Translated by {groups}. Read through Usherr; nothing is downloaded.', { groups: dexInfo.groups.join(' & ') }) : t('Read through Usherr; nothing is downloaded.')}
+              </p>
+              {dexInfo.canDownload && (
+                <button className="btn-sm" onClick={getChapter}>
+                  {t('Download this chapter')}
+                </button>
+              )}
+              {dexNote && <p className="hint">{dexNote}</p>}
+            </div>
+          )}
+        </ReaderSettings>
       )}
       {error && <p className="error-text cx-reader-msg">{error}</p>}
       {!info && !error && <p className="hint cx-reader-msg">{t('Opening…')}</p>}
       {total > 0 && (
         <div className="mr-view" onPointerDownCapture={() => setHint(false)}>
           {scroll && <ComicWebtoon ref={webtoon} pageUrl={pageUrl} total={total} start={page} onPage={setPage} />}
+          {wide && <WideStrip ref={wideView} pageUrl={pageUrl} total={total} start={page} rtl={direction === 'rtl'} onPage={setPage} />}
           {guided && <ComicGuided ref={guidedView} key={direction} source={guidedSource} page={page} total={total} onPage={setPage} onPanel={onPanel} rtl={rtl} />}
           {!flat && (
             <div
@@ -792,6 +870,7 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
               onPointerMove={onMove}
               onPointerUp={onUp}
               onPointerCancel={onUp}
+              onMouseMove={opts.hints === 'cursor' ? (e) => cursorHint(e, rtl) : undefined}
               onContextMenu={(e) => {
                 e.preventDefault()
                 press.current = null
@@ -805,7 +884,7 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
               </div>
             </div>
           )}
-          {hint && !scroll && (
+          {hint && !scroll && !wide && (
             <div className="mr-zones" aria-hidden="true">
               <div className={`mr-zone back ${rtl ? 'right' : 'left'}`}>{t('Tap here to go back')}</div>
               <div className={`mr-zone on ${rtl ? 'left' : 'right'}`}>
@@ -820,24 +899,39 @@ function ReaderVolume({ volumeId, chapter, startPage, onClose, onNext }: { volum
         <>
           {/* On a new press, not a click: lifting the finger that opened this makes a click too. */}
           <button className="mr-save-away" aria-label={t('Close')} onPointerDown={() => setSaving(null)} />
-          <a className="btn-sm primary mr-save" style={{ left: saving.x, top: saving.y }} href={isPdf ? rawUrl(saving.n) : (chapter ? mangaApi.chapterPageUrl : mangaApi.pageUrl)(volumeId, saving.n)} download={`${info?.title ?? 'Manga'} - page ${saving.n}`} onClick={() => setSaving(null)}>
+          <a className="btn-sm primary mr-save" style={{ left: saving.x, top: saving.y }} href={isPdf ? rawUrl(saving.n) : serverUrl(saving.n)} download={`${info?.title ?? 'Manga'} - page ${saving.n}`} onClick={() => setSaving(null)}>
             {t('Save page {n}', { n: saving.n })}
           </a>
         </>
       )}
       {atEnd && (
         <div className="cx-reader-end mr-end">
-          {nextUp && !nextUp.have && <span className="hint">{nextUp.chapter ? (nextUp.wanted ? t('Chapter {n} isn’t here yet. It’s wanted.', { n: nextUp.number }) : t('Chapter {n} isn’t here yet.', { n: nextUp.number })) : nextUp.wanted ? t('Volume {n} isn’t here yet. It’s wanted.', { n: nextUp.number }) : t('Volume {n} isn’t here yet.', { n: nextUp.number })}</span>}
-          {nextHere ? (
-            <button className="btn-sm primary btn-with-icon" onClick={() => onNext(nextHere.id, !!nextHere.chapter)}>
-              {nextHere.chapter ? t('Next: Chapter {n}', { n: nextHere.number }) : t('Next: Volume {n}', { n: nextHere.number })} <Icon name="open" size={14} />
-            </button>
+          {dexInfo ? (
+            <>
+              {dexInfo.groups.length > 0 && <span className="hint">{t('Thanks to {groups} for this translation.', { groups: dexInfo.groups.join(' & ') })}</span>}
+              {dexInfo.next ? (
+                <button className="btn-sm primary btn-with-icon" onClick={() => onDex(dexInfo.next?.id ?? '')}>
+                  {dexInfo.next.number === 'Oneshot' ? t('Next: Oneshot') : t('Next: Chapter {n}', { n: dexInfo.next.number })} <Icon name="open" size={14} />
+                </button>
+              ) : (
+                <span className="hint">{t('That’s the last chapter on MangaDex in your language.')}</span>
+              )}
+            </>
           ) : (
-            !nextUp && <span className="hint">{chapter ? t('That’s the last chapter here.') : t('That’s the last volume of this series.')}</span>
+            <>
+              {nextUp && !nextUp.have && <span className="hint">{nextUp.chapter ? (nextUp.wanted ? t('Chapter {n} isn’t here yet. It’s wanted.', { n: nextUp.number }) : t('Chapter {n} isn’t here yet.', { n: nextUp.number })) : nextUp.wanted ? t('Volume {n} isn’t here yet. It’s wanted.', { n: nextUp.number }) : t('Volume {n} isn’t here yet.', { n: nextUp.number })}</span>}
+              {nextHere ? (
+                <button className="btn-sm primary btn-with-icon" onClick={() => onNext(nextHere.id, !!nextHere.chapter)}>
+                  {nextHere.chapter ? t('Next: Chapter {n}', { n: nextHere.number }) : t('Next: Volume {n}', { n: nextHere.number })} <Icon name="open" size={14} />
+                </button>
+              ) : (
+                !nextUp && <span className="hint">{chapter ? t('That’s the last chapter here.') : t('That’s the last volume of this series.')}</span>
+              )}
+            </>
           )}
         </div>
       )}
-      {total > 0 && <input className="cx-reader-slider" type="range" dir={rtl ? 'rtl' : 'ltr'} min={1} max={total} value={page} onChange={(e) => jumpTo(Number(e.target.value))} aria-label={t('Page')} />}
+      {total > 0 && <ReaderProgress opts={opts} page={page} total={total} rtl={rtl} onJump={jumpTo} />}
     </div>,
     document.body,
   )

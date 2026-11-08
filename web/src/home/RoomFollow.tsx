@@ -8,6 +8,7 @@ import Icon from '../components/Icon'
 import { plural, t } from '../i18n'
 import { useRoomLink, type RoomLink } from './roomLink'
 import { correct, driftWords, SEEK_AHEAD, type RoomState } from './syncMath'
+import { HostPartyButtons } from './Party' // Usherr: the party: intermission, roll credits
 
 export type Follow = { state: RoomState; drift: number; tap: boolean }
 
@@ -169,6 +170,7 @@ export function RoomBar({ link, follow, position }: { link: RoomLink; follow: Fo
         <button type="button" className="btn-sm" onClick={() => go(10)} aria-label={t('Forward 10 seconds, for everyone')} title={t('Forward 10 seconds, for everyone')}>
           {t('+10 s')}
         </button>
+        {state !== 'ended' && <HostPartyButtons showtimeId={link.id} />}
         <label className="cx-check hp-room-opt" title={t('Guests can ask to pause, and your Usherr pauses for everyone. Only you can play again.')}>
           <input type="checkbox" checked={room.anyonePause} onChange={(e) => run(link.setAnyonePause(e.target.checked))} /> {t('Anyone can pause')}
         </label>
