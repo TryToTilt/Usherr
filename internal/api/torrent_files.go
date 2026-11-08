@@ -120,6 +120,9 @@ func (s *Server) autoSkips(item queue.Item, files []torrentclient.FileState) []s
 			skip[p] = true
 		}
 	}
+	for _, p := range s.mangaPackSkips(item, files) { // Usherr
+		skip[p] = true
+	}
 	if len(skip) >= len(files) {
 		return nil
 	}

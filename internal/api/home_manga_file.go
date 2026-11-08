@@ -437,7 +437,7 @@ func (s *Server) runMangaPipeline(queueID int64, sr manga.Series, d manga.Downlo
 		}
 		openWrappedManga(dir)
 	}
-	files := mangaFiles(dir)
+	files := dropSkipped(dir, mangaFiles(dir), readSkipped(dir)) // volumes the torrent left out
 	if len(files) == 0 {
 		return wrongKind(mangaHolds(dir))
 	}

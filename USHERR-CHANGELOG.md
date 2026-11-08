@@ -5,6 +5,12 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.63.0] - 2026-11-08
+
+### Changed
+
+- **A manga pack downloads only the volumes you're missing.** When a torrent pack arrives, its files for volumes you already have, or unticked, are left out, as a TV pack leaves out the other seasons; a pack taken to swap one volume fetches only that one. Files whose names don't say which volume they are still come down. The queue now shows a pack as "Volumes 1–41" instead of the one volume it was found for.
+
 ## [2.62.1] - 2026-11-07
 
 ### Fixed
