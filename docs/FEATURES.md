@@ -203,6 +203,35 @@ Switch it on in Settings > Media types ([modules.md](./modules.md), [music.md](.
 | Clean stalled / failed queue items | **Yes** | failed downloads are blocklisted and retried; a stalled torrent is stopped, blocklisted and replaced (time is a setting); working folders are removed after import, torrent data once its seeding goal is met, and a daily clean-up (`GET/POST /api/system/cleanup`) removes orphaned, leftover and empty folders in the downloads working folder (never the library) and prunes history older than `cleanup.history_retention_days` (see [downloads.md](./downloads.md#clean-up)) | Cleanuparr |
 | Library cleanup rules (unwatched, old) | **Yes** (off by default) | remove movies or episodes watched a while ago, or movies nobody watched long after they were added, with a preview first, tags that keep a title safe, the recycle bin, and every removal in Activity (`cleanup.rules`, `GET /api/watched/cleanup/preview`, `POST /api/watched/cleanup/run`, `internal/cleanup`). Needs a media server for the watch data | Maintainerr |
 
+### 2.6 What Usherr adds (as of Usherr 2.61.2)
+
+The tables above describe Mediarium. Usherr keeps all of it and adds the rows below; where a row above says **No** or **Partial** and a row here covers it, Usherr's row is the one that applies. The guide to these parts is [docs/home](./home/getting-started.md).
+
+| Feature | In Usherr | Guide | Does the job of |
+|---|---|---|---|
+| Streaming from Usenet without downloading | **Yes** | own engine (or StreamNZB), saved releases checked before they're offered, a streamed library for Jellyfin and a virtual drive for Plex ([integrations](./home/integrations.md#streaming-engine-usherr-or-streamnzb)) | StreamNZB, nzbdav |
+| Taste, For you, Tonight, Discover recipes, Ask the AI | **Yes** | [finding](./home/finding.md), [ai](./home/ai.md) | |
+| Diary, Wrapped, your stack, reviews | **Yes** | [finding](./home/finding.md#you) | Letterboxd-style diary |
+| Showtimes, the pre-show, the Marquee | **Yes** | [watching](./home/watching.md#showtimes-at-home), [preshow](./home/preshow.md), [marquee](./home/marquee.md) | NeXroll, Cinema mode |
+| Watching together with linked Usherrs | **Yes** | linked screenings played in step, lobby and seat map, intermission, the verdict, chat and reactions, a phone companion and host remote ([watch-together](./home/watch-together.md)) | Jellyfin SyncPlay, Discord watch parties |
+| Crews, film clubs, Crew Wrapped | **Yes** | chat, shared watchlist, next-film vote, film clubs, year in review ([watch-together](./home/watch-together.md#crews)) | |
+| Ticket stubs and badges | **Yes** | collectible stubs with a SEEN stamp, twelve badges ([community](./home/community.md#ticket-stubs)) | |
+| Discord watch parties and reviews | **Yes** (preview) | your own bot ([community](./home/community.md)) | |
+| Live TV channels | **Yes** | from your library and streams, Real TV, graphics-card encoding and a watermark ([live-tv](./home/live-tv.md)) | ErsatzTV, Tunarr |
+| Artwork, collections and poster badges | **Yes** | [re-posterr](./home/re-posterr.md) | Posterizarr, Kometa |
+| Watch history and stats | **Yes** | own history from Plex, Jellyfin and Emby ([server](./home/server.md#watching)) | Streamystats, Tautulli |
+| Clean-up rule sets with Leaving soon | **Yes** (off by default) | streamed titles never touched ([server](./home/server.md#clean-up-rule-sets-and-leaving-soon)) | Maintainerr |
+| Service checks | **Yes** | [server](./home/server.md#service-checks) | a watchdog container, Uptime Kuma |
+| Simple and Advanced quality profiles, auto-tagging, tag rules | **Yes** | [server](./home/server.md#quality-profiles-simple-and-advanced) | |
+| Sign in with Jellyfin or Plex | **Yes** (off by default) | [server](./home/server.md#friends-sign-in-with-jellyfin-or-plex) | |
+| Sports | **Yes** | leagues, teams, games, streams, downloads with its own engine ([sports](./home/sports.md)) | Sportarr |
+| Manga | **Yes** (switch it on) | volumes from your indexers, official editions first, fan scans and Nyaa opt-in, MangaDex chapters and account sync, Discover, a reader of its own ([manga.md](./manga.md)) | |
+| Comics | **Yes** | ComicVine, story arcs, reader with panels and webtoon views, OPDS ([watching](./home/watching.md#comics)) | Mylar3, Kapowarr, Komga |
+| Music in phone apps, Last.fm, playlists from .m3u, tidy-up | **Yes** | Subsonic and OpenSubsonic apps, Last.fm scrobbling, Picard-style tidy-up ([integrations](./home/integrations.md#music-in-phone-apps-subsonic), [music.md](./music.md#tidying-up-your-music)) | Navidrome, Picard |
+| Books: page curl, KOSync, send to e-reader | **Yes** | [books.md](./books.md) | Kavita, Audiobookshelf |
+| Read-to-Me | **Yes** | an audiobook from an ebook with a computer voice ([read-to-me](./home/read-to-me.md)) | |
+| Adult content (NSFW 18+) | **Yes** (locked unless the server allows it) | its own page only, StashDB, fingerprint matching ([integrations](./home/integrations.md#nsfw-18)) | Whisparr |
+
 ## 3. What to add next
 
 Effort: **S** = days or less, **M** = about 1 to 2 weeks, **L** = weeks. Priority reasons are about making a public v1 credible, not about copying everything. Items struck through are done.

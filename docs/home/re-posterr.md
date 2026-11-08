@@ -169,6 +169,54 @@ that had none, the picture is taken off again.
 A first look over a big library takes a night or two; after that, only new
 titles need looking at.
 
+## Collections
+
+**Settings → Re-Posterr → Collections.** Usherr makes collections in
+Jellyfin and Plex and keeps them up to date, so Kometa isn't needed for them.
+A collection's titles come from:
+
+- one of your **import lists** (Trakt, MDBList, TMDB lists, IMDb, Letterboxd),
+- **a TMDB collection** (a film series, like "Alien Collection", by name or
+  number),
+- TMDB's trending titles,
+- **a rule over your library**: genres, years, a minimum rating, added in the
+  last so many days, or only the best rated few,
+- or titles you pick yourself.
+
+Titles are found in each server's library by their TMDB, IMDb or TheTVDB id.
+Jellyfin gets one collection (the kept copy of a film rather than its streamed
+one), and each Plex library with matching titles gets its own. Choose
+**Jellyfin**, **Plex** or both, a sort title, a poster (the server's own, one
+you upload, or one made in your Re-Posterr style), where Plex shows it (the
+library's Recommended tab, your Home, friends' Home), whether titles that no
+longer belong come out, and whether missing titles are **added to Usherr** as
+wanted.
+
+**See what's in it** shows the matches and what's missing before you save.
+Collections sync every 12 hours (or what you choose) and on **Sync all now**.
+One of the same name already on a server, say one Kometa made, is taken over
+instead of made twice. Removing a collection asks whether to delete it from
+the servers too; the titles themselves are never touched.
+
+## Poster badges
+
+**Settings → Re-Posterr → Poster badges** (off until you switch them on).
+Small badges on the posters Jellyfin and Plex show: 4K, 1080p or 720p, HDR,
+HDR10+ or Dolby Vision, the best sound (Atmos, DTS:X, TrueHD, DTS-HD MA), 5.1
+or 7.1, the rating (your media server's, or IMDb's from MDBList scores) and
+**New** for titles added lately. Picture and sound badges are for films;
+shows get the rating and New.
+
+Choose which badges, the libraries that get them, the corners, a dark or
+colourful look and the size, with a live preview of one of your films.
+
+Usherr keeps every original poster and always draws on it, so badges never
+pile up. Posters are drawn again when a file or a rating changes (it checks
+every hour), and switching badges off, or unticking a library, puts the
+originals back. A poster changed another way, by hand or by Re-Posterr,
+becomes the new original, and Re-Posterr keeps the poster without badges when
+it replaces one.
+
 ## TheTVDB
 
 Optional, for shows: a TheTVDB API key (thetvdb.com, your account, API keys)

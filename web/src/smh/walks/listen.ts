@@ -123,14 +123,14 @@ export const listenAudiobook: Walkthrough = {
   title: t('Listen to an audiobook'),
   blurb: t('Usherr Books: your audiobooks, with chapters, speed, a sleep timer, and your place kept on every device.'),
   icon: 'headphones',
-  words: 'audiobook listen player books sleep timer speed chapters',
+  words: 'audiobook listen player books sleep timer speed chapters bookmark skip',
   simple: [
     { kind: 'point', target: 'tool-play', act: 'click', until: { seen: 'books-listen' }, title: t('Players'), text: t('The play button at the top opens the players and apps.') },
     { kind: 'point', target: 'books-listen', until: 'next', title: t('Usherr Books'), text: t('Opens your audiobooks in a window of its own. Tap a book’s Listen to start.') },
     {
       kind: 'say',
       title: t('The player'),
-      text: t('−30 and +30 skip half a minute; the arrows go a chapter back or on. The speed button goes from 0.8× to 2×. Sleep timer stops after 15 to 60 minutes, or at the end of the chapter. Your place is kept, so it carries on where you stopped, on any device.'),
+      text: t('The skip buttons go back and on (choose 5 to 60 seconds in the player’s settings); the arrows go a chapter back or on. The speed button goes from 0.8× to 2×. Sleep timer stops after 15 to 60 minutes, or at the end of the chapter. Bookmark keeps a spot, with a note if you like. After a pause it goes back a little, so you don’t lose the thread. Your place is kept on every device.'),
     },
     {
       kind: 'say',
@@ -148,20 +148,102 @@ export const readEbook: Walkthrough = {
   title: t('Read an ebook'),
   blurb: t('Usherr Books: a reader with your text size and colours, and your place kept on every device. Or send books to an e-reader.'),
   icon: 'book',
-  words: 'ebook read reader kindle epub kobo e-reader opds',
+  words: 'ebook read reader kindle epub kobo e-reader opds koreader readest send email highlight scroll page turn curl',
   simple: [
     { kind: 'point', target: 'tool-play', act: 'click', until: { seen: 'books-read' }, title: t('Players'), text: t('The play button at the top opens the players and apps.') },
     { kind: 'point', target: 'books-read', until: 'next', title: t('Usherr Books'), text: t('Opens your ebooks in a window of its own. Tap a book’s Read to open it.') },
     {
       kind: 'say',
       title: t('The reader'),
-      text: t('Turn pages with the arrows, the arrow keys, the space bar or a swipe. Contents jumps to a chapter; the slider to any place. Aa sets the text size, the page colour (light, sepia, dark), the font and how pages turn. Kindle books open too.'),
+      text: t('Turn pages with the arrows, the arrow keys, the space bar or a swipe: the page curls like paper after your finger. Contents jumps to a chapter; the slider to any place. Aa sets the text size, line spacing, margins, the font, the page colour (a black page too), Page turn (Curl, Slide or None) and Reading (Pages, or Scroll as one long column). Highlight words in four colours, add notes and bookmarks. Tap a footnote mark to read the note. Kindle books and PDFs open too.'),
     },
     {
       kind: 'say',
       title: t('On an e-reader'),
-      text: t('Your profile page has Read on an e-reader: Kobo sync puts your books on a Kobo, and the OPDS catalogue works in reading apps such as KOReader. Each only reads; it can’t change anything.'),
+      text: t('Your profile page has Read on an e-reader: Kobo sync puts your books on a Kobo, the OPDS catalogue works in reading apps such as KOReader, and KOReader and Readest keep your place with Usherr’s reader, signing in with your app password. Save your Kindle’s address on your profile, and Send to e-reader on a book’s page emails it there.'),
     },
     { kind: 'done', title: t('Happy reading'), text: t('Your place is kept on the server, so a book opens where you stopped, on any device.') },
+  ],
+}
+
+// ---- Tidy up the music (Picard-style) ----
+
+export const tidyMusic: Walkthrough = {
+  id: 'tidy-music',
+  group: 'library',
+  needs: 'music',
+  admin: true,
+  title: t('Tidy up your music'),
+  blurb: t('Neat folder and file names, correct tags and covers, and albums you have twice: you see it all before anything changes.'),
+  icon: 'sparkles',
+  words: 'music tidy clean up rename tags covers picard beets musicbrainz acoustid duplicates albums folder names',
+  simple: [
+    { kind: 'go', to: '/music/tidy', title: t('Tidy up my music'), text: t('Music, Tidy up. Usherr works out what each album really is, then shows the new names and tags. Checking changes nothing.') },
+    {
+      kind: 'point',
+      target: 'tidy-check',
+      act: 'click',
+      until: 'next',
+      title: t('Check my music'),
+      text: t('Safe to run as often as you like. The music database allows one lookup a second, so a big collection takes a while: you can leave the page, the check keeps going.'),
+    },
+    {
+      kind: 'point',
+      target: 'tidy-key',
+      until: 'next',
+      optional: true,
+      title: t('Recognise music by its sound'),
+      text: t('Optional: a free AcoustID application key lets Usherr recognise albums whose tags say too little. Paste it here and Save.'),
+    },
+    {
+      kind: 'point',
+      target: 'tidy-ready',
+      until: 'next',
+      optional: true,
+      title: t('Pick the albums'),
+      text: t('Each album shows its new folder and file names, tags and cover. Start with a few albums you know, tick them, and press Tidy. Albums you have twice are shown too.'),
+    },
+    {
+      kind: 'say',
+      when: () => !document.querySelector('[data-walk="tidy-ready"]'),
+      title: t('When the check is done'),
+      text: t('Come back to this page: the albums ready to tidy are listed here, each with what would change. Nothing changes until you tick albums and press Tidy.'),
+    },
+    {
+      kind: 'done',
+      title: t('Tidy, and safe'),
+      text: t('Originals are kept for 30 days, and Undo under Earlier tidying puts an album back as it was.'),
+    },
+  ],
+}
+
+// ---- Music in a phone app (Subsonic) ----
+
+export const musicApps: Walkthrough = {
+  id: 'music-apps',
+  group: 'listen',
+  needs: 'music',
+  title: t('Play your music in a phone app'),
+  blurb: t('Symfonium, DSub, Substreamer, Feishin and other Subsonic apps play your music from Usherr, with your app password.'),
+  icon: 'headphones',
+  words: 'music phone app subsonic opensubsonic symfonium dsub substreamer play:sub feishin app password last.fm scrobble listenbrainz mobile data',
+  simple: [
+    { kind: 'go', to: '/settings/services', title: t('Linked services'), text: t('Under Settings, Account & Access.') },
+    {
+      kind: 'point',
+      target: 'phone-apps',
+      until: 'next',
+      title: t('Phone apps'),
+      text: t('Switch on Let phone apps sign in, then press Make an app password and copy it into the app now: it isn’t shown again. In the app, add a Subsonic server with the Server address and User name shown here. If it says an administrator switched phone apps off, ask one to switch them on.'),
+    },
+    {
+      kind: 'point',
+      target: 'lastfm',
+      until: 'next',
+      optional: true,
+      title: t('Last.fm too?'),
+      text: t('Connect your own Last.fm account here and what you play goes there (and to ListenBrainz). The heart in Usherr’s player loves the track on Last.fm too.'),
+    },
+    { kind: 'done', title: t('Your music, in your pocket'), text: t('The app password is the same one e-readers use: making a new one changes both. On mobile data, the player can ask for smaller files.') },
   ],
 }

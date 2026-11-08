@@ -115,10 +115,10 @@ export default function Manga() {
                 {t('Settings')}
               </Link>
             )}
-            <Link className="btn-sm" to="/manga/discover">
+            <Link className="btn-sm" to="/manga/discover" data-walk="manga-discover">
               {t('Discover')}
             </Link>
-            <Link className="btn-sm" to="/settings/manga-account">
+            <Link className="btn-sm" to="/settings/manga-account" data-walk="manga-account-link">
               {t('MangaDex account')}
             </Link>
             <Link className="btn-sm primary" to="/manga/add" data-walk="manga-add">
@@ -227,7 +227,7 @@ export default function Manga() {
             </div>
           </div>
           {shown.length === 0 && <p className="mg-hint">{filter === 'waiting' ? t('Nothing is waiting for you.') : t('No series has all its volumes yet.')}</p>}
-          <div className="mg-grid">
+          <div className="mg-grid" data-walk="manga-grid">
             {shown.map((s) => (
               <Tile key={s.id} s={s} sources={sources} problems={problems} />
             ))}

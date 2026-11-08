@@ -305,6 +305,7 @@ export default function MusicTidy() {
         <div className="mi-start-action">
           <button
             className="primary big btn-with-icon"
+            data-walk="tidy-check"
             disabled={busy || running || !over?.toolsReady || !on('music')}
             onClick={() =>
               void run(async () => {
@@ -319,7 +320,7 @@ export default function MusicTidy() {
         </div>
       </section>
 
-      <details className="card tidy-key">
+      <details className="card tidy-key" data-walk="tidy-key">
         <summary>{over?.hasKey ? t('AcoustID key (set)') : t('Recognise music by its sound (optional)')}</summary>
         <p>
           {tx('With a free AcoustID key, Usherr can recognise albums by listening to them, even when the names are a mess. Make an application at {link} and paste its key here.', {
@@ -405,7 +406,7 @@ export default function MusicTidy() {
           </div>
 
           {eligible.length > 0 && (
-            <fieldset className="group mi-col found">
+            <fieldset className="group mi-col found" data-walk="tidy-ready">
               <legend>
                 <Icon name="sparkles" size={14} /> {t('Ready to tidy ({n})', { n: eligible.length })}
               </legend>
@@ -472,7 +473,7 @@ export default function MusicTidy() {
       )}
 
       {(history.length > 0 || (over?.recycleBytes ?? 0) > 0) && (
-        <fieldset className="group tidy-history">
+        <fieldset className="group tidy-history" data-walk="tidy-history">
           <legend>
             <Icon name="clock" size={14} /> {t('Earlier tidying')}
           </legend>

@@ -72,7 +72,7 @@ export default function LastFMCard() {
   if (!musicOn || !st) return null
   if (!st.configured && !admin) return null
   return (
-    <fieldset className="group" id="lastfm" ref={box}>
+    <fieldset className="group" id="lastfm" data-walk="lastfm" ref={box}>
       <legend>
         <Icon name="headphones" size={16} /> {t('Last.fm')}
       </legend>

@@ -403,7 +403,7 @@ export default function SportsPage() {
       {home.leagues.length > 0 && (
         <section>
           <h2>{t('Leagues')}</h2>
-          <div className="sp-leagues">
+          <div className="sp-leagues" data-walk="sp-leagues">
             {home.leagues.map((l) => (
               <Link key={l.id} to={`/sports/league/${l.id}`} className="sp-league">
                 <Badge src={l.badge} alt={l.name} size={56} />

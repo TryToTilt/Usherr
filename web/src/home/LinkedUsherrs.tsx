@@ -217,7 +217,7 @@ export default function LinkedUsherrs() {
         <h1>{t('Linked Usherrs')}</h1>
       </div>
 
-      <section className="card">
+      <section className="card" data-walk="linked-switch">
         <p>{t('Link this Usherr with a friend’s Usherr, so you can watch together later: each house plays its own copy, and the link keeps everyone in step. No video crosses between houses.')}</p>
         <p className="hint">{t('Linked Usherrs talk through the Usherr Link Relay: a postman that only passes on sealed envelopes. It can’t read them, and nobody opens a port or sees your home address.')}</p>
         <Switch checked={set.on} disabled={busy} showState label={t('Link with other Usherrs')} onChange={(next) => void save({ on: next }, next ? undefined : t('Disconnected from the relay.'))} />
@@ -281,7 +281,7 @@ export default function LinkedUsherrs() {
       </section>
 
       {set.on && (
-        <section className="card">
+        <section className="card" data-walk="linked-invite">
           <h2>{t('Invite a friend’s Usherr')}</h2>
           <p>{t('Make a code and send it to your friend. It works once, for 24 hours.')}</p>
           <button className="btn-sm primary" disabled={busy || st.state !== 'connected'} onClick={() => void makeCode()}>
@@ -309,7 +309,7 @@ export default function LinkedUsherrs() {
       )}
 
       {set.on && (
-        <section className="card">
+        <section className="card" data-walk="linked-join">
           <h2>{t('Join with a code')}</h2>
           <p>{t('Got a code from a friend? Paste it here.')}</p>
           <div className="lk-row">
@@ -333,7 +333,7 @@ export default function LinkedUsherrs() {
         </section>
       )}
 
-      <section className="card">
+      <section className="card" data-walk="linked-list">
         <h2>{t('Linked Usherrs')}</h2>
         {linked.length === 0 ? (
           <p className="hint">{t('None yet.')}</p>

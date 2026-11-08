@@ -312,7 +312,7 @@ footer { color: var(--muted); font-size: 0.85rem; text-align: center; margin-top
         </table>
         <div class="later">You can change this later: your films and shows stay where they are.</div>
       </div>
-      <label class="choice" id="nv-wrap"><input type="checkbox" id="nvidia"> <b>My PC has an NVIDIA graphics card</b><span>Lets Jellyfin use it to convert video. Leave it off if you're not sure.</span></label>
+      <label class="choice" id="nv-wrap"><input type="checkbox" id="nvidia"> <b>My PC has an NVIDIA graphics card</b><span>Lets Jellyfin, and Usherr's Live TV channels, use it to convert video. Leave it off if you're not sure.</span></label>
     </div>
 
     <div class="q">
@@ -398,7 +398,7 @@ footer { color: var(--muted); font-size: 0.85rem; text-align: center; margin-top
       <p>Usherr takes up to a minute to start the first time. Wait, then refresh.</p>
       <p>Still nothing? In Docker Desktop, click <b>Containers</b>: <b>usherr</b> should have a green dot. Click it to see its log, which usually says what's wrong.</p>
     </div></details>
-    <details class="fix"><summary>Opening it from my phone or TV</summary><div><p>Use this PC's address instead of <code>localhost</code>, for example <code>http://192.168.1.50:<span class="port-show">8264</span></code>. Usherr shows you its address once it's set up.</p></div></details>
+    <details class="fix"><summary>Opening it from my phone or TV</summary><div><p>Use this PC's address on your home network instead of <code>localhost</code>, followed by <code>:<span class="port-show">8264</span></code>. Usherr shows you its address once it's set up. Away from home, put Tailscale (free) on the phone and on this PC: Usherr stays private. Don't open its port to the internet.</p></div></details>
     <div class="done-row"><button class="btn" type="button" data-done="6">✓ I see Usherr's welcome screen</button></div>
   </div>
 </details>
@@ -410,6 +410,22 @@ footer { color: var(--muted); font-size: 0.85rem; text-align: center; margin-top
   <a class="btn big" id="open2" href="http://localhost:8264" target="_blank" rel="noopener">Open Usherr ↗</a>
   <p style="margin-top:14px"><a href="../guide/">Every feature, step by step: Show me how</a></p>
 </div>
+
+<section aria-labelledby="whats-in" style="margin-top:34px">
+  <h2 id="whats-in" style="font-weight:600;color:var(--head);font-size:1.3rem;margin:0 0 6px">What's in Usherr now (2.61)</h2>
+  <p style="color:var(--muted);margin:0 0 10px">One app for finding, keeping and watching, on your own PC and home network. Each of these has a step-by-step page in <a href="../guide/">Show me how</a>.</p>
+  <div class="promise">
+    <div><strong>Films and shows</strong>Stream now or keep it, pick seasons, film and show pages for watching, and Manage for admins. <a href="../guide/stream-or-keep.html">How</a></div>
+    <div><strong>Movie night with friends</strong>Link with friends' Usherrs and watch in step: a lobby with seats, intermission, chat, reactions and a verdict at the credits. <a href="../guide/host-screening.html">How</a></div>
+    <div><strong>Crews</strong>Your group between parties: a chat, a shared watchlist, a vote on the next film and film clubs. <a href="../guide/start-crew.html">How</a></div>
+    <div><strong>Stubs and badges</strong>A collectible ticket stub for every party, and a badge cabinet to fill. <a href="../guide/badges.html">How</a></div>
+    <div><strong>Manga</strong>Official English volumes by default, a reader with panels and page curl, Discover, and your MangaDex account if you like. <a href="../guide/get-manga.html">How</a></div>
+    <div><strong>Music, books and comics</strong>Tidy up your music, play it in Subsonic phone apps, and read books and comics in Usherr. <a href="../guide/tidy-music.html">How</a></div>
+    <div><strong>Sports</strong>Follow teams with scores hidden, and download a league's games by themselves. <a href="../guide/sports-downloads.html">How</a></div>
+    <div><strong>Live TV and the Marquee</strong>Channels made from your library, and a lobby board for the screen by the TV. <a href="../guide/watch-live-tv.html">How</a></div>
+    <div><strong>Private by design</strong>Usherr stays on your home network; Tailscale reaches it from your phone. Linked Usherrs talk through an encrypted relay, with no port opened. <a href="../guide/link-usherr.html">How</a></div>
+  </div>
+</section>
 
 <footer><a href="../guide/">Show me how: every feature, step by step</a> · Usherr is built on <a href="https://github.com/rdborg/Mediarium">Mediarium</a>. · <a href="https://github.com/TryToTilt/Usherr">Usherr on GitHub</a></footer>
 </div>
@@ -425,6 +441,7 @@ footer { color: var(--muted); font-size: 0.85rem; text-align: center; margin-top
     { id: 'ebooks', label: 'Ebooks', path: 'D:\\Books\\Ebooks', env: 'EBOOKS_DIR' },
     { id: 'audiobooks', label: 'Audiobooks', path: 'D:\\Books\\Audiobooks', env: 'AUDIOBOOKS_DIR' },
     { id: 'comics', label: 'Comics', path: 'D:\\Books\\Comics', env: 'COMICS_DIR' },
+    { id: 'manga', label: 'Manga', path: 'D:\\Books\\Manga', env: 'MANGA_DIR' },
   ];
 
   // ---- saved progress (kept in this browser only) ----
@@ -470,7 +487,7 @@ footer { color: var(--muted); font-size: 0.85rem; text-align: center; margin-top
     if (a.jf) { const r = document.querySelector(`input[name=jf][value=${a.jf}]`); if (r) r.checked = true; }
     if (!$('tz').value) { try { $('tz').value = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Etc/UTC'; } catch (e) { $('tz').value = 'Etc/UTC'; } }
   }
-  function showJF() { $('nv-wrap').hidden = document.querySelector('input[name=jf]:checked').value !== 'docker'; }
+  function showJF() { /* the NVIDIA box now also serves Usherr itself (Live TV), so it always shows */ $('nv-wrap').hidden = false; }
   document.querySelectorAll('input').forEach((i) => i.addEventListener('change', remember));
 
   // ---- paths: Windows "D:\TV Shows" → Docker "D:/TV Shows" ----
@@ -542,6 +559,15 @@ footer { color: var(--muted); font-size: 0.85rem; text-align: center; margin-top
     L.push('      - ./config:/config   # Usherr\'s settings and database (in ' + home.show + '\\config)');
     L.push('      - downloads:/data/downloads   # inside Docker\'s own disk: unpacking is much faster there');
     media.forEach((m) => L.push(`      - ${q(m.r.path + ':/data/' + m.name)}`));
+    if ($('nvidia').checked) {
+      L.push('    deploy:   # lets Usherr\'s Live TV channels use the NVIDIA graphics card');
+      L.push('      resources:');
+      L.push('        reservations:');
+      L.push('          devices:');
+      L.push('            - driver: nvidia');
+      L.push('              count: all');
+      L.push('              capabilities: [gpu]');
+    }
     if (jf) {
       L.push('');
       L.push('  jellyfin:');

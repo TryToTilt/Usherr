@@ -109,9 +109,9 @@ export const partyChat: Walkthrough = {
   id: 'party-chat',
   group: 'night',
   title: t('Chat during a watch party'),
-  blurb: t('The party’s Discord thread, live in Usherr: beside the countdown, and on your phone while the film plays.'),
+  blurb: t('The party’s chat, live in Usherr: beside the countdown, and on your phone while the film plays. At a linked screening it needs no Discord.'),
   icon: 'chat',
-  words: 'discord watch party chat phone thread talk message during film',
+  words: 'discord watch party chat phone thread talk message during film linked screening spoiler',
   simple: [
     { kind: 'go', to: '/showtime', title: t('The Showtime page'), text: t('A showtime shared as a watch party has its chat here.') },
     {
@@ -120,19 +120,19 @@ export const partyChat: Walkthrough = {
       until: 'next',
       optional: true,
       title: t('The chat'),
-      text: t('Everything said in the party’s thread in Discord shows here as it’s said. Type below and press Send: it goes into the thread under your Discord name (link your Discord account first, in Linked services).'),
+      text: t('At a linked screening, the chat reaches everyone at every Usherr there, no Discord needed: tick Spoiler to blur a message until someone taps it. At a Discord watch party, everything said in the party’s thread shows here, and what you send goes into the thread under your Discord name (link your Discord account first, in Linked services).'),
     },
     {
       kind: 'say',
       title: t('On your phone during the film'),
-      text: t('Open Usherr on your phone, then Showtime, and press Chat next to the party (or On your phone, here). Leave it open while the film plays on the TV. The Discord app works just as well: it’s the same thread.'),
+      text: t('Open Usherr on your phone, then Showtime, and press On your phone by the chat. Leave it open while the film plays on the TV. At a linked screening it has the reactions too, and the host’s remote. For a Discord party, the Discord app works just as well: it’s the same thread.'),
     },
     {
       kind: 'say',
       title: t('Over the film, on the TV'),
       text: t('When the film plays on the Showtime screen, press Chat on the player: new messages fade in at a corner of the picture for a few seconds. It’s off until you switch it on. For full screen, use the player’s own full screen button, so the chat shows there too.'),
     },
-    { kind: 'done', title: t('Chat away'), text: t('After the film, the chat stays on the Showtime page with the party.') },
+    { kind: 'done', title: t('Chat away'), text: t('After the film, the chat stays on the Showtime page with the party.'), then: { id: 'party-phone', label: t('Use your phone at a screening') } },
   ],
 }
 
@@ -175,22 +175,30 @@ export const ticketStubs: Walkthrough = {
   id: 'ticket-stubs',
   group: 'night',
   title: t('Collect ticket stubs'),
-  blurb: t('A stub for each watch party you went to: handed out at the door, stamped if you stay to the end.'),
+  blurb: t('A stub for each watch party you went to, stamped if you stay to the end, and the badges in your cabinet.'),
   icon: 'film',
-  words: 'ticket stub stubs collect stamp watch party discord seat admit one',
+  words: 'ticket stub stubs collect stamp watch party discord seat admit one badge badges cabinet save picture png linked screening',
   simple: [
     {
       kind: 'say',
       title: t('At the door'),
-      text: t('Press I’m in on a watch party’s card in Discord. When the film starts, you get a ticket stub, with a seat in the order people said I’m in.'),
+      text: t('Say I’m in to a screening: on a watch party’s card in Discord, or on a linked Usherr’s screening in your Showtime. When the film starts, you get a ticket stub with your seat, the one on the lobby’s seat map.'),
     },
     {
       kind: 'say',
       title: t('On the way out'),
-      text: t('Stayed to the end? Press Stamp it on your stub, any time from the film’s start until 30 minutes after it ends. Usherr’s player stamps it for you at 90%, and in Discord the party’s thread has a button too.'),
+      text: t('Stayed to the end? Press Stamp it on your stub, any time from the film’s start until 30 minutes after it ends. Usherr’s player stamps it for you at 90%. Give your verdict at the credits and Collect your stub: it gets a round SEEN stamp with your stars.'),
     },
-    { kind: 'go', to: '/you/stubs', title: t('Your ticket stubs'), text: t('Under You, with your badge cabinet. Save as picture makes a picture of a stub on your computer. A friend’s party joined with its showtime code, or a linked Usherr’s screening, gets a stub here as well.') },
-    { kind: 'done', title: t('Start a collection'), text: t('Every party you go to adds one, and badges follow: first party, five nights, night owl and more.') },
+    { kind: 'go', to: '/you/stubs', title: t('Your ticket stubs'), text: t('Under You. Each stub shows the poster, the date and time, your row and seat, who hosted and its number. Save as picture makes a picture of a stub on your computer; Usherr never posts it anywhere.') },
+    {
+      kind: 'point',
+      target: 'badge-cabinet',
+      until: 'next',
+      optional: true,
+      title: t('Your badge cabinet'),
+      text: t('Badges for the parties you go to: First party, Five nights, Night owl, Double feature, Loudest scream, Good taste and more. Each says how to earn it, and when you did. Parties at linked Usherrs count too.'),
+    },
+    { kind: 'done', title: t('Start a collection'), text: t('Every party you go to adds a stub, and the badges follow.'), then: { id: 'badges', label: t('See your badges and save a stub') } },
   ],
 }
 

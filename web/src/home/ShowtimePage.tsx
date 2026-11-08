@@ -396,7 +396,7 @@ export default function ShowtimePage() {
       <BookFilm />
       <JoinParty onJoined={load} />
 
-      <section className="card sht-list">
+      <section className="card sht-list" data-walk="showtime-list">
         <h2>{t('Showtimes')}</h2>
         {list && list.length === 0 && <p className="hint">{t('Nothing booked.')}</p>}
         <ul>
@@ -441,7 +441,7 @@ export default function ShowtimePage() {
               {(s.mine || admin) && s.state !== 'done' && !s.hosted && (
                 <span className="sht-row-btns">
                   {linkOn && !s.party?.joined && (
-                    <button className="btn-sm" aria-expanded={picking === s.id} onClick={() => setPicking(picking === s.id ? null : s.id)} title={t('Invite linked Usherrs')}>
+                    <button className="btn-sm" data-walk="showtime-invite" aria-expanded={picking === s.id} onClick={() => setPicking(picking === s.id ? null : s.id)} title={t('Invite linked Usherrs')}>
                       {t('Invite')}
                     </button>
                   )}

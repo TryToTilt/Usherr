@@ -868,6 +868,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
       {step === S.vpn && (
         <div className="card grid-form">
           <h2>{t('UDP trackers and DHT through the VPN')}</h2>
+          <WizardHelp step="vpn" />
           <p className="wizard-lead">
             {t('Optional. With the built-in VPN, UDP trackers and DHT stay off until you turn this on, which is why a torrent that only lists UDP trackers does not start. Names are looked up through the VPN too. Add the VPN itself later under Settings > Downloading > VPN and proxy, where you can change this.')}
           </p>
@@ -925,7 +926,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
           )}
           {gaps !== null && gaps.length > 0 && <SetupGaps gaps={gaps} onGo={(to) => void finish(to)} />}
           <p className="finish-smh">
-            <Icon name="compass" size={16} /> {t('Not sure what to do next? Show me how, in the top bar, walks you through anything, step by step: bringing in the library you have, adding the family, Usherr on your phone. Something not right? It checks Usherr for you too.')}
+            <Icon name="compass" size={16} /> {t('Not sure what to do next? Show me how, in the top bar, walks you through anything, step by step: bringing in the library you have, adding the family, Usherr on your phone, getting manga, watching with friends. Something not right? It checks Usherr for you too.')}
           </p>
           <div className="finish-points">
             <span>

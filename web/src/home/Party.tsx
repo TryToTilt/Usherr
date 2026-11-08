@@ -113,7 +113,7 @@ export function Lobby({ link, party, now, preshow, preshowTotal }: { link: Party
       .finally(() => setBusy(false))
   }
   return (
-    <section className="card pty-lobby" aria-label={t('Lobby')}>
+    <section className="card pty-lobby" data-walk="party-lobby" aria-label={t('Lobby')}>
       <div className="pty-lobby-top">
         <div>
           <span className="pty-label">{t('Doors open · the film starts in')}</span>
@@ -136,7 +136,7 @@ export function Lobby({ link, party, now, preshow, preshowTotal }: { link: Party
         <h2>{t('Who’s seated')}</h2>
         <span className="hint">{placed.length ? plural(placed.length, '{seated} of {n} seated', '{seated} of {n} seated', { seated, n: placed.length }) : t('Nobody’s said I’m in yet')}</span>
         {party.lobby.canSit && (
-          <button className={`btn-sm${party.lobby.seated ? '' : ' primary'}`} disabled={busy} onClick={() => sit(!party.lobby.seated)} aria-pressed={party.lobby.seated}>
+          <button data-walk="party-seat" className={`btn-sm${party.lobby.seated ? '' : ' primary'}`} disabled={busy} onClick={() => sit(!party.lobby.seated)} aria-pressed={party.lobby.seated}>
             {party.lobby.seated ? t('Leave my seat') : t('Take my seat')}
           </button>
         )}
@@ -247,7 +247,7 @@ export function Verdict({ link, party, title, compact }: { link: PartyLink; part
   const top = v.top
   return (
     <div className={`pty-verdict${compact ? ' compact' : ''}`}>
-      <section className="card pty-mine" aria-label={t('Your verdict')}>
+      <section className="card pty-mine" data-walk="party-verdict" aria-label={t('Your verdict')}>
         <span className="pty-label">{t('The credits are rolling')}</span>
         <h2>{t('Your verdict on {title}', { title })}</h2>
         <div className="pty-stars" role="group" aria-label={t('Your stars')}>

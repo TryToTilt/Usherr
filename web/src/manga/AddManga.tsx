@@ -88,7 +88,7 @@ export default function AddManga() {
         </div>
       </div>
       <div className="mg-search">
-        <input type="search" autoFocus value={q} onChange={(e) => {
+        <input type="search" data-walk="manga-search" autoFocus value={q} onChange={(e) => {
             setQ(e.target.value)
             setPlan(null)
           }} aria-label={t('Series title')} placeholder={t('Series title')} autoComplete="off" />
@@ -158,7 +158,7 @@ function Result({ r, open, onOpen, want, onWant, offerChapters, chapters, onChap
           {t('In your library')}
         </Link>
       ) : (
-        <button className={`btn-sm btn-wide ${open ? '' : 'primary'}`} onClick={onOpen} aria-expanded={open}>
+        <button className={`btn-sm btn-wide ${open ? '' : 'primary'}`} data-walk="manga-result-add" onClick={onOpen} aria-expanded={open}>
           {open ? t('Close') : t('Add')}
         </button>
       )}
@@ -174,7 +174,7 @@ function Result({ r, open, onOpen, want, onWant, offerChapters, chapters, onChap
                   ['none', t('Nothing yet')],
                 ] as const
               ).map(([key, label]) => (
-                <button key={key} className={want === key ? 'active' : ''} aria-pressed={want === key} onClick={() => onWant(key)}>
+                <button key={key} data-walk={`manga-want-${key}`} className={want === key ? 'active' : ''} aria-pressed={want === key} onClick={() => onWant(key)}>
                   {label}
                 </button>
               ))}
@@ -185,7 +185,7 @@ function Result({ r, open, onOpen, want, onWant, offerChapters, chapters, onChap
             <>
               <p className="mg-hint">{r.format === 'manga' || r.format === 'oneshot' ? t('Usherr will look for official English editions on your indexers. Reads right to left.') : t('Usherr will look for official English editions on your indexers. Reads top to bottom.')}</p>
               <div>
-                <button className="btn-sm primary" disabled={adding} onClick={() => onAdd()}>
+                <button className="btn-sm primary" data-walk="manga-add-go" disabled={adding} onClick={() => onAdd()}>
                   {t('Add {title}', { title: r.title })}
                 </button>
               </div>
@@ -194,10 +194,10 @@ function Result({ r, open, onOpen, want, onWant, offerChapters, chapters, onChap
             <div className="mg-well">
               <b>{t('No official English edition is known.')}</b> <span className="mg-hint">{t('With your current sources, nothing is likely to come for this series.')}</span>
               <div className="mg-ask" style={{ marginTop: 10 }}>
-                <button className="btn-sm primary" disabled={adding} onClick={() => onAdd(true)}>
+                <button className="btn-sm primary" data-walk="manga-add-fan" disabled={adding} onClick={() => onAdd(true)}>
                   {t('Add and allow fan scans')}
                 </button>
-                <button className="btn-sm" disabled={adding} onClick={() => onAdd()}>
+                <button className="btn-sm" data-walk="manga-add-go" disabled={adding} onClick={() => onAdd()}>
                   {t('Add, and wait for an official one')}
                 </button>
               </div>

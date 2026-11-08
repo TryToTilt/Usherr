@@ -220,7 +220,7 @@ Each account can send what it plays to its own [ListenBrainz](https://listenbrai
 - Mediarium looks the track up in its own library, so the title, artist, album, length, track number and the MusicBrainz ids of the artist and album come from there.
 - If ListenBrainz can't be reached, or asks for fewer requests, the plays are kept (up to 500 per account) and sent together, oldest first, with the next one. If it stops accepting the token, sending is switched off and the profile says why until you paste the token again.
 
-Last.fm isn't supported.
+Usherr also sends plays to Last.fm, from the web player and from phone apps: see [Last.fm](./home/integrations.md#lastfm). Phone apps that speak Subsonic (Symfonium, DSub, Feishin and others) can play your music too: see [Music in phone apps](./home/integrations.md#music-in-phone-apps-subsonic).
 
 `GET`, `PUT` and `DELETE /api/music/listenbrainz` read, change and remove your own connection (`{token?, enabled?}`; the answer is `{connected, user?, enabled, lastError?, submitted, pending}` and never has the token). `POST /api/music/listenbrainz/playing` with `{trackId}` and `POST /api/music/listenbrainz/listen` with `{trackId, listenedAt}` (Unix seconds) are what the player calls.
 

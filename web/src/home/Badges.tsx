@@ -63,7 +63,7 @@ export default function Badges() {
   else if (b && b.need > 1 && b.have > 0) state = t('Not yet: {have} of {need}', { have: b.have, need: b.need })
   else state = t('Not yet')
   return (
-    <section className="card badge-cabinet" aria-labelledby="badge-cabinet-title">
+    <section className="card badge-cabinet" data-walk="badge-cabinet" aria-labelledby="badge-cabinet-title">
       <div className="badge-head">
         <h2 id="badge-cabinet-title">{t('Badge cabinet')}</h2>
         <span className="hint">{plural(earned, 'One of {total} earned', '{n} of {total} earned', { total: CATALOGUE.length })}</span>

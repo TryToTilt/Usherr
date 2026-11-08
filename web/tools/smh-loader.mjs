@@ -14,6 +14,8 @@ export const t = (s, v) => fill(s, v)
 export const api = {}
 export const comicsApi = {}
 export const sportsApi = {}
+export const mangaApi = {}
+export const crewsApi = {}
 export function streamingOn() { return Promise.resolve(false) }
 export function openShowtimeBooking() {}
 export function listShowtimes() { return Promise.resolve({ showtimes: [], nowMs: 0 }) }

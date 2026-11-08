@@ -16,6 +16,7 @@ import { TICKET_SITES, type TicketService } from './cinema' // Usherr
 import { TicketsButton } from './InTheaters' // Usherr
 import { sportsApi, type SportsSettings } from './sportsApi' // Usherr
 import { ProfileSelect } from './SportsGet' // Usherr: games got by Usherr itself
+import { startSmh } from '../smh/engine' // Usherr: Show Me How
 import { readToMeApi, type RtvSettings } from './readToMeApi'
 import { artApi, type ArtAll, type ArtSettings } from './artApi' // Usherr: Re-Posterr
 import DriveCard from './DriveCard' // Usherr: the virtual drive, for Plex
@@ -1204,6 +1205,11 @@ function SportsCard() {
             <Link className="btn-with-icon" to="/sports">
               <Icon name="trophy" /> {t('Open Sports')}
             </Link>
+          )}
+          {s.mode === 'usherr' && s.ready && (
+            <button type="button" className="btn-with-icon" onClick={() => startSmh('sports-downloads', 'simple')}>
+              <Icon name="compass" /> {t('Show me how: get a league’s games')}
+            </button>
           )}
         </div>
         <p style={small}>

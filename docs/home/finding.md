@@ -25,6 +25,15 @@ The first page you see.
   library, or can be added. On the Dashboard it is one line at the top: a
   headline that changes every few seconds, or a ticker, or off (each person
   picks, in **All news** or Settings › General).
+- **Continue watching**: the films and episodes you stopped part way through
+  in Usherr's player, newest first, with how much is left. Each opens its
+  page, where **Play** picks up where you left off. Only your own, never
+  someone else's. **Continue reading** does the same for manga you're part
+  way through.
+
+In the new layout (*Neu, new layout*, Settings → General → Look), **Home**
+takes the Dashboard's place: the next showtime, Continue watching and
+reading, Just added and Coming soon.
 
 ![The Dashboard: Ask Usherr anything, Tonight and Entertainment news](images/dashboard.png)
 
@@ -280,6 +289,10 @@ Tap a poster for its page: the story, cast, trailers, ratings, where it streams
 - **Play** what's in the library, **Stream** what isn't (see
   [Watching it](watching.md)), or **Add** it.
 - **What's it like?** for a short, spoiler-free description from the AI.
+- On a show, **pick seasons** when you add or ask for it: only those are
+  monitored and searched for. Later, **Ask for more seasons** (About) lists the
+  seasons that aren't here or wanted yet; each set you ask for is its own
+  request. Administrators switch seasons on in the episode list instead.
 - On a show: **Catch me up** (a recap up to where you are) and **Skip guide**
   (which episodes matter, and which you can skip).
 

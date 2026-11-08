@@ -187,7 +187,7 @@ export const followTeam: Walkthrough = {
       kind: 'done',
       when: (c) => c.answers.sportsReady !== true,
       title: t('Sports isn’t set up yet'),
-      text: t('Sports runs on Usherr’s own engine (a free TheSportsDB key) or on Sportarr. An administrator sets it up under Settings, Extras, Sports.'),
+      text: t('Sports runs on Usherr’s own engine (TheSportsDB, no Sportarr needed) or on Sportarr. An administrator sets it up under Settings, Extras, Sports.'),
     },
     { kind: 'go', to: '/sports', title: t('Sports'), text: t('The games of the coming two weeks, the leagues in your library and the teams you follow.') },
     {
@@ -202,7 +202,7 @@ export const followTeam: Walkthrough = {
       target: 'sp-results',
       until: 'next',
       title: t('Follow, or Add'),
-      text: t('Follow a team to get just its games, in every competition it plays. Add puts a whole league in your library. Nothing is downloaded until you ask.'),
+      text: t('Follow a team to get just its games, in every competition it plays. Add puts a whole league in your library. Nothing is downloaded until you ask, or until a league is set to get its new games.'),
     },
     {
       kind: 'point',
@@ -210,7 +210,7 @@ export const followTeam: Walkthrough = {
       until: 'next',
       optional: true,
       title: t('The games'),
-      text: t('By day, with the time, the channel that shows it, and a badge when it’s downloaded. Get watches for a game; Stream plays one that has started or been played, without downloading.'),
+      text: t('By day, with the time, the channel that shows it, and a badge when it’s downloaded. Get downloads a game once it’s out; Stream plays one that has started or been played, without downloading.'),
     },
     {
       kind: 'point',
@@ -220,7 +220,72 @@ export const followTeam: Walkthrough = {
       title: t('No spoilers'),
       text: t('Scores are hidden so they don’t spoil a game you’ll watch later. Show scores turns them on, on this device.'),
     },
-    { kind: 'done', title: t('Go team'), text: t('The Marquee can show the day’s games too: a scoreboard, a ticker and a kick-off countdown.'), shortcut: t('Next time: Sports, in the menu.') },
+    {
+      kind: 'done',
+      title: t('Go team'),
+      text: t('The Marquee can show the day’s games too: a scoreboard, a ticker and a kick-off countdown.'),
+      shortcut: t('Next time: Sports, in the menu.'),
+      then: { id: 'sports-downloads', label: t('Get a league’s games by themselves'), when: (c) => c.admin },
+    },
+  ],
+}
+
+// Usherr's own engine downloads games: per league, which games, which parts
+// of a card or race weekend, and in what quality.
+export const getSports: Walkthrough = {
+  id: 'sports-downloads',
+  group: 'night',
+  admin: true,
+  title: t('Get a league’s games by themselves'),
+  blurb: t('Usherr’s own sports engine downloads new games a few hours after they end: every game, or only your teams’.'),
+  icon: 'download',
+  words: 'sports download games league automatic new games fight card race weekend sessions quality profile wanted sportarr',
+  simple: [
+    {
+      kind: 'do',
+      title: t('Checking Sports is set up'),
+      run: async () => {
+        const s = await sportsApi.settings().catch(() => null)
+        return { sportsReady: !!s?.ready, sportsOwn: s?.mode === 'usherr' }
+      },
+    },
+    {
+      kind: 'done',
+      when: (c) => c.answers.sportsReady !== true || c.answers.sportsOwn !== true,
+      title: t('This needs Usherr’s own engine'),
+      text: t('Under Settings, Extras, Sports, choose Usherr’s own engine and a Sports folder (where downloaded games go). With Sportarr, Sportarr does the downloading.'),
+    },
+    { kind: 'go', to: '/sports', title: t('Sports'), text: t('Your leagues are listed under Leagues.') },
+    {
+      kind: 'point',
+      target: 'sp-leagues',
+      until: { path: '/sports/league/*' },
+      optional: true,
+      title: t('Open a league'),
+      text: t('Tap the league. Not here yet? Search for it above and press Add.'),
+    },
+    {
+      kind: 'point',
+      target: 'sp-get',
+      until: 'next',
+      title: t('Downloads'),
+      text: t('Switch on Get its new games. Then which games (every game, or only the teams you follow), which parts of a fight card or sessions of a race weekend, and the quality profile. Press Save.'),
+    },
+    {
+      kind: 'say',
+      title: t('Coming from Sportarr?'),
+      text: t('Under Settings, Extras, Sports, Bring my followed leagues from Sportarr adds its leagues and teams here, with whether each gets its new games. It only reads Sportarr.'),
+    },
+    {
+      kind: 'say',
+      title: t('How it looks for them'),
+      text: t('Usherr looks for each new game on your indexers a few hours after it ends, and keeps looking for two weeks. A game already played: Search now, or Pick to see every release.'),
+    },
+    {
+      kind: 'done',
+      title: t('Games come by themselves'),
+      text: t('Add the Sports folder to Plex or Jellyfin as a TV library: each league shows as a show, each game as an episode.'),
+    },
   ],
 }
 

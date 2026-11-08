@@ -128,6 +128,7 @@ function MakeCrew({ peers, onMade }: { peers: CrewList['peers']; onMade: (c: Cre
   return (
     <form
       className="crw-make"
+      data-walk="crew-make"
       onSubmit={(e) => {
         e.preventDefault()
         void make()
@@ -362,7 +363,7 @@ function ListTab({ space, onChanged }: { space: CrewSpace; onChanged: () => void
         <h2>{t('Shared watchlist')}</h2>
         <span className="crw-dim">{t('Anyone in the crew can add. Picks for the vote come from here.')}</span>
       </div>
-      <div className="crw-tools">
+      <div className="crw-tools" data-walk="crew-list-add">
         <FilmSearch label={t('Add a film')} onPick={add} />
         {friends.length > 0 && (
           <label className="crw-sendto">
@@ -515,7 +516,7 @@ function VoteTab({ space, now, onChanged }: { space: CrewSpace; now: number; onC
             onCancel={() => setStarting(false)}
           />
         ) : (
-          <button type="button" className="crw-dashed" onClick={() => setStarting(true)} disabled={(space.list ?? []).length < 2}>
+          <button type="button" className="crw-dashed" data-walk="crew-vote-start" onClick={() => setStarting(true)} disabled={(space.list ?? []).length < 2}>
             {(space.list ?? []).length < 2 ? t('Add two films to the shared watchlist to start a vote') : t('Start a vote')}
           </button>
         )}
@@ -703,7 +704,7 @@ function ClubsTab({ space, onChanged }: { space: CrewSpace; onChanged: () => voi
           onCancel={() => setStarting(false)}
         />
       ) : (
-        <button type="button" className="crw-dashed crw-club-new" onClick={() => setStarting(true)}>
+        <button type="button" className="crw-dashed crw-club-new" data-walk="crew-club-new" onClick={() => setStarting(true)}>
           {t('Start a club: a night, how often, and who picks')}
         </button>
       )}
@@ -871,7 +872,7 @@ function CrewSpaceView({ id, onLeft }: { id: number; onLeft: () => void }) {
           </div>
         )}
         {crew.joined && (
-          <div className="crw-wrapped-open">
+          <div className="crw-wrapped-open" data-walk="crew-wrapped">
             {featured > 0 ? (
               <button type="button" className="btn-sm" onClick={() => setWrapped(featured)} aria-expanded={wrapped !== null}>
                 {t('{year} Wrapped', { year: featured })}
@@ -887,7 +888,7 @@ function CrewSpaceView({ id, onLeft }: { id: number; onLeft: () => void }) {
       {crew.joined && wrapped !== null && <CrewWrapped key={wrapped} crewId={crew.id} year={wrapped} onClose={() => setWrapped(null)} />}
       {!space.on && <p className="notice notice-warn">{t('Linking with other Usherrs is switched off here, so the crew can’t hear from this Usherr right now.')}</p>}
       {!crew.joined ? (
-        <div className="card crw-joinme">
+        <div className="card crw-joinme" data-walk="crew-join">
           <p>{crew.state === 'invited' ? t('{house} invites you to {crew}.', { house: crew.houses[0]?.name ?? '', crew: crew.name }) : t('You’re not in {crew} yet.', { crew: crew.name })}</p>
           <p className="hint">{t('Joining is just for you: the others in this house decide for themselves. The crew sees your first name.')}</p>
           <div className="crw-row">
@@ -903,9 +904,9 @@ function CrewSpaceView({ id, onLeft }: { id: number; onLeft: () => void }) {
         </div>
       ) : (
         <>
-          <nav className="crw-tabs" role="tablist" aria-label={t('Crew sections')}>
+          <nav className="crw-tabs" data-walk="crew-tabs" role="tablist" aria-label={t('Crew sections')}>
             {tabs.map((tb) => (
-              <button key={tb.id} type="button" role="tab" aria-selected={tab === tb.id} className={tab === tb.id ? 'active' : ''} onClick={() => setTab(tb.id)}>
+              <button key={tb.id} type="button" role="tab" data-walk={`crew-tab-${tb.id}`} aria-selected={tab === tb.id} className={tab === tb.id ? 'active' : ''} onClick={() => setTab(tb.id)}>
                 {tb.label}
               </button>
             ))}
@@ -964,7 +965,7 @@ export default function Crews() {
               {c.state === 'invited' && <span className="crw-badge">{t('Invite')}</span>}
             </button>
           ))}
-          <button type="button" className="crw-new" onClick={() => setMaking(!making)} aria-expanded={making}>
+          <button type="button" className="crw-new" data-walk="crew-new" onClick={() => setMaking(!making)} aria-expanded={making}>
             {t('Make a crew')}
           </button>
         </div>

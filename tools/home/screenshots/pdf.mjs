@@ -18,10 +18,14 @@ const PAGES = [
   ['getting-started.md', 'Getting started'],
   ['finding.md', 'Finding something to watch'],
   ['watching.md', 'Watching it'],
+  ['watch-together.md', 'Watching together'],
+  ['community.md', 'Community'],
   ['integrations.md', 'Setting up each part'],
   ['live-tv.md', 'Live TV'],
   ['ai.md', 'The AI'],
   ['marquee.md', 'The Marquee'],
+  ['sports.md', 'Sports'],
+  ['server.md', 'Running the server'],
   ['troubleshooting.md', 'When something goes wrong'],
 ]
 

@@ -137,6 +137,11 @@ export const bookShowtime: Walkthrough = {
     book(),
     pill(),
     {
+      kind: 'say',
+      title: t('Watching with friends who run their own Usherr?'),
+      text: t('Once Linked Usherrs is switched on, Invite on the booking (in the Showtime page’s list) shares it with them: a lobby with a seat map, the chat, an intermission and the verdict at the credits.'),
+    },
+    {
       kind: 'go',
       to: '/showtime',
       title: t('The Showtime screen'),
@@ -147,6 +152,7 @@ export const bookShowtime: Walkthrough = {
       title: (c) => t('{title} is booked', { title: film(c)?.data.title ?? t('Your film') }),
       text: t('Your own clips and themes are under Settings, Pre-show. Show Me How has a walkthrough for that too.'),
       shortcut: t('Next time: the clock on any film card, then Book a showtime.'),
+      then: { id: 'host-screening', label: t('Host a screening for friends') },
     },
   ],
 }

@@ -13,7 +13,7 @@ import { openDoctor, startSmh } from './engine'
 import type { Walkthrough } from './types'
 
 const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-const INTENT = /^(how (do|can|to|would)|i (want|need|would like|'d like) to|i wanna|show me|help me|where (do|can) i|can i|teach me|walk me|(make|set ?up|add|turn|book|follow|import|move|restyle|swap|connect|install|pair|switch) )/
+const INTENT = /^(how (do|can|to|would)|i (want|need|would like|'d like) to|i wanna|show me|help me|where (do|can) i|can i|teach me|walk me|(make|set ?up|add|turn|book|follow|import|move|restyle|swap|connect|install|pair|switch|host|join|start|link|sync|tidy|vote|read) )/
 // Words that say nothing about which walkthrough.
 const STOP = new Set('a add an and are as at be but by can do does for from get got have help how i i\'d in into is it its let like make me my need of on or set show so some that the this to up use want wanna way what when where which who why will with would you your'.split(' '))
 

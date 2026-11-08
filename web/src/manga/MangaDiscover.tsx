@@ -217,7 +217,7 @@ export default function MangaDiscover() {
         <p className="mg-hint">{dexOn ? t('From AniList and MangaDex. Nothing is saved until you press Add.') : t('From AniList. Nothing is saved until you press Add.')}</p>
       </div>
       <BrowseSearch dexOn={dexOn} adult={adult} onResults={setFound} onRandom={(d) => setOpen(fromDex(d))} />
-      <div className="mg-ask">
+      <div className="mg-ask" data-walk="manga-discover-want">
         <span className="mg-hint">{t('Add gets:')}</span>
         <div className="seg" role="group" aria-label={t('What to get')}>
           {(

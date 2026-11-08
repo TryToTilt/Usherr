@@ -165,7 +165,7 @@ export function PartyChat({ showtimeId, tall }: { showtimeId: number; tall?: boo
         {a.link && <span className="pc-sub">{t('With everyone at the screening · spoilers blurred')}</span>}
         <span className="pc-links">
           {!tall && (
-            <Link to={`/showtime/chat/${showtimeId}`} title={t('A page for your phone, to chat while the film plays on the TV')}>
+            <Link data-walk="party-phone-link" to={`/showtime/chat/${showtimeId}`} title={t('A page for your phone, to chat while the film plays on the TV')}>
               {t('On your phone')}
             </Link>
           )}

@@ -10,7 +10,7 @@ import DecisionCard from './DecisionCard'
 import type { SmhDecision } from './types'
 import './smh.css'
 
-export type WizardStep = 'admin' | 'types' | 'paths' | 'services' | 'sources' | 'usenet' | 'quality' | 'server' | 'extras'
+export type WizardStep = 'admin' | 'types' | 'paths' | 'services' | 'sources' | 'usenet' | 'quality' | 'server' | 'vpn' | 'extras'
 
 interface Help {
   what: string
@@ -29,7 +29,7 @@ function help(step: WizardStep): Help {
       }
     case 'types':
       return {
-        what: t('Usherr handles films and shows, and can also do anime, music, ebooks, audiobooks, comics and sports. Each one you pick adds its own steps and menus.'),
+        what: t('Usherr handles films and shows, and can also do anime, music, ebooks, audiobooks, manga, comics and sports. Each one you pick adds its own steps and menus.'),
         card: {
           title: t('Start small, or switch on everything?'),
           options: [
@@ -117,10 +117,16 @@ function help(step: WizardStep): Help {
         },
         later: t('Settings, Media servers.'),
       }
+    case 'vpn':
+      return {
+        what: t('Only for torrents through Usherr’s built-in VPN. Usenet doesn’t need it. With this on, UDP trackers and DHT go through the VPN too, so torrents that only list UDP trackers can start.'),
+        steps: [t('Not using torrents, or no VPN yet? Press Skip for now.'), t('The VPN itself is added later, under Settings, Downloading, VPN and proxy. Show me how, Set up a VPN for torrents, walks you through it.')],
+        later: t('Settings, Downloading, VPN and proxy, any time.'),
+      }
     case 'extras':
       return {
         what: t('Optional extras: streaming without downloading, the AI, ratings, what’s in theaters, the Marquee, the pre-show and more. None of them is needed to start.'),
-        steps: [t('Skip anything you’re not sure about. Show me how, in the top bar, walks you through each one when you want it.')],
+        steps: [t('Skip anything you’re not sure about. Show me how, in the top bar, walks you through each one when you want it.'), t('Watching with friends who run their own Usherr (Linked Usherrs, crews) and Discord watch parties are under Settings, Movie night. Manga sources and a MangaDex account are under Settings, Library.')],
         later: t('Settings, Extras, any time.'),
       }
   }

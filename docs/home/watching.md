@@ -99,6 +99,17 @@ kept in each browser, so the TV and your laptop can differ:
 - **Automatic** (the default): Streaming on a TV-sized screen, Side by side on a
   wide one, Cinema on a phone or laptop.
 
+In the new layout (*Neu, new layout*), a film's or show's page has the title
+over its own backdrop with one button to press, then the episodes, About, you
+and your friends, the cast and More like this. Members see a page for
+watching: no quality, file sizes, monitoring or Manage. A film or episode that
+isn't here says **On its way** or **Not here yet**, a film you don't have says
+**Ask for it** (or **Add it** for those allowed to add straight away), and
+**Tell an admin** reports a problem with a title. A show's episodes come one
+season at a time, each with Play, Resume and the minutes left, or the day it
+arrives. Administrators get **Manage** beside the page, and **Episode tools**
+for the full episode table.
+
 **Show on the page** switches the score line, where it streams, your
 watches, reviews, the cast, More like this, and the whole plot on or off, in
 every layout. Administrators can keep Manage open instead of folded.
@@ -148,6 +159,14 @@ Until then, the Marquee shows a band over whatever it's showing, for example
 "Showtime 8:00 PM · Dune: Part Two · in 12 min". The **Showtime** page
 lists every booking, to move 15 minutes either way or cancel (your own, or
 any for an administrator); the Marquee's page links to it.
+
+Before the film, the Showtime page is a **lobby**: a countdown, which part of
+the pre-show is playing, and a seat map with **Take my seat**. To watch with
+friends who run their own Usherr, press **Invite** on a booking: see
+[Watching together](watch-together.md) for linked screenings that play in
+step, the party chat and reactions, the intermission, the verdict at the
+credits, and crews. For a watch party in your Discord server, see
+[Community](community.md).
 
 ## On the TV
 

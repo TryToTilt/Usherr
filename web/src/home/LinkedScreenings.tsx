@@ -154,7 +154,7 @@ export function LinkedScreenings() {
   }
 
   return (
-    <section className="card sht-list sht-linked">
+    <section className="card sht-list sht-linked" data-walk="linked-screenings">
       <h2>{t('From linked Usherrs')}</h2>
       <ul>
         {list.map((s) => {

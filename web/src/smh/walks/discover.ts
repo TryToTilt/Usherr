@@ -19,7 +19,7 @@ const titleAsk = (kind: 'movie' | 'tv', title: string, text: string): SmhStep =>
 
 const discoverSteps = (advanced: boolean): SmhStep[] => [
   { kind: 'go', to: '/discover', title: t('Discover'), text: t('Rows of films and shows to browse, each picked a different way: top rated, hidden gems, from people you follow, for you.') },
-  { kind: 'point', target: 'kind-pick', until: 'next', path: '/discover', title: t('What to show'), text: t('Movies, TV, Anime, and books, music and comics when they’re on. Pick one here.') },
+  { kind: 'point', target: 'kind-pick', until: 'next', path: '/discover', title: t('What to show'), text: t('Movies, TV, Anime, and books, music and comics when they’re on. Pick one here. Manga has a Discover of its own, on the Manga page.') },
   { kind: 'point', target: 'filters-btn', act: 'click', until: { seen: 'hide-owned' }, path: '/discover', title: t('Filters'), text: t('Genres, years, rating, runtime, and two handy switches.') },
   {
     kind: 'point',

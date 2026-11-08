@@ -5,6 +5,7 @@
 // all of them. Kept in this browser, per account.
 import { api } from '../api'
 import { t } from '../i18n'
+import { crewsApi } from '../home/crewsApi'
 import { listShowtimes, showtimeEnds } from '../home/showtimes'
 
 export interface Nudge {
@@ -68,6 +69,17 @@ const checks: { id: string; make: () => Promise<Nudge | null> }[] = [
       const d = await listShowtimes()
       if (d.showtimes.some((s) => s.state !== 'done' && showtimeEnds(s) > d.nowMs)) return null
       return { id: 'showtime', title: t('Book a showtime this weekend?'), why: t('Pick a film and a time: Usherr plays the trailers and the pre-show first, like at the cinema.'), walk: 'book-showtime' }
+    },
+  },
+  {
+    id: 'crew',
+    make: async () => {
+      const d = await crewsApi.list()
+      if (!d.on) return null
+      const invited = d.crews.find((c) => c.state === 'invited' && !c.joined)
+      if (invited) return { id: 'crew', title: t('You’re invited to {crew}', { crew: invited.name }), why: t('A crew is a movie-night group with linked Usherrs: a chat, a shared watchlist and a vote on the next film.'), walk: 'start-crew' }
+      if (d.peers.length === 0 || d.crews.some((c) => c.joined)) return null
+      return { id: 'crew', title: t('Start a crew with your linked Usherrs?'), why: t('A chat that keeps going between parties, a shared watchlist, and a vote on the next film.'), walk: 'start-crew' }
     },
   },
   {

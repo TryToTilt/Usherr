@@ -9,9 +9,9 @@ export const mediaTypes: Walkthrough = {
   group: 'setup',
   admin: true,
   title: t('Choose what Usherr handles'),
-  blurb: t('Films, shows, anime, music, books, comics, sports: switch on the kinds you want.'),
+  blurb: t('Films, shows, anime, music, books, manga, comics, sports: switch on the kinds you want.'),
   icon: 'grid',
-  words: 'media types modules switch on off music books comics anime setup',
+  words: 'media types modules switch on off music books comics manga anime setup',
   simple: [
     { kind: 'go', to: '/settings/modules', title: t('Media types'), text: t('Every kind of media Usherr can handle, each with its own switch.') },
     {
@@ -146,8 +146,8 @@ export const quality: Walkthrough = {
       title: t('Your profiles'),
       text: (c) =>
         (c.answers.q as { value: string } | undefined)?.value === '4k'
-          ? t('Make a 4K profile the default (Make default), or use it just for some titles when you add them.')
-          : t('Make a 1080p profile the default (Make default). Every new title uses it unless you pick another when adding.'),
+          ? t('Edit a profile and pick 4K (or 4K, else HD) in its Simple view, then Make default for movies. Or keep it just for some titles, picked when you add them.')
+          : t('Edit a profile and pick HD (or Best HD) in its Simple view, then Make default for movies (and for TV). Every new title uses it unless you pick another when adding.'),
     },
     { kind: 'done', title: t('The basics are done'), text: t('Usherr can now find and download films and shows. Add family members, and point it at the library you already have, from Show me how.'), then: { id: 'import-library', label: t('Bring in what you already have') } },
   ],

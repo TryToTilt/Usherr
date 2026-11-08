@@ -2,8 +2,9 @@
 
 Usherr is built on Mediarium and adds a lot on top of it: streaming
 straight from Usenet, a streamed library next to the one on disk, Live TV
-channels, the Marquee and the pre-show, Plex as well as Jellyfin, comics, AI
-helpers, scores and age ratings, Discover recipes and more. Everything
+channels, the Marquee and the pre-show, Plex as well as Jellyfin, watching
+together with friends' Usherrs, sports, comics and manga, music in phone
+apps, AI helpers, scores and age ratings, Discover recipes and more. Everything
 Mediarium does is still here and works the same way; this guide covers what
 Usherr adds and how to set it up.
 
@@ -42,7 +43,11 @@ feature on the real screens.
 | Nothing extra (Jellyfin for its app) | The pre-show: a cinema's welcome, trailers, your clips and the countdown before a film, in Usherr and in the Jellyfin app | [The pre-show](preshow.md) |
 | Jellyfin (fanart.tv, TheTVDB optional) | Re-Posterr: the best poster, background and logo for each title in Jellyfin, or made in your style (season posters, title cards, backgrounds, overlays, a style per library), asked first, every change undoable | [Re-Posterr](re-posterr.md) |
 | A graphics card | Read-to-Me: an audiobook made from an ebook with a computer voice | [Read-to-Me](read-to-me.md) |
-| Nothing extra (Sportarr optional) | Sports: leagues, teams, games, streams and live scores | [Sports](sports.md) |
+| Nothing extra (Sportarr optional) | Sports: leagues, teams, games, streams, downloads and live scores | [Sports](sports.md) |
+| A friend running Usherr | Watching together: linked screenings in step, a party chat and reactions, stubs and badges, crews | [Watching together](watch-together.md) |
+| Nothing extra (AniList and MangaDex optional) | Manga: series by volume or chapter, official editions first, a reader of its own | [Manga](../manga.md) |
+| A Subsonic app on your phone | Your music in Symfonium, DSub, Feishin and the like; Last.fm scrobbling | [Music in phone apps](integrations.md#music-in-phone-apps-subsonic) |
+| A graphics card (optional) | Live TV encoded on NVIDIA, Intel Quick Sync or VAAPI | [Live TV](live-tv.md#the-picture-encoder-and-watermark) |
 
 ## The quickest way to a working server
 
@@ -76,9 +81,14 @@ feature on the real screens.
 
 ## Usherr's look
 
-- **Look** (*Settings → General*): **Usherr Classic**, or **Usherr Neu**, a
-  soft raised look with its own icons and font, in light and dark. Kept per
-  browser.
+- **Look** (*Settings → General*): **Usherr Classic**, **Usherr Neu**, a
+  soft raised look with its own icons and font, in light and dark, or **Neu,
+  new layout**: Neu with your libraries always in sight down the side, tabs
+  along the bottom of a phone, a **Home** page for watching (the next
+  showtime, Continue watching, Just added, Coming soon) and one **Server**
+  area for administrators with what needs you, the day-to-day pages and every
+  settings group. Its **TV size** makes everything bigger for the sofa, and
+  turns on by itself in a TV's own browser. Kept per browser.
 - **Main colour**, under the highlight colour: Midnight navy, Espresso,
   Forest, Plum, Oxblood, Ocean, Stone or OLED black, each light and dark, or
   the highlight's own tint. Kept per browser.
@@ -120,4 +130,8 @@ browsers, phones ──▶ Usherr ──▶ Usenet provider and indexers
 
 - [Setting up each part](integrations.md): one card per service, with where
   to get the key, where to paste it and how to test it.
+- [Watching together](watch-together.md): linked Usherrs, screenings in
+  step, the party and crews.
+- [Running the server](server.md): watch history, service checks, clean-up
+  rule sets, quality profiles, tags and signing in with Jellyfin or Plex.
 - [When something goes wrong](troubleshooting.md).

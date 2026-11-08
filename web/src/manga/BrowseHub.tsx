@@ -531,7 +531,7 @@ export function BrowseSearch({ dexOn, adult, onResults, onRandom }: { dexOn: boo
   }, [tags])
   const groupName = (g: string) => ({ genre: t('Genres'), theme: t('Themes'), format: t('Format'), content: t('Content') })[g] ?? g
   return (
-    <section className="mg-card mg-stack bh-search" aria-label={t('Search')}>
+    <section className="mg-card mg-stack bh-search" data-walk="manga-browse-search" aria-label={t('Search')}>
       <form
         className="mg-search"
         onSubmit={(e) => {

@@ -241,7 +241,7 @@ export default function MangaSeries() {
                   <button className="btn-sm" disabled={busy} onClick={() => void act(() => mangaApi.search(s.id), t('Looking now. This page updates as things are found.'))}>
                     {t('Search now')}
                   </button>
-                  <button className="btn-sm" onClick={() => setSourcesOpen(true)}>
+                  <button className="btn-sm" data-walk="manga-series-sources" onClick={() => setSourcesOpen(true)}>
                     {t('Sources for this series')}
                   </button>
                   <button className="btn-sm" disabled={busy} onClick={() => void act(() => mangaApi.refresh(s.id), t('Refreshed.'))}>
@@ -266,7 +266,7 @@ export default function MangaSeries() {
       )}
 
       {showChapters && (
-        <div className="seg" role="group" aria-label={t('Show')} style={{ alignSelf: 'flex-start' }}>
+        <div className="seg" role="group" data-walk="manga-tabs" aria-label={t('Show')} style={{ alignSelf: 'flex-start' }}>
           <button className={tab === 'volumes' ? 'active' : ''} aria-pressed={tab === 'volumes'} onClick={() => setTab('volumes')}>
             {t('Volumes')}
           </button>

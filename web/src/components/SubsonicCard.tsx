@@ -73,7 +73,7 @@ export default function SubsonicCard() {
 
   if (!musicOn || !st) return null
   return (
-    <fieldset className="group" id="phone-apps" ref={box}>
+    <fieldset className="group" id="phone-apps" data-walk="phone-apps" ref={box}>
       <legend>
         <Icon name="headphones" size={16} /> {t('Phone apps')}
       </legend>

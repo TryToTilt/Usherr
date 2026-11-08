@@ -517,9 +517,14 @@ gets a **Read to me** button; the finished audiobook is filed with your audioboo
 ## NSFW 18+
 
 **Optional, off unless you turn it on.** Adult videos, with performers and
-studios. Only administrators ever see it: it is hidden from everyone else,
-keeps its own library and its own download queue, and never sends
-notifications. The server must allow it (`USHERR_ALLOW_ADULT`).
+studios. Only administrators, and accounts an administrator gives the **NSFW
+18+** permission (Settings → Account & Access → All accounts), ever see it: it is hidden from
+everyone else, keeps its own library and its own download queue, and never
+sends notifications. The server must allow it (`USHERR_ALLOW_ADULT`).
+
+It is reached only from its own page, the **NSFW 18+** link in the menu. It
+isn't a choice in Discover's or the Library's media picker, even for
+administrators, and nothing NSFW is ever shared with crews.
 
 The **Tools** tab, for administrators, has three helpers. Matching and renaming
 run only when you press their button, and one job runs at a time, with progress
@@ -615,6 +620,24 @@ account, from the web player and from phone apps.
 A track counts once it is longer than 30 seconds and you have heard half of
 it, or four minutes. Plays made while Last.fm can't be reached are kept and
 sent later (up to two weeks old).
+
+## Linked Usherrs
+
+**Optional, off until you switch it on.** Link with friends who run their
+own Usherr, to watch together without Discord: screenings in step, a party
+chat and reactions, stubs and crews.
+
+- **Put it in:** **Settings → Movie night → Linked Usherrs**, switch on
+  **Link with other Usherrs**, then **Invite a friend's Usherr** (a code that
+  works once, for 24 hours) or paste a friend's code under **Join with a
+  code**.
+- **Check:** the page says the relay is connected, and the link shows when it
+  was last heard from. A warning about the server's clock means screenings
+  won't start together until the time is set right.
+
+Nothing is opened to the internet: each Usherr keeps one connection out to the
+relay, which can't read what it passes on. See
+[Watching together](watch-together.md).
 
 ## Notifications
 

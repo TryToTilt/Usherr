@@ -12,6 +12,10 @@ test card in the channel you choose, lets each person link their Discord
 account with `/link`, shares Showtimes as **watch parties** with their chat,
 and posts **reviews**.
 
+Friends who run their own Usherr can also watch together with no Discord at
+all: linked Usherrs, screenings in step, a party chat, reactions and crews.
+See [Watching together](watch-together.md).
+
 Everything is on **Settings → Movie night → Community**
 (`/settings/community`), for administrators. **Show me how** walks you
 through it.
@@ -175,9 +179,14 @@ Like a cinema's: a stub for each watch party you went to.
 - **Badges:** above your stubs, the badge cabinet: First party, Five nights,
   Regular (10), Season ticket (25), Perfect attendance (every party you were
   invited to in a month, three or more), Night owl (a party that ended after
-  2 AM), House lights (hosted five) and Double feature (two films one night).
-  Pick one to see how it's earned and when you got it. They're worked out
-  from your stubs, linked Usherrs' parties included.
+  2 AM), House lights (hosted five) and Double feature (two films one night),
+  plus four from what you do at parties: Loudest scream (the most EEKs of
+  anyone at one party, three or more), Class clown (the most HAs of anyone in
+  a month, ten or more), Good taste (a film you picked or voted for wins a crew
+  vote three times) and Generous (five stars for ten films or shows, in your
+  Diary or a review). Pick one to see how it's earned and when you got it.
+  They're worked out from your stubs, reactions, crew votes and stars, linked
+  Usherrs' parties included.
 - **A friend's party, in your own Usherr:** a friend's bot can't reach your
   Usherr, and its `/link` codes only work in theirs. Paste the party's
   showtime code under **Showtime → Join a watch party** instead: your own
@@ -186,7 +195,8 @@ Like a cinema's: a stub for each watch party you went to.
   friend's bot keeps its own stub for you too: `/stubs` in their server.
 - **A linked Usherr's screening:** its host hands your Usherr a stub for
   each of your people who said I'm in, numbered by the host. A stamp you make
-  at home goes back to the host, which confirms it.
+  at home goes back to the host, which confirms it. See
+  [Watching together](watch-together.md).
 
 Nobody can prove from afar that someone really watched, since each Usherr is
 on its own. The stamp makes a stub mean something: it takes being there at the

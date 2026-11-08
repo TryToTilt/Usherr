@@ -11,7 +11,7 @@
 
 # Usherr
 
-Usherr is a self-hosted home media app: it finds, downloads, streams and organises your movies, shows, music, books and comics, and then helps everyone in the house pick something to watch.
+Usherr is a self-hosted home media app: it finds, downloads, streams and organises your movies, shows, sports, music, books, comics and manga, then helps everyone in the house pick something to watch, and lets you watch it together with friends in their own homes.
 
 It is built on **[Mediarium](https://github.com/rdborg/Mediarium) by rdborg**, and keeps everything Mediarium does: one app instead of Radarr, Sonarr, Prowlarr, SABnzbd, a torrent client and Bazarr, with built-in Usenet and torrent downloading, a VPN for torrents, quality profiles, subtitles, family accounts and requests. On top of that, Usherr adds the side of the app that's about *watching*: taste, recommendations, a diary, streaming and more.
 
@@ -40,10 +40,27 @@ It is built on **[Mediarium](https://github.com/rdborg/Mediarium) by rdborg**, a
 - **Re-Posterr**: the best poster, background and logo for every title in Jellyfin, from TMDB and fanart.tv, approved by you first (or filled in by itself), chosen by hand on any title, and every change can be put back. Or made in your own style: the title in a font and layout of your choosing on art without words, with season posters and episode title cards.
 - **Pick up where you left off**: films, episodes, streams, games and comics open where you stopped, on any device. **Skip intro** jumps past an intro, and *Up next* comes up at the credits.
 - **Read-to-Me**: turn an ebook into an audiobook with a computer voice (Kokoro or Chatterbox, on your graphics card), a full cast for the dialogue if you like.
-- **Sports**: leagues, teams and games, streamed, with live scores and a scoreboard on the Marquee.
-- **Comics**: follow series and story arcs from ComicVine, find issues on your indexers and read them in a page-turning reader.
+- **Sports**: leagues, teams and games, streamed or downloaded by Usherr's own engine (no Sportarr needed), with live scores and a scoreboard on the Marquee.
 
-**And more**: what's in theaters near you with showtimes and your ticket service, a news feed, critic scores, "complete your library", schedules and quiet hours for heavy work, a guided setup with an in-app manual, a cinema look of its own and a soft one (Usherr Neu) with a choice of main colours.
+**Watching together**
+- **Linked Usherrs**: link with friends who run their own Usherr, through an end-to-end encrypted relay. Nothing is opened to the internet and no video crosses between houses.
+- **Linked screenings**: invite them to a Showtime; everyone's film plays in step, pre-show included, with the host's play and pause going to every house.
+- **The party**: a lobby with a seat map, a chat that reaches every house, reactions pinned to the moment of the film, a phone companion with a remote for the host, an intermission, and a verdict at the credits that goes to your Diary.
+- **Ticket stubs and badges**: a collectible stub for every party, stamped SEEN when you stay to the end, and a badge cabinet.
+- **Crews**: your movie-night group between parties, with a chat, a shared watchlist, a vote on the next film, film clubs that book themselves, and Crew Wrapped at the end of the year. Discord watch parties work too, with your own bot.
+
+**Reading and listening**
+- **Manga**: add a series by its English title; volumes come from your indexers, official English editions first, with fan scans and Nyaa only if you choose them. Chapters from MangaDex and your own MangaDex account are optional. Discover, a reader with page curl and panel-by-panel reading, and files from other apps brought in as they are.
+- **Comics**: follow series and story arcs from ComicVine, find issues on your indexers and read them page by page, panel by panel or as a webtoon.
+- **Books**: a page that curls like paper, bookmarks and highlights, sending a book to your Kindle or e-reader by email, and your place kept with KOReader and Readest.
+- **Music**: phone apps (Symfonium, DSub, Feishin and other Subsonic apps), Last.fm, playlists from your .m3u files, and a Picard-style **Tidy up** that renames and tags albums with Undo.
+
+**Running it**
+- **Watching**: its own watch history and stats from Plex, Jellyfin and Emby. **Service checks**: a message when Jellyfin or a download client stops answering. **Clean-up rule sets** with a Leaving soon list everyone can see, and streamed titles never touched.
+- **Collections and poster badges** in Jellyfin and Plex, kept up to date, with every original poster kept.
+- **Simple or Advanced** quality profiles, tags that decide where a title searches, and friends signing in with their Jellyfin or Plex account.
+
+**And more**: what's in theaters near you with showtimes and your ticket service, a news feed, critic scores, "complete your library", schedules and quiet hours for heavy work, a guided setup with an in-app manual, a cinema look of its own and a soft one (Usherr Neu) with a choice of main colours, and **Neu, new layout**, with a Home page for watching, a Server area for admins and a TV size for the sofa.
 
 ## Install
 
@@ -68,7 +85,7 @@ services:
       - /path/to/your/media:/data
 ```
 
-Then open `http://<your-server-ip>:8264` and follow the setup. The full guide is [docs/INSTALL.md](docs/INSTALL.md): Usherr installs exactly like Mediarium, so wherever the documentation says Mediarium, read Usherr.
+Then open `http://<your-server-ip>:8264` and follow the setup. `latest` is the newest release (2.61.2 at the time of writing); pin a version such as `ghcr.io/trytotilt/usherr:2.61.2` if you'd rather update by hand. The image is built on Debian with Jellyfin's ffmpeg, so Live TV can encode on an NVIDIA, Intel or VAAPI graphics card: see [A graphics card](docs/INSTALL.md#a-graphics-card-optional-usherr). The full guide is [docs/INSTALL.md](docs/INSTALL.md): Usherr installs exactly like Mediarium, so wherever the documentation says Mediarium, read Usherr.
 
 **Keys.** Usherr doesn't come with built-in keys for TMDB (film and show details), OpenSubtitles or Trakt. TMDB's is needed and free: make one at [themoviedb.org](https://www.themoviedb.org/settings/api) and paste it during setup. The others are optional.
 
@@ -84,17 +101,19 @@ Usherr includes a module for adult content (videos from StashDB, followed by per
       - USHERR_ALLOW_ADULT=1
 ```
 
-Even then it stays off until an administrator turns it on under *Settings → Extras*, after an adults-only warning and typing a confirmation. Only administrators ever see it: it's hidden from everyone else, keeps its own library and never sends notifications. This repository contains no adult content.
+Even then it stays off until an administrator turns it on under *Settings → Extras*, after an adults-only warning and typing a confirmation. Only administrators, and accounts an administrator gives the NSFW 18+ permission, ever see it: it's hidden from everyone else, is reached only from its own page (never from Discover's or the Library's media picker), keeps its own library, never sends notifications and is never shared with crews. This repository contains no adult content.
 
 ## Privacy
 
-There are no ads and no tracking. Usherr sends nothing about you or your library anywhere: Mediarium's anonymous usage numbers and private problem reports are switched off. Problem reports open as an issue on this repository, after you check the text.
+There are no ads and no tracking. Usherr sends nothing about you or your library anywhere: Mediarium's anonymous usage numbers and private problem reports are switched off. What you choose to connect is the exception, and only what it needs: a linked friend's Usherr sees a screening or crew you share with it (through a relay that can't read it), and Last.fm, ListenBrainz or MangaDex get what you play or read once you connect your own account. Problem reports open as an issue on this repository, after you check the text.
 
 ## Documentation
 
 - The **in-app guide** (the **?** in the top bar) covers everything, Usherr's own features included.
 - [docs/](docs/README.md): Mediarium's documentation, which applies to Usherr.
-- [docs/home/](docs/home/getting-started.md): the guide to Usherr's own features.
+- [docs/home/](docs/home/getting-started.md): the guide to Usherr's own features, including [watching together](docs/home/watch-together.md) and [running the server](docs/home/server.md).
+- [docs/manga.md](docs/manga.md): Manga, MangaDex included. [docs/home/link-protocol.md](docs/home/link-protocol.md): how linked Usherrs talk, for anyone running their own relay.
+- [docs/FEATURES.md](docs/FEATURES.md#26-what-usherr-adds-as-of-usherr-2612): what Usherr adds, in one table.
 
 ## Credits and licence
 

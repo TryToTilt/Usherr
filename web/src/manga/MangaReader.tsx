@@ -678,7 +678,7 @@ function ReaderVolume({ volumeId, chapter, dex, startPage, onClose, onNext, onDe
   const style = { ...readerStyle(opts, filter) }
 
   return createPortal(
-    <div className={`cx-reader mr-reader ${readerClass(opts)}`} role="dialog" aria-label={info?.title ?? t('Manga reader')} style={style}>
+    <div className={`cx-reader mr-reader ${readerClass(opts)}`} data-walk="mg-reader" role="dialog" aria-label={info?.title ?? t('Manga reader')} style={style}>
       <div className="cx-reader-bar">
         <button className="btn-sm" onClick={onClose} aria-label={t('Close the reader')}>
           <Icon name="x" size={16} />
@@ -723,6 +723,7 @@ function ReaderVolume({ volumeId, chapter, dex, startPage, onClose, onNext, onDe
               setMarksOpen(false)
               setOptsOpen((v) => !v)
             }}
+            data-walk="mg-reader-opts"
             title={t('How you read this series')}
             aria-label={t('How you read this series')}
             aria-pressed={optsOpen}

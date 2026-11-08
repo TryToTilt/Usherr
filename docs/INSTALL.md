@@ -310,6 +310,32 @@ Most settings live under **Settings**. Besides the folders, `PUID`, `PGID` and `
 
 The Docker images set `BUNDLED_FLARESOLVERR` (the `-full` image only) and `MEDIARIUM_IMAGE_VERSION` themselves. Don't set those two.
 
+### A graphics card (optional, Usherr)
+
+Usherr's image is built on Debian with Jellyfin's ffmpeg build, so Live TV channels can be encoded on a graphics card (see *Live TV picture* under Settings > Extras). Nothing is needed for the CPU, which always works.
+
+- **NVIDIA (NVENC):** give the container the GPU, with `gpus: all` under the `usherr` service (in a recent Docker Compose), or a device reservation:
+
+  ```yaml
+      deploy:
+        resources:
+          reservations:
+            devices:
+              - driver: nvidia
+                count: all
+                capabilities: [gpu]
+  ```
+
+  The host needs the NVIDIA driver and the NVIDIA Container Toolkit. The image already asks for the video capabilities.
+- **Intel Quick Sync or VAAPI:** pass the render device in:
+
+  ```yaml
+      devices:
+        - /dev/dri:/dev/dri
+  ```
+
+Usherr tests each encoder for a second and the card on the Extras page shows which work, and why not for the others.
+
 ## Running under a sub-path (URL base)
 
 Most people give Mediarium its own address, like `https://media.example.com`. If you would rather put it under a path of a domain you already use, like `https://home.example.com/mediarium`, set `URL_BASE`:

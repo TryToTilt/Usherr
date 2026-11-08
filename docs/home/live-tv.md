@@ -186,6 +186,28 @@ keep them to yourself):
 - **Stremio and Nuvio**: the add-on (the You page, or Settings › Extras › Stremio and Nuvio)
   includes the channels.
 
+## The picture: encoder and watermark
+
+**Settings → Extras → Live TV picture.** How channels make their picture
+when it has to be converted: for a web browser that can't play a file, and
+when the watermark is on. Without a watermark, channels send the picture as it
+is.
+
+- **Encoder**: **Automatic** (the default), **CPU (libx264)**, **NVIDIA
+  (NVENC)**, **Intel Quick Sync** or **VAAPI**. Automatic tries each with a
+  one-second test and uses the first that works, in that order. The card shows
+  which work and, for the others, why not, with **Test again**. If an encoder
+  fails while a channel plays, the CPU takes over for that program.
+- **Show a watermark on channels** (off by default): each channel's logo, a
+  picture you upload (PNG, JPG or WebP, up to 2 MB), or the channel number or
+  name, in the corner you pick, with its size, opacity and distance from the
+  edge. **Preview on** shows it on what a channel plays now, and each channel
+  can be left without it. Changes apply from the next program.
+
+To encode on an NVIDIA card, give the container the GPU in compose
+(`gpus: all`, or a device reservation). Intel Quick Sync and VAAPI need
+`/dev/dri` passed in as a device.
+
 ## When something is off
 
 - **A channel says "off air"**: a streamed show had nothing to stream when

@@ -133,6 +133,18 @@ const readSteps = (advanced: boolean): SmhStep[] => [
     title: t('Turning the pages'),
     text: t('Drag a corner, tap the right side, or swipe; the arrow keys and the space bar work too. Speed sets how fast the pages turn.'),
   },
+  ...(advanced
+    ? [
+        {
+          kind: 'point',
+          target: 'cx-reader-opts',
+          until: 'next',
+          optional: true,
+          title: t('Reading direction and how pages show'),
+          text: t('The sliders button: right to left or left to right, one page, two, a webtoon strip or a Wide strip, plus the progress bar (normal, a thin line or hidden), tap hints, greyscale, dim pages, the background, and hiding the header (M brings it back). The same options as the Manga reader, kept for each series.'),
+        } as SmhStep,
+      ]
+    : []),
   {
     kind: 'point',
     target: 'cx-reader-bar',

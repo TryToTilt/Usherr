@@ -7,9 +7,11 @@ import { comicArcs, comicReview, comicWeek, readComic, setupComics } from './com
 import { askAi, completeLibrary, discover, followPerson, getShow, upcoming } from './discover'
 import { diary, familyMember, filmLayout, phone, roulette, stack, streamOrKeep, tonight, vote } from './everyday'
 import { betterCopy, importLibrary, moveTitle, restylePosters, subtitles, tags, whyFailed } from './library'
-import { getBook, importMusic, listenAudiobook, makePlaylist, playMusic, readEbook } from './listen'
+import { getBook, importMusic, listenAudiobook, makePlaylist, musicApps, playMusic, readEbook, tidyMusic } from './listen'
+import { browseManga, getManga, mangaDexAccount, mangaSources, readManga } from './manga'
 import { addArtist, connectJellyfin, downloadClients, importLists, naming } from './more'
-import { followTeam, makeChannel, marquee, marqueeRemote, playOnTv, watchLiveTv } from './night'
+import { followTeam, getSports, makeChannel, marquee, marqueeRemote, playOnTv, watchLiveTv } from './night'
+import { badges, crewVote, hostScreening, linkUsherr, partyPhone, startCrew } from './party'
 import { plexDrive } from './plex'
 import { kidsRequests, notices, resetByEmail, stremioAddon } from './people'
 import { setUpPreshow } from './preshow'
@@ -38,22 +40,35 @@ export const WALKS: Walkthrough[] = [
   partyChat,
   reviewInDiscord,
   ticketStubs,
+  badges,
+  linkUsherr,
+  hostScreening,
+  partyPhone,
+  startCrew,
+  crewVote,
   marquee,
   marqueeRemote,
   watchLiveTv,
   makeChannel,
   followTeam,
+  getSports,
   playMusic,
   addArtist,
   makePlaylist,
+  musicApps,
   listenAudiobook,
   getBook,
   readEbook,
+  getManga,
+  readManga,
+  browseManga,
+  mangaDexAccount,
   readComic,
   comicArcs,
   comicWeek,
   comicReview,
   setupComics,
+  mangaSources,
   ebookToAudiobook,
   completeCollection,
   completeLibrary,
@@ -64,6 +79,7 @@ export const WALKS: Walkthrough[] = [
   whyFailed,
   restylePosters,
   importMusic,
+  tidyMusic,
   importLibrary,
   familyMember,
   kidsRequests,

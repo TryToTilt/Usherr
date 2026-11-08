@@ -5,6 +5,21 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.62.0] - 2026-11-07
+
+### Show me how
+
+- **Walkthroughs for everything new since 2.40:** link with a friend's Usherr, host a screening (lobby, intermission, verdict), use your phone at a screening, start a crew, pick the next film with your crew, see your badges and save a stub, get a manga series, set up manga, read manga, find manga and read it online, connect your MangaDex account, tidy up your music, play your music in a phone app, and get a league's games by themselves.
+- **Walkthroughs brought up to date:** linked screenings in Book a showtime, Chat and Ticket stubs; the new readers for ebooks, audiobooks and comics; Simple quality profiles; sports downloads; Manga's own Discover.
+- **The setup wizard explains the VPN step,** and its Extras step says where watching with friends and manga are set up. A new tip suggests a crew when you're invited to one or have linked Usherrs, and Settings > Extras > Sports has a Show me how button.
+
+### Guide and website
+
+- **The Show me how website covers everything up to 2.61,** with 14 new pages (linked Usherrs, hosting a screening, your phone at a screening, crews, the next-film vote and film clubs, badges, sports downloads, phone apps for music, music tidy-up, and setting up, getting, discovering and reading manga, plus MangaDex). Joining a watch party, party chat, ticket stubs and older pages (media types, sports, page layouts, seasons, Leaving soon, quality profiles, the readers, notices) are brought up to date.
+- **The Start page's setup file can have a Manga folder,** the NVIDIA option also lets Live TV use the graphics card, and the page lists what's in Usherr now.
+- **The in-app guide and the docs cover everything up to 2.61.** New pages: **Watching together** (linked Usherrs, screenings in step, the party, crews, film clubs and Crew Wrapped) and **Running the server** (watch history, service checks, clean-up rule sets, Simple and Advanced profiles, tags, signing in with Jellyfin or Plex). Live TV's encoder and watermark, collections and poster badges, the new layout, Continue watching, the four new badges and installing with a graphics card are written up too, and the README lists what Usherr does today.
+- The guide no longer says NSFW 18+ is for administrators only: accounts given its permission see it too, from its own page only.
+
 ## [2.61.2] - 2026-11-07
 
 ### Fixed
