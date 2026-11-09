@@ -2,7 +2,7 @@
 // shows (anime included). The page hands over its pieces; this arranges them
 // as Cinema (the hero, then tabs), Side by side (the title on the left, you
 // and the community on the right) or Streaming (a big backdrop, then rows).
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { isAdmin } from '../api'
 import { useAuth } from '../AuthContext'
 import Icon from '../components/Icon'
@@ -11,6 +11,7 @@ import { openReport } from '../report'
 import type { FilmLayout, FilmPageShows } from './filmLayout'
 import './filmpage.css'
 import './lobbyTitle.css'
+import '../broadcast/title.css' // Usherr Broadcast: its page (only drawn in Broadcast)
 
 type Tab = 'episodes' | 'about' | 'reviews' | 'cast' | 'more' | 'manage'
 
@@ -39,6 +40,53 @@ export default function TitleLayout(b: TitleBlocks) {
   const [tab, setTab] = useState<Tab>(b.episodes ? 'episodes' : 'about')
   const { layout, show, manage, manageOpen, setManageOpen } = b
   const admin = isAdmin(useAuth().user)
+  // Usherr Broadcast: Manage, opened from the More sheet, comes into view with the focus in it.
+  const manageRef = useRef<HTMLElement>(null)
+  const broadcastManaging = layout === 'broadcast' && !!manage && manageOpen
+  useEffect(() => {
+    if (!broadcastManaging) return
+    const box = manageRef.current
+    if (!box) return
+    box.scrollIntoView({ block: 'start' })
+    box.querySelector<HTMLElement>('button:not([disabled]), a[href], input, select')?.focus({ preventScroll: true })
+  }, [broadcastManaging])
+
+  // Usherr Broadcast: the page from the mock-up. The title, its one main
+  // button and three more (the rest is in the More sheet), the seasons and
+  // episodes, More like this, then the people, reviews and the details.
+  // Manage (administrators) opens under the title from the More sheet.
+  if (layout === 'broadcast') {
+    return (
+      <div className="fp fp-broadcast">
+        {b.hero}
+        {broadcastManaging && (
+          <section ref={manageRef} className="card fp-library bc-manage" aria-label={t('Manage')}>
+            <div className="fp-manage-head">
+              <h2>{t('Manage')}</h2>
+              {b.manageSummary && <p className="fp-sum">{b.manageSummary}</p>}
+              <button type="button" className="btn-sm" onClick={() => setManageOpen(false)}>
+                {t('Close')}
+              </button>
+            </div>
+            {manage}
+          </section>
+        )}
+        {b.episodes}
+        {b.more}
+        {b.cast}
+        {b.reviews}
+        <section className="card fp-about">
+          <h2>{t('Details')}</h2>
+          {b.facts}
+          {b.scores}
+          {b.where}
+          {b.you}
+          {b.requests}
+        </section>
+        {b.dialogs}
+      </div>
+    )
+  }
 
   // Usherr: the new layout's page (neu/look.ts). The title and one button up
   // top, then the episodes, about and the people; Manage opens beside it.

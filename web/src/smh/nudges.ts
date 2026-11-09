@@ -7,6 +7,9 @@ import { api } from '../api'
 import { t } from '../i18n'
 import { crewsApi } from '../home/crewsApi'
 import { listShowtimes, showtimeEnds } from '../home/showtimes'
+import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast
+import { remoteOn, tvBrowser } from '../remote/remote' // Usherr Broadcast
+import { smhDoneList } from './engine'
 
 export interface Nudge {
   id: string
@@ -44,6 +47,14 @@ export function saveNudgeState(user: number | string, s: NudgeState) {
 // What each nudge checks. Cheap checks first; each one that can't tell
 // (an error, no data) says no.
 const checks: { id: string; make: () => Promise<Nudge | null> }[] = [
+  {
+    // Usherr Broadcast: with a remote in hand, the Options key (More) is the one thing worth knowing first.
+    id: 'remote',
+    make: async () => {
+      if (!broadcastOn() || !(tvBrowser() || remoteOn()) || smhDoneList().has('options-more')) return null
+      return { id: 'remote', title: t('Using a remote?'), why: t('The Options key (☰) opens More: everything else you can do with a title, on its page or on any poster.'), walk: 'options-more' }
+    },
+  },
   {
     id: 'vote',
     make: async () => {

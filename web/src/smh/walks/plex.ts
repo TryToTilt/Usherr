@@ -3,6 +3,7 @@
 // Usherr serves and rclone mounts on the computer that runs Plex.
 import { t } from '../../i18n'
 import type { Walkthrough } from '../types'
+import { bc, bcTo } from '../look' // Usherr Broadcast: words for its own pages
 
 export const plexDrive: Walkthrough = {
   id: 'plex-drive',
@@ -37,7 +38,7 @@ export const plexDrive: Walkthrough = {
       title: t('Nothing to do for Jellyfin'),
       text: t('Jellyfin plays the Streams library as it is.'),
     },
-    { kind: 'go', to: '/settings/extras', title: t('The virtual drive'), text: t('Its card is under Extras.') },
+    { kind: 'go', to: bcTo('/settings/streaming#virtual-drive', '/settings/extras#virtual-drive'), title: t('The virtual drive'), text: bc(t('Its card is under Server, Getting media, Streaming.'), t('Its card is under Extras.')) },
     {
       kind: 'point',
       target: 'drive-card',
@@ -113,7 +114,7 @@ export const plexDrive: Walkthrough = {
     {
       kind: 'say',
       title: t('Add it to Plex, the light way'),
-      text: t('With Plex connected to Usherr (Settings, Media servers), press Add them to Plex for me on the card: Usherr makes Movies-Stream, TV-Stream and Anime-Stream. Or add U:\\Movies to a Movies library and U:\\TV and U:\\Anime to a TV library yourself. In Plex, Settings, Library: set video preview thumbnails, chapter thumbnails and voice activity data to never, scan periodically, and untick Empty trash automatically. In Scheduled Tasks, untick extensive media analysis. Each of these would read whole films from Usenet.'),
+      text: bc(t('With Plex connected to Usherr (Server, Watching, Media servers), press Add them to Plex for me on the card: Usherr makes Movies-Stream, TV-Stream and Anime-Stream. Or add U:\\Movies to a Movies library and U:\\TV and U:\\Anime to a TV library yourself. In Plex, Settings, Library: set video preview thumbnails, chapter thumbnails and voice activity data to never, scan periodically, and untick Empty trash automatically. In Scheduled Tasks, untick extensive media analysis. Each of these would read whole films from Usenet.'), t('With Plex connected to Usherr (Settings, Media servers), press Add them to Plex for me on the card: Usherr makes Movies-Stream, TV-Stream and Anime-Stream. Or add U:\\Movies to a Movies library and U:\\TV and U:\\Anime to a TV library yourself. In Plex, Settings, Library: set video preview thumbnails, chapter thumbnails and voice activity data to never, scan periodically, and untick Empty trash automatically. In Scheduled Tasks, untick extensive media analysis. Each of these would read whole films from Usenet.')),
     },
     {
       kind: 'say',

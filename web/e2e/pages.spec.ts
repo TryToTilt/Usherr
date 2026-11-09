@@ -1,18 +1,18 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { expectNoErrors, narrow, openNav, watchErrors } from './helpers'
 
 // Every main page opens without an error on a new, empty install.
 const PAGES: [string, RegExp][] = [
-  ['/', /Dashboard/],
+  ['/', /Dashboard|Home/], // Usherr Broadcast: Home
   ['/discover', /Discover/],
   ['/library', /Library/],
   ['/calendar', /Upcoming/],
   ['/wanted', /Upcoming/],
   ['/queue', /Activity/],
   ['/stats', /Statistics/],
-  ['/settings/general', /General/],
+  ['/settings/general', /General|Look and language/], // Usherr Broadcast: under You
   ['/settings/modules', /Media types/],
-  ['/settings/media', /Library.*Folders/],
+  ['/settings/media', /Librar(y|ies).*Folders/], // Usherr Broadcast: Libraries
   ['/settings/naming', /File names and importing/],
   ['/settings/quality', /Quality/],
   ['/settings/automation', /Automatic searching/],
@@ -30,7 +30,7 @@ const PAGES: [string, RegExp][] = [
   ['/settings/profile', /Your profile/],
   ['/settings/security', /Security/],
   ['/settings/services', /Linked services/],
-  ['/settings/accounts', /All accounts/],
+  ['/settings/accounts', /All accounts|People.*Accounts/], // Usherr Broadcast: People
   ['/settings/requests', /Requests and reports/],
   ['/settings/sign-in', /Ways to sign in/],
   ['/settings/backup', /Backup and restore/],
@@ -64,8 +64,28 @@ for (const [from, to] of MOVED) {
   })
 }
 
+// Usherr Broadcast: the look the browser shows (the one menu is Broadcast's).
+const broadcast = (page: Page) => page.evaluate(() => document.documentElement.dataset.look === 'broadcast')
+
+test('Broadcast: Server unfolds only in the Server area, and an old Extras link lands on its card’s page', async ({ page }) => {
+  await page.goto('/')
+  test.skip(!(await broadcast(page)), 'the one menu is Broadcast’s')
+  await openNav(page)
+  const server = page.locator('#sn-head-server')
+  await expect(server).toHaveAttribute('aria-expanded', 'false')
+  await page.goto('/settings/media')
+  await openNav(page)
+  await expect(server).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.locator('#main-menu').getByRole('link', { name: 'Today', exact: true })).toBeVisible()
+  await page.goto('/settings/extras#sports')
+  await expect(page).toHaveURL(/\/settings\/sports/)
+  await page.goto('/find')
+  await expect(page.getByRole('heading', { level: 1, name: 'Find' })).toBeVisible()
+})
+
 test('the Library and Settings menus open on a click or on their own pages, and only one at a time', async ({ page }) => {
   await page.goto('/')
+  test.skip(await broadcast(page), 'Classic and Neu: Broadcast has its own test above')
   await openNav(page)
   const library = page.locator('#sn-head-library')
   const settings = page.locator('#sn-head-settings')
@@ -105,12 +125,14 @@ test('the Library entry lists its kinds, and each one opens the Library on that 
   await expect(movies).toBeVisible()
   await shows.click()
   await expect(page).toHaveURL(/\/library\?kind=tv$/)
+  await openNav(page) // Broadcast's icon rail folds once a page is chosen
   await expect(shows).toHaveAttribute('aria-current', 'page')
   await expect(movies).not.toHaveAttribute('aria-current', 'page')
-  // inside the Library the menu stays open
+  // inside the Library the menu stays open (in Classic; Broadcast's rail folds)
   await openNav(page)
   await movies.click()
   await expect(page).toHaveURL(/\/library\?kind=movie$/)
+  await openNav(page)
   await expect(movies).toHaveAttribute('aria-current', 'page')
 })
 

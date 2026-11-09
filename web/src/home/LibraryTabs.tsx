@@ -11,6 +11,7 @@ import type { GlyphKind } from '../components/KindGlyph'
 import { useModules } from '../ModulesContext'
 import { useComicsOn, useNsfwOn } from './libraryKinds'
 import './library.css'
+import { broadcastKinds } from '../onemenu/kinds' // Usherr Broadcast: one order, one set of names
 
 type Tab = { to: string; label: string; glyph: GlyphKind; color: string; key: string }
 
@@ -38,6 +39,6 @@ export default function LibraryTabs({ current }: { current: 'comics' | 'manga' |
   ]
   return (
     // Usherr: the same drop-down as the Library's (CompactBar.tsx)
-    <KindPicker label={t('Library')} options={tabs.map((tab) => ({ key: tab.key, label: tab.label, glyph: tab.glyph, color: tab.color }))} value={current} onChange={(k) => navigate(tabs.find((tab) => tab.key === k)?.to ?? '/library')} />
+    <KindPicker label={t('Library')} options={broadcastKinds(tabs.map((tab) => ({ key: tab.key, label: tab.label, glyph: tab.glyph, color: tab.color })))} value={current} onChange={(k) => navigate(tabs.find((tab) => tab.key === k)?.to ?? '/library')} />
   )
 }

@@ -78,3 +78,9 @@
   the NSFW 18+ module's fingerprint and favorites lookups (`internal/nsfw/identify.go`, `favorites.go`) use
   stash-box's public GraphQL API, and its OSHASH fingerprint follows the method those projects use. No code of
   theirs is included.
+
+- **Clickarr** (https://github.com/thegregstengel/clickarr, MIT): the Broadcast look follows its design language
+  (https://github.com/thegregstengel/clickarr/blob/main/docs/design/design-language.md): depth by lightness instead
+  of shadows, 12/16/20 corners, one focus colour and its remote focus rules, adapted for Usherr
+  (`web/src/neu/broadcast.css`, `web/src/remote/`). Clickarr's name, logo and brand gradient are not used, and no
+  code of theirs is included.

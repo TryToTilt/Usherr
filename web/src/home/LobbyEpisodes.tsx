@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import type { Episode } from '../api'
 import Icon from '../components/Icon'
 import { t } from '../i18n'
-import { lobbyOn } from '../neu/look'
+import { broadcastOn, lobbyOn } from '../neu/look' // Usherr Broadcast: Resume there too
 
 // Usherr: a show's episodes in the new layout (neu/look.ts), for watching.
 // One season at a time, and each episode says in plain words where it
@@ -20,7 +20,7 @@ export interface KeptPlace {
 export function useKeptPlaces(): KeptPlace[] {
   const [places, setPlaces] = useState<KeptPlace[]>([])
   useEffect(() => {
-    if (!lobbyOn()) return
+    if (!lobbyOn() && !broadcastOn()) return // Usherr Broadcast: and in Broadcast
     fetch('/api/home/continue', { credentials: 'include', cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : []))
       .then((v: KeptPlace[]) => setPlaces(Array.isArray(v) ? v : []))

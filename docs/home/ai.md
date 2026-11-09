@@ -7,7 +7,8 @@ part of Usherr still works; the AI buttons simply don't show.
 
 ## Setting it up
 
-**Settings › Extras › AI**, then **Which AI**:
+**Server › Smarts and connections › AI** in Broadcast (**Settings › Extras ›
+AI** in Classic or Neu), then **Which AI**:
 
 | AI | What it's like | Cost |
 |---|---|---|
@@ -66,8 +67,9 @@ watch tonight?*), on a book's or artist's page, and on the Comics page.
 
 - **The calendar's Ask**: *anime this weekend*, *superhero films next month*;
   the matching entries are listed by date above the calendar.
-- **Entertainment news**: each story summarised in a few lines (Settings ›
-  Extras › Entertainment news; *Stories summarised a day* limits AI use).
+- **Entertainment news**: each story summarised in a few lines (Server ›
+  Smarts and connections › News and in theaters, or Settings › Extras ›
+  Entertainment news; *Stories summarised a day* limits AI use).
 - **The family filter's estimates** of ages, when Common Sense Media has
   none.
 - **Live TV**: **Build with AI** makes a channel from a description, and

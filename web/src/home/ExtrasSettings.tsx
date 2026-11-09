@@ -80,7 +80,8 @@ const row = { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' } 
 const small = { color: 'var(--text-dim)', margin: 0, fontSize: 13 } as const
 
 // `only` shows just these cards (the setup wizard's Extras step uses it).
-export default function ExtrasSettings({ only }: { only?: string[] } = {}) {
+// Usherr Broadcast: `onPage` shows the cards on their feature's own page (onemenu/BroadcastSettings.tsx), not in the wizard.
+export default function ExtrasSettings({ only, onPage }: { only?: string[]; onPage?: boolean } = {}) {
   const show = (k: string) => !only || only.includes(k)
   const [x, setX] = useState<Extras | null>(null)
   const [error, setError] = useState('')
@@ -143,9 +144,9 @@ export default function ExtrasSettings({ only }: { only?: string[] } = {}) {
       {show('scores') && <ScoresCard />}
       {show('news') && <NewsCard />}
       {show('cinema') && <CinemaCard />}
-      {show('marquee') && <MarqueeCard inWizard={!!only} />}
-      {show('preshow') && <PreshowCard inWizard={!!only} />}
-      {show('reposterr') && <ReposterrCard inWizard={!!only} />}
+      {show('marquee') && <MarqueeCard inWizard={!!only && !onPage} />}
+      {show('preshow') && <PreshowCard inWizard={!!only && !onPage} />}
+      {show('reposterr') && <ReposterrCard inWizard={!!only && !onPage} />}
       {show('comics') && <ComicsCard x={x} act={act} />}
       {show('direct') && <DirectCard x={x} save={save} />}
       {show('sports') && <SportsCard />}

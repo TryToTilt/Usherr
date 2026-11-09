@@ -28,6 +28,8 @@ test('the new screen languages load and a plural form reads right', async ({ pag
 test('the speed schedule: add a line, change it, remove it', async ({ page }) => {
   const errors = watchErrors(page)
   await page.goto('/settings/download-rules')
+  // Broadcast keeps the speed schedule with the schedules and quiet times.
+  if (await page.evaluate(() => document.documentElement.dataset.look === 'broadcast')) await page.goto('/settings/schedules')
   await expect(page.getByText('Speed schedule').first()).toBeVisible()
   // Wait for each change to be saved (the settings call) before the page is reloaded.
   const saveDone = () => page.waitForResponse((r) => r.request().method() === 'PUT' && /\/api\/settings$/.test(new URL(r.url()).pathname))

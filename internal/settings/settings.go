@@ -312,6 +312,7 @@ const (
 	KeyAuthPasskeys    = "auth.passkeys"     // "1" lets people sign in with a passkey; needs the public address (server.public_url). Unset or "0" leaves it off
 	KeyAuthAutoSignIn  = "auth.auto_signin"  // "oidc" sends visitors who are not signed in straight to the single sign-on provider from the sign-in page (add ?no-redirect=1 to the address to see the normal page); unset or empty leaves it off. Only a signed-in browser session can set it, and only while single sign-on works
 	KeyAuthLocalSignIn = "auth.local_signin" // "0" turns the username and password form off (only possible once an administrator has signed in with another method); anything else (including unset) leaves it on
+	KeyAuthTVSignIn    = "auth.tv_signin"    // Usherr: "0" turns off Sign in with your phone (a TV shows a code that a signed-in phone approves); anything else (including unset) leaves it on
 	KeyAuthEmailReset  = "auth.emailReset"   // Usherr: "1" puts Forgot password? on the sign-in page, emailing a one-time link to set a new password; needs an email notification switched on and the public address (server.public_url). Unset or "0" leaves it off
 
 	// A script to run after each import (Settings > System > Server and updates). See docs/scripts.md.

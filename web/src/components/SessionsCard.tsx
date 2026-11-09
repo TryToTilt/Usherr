@@ -14,6 +14,8 @@ function how(method: string): string {
       return t('Passkey')
     case 'proxy':
       return t('Sign-in proxy')
+    case 'tv': // Usherr: a TV a phone approved
+      return t('TV code')
     default:
       return t('Password')
   }
@@ -61,7 +63,7 @@ export default function SessionsCard() {
       <ul style={{ margin: '0 0 12px', paddingLeft: 18 }}>
         {list.map((s, i) => (
           <li key={i}>
-            {how(s.method)} · {t('signed in {when}', { when: new Date(s.createdAt).toLocaleString(locale()) })}
+            {s.device ? `${s.device} · ` : ''}{how(s.method)} · {t('signed in {when}', { when: new Date(s.createdAt).toLocaleString(locale()) })}
             {s.current && <strong> · {t('This device')}</strong>}
           </li>
         ))}

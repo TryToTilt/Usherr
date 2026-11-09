@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { Book as EpubBook, NavItem, Rendition } from 'epubjs'
 import { api, type Book } from '../api'
 import Icon from '../components/Icon'
@@ -16,6 +16,8 @@ import { effectOf, FONTS, gapFor, layoutOf, loadPrefs, PREFS_KEY, THEMES, type E
 import { animateTurn, type TurnSpeed } from './turn'
 import type { EpubCurl } from './curl/epubCurl'
 import { attachTurnGestures } from './turnGestures'
+import { remoteHasReaderKey, useBroadcastReader } from '../readers/useBroadcastReader' // Usherr Broadcast: the remote
+import ReaderSheet from '../readers/ReaderSheet' // Usherr Broadcast
 
 // The reader: one book, a page at a time. EPUBs are drawn here (epub.js),
 // and so are MOBI and AZW3 books, as an EPUB copy the server makes; PDFs are
@@ -109,6 +111,8 @@ function EpubReader({ book, src, at }: { book: Book; src: string; at: number }) 
   const bookData = useRef<ArrayBuffer | null>(null)
   const [toc, setToc] = useState<NavItem[]>([])
   const [panel, setPanel] = useState<'' | 'toc' | 'settings' | 'marks'>('')
+  const [sheetOpen, setSheetOpen] = useState(false) // Usherr Broadcast: the settings sheet
+  const navigate = useNavigate() // Usherr Broadcast: Back closes the book
   const [marks, setMarks] = useState<ReadingMark[] | undefined>(undefined)
   const marksRef = useRef(marks)
   marksRef.current = marks
@@ -386,6 +390,7 @@ function EpubReader({ book, src, at }: { book: Book; src: string; at: number }) 
       }
     })()
     function onKey(e: KeyboardEvent) {
+      if (remoteHasReaderKey(e)) return // Usherr Broadcast: the remote has it (useBroadcastReader)
       // The arrows move the place slider and Space presses a button: those keys belong to the control.
       if ((e.target as HTMLElement | null)?.closest?.('input, select, textarea, button')) return
       if (e.key === 'ArrowRight') void turnRef.current(isRtl() ? 'prev' : 'next')
@@ -509,6 +514,23 @@ function EpubReader({ book, src, at }: { book: Book; src: string; at: number }) 
   }, [curlOn])
 
   const theme = THEMES[prefs.theme]
+  // Usherr Broadcast: the remote turns pages the way the book reads, Options opens the settings sheet,
+  // Back closes a footnote, a highlight or a panel before the book
+  const remote = useBroadcastReader({
+    turn: (d) => void turnRef.current(d > 0 ? 'next' : 'prev'),
+    rtl: isRtl(),
+    vertical: reading === 'scroll',
+    sheet: sheetOpen,
+    setSheet: setSheetOpen,
+    dismiss: () => {
+      if (note !== null) setNote(null)
+      else if (pick) closePick()
+      else if (panel) setPanel('')
+      else return false
+      return true
+    },
+    close: () => navigate('/bookshelf'),
+  })
   if (error)
     return (
       <ReaderMessage
@@ -522,8 +544,8 @@ function EpubReader({ book, src, at }: { book: Book; src: string; at: number }) 
       />
     )
   return (
-    <div className={`rdr rdr-epub theme-${prefs.theme}${reading === 'scroll' ? ' rdr-scroll' : ''}`} style={{ ['--rdr-bg' as string]: theme.bg, ['--rdr-fg' as string]: theme.fg }}>
-      <header className="rdr-top">
+    <div className={`rdr rdr-epub theme-${prefs.theme}${reading === 'scroll' ? ' rdr-scroll' : ''}`} style={{ ['--rdr-bg' as string]: theme.bg, ['--rdr-fg' as string]: theme.fg }} {...remote.rootProps}>
+      <header className="rdr-top" data-reader-bar="">
         <Link className="icon-btn" to="/bookshelf" title={t('Back to your books')} aria-label={t('Back to your books')}>
           <Icon name="chevron-left" size={20} />
         </Link>
@@ -743,6 +765,63 @@ function EpubReader({ book, src, at }: { book: Book; src: string; at: number }) 
         />
         <span className="rdr-pct">{located ? `${Math.round(percent)}%` : '…'}</span>
       </footer>
+      {/* Usherr Broadcast: Text and colours as a sheet for the remote */}
+      {remote.on && sheetOpen && (
+        <ReaderSheet
+          eyebrow={book.title}
+          onClose={() => setSheetOpen(false)}
+          rows={[
+            { key: 'size', label: t('Text size'), choices: [70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 180, 200].map((n) => ({ id: String(n), label: `${n}%` })), value: String(prefs.size), onChoose: (v) => setPrefs((p) => ({ ...p, size: Number(v) })) },
+            {
+              key: 'theme',
+              label: t('Page'),
+              choices: (Object.keys(THEMES) as Theme[]).map((th) => ({ id: th, label: th === 'light' ? t('Light') : th === 'sepia' ? t('Sepia') : th === 'dark' ? t('Dark') : t('Black') })),
+              value: prefs.theme,
+              onChoose: (v) => setPrefs((p) => ({ ...p, theme: v as Theme })),
+            },
+            { key: 'reading', label: t('Reading'), choices: [{ id: 'pages', label: t('Pages') }, { id: 'scroll', label: t('Scroll') }], value: reading, onChoose: (v) => setPrefs((p) => ({ ...p, reading: v as Reading })) },
+            ...(reading === 'pages'
+              ? [
+                  {
+                    key: 'effect',
+                    label: t('Page turn'),
+                    choices: [
+                      { id: 'curl', label: t('Curl') },
+                      { id: 'slide', label: t('Slide') },
+                      { id: 'none', label: t('None') },
+                    ],
+                    value: effectOf(prefs),
+                    onChoose: (v: string) => {
+                      const x = v as Effect
+                      setPrefs((p) => ({ ...p, effect: x, turn: x === 'curl' ? (p.turn === 'none' ? 'slide' : p.turn) : x }))
+                    },
+                  },
+                ]
+              : []),
+            { key: 'font', label: t('Font'), choices: FONT_CHOICES.map(([f, label]) => ({ id: f, label: t(label) })), value: prefs.font, onChoose: (v) => setPrefs((p) => ({ ...p, font: v as Font })) },
+            { key: 'line', label: t('Line spacing'), choices: LINE_CHOICES.map(([x, label]) => ({ id: x, label: t(label) })), value: prefs.line, onChoose: (v) => setPrefs((p) => ({ ...p, line: v as LineSpacing })) },
+            { key: 'margin', label: t('Margins'), choices: MARGIN_CHOICES.map(([x, label]) => ({ id: x, label: t(label) })), value: prefs.margin, onChoose: (v) => setPrefs((p) => ({ ...p, margin: v as Margin })) },
+            { key: 'justify', label: t('Justify'), choices: JUSTIFY_CHOICES.map(([x, label]) => ({ id: x, label: t(label) })), value: prefs.justify, onChoose: (v) => setPrefs((p) => ({ ...p, justify: v as Justify })) },
+            {
+              key: 'toc',
+              label: t('Contents'),
+              onPress: () => {
+                setSheetOpen(false)
+                setPanel('toc')
+              },
+            },
+            {
+              key: 'marks',
+              label: t('Bookmarks'),
+              disabled: !ready,
+              onPress: () => {
+                setSheetOpen(false)
+                setPanel('marks')
+              },
+            },
+          ]}
+        />
+      )}
     </div>
   )
 

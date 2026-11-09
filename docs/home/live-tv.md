@@ -14,6 +14,19 @@ Administrators make and change the channels; everyone can watch them.
 
 ## Watching
 
+In Broadcast, **Live TV** in the menu opens on a guide made for the remote:
+channels down the side (number, name and a star for favourites), two hours
+across, and a glowing line at now. Up and Down land on what's on at the same
+time on the next channel, Left and Right go along a channel, and the hours
+move along when you reach the edge. The card under the guide shows the
+programme you're on: OK watches what's on now, or opens a later one so you can
+set a reminder. The Options key (or the **Options** button) has **Remind me**,
+**Record**, **Start over** and the channel's star. While you watch, OK shows or
+hides the overlay (the channel, what's on, a progress line and Up Next), Up and
+Down change channel, the remote's Channel keys and digits work, and Back goes
+back to the guide. The other guide styles below are still in the style list.
+See [Broadcast and the remote](broadcast.md).
+
 - **The guide**: channels down the side, time across. Tap a program to see
   what it is (its picture, the episode, when it first aired, its rating and
   whether it's HD or 4K); tap it again to watch. A later program offers
@@ -30,7 +43,8 @@ Administrators make and change the channels; everyone can watch them.
   **Hide from the guide** takes a channel out of your own guide.
 - **Reminders**: *Remind me* on a program sends a message to your phone five
   minutes before it starts. It needs a notification that takes reminders,
-  such as ntfy (Settings › Notifications).
+  such as ntfy (**Server › People › Notifications** in Broadcast,
+  Settings › Notifications in Classic or Neu).
 - **Guide style**, for each person: *Modern grid*, *Rounded tiles*, *'90s
   cable box*, *Prevue Guide* (the scrolling channel), *Newspaper listings*
   and *Now on (tiles)*. Under **Picture**: the *CRT look* (scan lines and a
@@ -95,6 +109,12 @@ clean; or *Always old TV*, or *Always clean HD*.
 guide and in Jellyfin) to take one off the air without deleting it.
 
 ![The channel editor: what plays, start times, parts of the day and what plays between shows](images/live-tv-editor.png)
+
+In Broadcast the editor is made for a remote: the name is the only typing,
+the number has − and +, shows, order and start times are buttons to press, and
+**Save**, **Watch it now** and **Fill it with AI** are at the bottom. Genres,
+films, streamed shows, parts of the day, the logo and the rest are under
+**Advanced**.
 
 ### Channel packs
 
@@ -169,8 +189,9 @@ Live TV's channels and guide can appear in other apps. The addresses are on
 the Live TV page under **Other apps** (each holds a secret key, so
 keep them to yourself):
 
-- **Jellyfin**: **Add to Jellyfin** (on the Live TV card in Settings ›
-  Extras, or the Live TV page) adds Usherr as a tuner with its guide.
+- **Jellyfin**: **Add to Jellyfin** (on the Live TV page, or the Live TV
+  card: **Server › Watching › Live TV** in Broadcast, Settings › Extras in
+  Classic or Neu) adds Usherr as a tuner with its guide.
   Channels then show in Jellyfin's Live TV on every TV, after its next guide
   refresh.
 - **Plex** (Plex Pass): **Add to Plex** on the Live TV page, beside Add to
@@ -183,12 +204,14 @@ keep them to yourself):
   for a guide, give it the **Guide (XMLTV)** address.
 - **IPTV apps** (TiviMate and others): the **Channel list (M3U)** as the
   playlist, and the **Guide (XMLTV)** as the EPG source.
-- **Stremio and Nuvio**: the add-on (the You page, or Settings › Extras › Stremio and Nuvio)
+- **Stremio and Nuvio**: the add-on (the You page; or **Server › Watching › Apps on phones and
+  TVs** in Broadcast, Settings › Extras › Stremio and Nuvio in Classic or Neu)
   includes the channels.
 
 ## The picture: encoder and watermark
 
-**Settings → Extras → Live TV picture.** How channels make their picture
+**Server › Watching › Live TV** in Broadcast (in Classic or Neu: **Settings →
+Extras → Live TV picture**). How channels make their picture
 when it has to be converted: for a web browser that can't play a file, and
 when the watermark is on. Without a watermark, channels send the picture as it
 is.
@@ -214,8 +237,9 @@ To encode on an NVIDIA card, give the container the GPU in compose
   it came on, and it had no backup. It plays again with the next program.
 - **Jellyfin doesn't show the channels**: run Jellyfin's guide refresh
   (Dashboard › Scheduled tasks › *Refresh Guide*), and check that Jellyfin
-  can reach Usherr's address (Settings › Extras › *Usherr's address on
-  your network*).
+  can reach Usherr's address (**Server › Smarts and connections ›
+  Addresses** in Broadcast; Settings › Extras › *Usherr's address on your
+  network* in Classic or Neu).
 - **Plex's guide says *Unknown Airing***: a Plex page opened while the guide
   was still being read keeps the early empty rows. Reload the page (F5), or
   close and open Live TV again. If every channel still says it after a few

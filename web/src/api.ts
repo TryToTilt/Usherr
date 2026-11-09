@@ -3648,8 +3648,33 @@ export function isTwoStepChallenge(v: unknown): v is TwoStepChallenge {
 export interface SessionInfo {
   createdAt: string
   expiresAt: string
-  method: 'password' | 'oidc' | 'ldap' | 'passkey' | 'proxy' | string
+  method: 'password' | 'oidc' | 'ldap' | 'passkey' | 'proxy' | 'tv' | string
   current: boolean
+  device?: string // Usherr: the kind of device, for a TV signed in with a code
+}
+// Usherr: Sign in on a TV. The TV keeps secret to itself; code and url are what it shows.
+export interface TVStart {
+  code: string
+  secret: string
+  url: string
+  qr: string[]
+  expiresAt: string
+  interval: number // seconds between checks
+}
+export type TVPoll = { status: 'waiting' | 'denied' | 'expired' } | (User & { status: 'approved' })
+// What the phone sees before approving a TV.
+export interface TVCodeInfo {
+  code: string
+  device: string
+  home: boolean // asked from the home network (or Tailscale)
+  expiresAt: string
+}
+// Usherr: a Finish on your phone link.
+export interface Handoff {
+  code: string
+  url: string
+  qr: string[]
+  expiresAt: string
 }
 export interface TwoStepStatus {
   enabled: boolean
@@ -3671,6 +3696,7 @@ export interface SignInMethods {
   passkeyHost?: string // passkeys only work on pages opened at this host
   autoSignIn?: 'oidc' // the sign-in page sends visitors to this method by itself
   emailReset?: boolean // Usherr: Forgot password? can email a link to set a new password
+  tvSignIn?: boolean // Usherr: Sign in with your phone (a TV shows a code a signed-in phone approves)
 }
 
 // Settings > Account & Access > All accounts: the general sign-in switches.
@@ -3959,6 +3985,16 @@ export const api = {
   twoStepDisable: (password: string) => post<null>('/auth/two-step/disable', { password }),
   twoStepRecovery: (password: string) => post<{ recoveryCodes: string[] }>('/auth/two-step/recovery', { password }),
   userTwoStepOff: (id: number) => del<null>(`/users/${id}/two-step`),
+  // Usherr: Sign in on a TV (a code a signed-in phone approves) and Finish on your phone.
+  tvStart: (replace?: string) => post<TVStart>('/auth/tv/start', replace ? { replace } : {}),
+  tvPoll: (secret: string) => post<TVPoll>('/auth/tv/poll', { secret }),
+  tvCode: (code: string) => get<TVCodeInfo>(`/auth/tv/code/${encodeURIComponent(code)}`),
+  tvAnswer: (code: string, approve: boolean) => post<{ status: 'approved' | 'denied'; device?: string }>(`/auth/tv/code/${encodeURIComponent(code)}`, { approve }),
+  tvSignInSettings: () => get<{ enabled: boolean }>('/auth/tv/settings'),
+  putTVSignInSettings: (enabled: boolean) => put<{ enabled: boolean }>('/auth/tv/settings', { enabled }),
+  handoff: (path: string, what?: string) => post<Handoff>('/auth/handoff', { path, what: what ?? '' }),
+  openHandoff: (code: string) => get<{ path: string; what: string }>(`/auth/handoff/${encodeURIComponent(code)}`),
+  handoffStatus: (code: string) => get<{ opened: boolean }>(`/auth/handoff/${encodeURIComponent(code)}/status`),
   logout: () => post<null>('/auth/logout'),
   sessions: () => get<SessionInfo[]>('/auth/sessions'),
   endOtherSessions: () => del<{ ended: number }>('/auth/sessions'),

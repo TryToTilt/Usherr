@@ -16,6 +16,9 @@ import RateButton from './RateButton'
 import type { TasteTag } from './useTaste'
 import { setVote, type VoteKind } from './useVotes'
 import './news.css'
+import { YouPlaces } from '../onemenu/OneMenu' // Usherr Broadcast
+import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast
+import YouTop from '../broadcast/YouTop' // Usherr Broadcast: the mock-up's You
 const AddonCard = lazy(() => import('./ExtrasSettings').then((m) => ({ default: m.AddonCard }))) // Usherr: the Stremio and Nuvio link
 
 const Diary = lazy(() => import('./Diary'))
@@ -173,8 +176,11 @@ export default function You({ tab = 'taste' }: { tab?: YouTab }) {
     <div className="page-pad you-page">
       <h1 className="sr-only">{t('You')}</h1>
       {error && <p className="error-text">{error}</p>}
+      {data && broadcastOn() && <YouTop name={data.name} tab={tab} extra={<RateButton />} />} {/* Usherr Broadcast: you, this year, the buttons, your Stack and Keep going */}
       {data && (
         <>
+          {!broadcastOn() && (
+          <>
           <section className="card you-head">
             <div className="you-avatar" aria-hidden="true">
               {(data.name || '?').slice(0, 1).toUpperCase()}
@@ -198,6 +204,9 @@ export default function You({ tab = 'taste' }: { tab?: YouTab }) {
               </Link>
             ))}
           </nav>
+          <YouPlaces /> {/* Usherr Broadcast: Your settings, Server and help, from You */}
+          </>
+          )}
           <Suspense fallback={null}>
             {tab === 'diary' && <Diary />}
             {tab === 'wrapped' && <Wrapped />}

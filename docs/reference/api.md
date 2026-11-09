@@ -42,6 +42,9 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | DELETE | `/api/auth/ereader/opds` | any account | DELETE /api/auth/ereader/opds |
 | POST | `/api/auth/ereader/opds` | any account | POST /api/auth/ereader/opds: makes a new e-reader password. |
 | POST | `/api/auth/forgot` | **public** | POST /api/auth/forgot {"who": user name or email address}: always 202. |
+| POST | `/api/auth/handoff` | any account | POST /api/auth/handoff {"path", "what"?}: a link the same person can open on their phone. |
+| GET | `/api/auth/handoff/{code}` | any account | GET /api/auth/handoff/{code}: {"path", "what"}, once. |
+| GET | `/api/auth/handoff/{code}/status` | any account | GET /api/auth/handoff/{code}/status: {"opened"}, for the TV showing the code. |
 | GET | `/api/auth/idle-signout` | admin |  |
 | PUT | `/api/auth/idle-signout` | admin |  |
 | GET | `/api/auth/ldap` | admin | GET /api/auth/ldap |
@@ -82,6 +85,12 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/auth/sessions` | any account | lists the places the caller is signed in (GET /api/auth/sessions). |
 | GET | `/api/auth/sign-in` | admin | GET /api/auth/sign-in |
 | PUT | `/api/auth/sign-in` | admin | PUT /api/auth/sign-in {"localSignIn"?: bool, "passkeys"?: bool} |
+| GET | `/api/auth/tv/code/{code}` | any account | GET /api/auth/tv/code/{code}: what is asking, before the person approves. |
+| POST | `/api/auth/tv/code/{code}` | any account | POST /api/auth/tv/code/{code} {"approve": bool} |
+| POST | `/api/auth/tv/poll` | **public** | POST /api/auth/tv/poll {"secret"}: {"status": "waiting" \| "denied" \| "expired"}, or, once approved, a session cookie and {"status": "approved"} with the acco... |
+| GET | `/api/auth/tv/settings` | admin | GET /api/auth/tv/settings |
+| PUT | `/api/auth/tv/settings` | admin | PUT /api/auth/tv/settings {"enabled": bool} |
+| POST | `/api/auth/tv/start` | **public** | POST /api/auth/tv/start {"replace"?: secret of the code it shows now} |
 | GET | `/api/auth/two-step` | any account | GET /api/auth/two-step: the signed-in person's own state. |
 | POST | `/api/auth/two-step/disable` | any account | POST /api/auth/two-step/disable {"password"} |
 | POST | `/api/auth/two-step/enable` | any account | POST /api/auth/two-step/enable {"code"}: the first code from the app proves it was added; two-step sign-in is on from then, and the answer carries the recove... |
@@ -1688,4 +1697,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-1233 routes.
+1242 routes.

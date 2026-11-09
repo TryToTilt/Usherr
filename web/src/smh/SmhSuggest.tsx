@@ -11,6 +11,8 @@ import { t } from '../i18n'
 import { useModules } from '../ModulesContext'
 import { openDoctor, startSmh } from './engine'
 import type { Walkthrough } from './types'
+import { walkInLook } from './look' // Usherr Broadcast: walkthroughs for this look
+import { broadcastOn } from '../onemenu/broadcast'
 
 const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 const INTENT = /^(how (do|can|to|would)|i (want|need|would like|'d like) to|i wanna|show me|help me|where (do|can) i|can i|teach me|walk me|(make|set ?up|add|turn|book|follow|import|move|restyle|swap|connect|install|pair|switch|host|join|start|link|sync|tidy|vote|read) )/
@@ -81,7 +83,7 @@ export default function SmhSuggest({ q }: { q: string }) {
     )
   if (!walks || !worth || qw.length === 0) return null
   // The Ask bar's own walkthrough isn't suggested in the Ask bar.
-  const can = (w: Walkthrough) => w.id !== 'ask-ai' && (!w.admin || admin) && (!w.needs || (w.needs === 'comics' ? comicsOn : modules.on(w.needs)))
+  const can = (w: Walkthrough) => w.id !== 'ask-ai' && walkInLook(w, broadcastOn()) && (!w.admin || admin) && (!w.needs || (w.needs === 'comics' ? comicsOn : modules.on(w.needs)))
   const ranked = scorer(walks.filter(can))(qw)
     .filter(({ n }) => (intent ? n >= 1 : n >= 2 && n >= qw.length * 0.6))
     .sort((a, b) => b.s - a.s)

@@ -24,7 +24,8 @@
   (an old XviD, or HDR on a screen without it) is converted, at its own
   size. A smaller picture only comes from a quality you pick.
 - **Who converts a file from your library.** To start with, Usherr asks, in
-  order (**Settings → Extras → Converting for the player** puts Plex first,
+  order (**Converting for the player**, under **Server › Watching › Media
+  servers** in Broadcast or **Settings → Extras** in Classic or Neu, puts Plex first,
   or Usherr itself; whichever can't hands on to the next):
   1. **Jellyfin or Emby**, when one is connected: on its graphics card, with
      HDR tone mapping.
@@ -87,8 +88,13 @@ date, status, **Play** or **Stream**); **Episode tools** on it (or Manage)
 adds monitoring, searching, quality, size, Delete file, Link a file and
 Subtitles for each episode and season.
 
-Pick how it's laid out under **Settings → General → Film and show pages**,
-kept in each browser, so the TV and your laptop can differ:
+In Broadcast a title's page has one layout, made for the remote: one main
+button (**Play**, *Play S1 E4* on a show part way through, or **Ask for it**),
+then **Stack**, **Trailer** and **More**, which holds everything else
+([title pages](broadcast.md#screen-by-screen)); the Options key opens More too.
+
+In Classic and Neu, pick how it's laid out under **Settings → General → Film
+and show pages**, kept in each browser, so the TV and your laptop can differ:
 
 - **Cinema:** the title up top, the rest in tabs: Episodes (for a show), About,
   Reviews, Cast, More like this and Manage.
@@ -131,12 +137,14 @@ a showtime** on a film's card (Library, Streams, Discover; or its poster in
 your stack), or **Book a film** on the Showtime page itself. It asks when, how
 many minutes of pre-show the Marquee runs first, and where the film plays.
 
-The **Showtime** button in the top bar, on nearly every page, counts down to
+In Broadcast, the next showtime is on **Home** (under Tonight) and at the top
+of **Movie night**, with **Open the lobby**, **Invite** and **Book another**.
+In Classic and Neu, the **Showtime** button in the top bar, on nearly every page, counts down to
 the next booking and always opens the Showtime screen: "Showtime" with
 nothing booked, the time when it's more than an hour off, then **Pre-show
 starts 12:34**, **Show starting 07:48** and **Now showing**. On a phone it
 shows the countdown alone. The Dashboard has a line for it too, and
-**Showtime** is in the left menu.
+**Showtime** is in the left menu (**Movie night › Showtimes** in Broadcast).
 
 - **Starts:** a date and time, or **right after** another booking, for a
   double feature (ten minutes after the first film ends).
@@ -161,7 +169,11 @@ lists every booking, to move 15 minutes either way or cancel (your own, or
 any for an administrator); the Marquee's page links to it.
 
 Before the film, the Showtime page is a **lobby**: a countdown, which part of
-the pre-show is playing, and a seat map with **Take my seat**. To watch with
+the pre-show is playing, and a seat map with **Take my seat**. In Broadcast
+the lobby is a full screen of its own: pick your seat with the arrows and OK,
+chat with quick replies (or **Finish on your phone** to type), react with HA,
+EEK, WOW, NOPE and CLAP, and **Start**, **Skip the pre-show**, use your phone
+or **Leave**. To watch with
 friends who run their own Usherr, press **Invite** on a booking: see
 [Watching together](watch-together.md) for linked screenings that play in
 step, the party chat and reactions, the intermission, the verdict at the
@@ -170,6 +182,9 @@ credits, and crews. For a watch party in your Discord server, see
 
 ## On the TV
 
+- **Usherr itself** works with a TV remote in a TV's own browser (NVIDIA
+  Shield, Google TV, Fire TV): the arrows, OK and Back, with the TV signed in
+  from your phone. See [Broadcast and the remote](broadcast.md).
 - **Jellyfin** (or Emby) on the TV has everything in the library, streamed
   titles included; they play like anything else.
 - **Play on** *(the TV's name)*, for example *Play on Living room TV*, in the
@@ -180,8 +195,12 @@ credits, and crews. For a watch party in your Discord server, see
 
 ## The Library
 
-Everything the house has, in tabs: **Movies**, **TV**, **Anime**, **Ebooks**,
-**Audiobooks**, **Music**, **Comics**.
+Everything the house has, by kind. In Broadcast the **Library** place in the
+menu unfolds into the kinds in one order everywhere: **Movies**, **TV shows**,
+**Anime**, **Music**, **Books** (ebooks and audiobooks), **Manga**, **Comics**,
+then **Sports**, **Coming up** and **NSFW 18+** on its own line for the
+accounts allowed it. In Classic and Neu they're tabs: **Movies**, **TV**,
+**Anime**, **Ebooks**, **Audiobooks**, **Music**, **Comics**.
 
 ![The Library: the tabs, the filters, then rows such as Recently added and 4K](images/library.png)
 
@@ -200,7 +219,11 @@ live channels, or rebuilt from a real network's day (**Real TV**).
 ![Live TV: what's on now, and the guide](images/live-tv.png)
 
 - **Guide** shows what's on now and next; tap a program twice to watch, or
-  once later on for **Remind me**. **Watch** joins a channel where it is.
+  once later on for **Remind me**. **Watch** joins a channel where it is. In
+  Broadcast it opens on a guide made for the remote: channels down the side,
+  two hours across, a glowing line at now, and a card for the programme you're
+  on; the Options key has Remind me, Record, Start over and the channel's star
+  ([Live TV with a remote](broadcast.md#screen-by-screen)).
 - Change channel like a cable box (↑ ↓, a number, Backspace for the last
   one), or watch four at once in **Multiview**.
 - The same channels show in Jellyfin, Plex and IPTV apps such as TiviMate.
@@ -217,6 +240,9 @@ builder, scheduling like a network, Real TV and the other apps.
 
 ## Upcoming
 
+In Broadcast these are under **Library › Coming up**; in Classic and Neu,
+**Upcoming** in the menu.
+
 - **Calendar**: new episodes and films coming out, of what's in the library.
 - **Wanted**: what's been added but isn't here yet.
 - **Following**: the people you follow (see
@@ -224,7 +250,7 @@ builder, scheduling like a network, Real TV and the other apps.
 
 ## Comics
 
-The **Comics** tab in the Library: your series, with new issues each week.
+**Library › Comics** (the **Comics** tab in Classic and Neu): your series, with new issues each week.
 Open an issue to read it page by page (swipe or use the arrow keys);
 **Panels** mode zooms panel by panel on a phone, and the **page-turn** view curls
 the pages like paper (two side by side on a wide screen). *Catch me up* recaps a series
@@ -240,6 +266,8 @@ a thin line or hidden; bottom, left or right; how thick), a page number when it'
 hiding the header (the **M** key brings it back), tap and pointer hints, greyscale, dim pages,
 the background (dark, Usherr's theme, white or black), fit, and a list of keyboard shortcuts.
 They're kept for each series on this device. Nothing changes until you choose.
+With a remote (Broadcast), Left and Right turn the page, OK shows the bar, and
+the Options key opens these settings as a list you change with Left and Right.
 
 The **Reading** tab has **Continue**, **Want to Read** and **Read**, each your own. The last
 page offers the next issue. The **⋯** beside an issue marks it, or everything up to it,

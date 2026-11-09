@@ -14,6 +14,8 @@ import Switch from '../components/Switch'
 import { nudgeState, saveNudgeState } from './nudges'
 import { closeSmhMenu, openDoctor, setSmhRun, smhDoneList, startSmh, stopSmh, useSmh } from './engine'
 import { GROUPS, WALKS, walkById } from './walks'
+import { walkInLook } from './look' // Usherr Broadcast: walkthroughs for this look
+import { broadcastOn } from '../onemenu/broadcast'
 import './smh.css'
 
 const fold = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -29,7 +31,7 @@ export default function SmhMenu() {
   const admin = isAdmin(user)
   const comicsOn = useComicsOn(admin)
   const words = fold(q).split(/\s+/).filter(Boolean)
-  const list = WALKS.filter((w) => (!w.admin || admin) && (!w.needs || (w.needs === 'comics' ? comicsOn : modules.on(w.needs)))).filter((w) => {
+  const list = WALKS.filter((w) => walkInLook(w, broadcastOn()) && (!w.admin || admin) && (!w.needs || (w.needs === 'comics' ? comicsOn : modules.on(w.needs)))).filter((w) => {
     const hay = fold(`${w.title} ${w.blurb} ${w.words ?? ''}`)
     return words.every((x) => hay.includes(x))
   })

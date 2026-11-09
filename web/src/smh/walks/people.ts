@@ -2,6 +2,7 @@
 // Nuvio add-on, and notices on your phone.
 import { t } from '../../i18n'
 import type { Walkthrough } from '../types'
+import { bc, bcTo } from '../look' // Usherr Broadcast: words for its own pages
 
 export const kidsRequests: Walkthrough = {
   id: 'kids-requests',
@@ -29,7 +30,7 @@ export const kidsRequests: Walkthrough = {
     {
       kind: 'say',
       title: t('Hear about them'),
-      text: t('A notice on your phone for each new request: tick Requests on a notification under Settings, Notifications. Get notices on your phone, in Show me how, sets that up.'),
+      text: bc(t('A notice on your phone for each new request: tick Requests on a notification under Server, People, Notifications. Get notices on your phone, in Show me how, sets that up.'), t('A notice on your phone for each new request: tick Requests on a notification under Settings, Notifications. Get notices on your phone, in Show me how, sets that up.')),
     },
     { kind: 'done', title: t('Requests are set'), text: t('The family filter on Discover keeps their rows to their age, too.'), then: { id: 'notices', label: t('Get notices on your phone') } },
   ],
@@ -121,7 +122,7 @@ export const resetByEmail: Walkthrough = {
       title: t('Add an email notification'),
       text: t('Pick Email. SMTP server: smtp.gmail.com (type it: the grey text is only an example). Port 587, STARTTLS. Username: your Gmail address. Password: the app password, no spaces. From address: your Gmail address too. Send to: where notifications go. Press Send a test: when it ends with Done: accepted by the server, press Add Email.'),
     },
-    { kind: 'go', to: '/settings/general', title: t('The address you open Usherr at'), text: t('The link in the email starts with it.') },
+    { kind: 'go', to: bcTo('/settings/addresses', '/settings/general'), title: t('The address you open Usherr at'), text: bc(t('Server, Smarts and connections, Addresses. The link in the email starts with it.'), t('The link in the email starts with it.')) },
     {
       kind: 'point',
       target: 'public-address',

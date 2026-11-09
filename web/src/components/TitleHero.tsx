@@ -9,6 +9,7 @@ import Icon from './Icon'
 import TrailerDialog from './TrailerDialog'
 import { PosterFallback } from './PosterCard'
 import { PeopleLinks } from './TitlePreview'
+import { HeroTrailer } from '../broadcast/heroTrailer' // Usherr Broadcast: the Trailer button beside Play
 
 export interface HeroInfo {
   kind: 'movie' | 'tv'
@@ -63,7 +64,7 @@ export function TitleFacts({ info }: { info: HeroInfo }) {
 // layout (Usherr, the film page's layouts): the hero keeps to the title, the
 // plot (three lines, unless fullPlot), the trailer and the actions; the facts
 // and the cast are shown elsewhere on the page. Without it, the classic hero.
-export default function TitleHero({ info, status, actions, children, onPlay, layout, fullPlot }: { info: HeroInfo; status?: ReactNode; actions?: ReactNode; children?: ReactNode; onPlay?: () => void; layout?: 'cinema' | 'side' | 'stream' | 'lobby'; fullPlot?: boolean }) {
+export default function TitleHero({ info, status, actions, children, onPlay, layout, fullPlot }: { info: HeroInfo; status?: ReactNode; actions?: ReactNode; children?: ReactNode; onPlay?: () => void; layout?: 'cinema' | 'side' | 'stream' | 'lobby' | 'broadcast'; fullPlot?: boolean }) {
   const [plotOpen, setPlotOpen] = useState(false)
   const side = useRef<HTMLDivElement>(null)
   // The poster turns a little towards the pointer and catches the light.
@@ -404,8 +405,8 @@ export default function TitleHero({ info, status, actions, children, onPlay, lay
 
         {(trailers.length > 0 || (info.links ?? []).length > 0) && (
           <div className="title-links">
-            {/* Usherr: one Trailer button, or a menu of them */}
-            {trailers.length === 1 ? (
+            {/* Usherr: one Trailer button, or a menu of them (Usherr Broadcast: the Trailer button is beside Play) */}
+            {layout === 'broadcast' ? null : trailers.length === 1 ? (
               <a
                 href={trailers[0].url}
                 target="_blank"
@@ -472,7 +473,22 @@ export default function TitleHero({ info, status, actions, children, onPlay, lay
         )}
 
         {trailerOpen !== null && trailers[trailerOpen] && <TrailerDialog name={`${info.title} · ${trailerNames[trailerOpen]}`} videoKey={trailers[trailerOpen].key} watchUrl={trailers[trailerOpen].url} onClose={() => setTrailerOpen(null)} />}
-        {actions && <div className="title-actions">{actions}</div>}
+        {/* Usherr Broadcast: the actions can ask for the first trailer (BroadcastTitleActions) */}
+        {actions && (
+          <HeroTrailer.Provider
+            value={
+              trailers.length > 0
+                ? () => {
+                    if (!trailers[0].key) return void window.open(trailers[0].url, '_blank', 'noopener')
+                    stopBackground()
+                    setTrailerOpen(0)
+                  }
+                : null
+            }
+          >
+            <div className="title-actions">{actions}</div>
+          </HeroTrailer.Provider>
+        )}
         {children}
       </div>
     </section>

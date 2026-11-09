@@ -15,6 +15,7 @@ import { withBase, withoutBase } from '../base'
 import { SKIP_ONCE_KEY, TRIED_KEY, autoSignInUrl, shouldAutoSignIn } from '../autoSignIn'
 import { takeRestored } from '../restoreNotice'
 import { signedOutForIdle } from '../sessionEnd'
+import { TVSignInPanel } from '../components/TVSignInPanel' // Usherr: Sign in with your phone
 
 // Reads the problem code from the address and takes it out again, so a reload doesn't show it twice.
 function takeSignInError(): string {
@@ -57,6 +58,9 @@ export default function Login() {
   const [idle] = useState(() => signedOutForIdle()) // the server ended the session for sitting unused
   const [skipAutoOnce] = useState(() => readStored(SKIP_ONCE_KEY) === '1') // the person just signed out
   const [redirecting, setRedirecting] = useState(false)
+  // Usherr: Sign in with your phone (a TV shows a code a signed-in phone approves).
+  // A TV's own browser starts there, as typing a password with a remote is slow.
+  const [phoneMode, setPhoneMode] = useState(false)
   // Usherr: Sign in with Jellyfin or Plex (internal/api/media_signin.go).
   const [media, setMedia] = useState<{ jellyfin: boolean; plex: boolean }>({ jellyfin: false, plex: false })
   const [plexBusy, setPlexBusy] = useState(false)
@@ -109,6 +113,7 @@ export default function Login() {
           now: Date.now(),
         })
         writeStored(SKIP_ONCE_KEY, null) // after a sign-out the normal page is shown once
+        if (m.tvSignIn && !go && document.documentElement.dataset.tv === '1') setPhoneMode(true) // Usherr
         if (go) {
           writeStored(TRIED_KEY, String(Date.now()))
           setRedirecting(true)
@@ -209,6 +214,16 @@ export default function Login() {
     )
   }
 
+  // Usherr: Sign in with your phone.
+  if (phoneMode) {
+    return (
+      <main className="auth-page">
+        <AmbientBackdrop level="full" />
+        <TVSignInPanel onSignedIn={refresh} onBack={() => setPhoneMode(false)} />
+      </main>
+    )
+  }
+
   if (challenge) {
     return (
       <CodeStep
@@ -274,6 +289,11 @@ export default function Login() {
               </button>
             )}
           </div>
+        )}
+        {methods.tvSignIn && (
+          <button type="button" className="auth-alt-btn" onClick={() => setPhoneMode(true)}>
+            {t('Sign in with your phone')}
+          </button>
         )}
         {!methods.local && methods.ldap && <p className="auth-sub">{t('Use your directory account.')}</p>}
         {methods.local && (

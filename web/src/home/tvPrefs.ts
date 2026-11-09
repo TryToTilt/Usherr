@@ -2,8 +2,10 @@
 // look, its scale and how far ahead it goes, favourite and hidden channels,
 // and the static between channels.
 import { useSyncExternalStore } from 'react'
+import { broadcastOn } from '../neu/look' // Usherr Broadcast
 
-export type GuideStyle = 'modern' | 'rounded' | 'prevue' | 'cable' | 'listings' | 'nowon'
+// Usherr Broadcast: 'broadcast' is the Broadcast look's own grid (TVBroadcastGuide.tsx).
+export type GuideStyle = 'modern' | 'rounded' | 'prevue' | 'cable' | 'listings' | 'nowon' | 'broadcast'
 
 export interface TVPrefs {
   style: GuideStyle
@@ -15,6 +17,7 @@ export interface TVPrefs {
   staticOn: boolean
   staticSound: boolean
   crt: boolean // a CRT look on the picture
+  bstyle?: GuideStyle // Usherr Broadcast: the guide style picked while the look is Broadcast
 }
 
 const KEY = 'usherr-tv-prefs'
@@ -56,3 +59,16 @@ export function tvPrefsNow(): TVPrefs {
 }
 
 export const toggleIn = (list: number[], id: number) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id])
+
+// Usherr Broadcast: the guide style in use. In the Broadcast look it is its
+// own choice (the Broadcast grid until another is picked), so a style picked
+// in Classic or Neu is kept for them; the Broadcast grid never shows in them.
+export function guideStyleOf(p: TVPrefs): GuideStyle {
+  if (broadcastOn()) return p.bstyle ?? 'broadcast'
+  return p.style === 'broadcast' ? 'modern' : p.style
+}
+
+export function chooseGuideStyle(style: GuideStyle): void {
+  if (broadcastOn()) setTVPrefs({ bstyle: style })
+  else setTVPrefs({ style })
+}

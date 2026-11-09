@@ -28,6 +28,8 @@ var memberRoutes = []string{
 	"POST /api/auth/change-password",
 	"GET /api/auth/sessions",
 	"DELETE /api/auth/sessions",
+	"GET /api/auth/tv/code/{code}", "POST /api/auth/tv/code/{code}", // Usherr: approve a TV's sign-in code
+	"POST /api/auth/handoff", "GET /api/auth/handoff/{code}", "GET /api/auth/handoff/{code}/status", // Usherr: Finish on your phone
 	"GET /api/auth/api-keys",
 	"POST /api/auth/api-keys",
 	"DELETE /api/auth/api-keys/{id}",
@@ -315,6 +317,7 @@ var mustBeAdmin = []string{
 	"GET /api/users", "POST /api/users", "PUT /api/users/{id}", "DELETE /api/users/{id}", "DELETE /api/users/{id}/two-step",
 	"GET /api/auth/sign-in", "PUT /api/auth/sign-in", "GET /api/auth/oidc", "PUT /api/auth/oidc", "POST /api/auth/oidc/test",
 	"GET /api/auth/ldap", "PUT /api/auth/ldap", "POST /api/auth/ldap/test", "GET /api/auth/proxy-signin", "PUT /api/auth/proxy-signin", "GET /api/auth/idle-signout", "PUT /api/auth/idle-signout",
+	"GET /api/auth/tv/settings", "PUT /api/auth/tv/settings", // Usherr: Sign in with your phone on or off
 	"GET /api/settings", "PUT /api/settings", "POST /api/settings/folder-create", "GET /api/settings/file-permissions", "PUT /api/settings/file-permissions",
 	"POST /api/collections/{id}/add", "PUT /api/collections/{id}/follow",
 	"GET /api/library/browse", "POST /api/movies/{id}/locate-file", "POST /api/movies/{id}/locate-folder", "POST /api/episodes/{id}/locate-file", "POST /api/series/{id}/change-folder",

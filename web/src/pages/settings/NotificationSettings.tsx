@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, type MonitorStatus, type NotificationTarget, type NotifyField, type NotifyTestStep, type NotifyType } from '../../api'
 import Icon from '../../components/Icon'
 import QuietHours from '../../components/QuietHours'
+import { broadcastOn } from '../../onemenu/broadcast' // Usherr Broadcast
 import WeeklySummary from '../../components/WeeklySummary'
 import ServiceIcon from '../../components/ServiceIcon'
 import TerminalLog from '../../components/TerminalLog'
@@ -731,7 +732,7 @@ export default function NotificationSettings() {
         )}
       </fieldset>
 
-      <QuietHours />
+      {!broadcastOn() && <QuietHours />} {/* Usherr Broadcast: on Schedules and quiet times there */}
       <WeeklySummary />
 
 

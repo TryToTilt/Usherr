@@ -10,6 +10,7 @@ import AppShell from './components/AppShell'
 import ErrorBoundary from './components/ErrorBoundary'
 import Dashboard from './pages/Dashboard'
 import { lobbyOn } from './neu/look' // Usherr: the new layout
+import { broadcastOn } from './onemenu/broadcast' // Usherr Broadcast: the one menu and its pages
 import Splash from './components/Splash'
 import Login from './pages/Login'
 import MusicAlbumRedirect from './pages/MusicAlbumRedirect'
@@ -38,6 +39,7 @@ const CommunitySettings = lazy(() => import('./home/CommunitySettings')) // Ushe
 const LinkedUsherrs = lazy(() => import('./home/LinkedUsherrs')) // Usherr: linked Usherrs
 const PartyChatPage = lazy(() => import('./home/PartyChat')) // Usherr: Community, the watch party chat on a phone
 const LobbyHome = lazy(() => import('./pages/LobbyHome')) // Usherr: Home in the new layout
+const BroadcastHome = lazy(() => import('./broadcast/BroadcastHome')) // Usherr Broadcast: Home for the sofa
 const ServerHub = lazy(() => import('./pages/ServerHub')) // Usherr: the new layout's Server area
 const ShowtimePage = lazy(() => import('./home/ShowtimePage')) // Usherr: Showtimes at home
 const Crews = lazy(() => import('./home/Crews')) // Usherr: Crews, the crew space between parties
@@ -148,6 +150,28 @@ const TV = lazy(() => import('./home/TV'))
 const Streamed = lazy(() => import('./home/Streamed'))
 const ReadToMePage = lazy(() => import('./home/ReadToMePage')) // Usherr: Read-to-Me
 const ConnectApp = lazy(() => import('./pages/ConnectApp'))
+// Usherr Broadcast: its own settings pages and the cards other pages gain there (onemenu/BroadcastSettings.tsx)
+const broadcastSettings = () => import('./onemenu/BroadcastSettings')
+const BStreamingPage = lazy(() => broadcastSettings().then((m) => ({ default: m.StreamingPage })))
+const BLiveTVPage = lazy(() => broadcastSettings().then((m) => ({ default: m.LiveTVPage })))
+const BPlayOnTVPage = lazy(() => broadcastSettings().then((m) => ({ default: m.PlayOnTVPage })))
+const BAppsPage = lazy(() => broadcastSettings().then((m) => ({ default: m.AppsPage })))
+const BComicsPage = lazy(() => broadcastSettings().then((m) => ({ default: m.ComicsPage })))
+const BMusicPage = lazy(() => broadcastSettings().then((m) => ({ default: m.MusicPage })))
+const BBooksPage = lazy(() => broadcastSettings().then((m) => ({ default: m.BooksPage })))
+const BSportsPage = lazy(() => broadcastSettings().then((m) => ({ default: m.SportsPage })))
+const BNsfwPage = lazy(() => broadcastSettings().then((m) => ({ default: m.NsfwPage })))
+const BAiPage = lazy(() => broadcastSettings().then((m) => ({ default: m.AiPage })))
+const BNewsPage = lazy(() => broadcastSettings().then((m) => ({ default: m.NewsPage })))
+const BAddressesPage = lazy(() => broadcastSettings().then((m) => ({ default: m.AddressesPage })))
+const BBroadcastCards = lazy(() => broadcastSettings().then((m) => ({ default: m.BroadcastCards })))
+const BBroadcastQuietTimes = lazy(() => broadcastSettings().then((m) => ({ default: m.BroadcastQuietTimes })))
+const BBroadcastServerGeneral = lazy(() => broadcastSettings().then((m) => ({ default: m.BroadcastServerGeneral })))
+const BExtrasOrMoved = lazy(() => broadcastSettings().then((m) => ({ default: m.ExtrasOrMoved })))
+const BBroadcastOnly = lazy(() => broadcastSettings().then((m) => ({ default: m.BroadcastOnly })))
+const Find = lazy(() => import('./onemenu/Find')) // Usherr Broadcast: search, ask, discover and things you can do
+const TVCode = lazy(() => import('./pages/TVCode')) // Usherr: approve a TV's sign-in code
+const PhoneLink = lazy(() => import('./pages/PhoneLink')) // Usherr: Finish on your phone
 
 // Pages only an administrator can use. A member who opens one (for example
 // by typing its address) is sent somewhere they can use instead.
@@ -236,9 +260,10 @@ function Gate() {
         }
       />
       <Route element={<AppShell />}>
-        <Route index element={lobbyOn() ? <LobbyHome /> : <Dashboard />} /> {/* Usherr: the new layout has its own Home */}
+        <Route index element={broadcastOn() ? <BroadcastHome /> : lobbyOn() ? <LobbyHome /> : <Dashboard />} /> {/* Usherr: the new layout (and Broadcast) has its own Home */}
         <Route path="/server" element={<AdminOnly fallback="/"><ServerHub /></AdminOnly>} /> {/* Usherr */}
         <Route path="/server/overview" element={<AdminOnly fallback="/"><Dashboard /></AdminOnly>} /> {/* Usherr: the old dashboard, under Server */}
+        <Route path="/find" element={<Find />} /> {/* Usherr Broadcast */}
         <Route path="/search" element={<Search />} />
         <Route path="/search/releases" element={<ReleaseSearch />} />
         <Route path="/stats" element={<Navigate to="/settings/statistics" replace />} />
@@ -267,6 +292,8 @@ function Gate() {
         <Route path="/following" element={<Upcoming tab="following" />} /> {/* home fork */}
         <Route path="/leaving-soon" element={<Upcoming tab="leaving" />} /> {/* Usherr: clean-up rules */}
         <Route path="/you" element={<You />} /> {/* home fork: your taste, votes and more */}
+        <Route path="/tv-code" element={<TVCode />} /> {/* Usherr: Sign in on a TV, the phone's half */}
+        <Route path="/p/:code" element={<PhoneLink />} /> {/* Usherr: Finish on your phone */}
         <Route path="/marquee/remote" element={<AdminOnly><MarqueeRemote /></AdminOnly>} /> {/* Usherr */}
         <Route path="/marquee/manage" element={<AdminOnly><MarqueeHub /></AdminOnly>} /> {/* Usherr */}
         <Route path="/preshow/manage" element={<AdminOnly><PreshowSettings /></AdminOnly>} /> {/* Usherr */}
@@ -313,8 +340,8 @@ function Gate() {
           <Route path="torrents" element={<AdminOnly><TorrentSettings /></AdminOnly>} />
           <Route path="download-rules" element={<AdminOnly><DownloadRulesSettings /></AdminOnly>} />
           <Route path="vpn" element={<AdminOnly><VPNSettings /></AdminOnly>} />
-          <Route path="schedules" element={<AdminOnly><SchedulesSettings /></AdminOnly>} /> {/* home fork */}
-          <Route path="extras" element={<AdminOnly><ExtrasSettings /></AdminOnly>} /> {/* home fork */}
+          <Route path="schedules" element={<AdminOnly><SchedulesSettings /><BBroadcastQuietTimes /></AdminOnly>} /> {/* home fork; Usherr Broadcast: and the quiet times */}
+          <Route path="extras" element={<AdminOnly><BExtrasOrMoved page={<ExtrasSettings />} /></AdminOnly>} /> {/* home fork; Usherr Broadcast: its cards moved to their pages */}
           <Route path="re-posterr" element={<AdminOnly><ArtworkSettings /></AdminOnly>} /> {/* Usherr: Re-Posterr */}
           <Route path="collections" element={<AdminOnly><PushCollectionsSettings /></AdminOnly>} /> {/* Usherr: collections in Jellyfin and Plex */}
           <Route path="poster-badges" element={<AdminOnly><PosterBadgesSettings /></AdminOnly>} /> {/* Usherr: poster badges */}
@@ -322,15 +349,15 @@ function Gate() {
           <Route path="linked" element={<AdminOnly><LinkedUsherrs /></AdminOnly>} /> {/* Usherr: linked Usherrs */}
           <Route path="setup" element={<AdminOnly><SetupChecklist /></AdminOnly>} /> {/* home fork */}
           <Route path="subtitles" element={<AdminOnly><SubtitleSettings /></AdminOnly>} />
-          <Route path="metadata" element={<AdminOnly><MetadataSettings /></AdminOnly>} />
+          <Route path="metadata" element={<AdminOnly><MetadataSettings /><BBroadcastCards only={['scores']} /></AdminOnly>} /> {/* Usherr Broadcast: + Scores */}
           <Route path="lists" element={<AdminOnly><ListsSettings /></AdminOnly>} />
-          <Route path="media-servers" element={<AdminOnly><MediaServerSettings /></AdminOnly>} />
+          <Route path="media-servers" element={<AdminOnly><MediaServerSettings /><BBroadcastCards only={['server', 'convert']} /></AdminOnly>} /> {/* Usherr Broadcast: + Jellyfin or Emby, Converting */}
           <Route path="other-apps" element={<AdminOnly><OtherAppsSettings /></AdminOnly>} />
           <Route path="addons" element={<AdminOnly><AppLinksSettings /></AdminOnly>} />
           <Route path="migrate" element={<AdminOnly><MigrateSettings /></AdminOnly>} />
           <Route path="notifications" element={<AdminOnly><NotificationSettings /></AdminOnly>} />
           <Route path="profile" element={<Profile />} />
-          <Route path="system" element={<AdminOnly><SystemSettings /></AdminOnly>} />
+          <Route path="system" element={<AdminOnly><SystemSettings /><BBroadcastServerGeneral /></AdminOnly>} /> {/* Usherr Broadcast: + General's server part */}
           <Route path="service-checks" element={<AdminOnly><ServiceChecksSettings /></AdminOnly>} /> {/* Usherr: Service checks */}
           <Route path="backup" element={<AdminOnly><BackupSettings /></AdminOnly>} />
           <Route path="accounts" element={<AdminOnly><AllAccounts /></AdminOnly>} />
@@ -343,6 +370,19 @@ function Gate() {
           <Route path="about" element={<About />} />
           <Route path="statistics" element={<Statistics />} />
           <Route path="watching" element={<WatchActivity />} /> {/* Usherr: watch history and stats */}
+          {/* Usherr Broadcast: the pages only Broadcast lists (other looks go to Settings > Extras) */}
+          <Route path="streaming" element={<AdminOnly><BBroadcastOnly><BStreamingPage /></BBroadcastOnly></AdminOnly>} />
+          <Route path="live-tv" element={<AdminOnly><BBroadcastOnly><BLiveTVPage /></BBroadcastOnly></AdminOnly>} />
+          <Route path="play-on-tv" element={<AdminOnly><BBroadcastOnly><BPlayOnTVPage /></BBroadcastOnly></AdminOnly>} />
+          <Route path="apps" element={<AdminOnly><BBroadcastOnly><BAppsPage /></BBroadcastOnly></AdminOnly>} />
+          <Route path="comics" element={<AdminOnly><BBroadcastOnly><BComicsPage /></BBroadcastOnly></AdminOnly>} />
+          <Route path="music" element={<AdminOnly><BBroadcastOnly><BMusicPage /></BBroadcastOnly></AdminOnly>} />
+          <Route path="books" element={<AdminOnly><BBroadcastOnly><BBooksPage /></BBroadcastOnly></AdminOnly>} />
+          <Route path="sports" element={<AdminOnly><BBroadcastOnly><BSportsPage /></BBroadcastOnly></AdminOnly>} />
+          <Route path="nsfw" element={<AdminOnly><BBroadcastOnly><BNsfwPage /></BBroadcastOnly></AdminOnly>} />
+          <Route path="ai" element={<AdminOnly><BBroadcastOnly><BAiPage /></BBroadcastOnly></AdminOnly>} />
+          <Route path="news" element={<AdminOnly><BBroadcastOnly><BNewsPage /></BBroadcastOnly></AdminOnly>} />
+          <Route path="addresses" element={<AdminOnly><BBroadcastOnly><BAddressesPage /></BBroadcastOnly></AdminOnly>} />
           {SETTINGS_REDIRECTS.map(([from, to]) => (
             <Route key={from} path={from.replace('/settings/', '')} element={<Navigate to={to} replace />} />
           ))}

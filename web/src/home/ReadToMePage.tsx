@@ -104,7 +104,7 @@ export default function ReadToMePage() {
       </header>
       {on === false && (
         <p className="notice">
-          {t('Read-to-Me is switched off or has no voice engine yet.')} <Link to="/settings/extras">{t('Settings > Extras > Read-to-Me')}</Link>
+          {t('Read-to-Me is switched off or has no voice engine yet.')} <Link to="/settings/extras#readtome">{t('Settings > Extras > Read-to-Me')}</Link>
         </p>
       )}
       {on && made !== null && (bookId ? <Maker key={bookId} bookId={bookId} guideDefault={made === 0} /> : <BookPicker />)}
@@ -732,7 +732,7 @@ function Maker({ bookId, guideDefault }: { bookId: number; guideDefault: boolean
         {!data && !error && <p className="hint">{t('Getting the voices…')}</p>}
         {data && voices.length === 0 && (
           <p className="error-text">
-            {engines.find((e) => e.on && e.problem)?.problem ?? t('No voice engine is set up.')} <Link to="/settings/extras">{t('Settings > Extras > Read-to-Me')}</Link>
+            {engines.find((e) => e.on && e.problem)?.problem ?? t('No voice engine is set up.')} <Link to="/settings/extras#readtome">{t('Settings > Extras > Read-to-Me')}</Link>
           </p>
         )}
         {voices.length > 0 && (

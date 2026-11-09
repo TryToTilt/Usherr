@@ -18,6 +18,7 @@ The keys the app stores in its settings table. You normally change these from th
 | `auth.passkeys` | "1" lets people sign in with a passkey; needs the public address (server.public_url). Unset or "0" leaves it off |
 | `auth.proxy_addresses` | where that proxy connects from: IP addresses or CIDR ranges, comma-separated ("private" is refused). The header is only believed from these |
 | `auth.proxy_header` | the header a trusted reverse proxy puts the signed-in user name in (for example Remote-User); unset or empty leaves it off. Only a signed-in browser session can set it, not an API key |
+| `auth.tv_signin` | Usherr: "0" turns off Sign in with your phone (a TV shows a code that a signed-in phone approves); anything else (including unset) leaves it on |
 | `automation.enabled` | "0" disables; anything else (including unset) enables |
 | `automation.hunt_interval_hours` | hours between searches for missing items and better versions: 1 to 168; unset = 6 |
 | `automation.quiet_until` | RFC 3339: until then the heavy background jobs do nothing ("Quiet for a while"); unset = not quiet |

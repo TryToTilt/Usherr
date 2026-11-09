@@ -10,7 +10,8 @@ player, in Audiobookshelf and in phone apps, with bookmarks. It is marked
 ## The Read-to-Me page
 
 **Read to me** on an ebook's page, and **Read-to-Me** at the top of the Ebooks
-library, open the Read-to-Me page. From the Library it starts by asking which
+library (**Library › Books** in Broadcast, **Library › Ebooks** in Classic and
+Neu), open the Read-to-Me page. From the Library it starts by asking which
 book (only downloaded EPUBs can be read).
 
 The page has six steps, each a box in its own colour: **Book** (blue),
@@ -49,7 +50,8 @@ under **Your Read-to-Me**) plays any chapter already spoken, so you can start th
 book before it is finished.
 
 When it is done (or if it couldn't be), Usherr can send a notice: tick
-**Audiobooks made** on a notification target (Settings > Notifications). It
+**Audiobooks made** on a notification target (**Server › People ›
+Notifications** in Broadcast, Settings > Notifications in Classic or Neu). It
 says the voice, the length, and how many lines to check, if any.
 
 One audiobook is made at a time; the others wait their turn (up to twelve).
@@ -148,7 +150,7 @@ Usherr works it out from the book's own words, in this order:
    quote is Tom's;
 3. the AI, when you tick **Ask the AI about lines the book doesn't tag** (or
    press **Ask it now** to see the result before making the book): one
-   request a chapter, to the AI set up in Settings > Extras > AI, done once
+   request a chapter, to the AI set up in **Server › Smarts and connections › AI** (Settings > Extras > AI in Classic or Neu), done once
    and kept. It also says who is a man or a woman;
 4. turns: in an exchange between two people, an untagged line is the next
    one's;
@@ -194,7 +196,7 @@ the first time) instead of looking stuck.
 
 ## Copied voices
 
-**Library > Ebooks > Read-to-Me > Voices** has the **Copied voices**: a short
+**Library > Books > Read-to-Me > Voices** (**Library > Ebooks** in Classic and Neu) has the **Copied voices**: a short
 recording of one person speaking becomes a Chatterbox voice.
 
 1. **Copy a voice**: a name, a recording (WAV, MP3, M4A or FLAC; 10 to 20
@@ -277,7 +279,7 @@ never touched.
 
 ## The Read-to-Me tab
 
-**Library > Ebooks > Read-to-Me** has it all in one place:
+**Library > Books > Read-to-Me** (**Library > Ebooks** in Classic and Neu) has it all in one place:
 
 - **Being made**: each job with its chapter, how far it is and about how long
   is left, and **Stop**. A job that didn't finish says why.
@@ -335,7 +337,8 @@ graphics card (8 GB is enough; the card is shared with whatever else uses it).
    The build is large (about 15 GB) and the first start downloads the model. The
    small `chatterbox-fix.Dockerfile` on top pins an older `setuptools`, without
    which Chatterbox's watermark library doesn't load and the model fails to start.
-4. In Usherr: **Settings → Extras → Read-to-Me**: enter Kokoro's address (from
+4. In Usherr: **Server › Kinds of media › Books and Read-to-Me** (in Classic
+   or Neu: **Settings → Extras → Read-to-Me**): enter Kokoro's address (from
    Usherr's container: `http://host.docker.internal:8881`) and Chatterbox's
    (`http://host.docker.internal:4123`), press **Save**, then **Test Kokoro**.
 5. The runner (optional, so Usherr can start and stop Chatterbox itself): copy

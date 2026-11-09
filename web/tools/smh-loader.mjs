@@ -20,6 +20,7 @@ export function streamingOn() { return Promise.resolve(false) }
 export function openShowtimeBooking() {}
 export function listShowtimes() { return Promise.resolve({ showtimes: [], nowMs: 0 }) }
 export function showtimeEnds() { return 0 }
+export function extrasMovedTo() { return '/server' } // Usherr Broadcast: smh/look.ts (only used when a page runs)
 `
 const STUB_URL = 'data:text/javascript,' + encodeURIComponent(STUB)
 

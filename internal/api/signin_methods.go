@@ -209,6 +209,8 @@ type signInMethodsPayload struct {
 	AutoSignIn string `json:"autoSignIn,omitempty"`
 	// EmailReset: Forgot password? can email a link (Usherr, home_password_reset.go).
 	EmailReset bool `json:"emailReset"`
+	// TVSignIn: Sign in with your phone (a code a signed-in phone approves) works (Usherr, home_tv_signin.go).
+	TVSignIn bool `json:"tvSignIn"`
 }
 
 // autoSignInOIDC is the one value the automatic sign-in setting can hold besides off.
@@ -264,6 +266,7 @@ func (s *Server) handleSignInMethods(w http.ResponseWriter, r *http.Request) {
 	}
 	out.AutoSignIn = s.autoSignIn()
 	out.EmailReset = s.emailResetOn()
+	out.TVSignIn = s.tvSignInOn() // Usherr
 	writeJSON(w, http.StatusOK, out)
 }
 

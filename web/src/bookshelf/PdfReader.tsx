@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist'
 import { api, type Book } from '../api'
 import Icon from '../components/Icon'
@@ -7,6 +7,8 @@ import { t } from '../i18n'
 import Marks from './Marks'
 import { marksApi } from './marksApi'
 import { saveProgress } from './progress'
+import { remoteHasReaderKey, useBroadcastReader } from '../readers/useBroadcastReader' // Usherr Broadcast: the remote
+import ReaderSheet from '../readers/ReaderSheet' // Usherr Broadcast
 
 type Fit = 'page' | 'width'
 
@@ -37,6 +39,8 @@ export default function PdfReader({ book, at = 0 }: { book: Book; at?: number })
   const [fit, setFit] = useState<Fit>('page')
   const [error, setError] = useState('')
   const [panel, setPanel] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false) // Usherr Broadcast: the settings sheet
+  const navigate = useNavigate() // Usherr Broadcast: Back closes the book
   const armed = useRef(false)
   const pageNow = useRef({ page: 1, pages: 0 })
 
@@ -151,6 +155,7 @@ export default function PdfReader({ book, at = 0 }: { book: Book; at?: number })
   const go = useCallback((d: number) => setPage((p) => Math.min(Math.max(1, p + d), pageNow.current.pages || 1)), [])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (remoteHasReaderKey(e)) return // Usherr Broadcast: the remote has it (useBroadcastReader)
       if ((e.target as HTMLElement | null)?.closest?.('input, select, textarea, button')) return
       if (e.key === 'ArrowRight' || e.key === 'PageDown') go(1)
       else if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(-1)
@@ -158,6 +163,8 @@ export default function PdfReader({ book, at = 0 }: { book: Book; at?: number })
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [go])
+  // Usherr Broadcast: the remote turns pages, Options opens the settings sheet
+  const remote = useBroadcastReader({ turn: go, rtl: false, sheet: sheetOpen, setSheet: setSheetOpen, close: () => navigate('/bookshelf') })
 
   if (error)
     return (
@@ -177,8 +184,8 @@ export default function PdfReader({ book, at = 0 }: { book: Book; at?: number })
     )
 
   return (
-    <div className="rdr rdr-pdf">
-      <header className="rdr-top">
+    <div className="rdr rdr-pdf" {...remote.rootProps}>
+      <header className="rdr-top" data-reader-bar="">
         <Link className="icon-btn" to="/bookshelf" title={t('Back to your books')} aria-label={t('Back to your books')}>
           <Icon name="chevron-left" size={20} />
         </Link>
@@ -224,6 +231,24 @@ export default function PdfReader({ book, at = 0 }: { book: Book; at?: number })
         <input type="range" min={1} max={Math.max(pages, 1)} value={page} disabled={!pages} aria-label={t('Page')} onChange={(e) => setPage(Number(e.target.value))} />
         <span className="rdr-pct">{pages ? `${page} / ${pages}` : '…'}</span>
       </footer>
+      {/* Usherr Broadcast: the settings as a sheet for the remote */}
+      {remote.on && sheetOpen && (
+        <ReaderSheet
+          eyebrow={book.title}
+          onClose={() => setSheetOpen(false)}
+          rows={[
+            { key: 'fit', label: t('Fit'), choices: [{ id: 'page', label: t('Fit page') }, { id: 'width', label: t('Fit width') }], value: fit, onChoose: (v) => setFit(v === 'width' ? 'width' : 'page') },
+            {
+              key: 'marks',
+              label: t('Bookmarks'),
+              onPress: () => {
+                setSheetOpen(false)
+                setPanel(true)
+              },
+            },
+          ]}
+        />
+      )}
     </div>
   )
 }

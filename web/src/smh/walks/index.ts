@@ -2,6 +2,7 @@
 import { t } from '../../i18n'
 import type { SmhGroup, Walkthrough } from '../types'
 import { completeCollection } from './collection'
+import { finishOnPhone, liveTvGuide, menuModes, movieNightLobby, optionsMore, readWithRemote, tvSignIn } from './broadcast' // Usherr Broadcast
 import { communityBot, joinWatchParty, linkDiscord, partyChat, reviewInDiscord, ticketStubs } from './community'
 import { comicArcs, comicReview, comicWeek, readComic, setupComics } from './comics'
 import { askAi, completeLibrary, discover, followPerson, getShow, upcoming } from './discover'
@@ -32,6 +33,7 @@ export const WALKS: Walkthrough[] = [
   stack,
   diary,
   filmLayout,
+  optionsMore,
   bookShowtime,
   setUpPreshow,
   communityBot,
@@ -44,11 +46,13 @@ export const WALKS: Walkthrough[] = [
   linkUsherr,
   hostScreening,
   partyPhone,
+  movieNightLobby,
   startCrew,
   crewVote,
   marquee,
   marqueeRemote,
   watchLiveTv,
+  liveTvGuide,
   makeChannel,
   followTeam,
   getSports,
@@ -67,6 +71,7 @@ export const WALKS: Walkthrough[] = [
   comicArcs,
   comicWeek,
   comicReview,
+  readWithRemote,
   setupComics,
   mangaSources,
   ebookToAudiobook,
@@ -84,6 +89,9 @@ export const WALKS: Walkthrough[] = [
   familyMember,
   kidsRequests,
   phone,
+  tvSignIn,
+  finishOnPhone,
+  menuModes,
   stremioAddon,
   notices,
   resetByEmail,

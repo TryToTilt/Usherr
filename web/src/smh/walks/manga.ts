@@ -4,6 +4,7 @@
 import { t } from '../../i18n'
 import { mangaApi } from '../../manga/mangaApi'
 import type { SmhChoice, SmhCtx, Walkthrough } from '../types'
+import { bc } from '../look' // Usherr Broadcast: words for its own pages
 
 const pick = (c: SmhCtx, key: string) => (c.answers[key] as { value: string } | undefined)?.value
 const has = (id: string) => !!document.querySelector(`[data-walk="${id}"]`)
@@ -118,9 +119,9 @@ export const mangaSources: Walkthrough = {
     {
       kind: 'say',
       title: t('Switch Manga on, and give it a folder'),
-      text: t('Settings, Media types: switch on Manga (it’s kept apart from Comics). Then Settings, Library, Folders: the Manga folder, where volumes go as Series/Series v01.cbz. In Docker, the folder has to be connected to the container, such as /your/manga:/data/manga.'),
+      text: bc(t('Server, Libraries, Media types: switch on Manga (it’s kept apart from Comics). Then Server, Libraries, Folders: the Manga folder, where volumes go as Series/Series v01.cbz. In Docker, the folder has to be connected to the container, such as /your/manga:/data/manga.'), t('Settings, Media types: switch on Manga (it’s kept apart from Comics). Then Settings, Library, Folders: the Manga folder, where volumes go as Series/Series v01.cbz. In Docker, the folder has to be connected to the container, such as /your/manga:/data/manga.')),
     },
-    { kind: 'go', to: '/settings/manga', title: t('Manga settings'), text: t('Under Settings, Library. A note at the top means the manga folder can’t be saved to: nothing is searched or downloaded until it can.') },
+    { kind: 'go', to: '/settings/manga', title: t('Manga settings'), text: bc(t('Under Server, Kinds of media. A note at the top means the manga folder can’t be saved to: nothing is searched or downloaded until it can.'), t('Under Settings, Library. A note at the top means the manga folder can’t be saved to: nothing is searched or downloaded until it can.')) },
     {
       kind: 'point',
       target: 'manga-sources',
@@ -236,7 +237,7 @@ export const mangaDexAccount: Walkthrough = {
       title: t('A personal client first'),
       text: t('On a computer, sign in on mangadex.org. Open Settings, then API Clients, and make a new personal client (any name will do). Wait until MangaDex approves it, then copy its client id, and get its secret.'),
     },
-    { kind: 'go', to: '/settings/manga-account', title: t('MangaDex account'), text: t('Under Settings, Library, or the MangaDex account button on the Manga page.') },
+    { kind: 'go', to: '/settings/manga-account', title: t('MangaDex account'), text: bc(t('Under You, Your settings, or the MangaDex account button on the Manga page.'), t('Under Settings, Library, or the MangaDex account button on the Manga page.')) },
     {
       kind: 'point',
       target: 'manga-mangadex-account',

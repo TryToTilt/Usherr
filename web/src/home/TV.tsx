@@ -5,7 +5,10 @@ import { MultiviewButton, OtherAppsButton } from './TVMulti' // Usherr
 import { AIBuildButton, PacksButton, type Draft } from './TVPacks' // Usherr
 import { RealTVButton } from './TVReplay' // Usherr
 import { GuideOptions, ListingsView, NowOnView, PrevueView } from './TVGuideStyles' // Usherr
-import { setTVPrefs, toggleIn, useTVPrefs } from './tvPrefs' // Usherr
+import { guideStyleOf, setTVPrefs, toggleIn, useTVPrefs } from './tvPrefs' // Usherr
+import BroadcastGuide from './TVBroadcastGuide' // Usherr Broadcast
+import BroadcastEditor from './TVBroadcastEditor' // Usherr Broadcast
+import { broadcastOn } from '../neu/look' // Usherr Broadcast
 import TVScheduling, { type SchedulingRules } from './TVScheduling' // Usherr
 import HelpLink from '../components/HelpLink'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -17,7 +20,7 @@ import { ChannelPreview, playChannel, playTitle } from './Player'
 import './tv.css'
 import { locale, t } from '../i18n'
 
-interface BaseRules {
+export interface BaseRules { // Usherr Broadcast: exported for TVBroadcastEditor
   series?: number[]
   movies?: number[]
   genres?: string[]
@@ -31,14 +34,14 @@ interface BaseRules {
   stream?: StreamShow[]
 }
 // Usherr: grid, dayparts, set times and filler (TVScheduling.tsx)
-type Rules = BaseRules & SchedulingRules
+export type Rules = BaseRules & SchedulingRules
 // A show the channel streams through StreamNZB rather than plays from the library.
 interface StreamShow {
   tmdbId: number
   title: string
   year?: number
 }
-interface Channel {
+export interface Channel { // Usherr Broadcast: exported for TVBroadcastEditor
   id: number
   number: number
   name: string
@@ -80,6 +83,22 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 const clock = (iso: string) => new Date(iso).toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' })
 const minutesLeft = (iso: string) => Math.max(0, Math.round((new Date(iso).getTime() - Date.now()) / 60000))
 
+// Usherr Broadcast: Live TV's own setup (adding channels, sending them to
+// Jellyfin, Plex and other apps) folds into one "Channels and setup", so only
+// the viewing buttons (Guide, Multiview) are out. Other looks: as it was.
+function SetupFold({ children }: { children: React.ReactNode }) {
+  if (!broadcastOn()) return <>{children}</>
+  return (
+    <details className="tv-setup" data-walk-unfold="">
+      <summary className="btn btn-with-icon">
+        <Icon name="sliders" size={16} /> {t('Channels and setup')}
+        <Icon name="chevron-down" size={14} />
+      </summary>
+      {children}
+    </details>
+  )
+}
+
 export default function TV() {
   const me = useAuth().user
   const admin = isAdmin(me)
@@ -89,14 +108,16 @@ export default function TV() {
   const [, setTick] = useState(0)
   const [view, setView] = useState<'list' | 'guide'>(() => {
     try {
-      return localStorage.getItem('tv-view') === 'guide' ? 'guide' : 'list'
+      const v = localStorage.getItem('tv-view')
+      return v === 'guide' || (v === null && broadcastOn()) ? 'guide' : 'list' // Usherr Broadcast: the guide first
     } catch {
-      return 'list'
+      return broadcastOn() ? 'guide' : 'list'
     }
   })
   const [picked, setPicked] = useState<{ program: Program; channel: Channel } | null>(null)
   const [jfNote, setJfNote] = useState('')
   const prefs = useTVPrefs() // Usherr: guide style, favourites, hidden channels
+  const gstyle = guideStyleOf(prefs) // Usherr Broadcast: Broadcast keeps a style of its own
   const switchView = (v: 'list' | 'guide') => {
     setView(v)
     try {
@@ -167,6 +188,7 @@ export default function TV() {
           {onAir && <MultiviewButton channels={onAir.channels.map((c) => c.channel)} />} {/* Usherr */}
         </div>
         {admin && (
+          <SetupFold>{/* Usherr Broadcast: folded into "Channels and setup" */}
           <div className="tv-actions" data-walk="tv-actions">
             <button className="btn-with-icon" onClick={addToJellyfin} title={t("Show these channels, with their guide, in Jellyfin's Live TV")}>
               <Icon name="tv" size={16} /> {t('Add to Jellyfin')}
@@ -182,6 +204,7 @@ export default function TV() {
               <Icon name="plus" size={16} /> {t('New channel')}
             </button>
           </div>
+          </SetupFold>
         )}
       </div>
       {jfNote && <p className="hint">{jfNote}</p>}
@@ -194,11 +217,13 @@ export default function TV() {
       )}
       {view === 'guide' && <GuideOptions />}
       {view === 'guide' && onAir && onAir.channels.length > 0 &&
-        (prefs.style === 'prevue' ? (
+        (gstyle === 'broadcast' ? (
+          <BroadcastGuide guide={onAir} onOpen={(program, channel) => setPicked({ program, channel })} />
+        ) : gstyle === 'prevue' ? (
           <PrevueView rows={onAir.channels} />
-        ) : prefs.style === 'listings' ? (
+        ) : gstyle === 'listings' ? (
           <ListingsView rows={onAir.channels} hours={prefs.hours} />
-        ) : prefs.style === 'nowon' ? (
+        ) : gstyle === 'nowon' ? (
           <NowOnView rows={onAir.channels} />
         ) : (
           <GuideView guide={onAir} onOpen={(program, channel) => setPicked({ program, channel })} />
@@ -270,6 +295,19 @@ export default function TV() {
       </ul>
       {editing &&
         createPortal(
+          broadcastOn() ? (
+            // Usherr Broadcast: the editor made for a remote
+            <BroadcastEditor
+              channel={editing === 'new' || !('id' in editing) ? null : editing}
+              draft={editing !== 'new' && !('id' in editing) ? editing : undefined}
+              onClose={() => setEditing(null)}
+              onSaved={() => {
+                setEditing(null)
+                load()
+                window.setTimeout(load, 8000)
+              }}
+            />
+          ) : (
           <ChannelEditor
             channel={editing === 'new' || !('id' in editing) ? null : editing}
             draft={editing !== 'new' && !('id' in editing) ? editing : undefined}
@@ -279,7 +317,8 @@ export default function TV() {
               load()
               window.setTimeout(load, 8000) // the first programs take a moment to measure
             }}
-          />,
+          />
+          ),
           document.body,
         )}
     </div>
@@ -767,7 +806,7 @@ function GuideGrid({ guide, sel, onPick, onChannel }: { guide: Guide; sel: Selec
   }, [from])
   const page = (minutes: number) => scroller.current?.scrollBy({ left: minutes * pxPerMin, behavior: 'smooth' })
   return (
-    <div className={`tvg${prefs.style === 'cable' ? ' tvg-cable' : prefs.style === 'rounded' ? ' tvg-rounded' : ''}`}>
+    <div className={`tvg${guideStyleOf(prefs) === 'cable' ? ' tvg-cable' : guideStyleOf(prefs) === 'rounded' ? ' tvg-rounded' : ''}`}>
       <div className="tvg-names">
         <GuideClock />
         {guide.channels.map(({ channel }) => (

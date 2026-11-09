@@ -1,0 +1,1237 @@
+/* Usherr Broadcast: the default look, made to be used from the sofa with a
+   remote as well as with a mouse. Depth comes from lightness alone (the page,
+   then panels, then cards, then cells, each a step lighter), never from
+   shadows; corners are 12 (cells), 16 (cards) and 20 (badges); there is one
+   blue for focus, and only one thing has it. The language follows Clickarr's
+   design language (MIT, github.com/thegregstengel/clickarr); no Clickarr
+   name, logo or brand colours are used.
+
+   Everything here is behind data-look="broadcast" on <html> (neu/look.ts,
+   set before the first paint by main.tsx), so Neu and Classic stay exactly
+   as they are. Loaded after neu.css. */
+
+/* ---- Inter (OFL, web/public/fonts/OFL-Inter.txt) ---------------------- */
+@font-face {
+  font-family: 'Inter Broadcast';
+  src: url('/fonts/InterVariable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ---- Tokens: dark, the main one ---------------------------------------- */
+/* :not(#b) lifts these over the colour and main-colour choices
+   (usherr-palettes.css, usherr-bases.css): Broadcast has its own colours. */
+:root[data-look='broadcast']:not(#b) {
+  --b-base: #05070f;
+  --b-panel: #0a1220;
+  --b-surface: #131a36;
+  --b-cell: #1a2a47;
+  --b-cell-hi: #223559;
+  --b-line: #0f2038;
+  --b-line-hi: #24385c;
+  --b-elevated: #1e2b45;
+  --b-focus: #1479fd;
+  --b-on-focus: #ffffff;
+  --b-selected: #063677;
+  --b-on-selected: #ffffff;
+  --b-ring: #ffffff;
+  --b-glow: #00acff;
+  --b-ok: #0ce568;
+  --b-warn: #ffb020;
+  --b-error: #ff4d5e;
+  --b-text: #f2f5fa;
+  --b-dim: #a9b4c8;
+  --b-faint: #6b7890;
+  --b-link: #5aa2ff;
+  --b-primary: #f2f5fa;
+  --b-on-primary: #05070f;
+  --b-scrim: rgba(5, 7, 15, 0.78);
+  --b-movie: #ffc24d;
+  --b-tv: #4cc9ff;
+  --b-music: #ff6fae;
+  --b-book: #b79cff;
+  --b-audiobook: #ff9a5c;
+  --b-comic: #7ee081;
+  --b-manga: #8fa8ff;
+
+  /* the app's own tokens, all from Broadcast's */
+  --font-display: 'Inter Broadcast', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Inter Broadcast', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Reddit Mono', ui-monospace, SFMono-Regular, monospace;
+  --bg: var(--b-base);
+  --surface: var(--b-surface);
+  --surface-2: var(--b-cell);
+  --panel-top: var(--b-surface);
+  --panel-bottom: var(--b-surface);
+  --border: var(--b-line);
+  --rim: var(--b-line);
+  --rim-strong: var(--b-line-hi);
+  --lift: transparent;
+  --text: var(--b-text);
+  --text-dim: var(--b-dim);
+  --text-faint: var(--b-faint);
+  --muted: var(--b-faint);
+  --accent: var(--b-focus);
+  --accent-hover: var(--b-focus);
+  --accent-pressed: var(--b-selected);
+  --accent-subtle: color-mix(in srgb, var(--b-focus) 16%, transparent);
+  --on-accent: var(--b-on-focus);
+  --focus-ring: var(--b-focus);
+  --accent-2: var(--b-glow);
+  --accent-2-subtle: color-mix(in srgb, var(--b-glow) 14%, transparent);
+  --success: var(--b-ok);
+  --warning: var(--b-warn);
+  --danger: var(--b-error);
+  --info: var(--b-glow);
+  --paper: var(--b-surface);
+  --paper-2: var(--b-cell);
+  --radius: 12px;
+
+  /* the blue is for focus only: the app's places tint in plain grey; the
+     kinds of media keep a colour each */
+  --c-dashboard: var(--b-dim);
+  --c-discover: var(--b-dim);
+  --c-library: var(--b-dim);
+  --c-wanted: var(--b-warn);
+  --c-calendar: var(--b-dim);
+  --c-rose: var(--b-music);
+  --c-activity: var(--b-dim);
+  --c-settings: var(--b-dim);
+  --c-profile: var(--b-dim);
+  --c-about: var(--b-dim);
+  --c-sports: var(--b-ok);
+  --c-anime: var(--b-tv);
+  --c-comics: var(--b-comic);
+  --c-manga: var(--b-manga);
+  --c-movie: var(--b-movie);
+  --c-tv: var(--b-tv);
+  --c-music: var(--b-music);
+  --c-book: var(--b-book);
+  --c-audiobook: var(--b-audiobook);
+  --on-sec: var(--b-on-focus);
+  --on-kind: var(--b-base);
+
+  /* pages written for Neu (manga, Read-to-Me) read these: flat, by lightness */
+  --n-bg: var(--b-surface);
+  --n-well: var(--b-cell);
+  --n-hi: var(--b-cell-hi);
+  --n-lo: var(--b-base);
+  --n-drop: transparent;
+  --n-text: var(--b-text);
+  --n-dim: var(--b-dim);
+  --n-faint: var(--b-faint);
+  --n-accent: var(--b-focus);
+  --n-on-accent: var(--b-on-focus);
+  --n-good: var(--b-ok);
+  --n-warn: var(--b-warn);
+  --n-bad: var(--b-error);
+  --n-movie: var(--b-movie);
+  --n-tv: var(--b-tv);
+  --n-music: var(--b-music);
+  --n-book: var(--b-book);
+  --n-audiobook: var(--b-audiobook);
+  --n-comic: var(--b-comic);
+  --n-manga: var(--b-manga);
+  --n-hair: var(--b-line);
+  --n-up: none;
+  --n-up-sm: none;
+  --n-float: none;
+  --n-float-sm: none;
+  --n-in: none;
+  --n-in-sm: none;
+  --n-r: 16px;
+
+  --b-fast: 0.15s;
+  --b-ease: cubic-bezier(0.2, 0, 0, 1);
+  color-scheme: dark;
+}
+
+/* ---- Tokens: light, a slate light for daytime ---------------------------- */
+:root[data-look='broadcast'][data-theme='light']:not(#b) {
+  --b-base: #eef1f6;
+  --b-panel: #e4e9f1;
+  --b-surface: #ffffff;
+  --b-cell: #edf1f7;
+  --b-cell-hi: #e0e6f0;
+  --b-line: #d5dce7;
+  --b-line-hi: #bfc9d8;
+  --b-elevated: #ffffff;
+  --b-focus: #0b63d6;
+  --b-on-focus: #ffffff;
+  --b-selected: #d6e4ff;
+  --b-on-selected: #063677;
+  --b-ring: #05070f;
+  --b-glow: #0088cc;
+  --b-ok: #0a7d3d;
+  --b-warn: #a35f00;
+  --b-error: #c8102e;
+  --b-text: #0f172a;
+  --b-dim: #334155;
+  --b-faint: #586579;
+  --b-link: #0b5bc4;
+  --b-primary: #0f172a;
+  --b-on-primary: #ffffff;
+  --b-scrim: rgba(15, 23, 42, 0.45);
+  --b-movie: #8a5a00;
+  --b-tv: #00708f;
+  --b-music: #b0245e;
+  --b-book: #6b3fb5;
+  --b-audiobook: #a2440f;
+  --b-comic: #2f6b0a;
+  --b-manga: #3a53b8;
+  --on-kind: #ffffff;
+  color-scheme: light;
+}
+
+:root[data-look='broadcast'] .app-shell,
+:root[data-look='broadcast'] .app-shell[data-section] {
+  --sec: var(--b-focus);
+  --sec-soft: color-mix(in srgb, var(--b-focus) 14%, transparent);
+  --sec-line: var(--b-line);
+  --btn: var(--b-primary);
+  --on-btn: var(--b-on-primary);
+  --nc: var(--b-focus);
+  --tc: var(--b-dim);
+  --kc: var(--b-line-hi);
+}
+
+/* ---- The page: flat, one colour, no decorations --------------------------- */
+
+:root[data-look='broadcast'],
+:root[data-look='broadcast'] body,
+:root[data-look='broadcast'] #root,
+:root[data-look='broadcast'] .app-shell,
+:root[data-look='broadcast'] .main,
+:root[data-look='broadcast'] .main-area,
+:root[data-look='broadcast'] .content {
+  background: var(--b-base) !important;
+  background-image: none !important;
+}
+:root[data-look='broadcast'] body {
+  font-family: var(--font-body);
+  color: var(--b-text);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+:root[data-look='broadcast'] h1,
+:root[data-look='broadcast'] h2,
+:root[data-look='broadcast'] h3,
+:root[data-look='broadcast'] legend { font-family: var(--font-display); letter-spacing: -0.015em; }
+:root[data-look='broadcast'] h1 { font-weight: 750; letter-spacing: -0.025em; }
+:root[data-look='broadcast'] h2,
+:root[data-look='broadcast'] h3 { font-weight: 680; }
+:root[data-look='broadcast'] code,
+:root[data-look='broadcast'] kbd,
+:root[data-look='broadcast'] .mono,
+:root[data-look='broadcast'] pre { font-family: var(--font-mono); }
+:root[data-look='broadcast'] * { text-shadow: none !important; }
+
+/* Times and counts line up: tabular numbers. */
+:root[data-look='broadcast'] time,
+:root[data-look='broadcast'] td,
+:root[data-look='broadcast'] progress,
+:root[data-look='broadcast'] .tabular,
+:root[data-look='broadcast'] .badge,
+:root[data-look='broadcast'] .nav-count,
+:root[data-look='broadcast'] .sn-count,
+:root[data-look='broadcast'] .pill,
+:root[data-look='broadcast'] .prog-slot-meta,
+:root[data-look='broadcast'] .qprogress,
+:root[data-look='broadcast'] [class*='-time'],
+:root[data-look='broadcast'] [class*='time-'],
+:root[data-look='broadcast'] [class*='clock'],
+:root[data-look='broadcast'] [class*='countdown'],
+:root[data-look='broadcast'] [class*='duration'],
+:root[data-look='broadcast'] [class*='-eta'] { font-variant-numeric: tabular-nums; }
+
+/* The old looks' glows, shapes, sheens and drifting decorations: gone. */
+:root[data-look='broadcast'] .ambient,
+:root[data-look='broadcast'] .hero-drift,
+:root[data-look='broadcast'] .drift-item,
+:root[data-look='broadcast'] .finish-glow,
+:root[data-look='broadcast'] .page-header::after,
+:root[data-look='broadcast'] .page-header h1::before,
+:root[data-look='broadcast'] .top-title::before,
+:root[data-look='broadcast'] button.primary::after,
+:root[data-look='broadcast'] .main-area::before,
+:root[data-look='broadcast'] .main-area::after,
+:root[data-look='broadcast'] .topbar::before,
+:root[data-look='broadcast'] .topbar::after,
+:root[data-look='broadcast'] .sidebar::before,
+:root[data-look='broadcast'] .sidebar::after,
+:root[data-look='broadcast'] .stat-card::before,
+:root[data-look='broadcast'] .stat-card::after,
+:root[data-look='broadcast'] .tile::before,
+:root[data-look='broadcast'] .tile::after { display: none !important; }
+:root[data-look='broadcast'] .hero-welcome h1 span,
+:root[data-look='broadcast'] .finish-card h1 span {
+  background: none !important;
+  -webkit-text-fill-color: currentColor !important;
+  color: var(--b-text) !important;
+  animation: none !important;
+}
+:root[data-look='broadcast'] .soft-rule,
+:root[data-look='broadcast'] .section-divider::after { background: var(--b-line) !important; }
+
+/* Plain links in text are the link blue; anything a component styles (a card,
+   a button, a chip that happens to be a link) keeps its own colour, so blue
+   stays for focus. :where() keeps this rule as weak as a bare a { }. */
+:where(:root[data-look='broadcast']) a { color: var(--b-link); }
+:root[data-look='broadcast'] ::selection { background: color-mix(in srgb, var(--b-focus) 40%, transparent); color: var(--b-text); }
+:root[data-look='broadcast'] input[type='checkbox'],
+:root[data-look='broadcast'] input[type='radio'],
+:root[data-look='broadcast'] input[type='range'] { accent-color: var(--b-focus); }
+:root[data-look='broadcast'] progress { accent-color: var(--b-glow); }
+
+/* Shadows: none. Things float by being lighter than what is under them. */
+:root[data-look='broadcast'] .card,
+:root[data-look='broadcast'] .tile,
+:root[data-look='broadcast'] .stat-card,
+:root[data-look='broadcast'] .modal,
+:root[data-look='broadcast'] .menu-pop,
+:root[data-look='broadcast'] .dropdown-list,
+:root[data-look='broadcast'] .searchbox-panel,
+:root[data-look='broadcast'] .toast,
+:root[data-look='broadcast'] .nudge-card,
+:root[data-look='broadcast'] .side-menu,
+:root[data-look='broadcast'] .side-tip,
+:root[data-look='broadcast'] .to-top,
+:root[data-look='broadcast'] .player,
+:root[data-look='broadcast'] .report-shot-bar,
+:root[data-look='broadcast'] .bulk-tags-pop,
+:root[data-look='broadcast'] .section-off-notice,
+:root[data-look='broadcast'] .title-poster,
+:root[data-look='broadcast'] .album-cover,
+:root[data-look='broadcast'] .album-card,
+:root[data-look='broadcast'] .module-card,
+:root[data-look='broadcast'] .auth-card,
+:root[data-look='broadcast'] .avatar,
+:root[data-look='broadcast'] .sidebar,
+:root[data-look='broadcast'] .sidebar.open,
+:root[data-look='broadcast'] .topbar,
+:root[data-look='broadcast'] .topbar .top-search.open,
+:root[data-look='broadcast'] .qthumb,
+:root[data-look='broadcast'] .pcard-ribbon,
+:root[data-look='broadcast'] .filters-dot { box-shadow: none !important; }
+
+/* Motion: focus moves at once; panels open in 150 ms, no bounce. */
+:root[data-look='broadcast'] .modal,
+:root[data-look='broadcast'] .menu-pop,
+:root[data-look='broadcast'] .dropdown-list,
+:root[data-look='broadcast'] .toast,
+:root[data-look='broadcast'] .modal-backdrop { animation-duration: var(--b-fast) !important; animation-timing-function: var(--b-ease) !important; }
+:root[data-look='broadcast'] .tile,
+:root[data-look='broadcast'] .stat-card,
+:root[data-look='broadcast'] .pcard,
+:root[data-look='broadcast'] .poster-grid > .pcard,
+:root[data-look='broadcast'] .mod-card,
+:root[data-look='broadcast'] .module-card { animation: none !important; }
+:root[data-look='broadcast'] :focus-visible,
+:root[data-look='broadcast'] button,
+:root[data-look='broadcast'] a,
+:root[data-look='broadcast'] input,
+:root[data-look='broadcast'] select,
+:root[data-look='broadcast'] textarea,
+:root[data-look='broadcast'] [tabindex],
+:root[data-look='broadcast'] [role='tab'],
+:root[data-look='broadcast'] .chip { transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-look='broadcast'] *,
+  :root[data-look='broadcast'] *::before,
+  :root[data-look='broadcast'] *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+/* Nothing grows or tilts under the pointer: a lighter colour says it. */
+:root[data-look='broadcast'] .pcard:hover,
+:root[data-look='broadcast'] .pcard:focus-within,
+:root[data-look='broadcast'] .tile:hover,
+:root[data-look='broadcast'] .stat-card:hover,
+:root[data-look='broadcast'] .mod-card:hover,
+:root[data-look='broadcast'] .module-card:hover,
+:root[data-look='broadcast'] .type-tile:hover,
+:root[data-look='broadcast'] .choice-card:hover,
+:root[data-look='broadcast'] .avatar:hover,
+:root[data-look='broadcast'] .side-tool:hover,
+:root[data-look='broadcast'] .link-pill:hover,
+:root[data-look='broadcast'] a.hero-pill:hover,
+:root[data-look='broadcast'] .sidebar a:hover .nav-ico,
+:root[data-look='broadcast'] .wrow:hover,
+:root[data-look='broadcast'] .qrow:hover,
+:root[data-look='broadcast'] .ncard:hover,
+:root[data-look='broadcast'] .target-row:hover,
+:root[data-look='broadcast'] button:active:not(:disabled) { transform: none !important; }
+
+/* ---- Buttons ---------------------------------------------------------------
+   A cell a step lighter than its card; lighter still under the pointer.
+   The main action is the light one, so the blue stays for focus alone. */
+
+/* (:where keeps plain buttons weak: a button a page draws its own way, see-through
+   or not, keeps its own background) */
+:where(:root[data-look='broadcast']) button,
+:root[data-look='broadcast'] a.btn-link,
+:root[data-look='broadcast'] .btn,
+:root[data-look='broadcast'] .hero-pill {
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--b-text);
+  background: var(--b-cell);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  box-shadow: none;
+  filter: none;
+}
+:root[data-look='broadcast'] button { font-family: var(--font-body); box-shadow: none; }
+:where(:root[data-look='broadcast']) button:hover:not(:disabled),
+:root[data-look='broadcast'] a.btn-link:hover,
+:root[data-look='broadcast'] .btn:hover { background: var(--b-cell-hi); color: var(--b-text); border-color: transparent; }
+:root[data-look='broadcast'] button:disabled { opacity: 0.45; box-shadow: none; }
+:root[data-look='broadcast'] button.primary,
+:root[data-look='broadcast'] .btn.primary,
+:root[data-look='broadcast'] .btn-primary {
+  background: var(--b-primary) !important;
+  color: var(--b-on-primary) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+:root[data-look='broadcast'] button.primary:hover:not(:disabled),
+:root[data-look='broadcast'] .btn.primary:hover { filter: brightness(0.92); }
+:root[data-look='broadcast'] button.danger,
+:root[data-look='broadcast'] button.danger-ghost { color: var(--b-error) !important; background: var(--b-cell) !important; border-color: transparent !important; }
+:root[data-look='broadcast'] .icon-btn,
+:root[data-look='broadcast'] button.icon-btn { border-radius: 12px; }
+:root[data-look='broadcast'] .btn-link:not(button) { box-shadow: none; }
+:root[data-look='broadcast'] button.link-btn,
+:root[data-look='broadcast'] .link-btn { background: transparent; color: var(--b-link); }
+
+/* Choices in a row (seg, view switch, tabs): a panel strip; the chosen one deep blue. */
+:root[data-look='broadcast'] .seg,
+:root[data-look='broadcast'] .view-switch,
+:root[data-look='broadcast'] .tv-seg {
+  background: var(--b-panel);
+  border: 1px solid var(--b-line);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 3px;
+  box-shadow: none;
+}
+:root[data-look='broadcast'] .seg > button,
+:root[data-look='broadcast'] .seg > a,
+:root[data-look='broadcast'] .view-switch button,
+:root[data-look='broadcast'] .tv-seg > button {
+  background: transparent;
+  border: 0 !important;
+  border-radius: 9px;
+  color: var(--b-dim);
+  box-shadow: none;
+}
+:root[data-look='broadcast'] .seg > button:hover:not(:disabled),
+:root[data-look='broadcast'] .view-switch button:hover:not(:disabled) { background: var(--b-cell); color: var(--b-text); }
+:root[data-look='broadcast'] .seg > button.active,
+:root[data-look='broadcast'] .seg > button[aria-pressed='true'],
+:root[data-look='broadcast'] .seg > button[aria-checked='true'],
+:root[data-look='broadcast'] .seg > button[aria-selected='true'],
+:root[data-look='broadcast'] .seg > a.active,
+:root[data-look='broadcast'] .view-switch button.active,
+:root[data-look='broadcast'] .tv-seg > button.active {
+  background: var(--b-selected);
+  color: var(--b-on-selected);
+}
+
+/* Tabs along a page: plain words, the open one deep blue. */
+:root[data-look='broadcast'] .page-tabs,
+:root[data-look='broadcast'] .kind-tabs,
+:root[data-look='broadcast'] .art-tabs,
+:root[data-look='broadcast'] .fp-tabs,
+:root[data-look='broadcast'] .crw-tabs { border-bottom: 0 !important; gap: 6px; }
+:root[data-look='broadcast'] .page-tabs a,
+:root[data-look='broadcast'] .kind-tab,
+:root[data-look='broadcast'] [role='tab'] {
+  border: 0 !important;
+  border-radius: 12px !important;
+  background: transparent;
+  color: var(--b-dim);
+  margin-bottom: 0;
+}
+:root[data-look='broadcast'] .page-tabs a svg { color: currentColor; }
+:root[data-look='broadcast'] .page-tabs a:hover,
+:root[data-look='broadcast'] .kind-tab:hover,
+:root[data-look='broadcast'] [role='tab']:hover { background: var(--b-cell); color: var(--b-text); }
+:root[data-look='broadcast'] .page-tabs a.active,
+:root[data-look='broadcast'] .kind-tab.active,
+:root[data-look='broadcast'] [role='tab'][aria-selected='true'] {
+  background: var(--b-selected) !important;
+  color: var(--b-on-selected) !important;
+}
+:root[data-look='broadcast'] .kind-tab.active svg { color: currentColor; }
+
+/* Chips and badges: pills (20), the chosen one deep blue. */
+:root[data-look='broadcast'] .chip,
+:root[data-look='broadcast'] .room-chip,
+:root[data-look='broadcast'] .tag-chip,
+:root[data-look='broadcast'] .chip-plain {
+  background: var(--b-cell);
+  border: 1px solid transparent;
+  color: var(--b-dim);
+  border-radius: 20px;
+  box-shadow: none !important;
+}
+:root[data-look='broadcast'] .chip:hover:not(:disabled) { background: var(--b-cell-hi); color: var(--b-text); }
+:root[data-look='broadcast'] .chip.active,
+:root[data-look='broadcast'] .chip[aria-pressed='true'],
+:root[data-look='broadcast'] .chip[aria-checked='true'],
+:root[data-look='broadcast'] .room-chip.on {
+  background: var(--b-selected) !important;
+  color: var(--b-on-selected) !important;
+  border-color: transparent !important;
+}
+:root[data-look='broadcast'] .badge,
+:root[data-look='broadcast'] .state-tag,
+:root[data-look='broadcast'] .type-tag,
+:root[data-look='broadcast'] .version-chip,
+:root[data-look='broadcast'] .section-pill,
+:root[data-look='broadcast'] .req-badge,
+:root[data-look='broadcast'] .title-chips > span,
+:root[data-look='broadcast'] .title-hero .kind-tag,
+:root[data-look='broadcast'] .link-pill {
+  border-radius: 20px !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  font-family: var(--font-body) !important;
+}
+:root[data-look='broadcast'] .badge,
+:root[data-look='broadcast'] .type-tag,
+:root[data-look='broadcast'] .title-chips > span,
+:root[data-look='broadcast'] .title-hero .kind-tag,
+:root[data-look='broadcast'] .link-pill { background: var(--b-cell) !important; }
+:root[data-look='broadcast'] .state-tag { background: color-mix(in srgb, var(--stc, var(--b-dim)) 16%, var(--b-cell)) !important; }
+:root[data-look='broadcast'] .chip-genre { color: var(--b-dim) !important; }
+:root[data-look='broadcast'] .chip-rate svg { fill: var(--b-movie); color: var(--b-movie); }
+
+/* ---- Fields: a cell with a hairline; focus is a blue ring ----------------- */
+
+:root[data-look='broadcast'] input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']),
+:root[data-look='broadcast'] select,
+:root[data-look='broadcast'] textarea,
+:root[data-look='broadcast'] .dropdown-btn {
+  font-family: var(--font-body);
+  color: var(--b-text);
+  background: var(--b-cell);
+  border: 1px solid var(--b-line-hi);
+  border-radius: 12px;
+  box-shadow: none !important;
+}
+:root[data-look='broadcast'] input::placeholder,
+:root[data-look='broadcast'] textarea::placeholder { color: var(--b-faint); }
+:root[data-look='broadcast'] input:focus,
+:root[data-look='broadcast'] select:focus,
+:root[data-look='broadcast'] textarea:focus,
+:root[data-look='broadcast'] .dropdown.open .dropdown-btn { border-color: var(--b-focus) !important; box-shadow: none !important; }
+:root[data-look='broadcast'] input[aria-invalid='true'],
+:root[data-look='broadcast'] select[aria-invalid='true'],
+:root[data-look='broadcast'] textarea[aria-invalid='true'] { border-color: var(--b-error) !important; }
+:root[data-look='broadcast'] .omni-bar,
+:root[data-look='broadcast'] .omni-bar.ai,
+:root[data-look='broadcast'] .searchbox {
+  background: var(--b-cell) !important;
+  border: 1px solid var(--b-line-hi) !important;
+  box-shadow: none !important;
+  border-radius: 12px;
+}
+:root[data-look='broadcast'] .omni-bar:focus-within,
+:root[data-look='broadcast'] .searchbox:focus-within { border-color: var(--b-focus) !important; }
+:root[data-look='broadcast'] .omni-bar input,
+:root[data-look='broadcast'] .searchbox input { background: transparent !important; border: 0 !important; }
+
+/* Switches: off a cell, on the deep blue with a white knob. */
+:root[data-look='broadcast'] .switch-track { background: var(--b-cell-hi) !important; border-color: transparent !important; box-shadow: none !important; }
+:root[data-look='broadcast'] .switch-thumb { background: var(--b-dim) !important; box-shadow: none !important; }
+:root[data-look='broadcast'] .switch input:checked + .switch-track { background: var(--b-focus) !important; }
+:root[data-look='broadcast'] .switch input:checked + .switch-track .switch-thumb { background: #ffffff !important; }
+
+/* ---- Panels and cards: a step lighter than the page; a card in a card is a cell */
+
+:root[data-look='broadcast'] .card,
+:root[data-look='broadcast'] .tile,
+:root[data-look='broadcast'] .stat-card,
+:root[data-look='broadcast'] .mod-card,
+:root[data-look='broadcast'] .module-card,
+:root[data-look='broadcast'] .type-tile,
+:root[data-look='broadcast'] .choice-card,
+:root[data-look='broadcast'] .media-card,
+:root[data-look='broadcast'] .info-card,
+:root[data-look='broadcast'] .service-card,
+:root[data-look='broadcast'] .connected-card,
+:root[data-look='broadcast'] .account-card,
+:root[data-look='broadcast'] .indexer-card,
+:root[data-look='broadcast'] .client-card,
+:root[data-look='broadcast'] .ncard,
+:root[data-look='broadcast'] .mig-card,
+:root[data-look='broadcast'] .helper-card,
+:root[data-look='broadcast'] .flare-card,
+:root[data-look='broadcast'] .files-card,
+:root[data-look='broadcast'] .credit-card,
+:root[data-look='broadcast'] .pl-card,
+:root[data-look='broadcast'] .album-card,
+:root[data-look='broadcast'] .finish-card,
+:root[data-look='broadcast'] .empty-state,
+:root[data-look='broadcast'] .hero-server,
+:root[data-look='broadcast'] .cinema-panel,
+:root[data-look='broadcast'] .side-stack,
+:root[data-look='broadcast'] .taste-start,
+:root[data-look='broadcast'] .complete-teaser,
+:root[data-look='broadcast'] .recipes-bar,
+:root[data-look='broadcast'] .kind-pick,
+:root[data-look='broadcast'] fieldset.group {
+  background: var(--b-surface) !important;
+  background-image: none !important;
+  border: 1px solid var(--b-line) !important;
+  border-radius: 16px !important;
+  box-shadow: none !important;
+  color: var(--b-text);
+}
+:root[data-look='broadcast'] .tile:hover,
+:root[data-look='broadcast'] .stat-card:hover,
+:root[data-look='broadcast'] .mod-card:hover,
+:root[data-look='broadcast'] .type-tile:hover,
+:root[data-look='broadcast'] .choice-card:hover,
+:root[data-look='broadcast'] .complete-teaser:hover,
+:root[data-look='broadcast'] .kind-pick:hover { background: var(--b-elevated) !important; border-color: var(--b-line-hi) !important; }
+:root[data-look='broadcast'] .choice-card.active,
+:root[data-look='broadcast'] .module-card.on,
+:root[data-look='broadcast'] .ms-pick-card.active,
+:root[data-look='broadcast'] .ps-choice.active { border-color: var(--b-focus) !important; box-shadow: none !important; }
+:root[data-look='broadcast'] .choice-card.active .choice-dot { background: var(--b-focus) !important; }
+:root[data-look='broadcast'] fieldset.group { padding-top: 22px; }
+:root[data-look='broadcast'] fieldset.group > legend {
+  color: var(--b-text);
+  background: var(--b-surface);
+  border: 0;
+  box-shadow: none;
+  border-radius: 12px;
+}
+:root[data-look='broadcast'] .card .card,
+:root[data-look='broadcast'] .tile .card,
+:root[data-look='broadcast'] .card fieldset.group,
+:root[data-look='broadcast'] fieldset.group fieldset.group,
+:root[data-look='broadcast'] fieldset.group .card,
+:root[data-look='broadcast'] .modal .card,
+:root[data-look='broadcast'] .modal fieldset.group,
+:root[data-look='broadcast'] .notice,
+:root[data-look='broadcast'] .callout,
+:root[data-look='broadcast'] .update-box,
+:root[data-look='broadcast'] .legal-card,
+:root[data-look='broadcast'] .health-item,
+:root[data-look='broadcast'] .act-quiet,
+:root[data-look='broadcast'] .ss-empty,
+:root[data-look='broadcast'] .test-result,
+:root[data-look='broadcast'] .copy-box,
+:root[data-look='broadcast'] .stat-icon,
+:root[data-look='broadcast'] .tile-icon {
+  background: var(--b-cell) !important;
+  background-image: none !important;
+  border-color: transparent !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+:root[data-look='broadcast'] .modal fieldset.group > legend,
+:root[data-look='broadcast'] .card fieldset.group > legend { background: var(--b-cell); }
+:root[data-look='broadcast'] .notice,
+:root[data-look='broadcast'] .callout { color: var(--b-dim); }
+:root[data-look='broadcast'] .notice-warn { color: var(--b-warn); }
+:root[data-look='broadcast'] .update-box.ok { color: var(--b-ok) !important; }
+:root[data-look='broadcast'] .legal-card .legal-head > :first-child { background: var(--b-surface) !important; border: 0 !important; box-shadow: none !important; color: var(--b-warn) !important; }
+/* icons beside a card's words: plain grey (a group's own colour where it has one); the blue is focus only */
+:root[data-look='broadcast'] .server-tile .ico { color: var(--sc, var(--b-dim)); }
+:root[data-look='broadcast'] .server-tile .count { color: var(--b-text); }
+:root[data-look='broadcast'] .you-links svg { color: var(--b-dim); }
+:root[data-look='broadcast'] .you-links .you-link:hover { border-color: var(--b-line-hi); }
+:root[data-look='broadcast'] .stat-card .stat-icon,
+:root[data-look='broadcast'] .tile .tile-icon { color: var(--b-dim) !important; }
+:root[data-look='broadcast'] .account-card.role-admin,
+:root[data-look='broadcast'] .file-list li.main,
+:root[data-look='broadcast'] tr.is-default > td:first-child { box-shadow: inset 3px 0 0 var(--b-selected) !important; }
+
+/* Rows in lists (queue, wanted, history, notifications): cards in a column. */
+:root[data-look='broadcast'] .wrow,
+:root[data-look='broadcast'] .qrow,
+:root[data-look='broadcast'] .target-row,
+:root[data-look='broadcast'] .request-row,
+:root[data-look='broadcast'] .hist-row,
+:root[data-look='broadcast'] .queue-item,
+:root[data-look='broadcast'] .waiting-list li,
+:root[data-look='broadcast'] .ab-slot {
+  background: var(--b-surface) !important;
+  background-image: none !important;
+  border: 1px solid var(--b-line) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+:root[data-look='broadcast'] .wrow:hover,
+:root[data-look='broadcast'] .qrow:hover,
+:root[data-look='broadcast'] .hist-row:hover,
+:root[data-look='broadcast'] .waiting-list li:hover,
+:root[data-look='broadcast'] .ab-slot:hover { background: var(--b-elevated) !important; }
+:root[data-look='broadcast'] .ab-slot { color: var(--b-dim) !important; border-radius: 20px !important; }
+:root[data-look='broadcast'] .ab-slot.on { background: var(--b-selected) !important; color: var(--b-on-selected) !important; }
+:root[data-look='broadcast'] .qrow.failed { border-color: color-mix(in srgb, var(--b-error) 55%, var(--b-line)) !important; }
+:root[data-look='broadcast'] .waiting-list li img,
+:root[data-look='broadcast'] .qthumb { border-radius: 8px; }
+
+/* Tables. */
+:root[data-look='broadcast'] th { color: var(--b-faint); font-weight: 600; border-color: var(--b-line) !important; background: transparent !important; }
+:root[data-look='broadcast'] td { border-color: var(--b-line) !important; }
+:root[data-look='broadcast'] tbody tr:hover > td { background: color-mix(in srgb, var(--b-cell) 55%, transparent); }
+
+/* ---- Pop-ups: menus, lists, dialogs and sheets sit on the elevated step ------ */
+
+:root[data-look='broadcast'] .menu-pop,
+:root[data-look='broadcast'] .dropdown-list,
+:root[data-look='broadcast'] .searchbox-panel,
+:root[data-look='broadcast'] .side-menu,
+:root[data-look='broadcast'] .bulk-tags-pop,
+:root[data-look='broadcast'] .side-tip,
+:root[data-look='broadcast'] [role='menu'] {
+  background: var(--b-elevated) !important;
+  background-image: none !important;
+  border: 1px solid var(--b-line-hi) !important;
+  border-radius: 16px !important;
+  box-shadow: none !important;
+}
+:root[data-look='broadcast'] .searchbox-tabbar { background: var(--b-elevated) !important; }
+:root[data-look='broadcast'] .menu-pop a,
+:root[data-look='broadcast'] .menu-pop button,
+:root[data-look='broadcast'] .side-menu a,
+:root[data-look='broadcast'] .dropdown-list li,
+:root[data-look='broadcast'] [role='menuitem'],
+:root[data-look='broadcast'] [role='option'] {
+  background: transparent;
+  color: var(--b-text);
+  border-radius: 12px;
+  box-shadow: none;
+}
+:root[data-look='broadcast'] .menu-pop a:hover,
+:root[data-look='broadcast'] .menu-pop button:hover,
+:root[data-look='broadcast'] .side-menu a:hover,
+:root[data-look='broadcast'] .dropdown-list li:hover,
+:root[data-look='broadcast'] .dropdown-list li.active,
+:root[data-look='broadcast'] [role='menuitem']:hover,
+:root[data-look='broadcast'] [role='option']:hover { background: var(--b-cell-hi) !important; }
+:root[data-look='broadcast'] .dropdown-list li.selected,
+:root[data-look='broadcast'] [role='option'][aria-selected='true'] { color: var(--b-text); background: var(--b-selected); }
+:root[data-look='broadcast'] .menu-pop .menu-who { border-color: var(--b-line-hi); }
+
+:root[data-look='broadcast'] .modal-backdrop,
+:root[data-look='broadcast'] .sidebar-backdrop.open,
+:root[data-look='broadcast'] .sc-pop-backdrop {
+  background: var(--b-scrim) !important;
+  backdrop-filter: none !important;
+}
+:root[data-look='broadcast'] .modal,
+:root[data-look='broadcast'] .sc-sheet,
+:root[data-look='broadcast'] .sl-sheet-box,
+:root[data-look='broadcast'] .mr-sheet,
+:root[data-look='broadcast'] .nudge-card,
+:root[data-look='broadcast'] .report-shot-bar,
+:root[data-look='broadcast'] .section-off-notice {
+  background: var(--b-elevated) !important;
+  background-image: none !important;
+  border: 1px solid var(--b-line-hi) !important;
+  border-radius: 20px !important;
+  box-shadow: none !important;
+  color: var(--b-text);
+}
+:root[data-look='broadcast'] .modal-head { border-color: var(--b-line-hi) !important; }
+:root[data-look='broadcast'] .tonight-modal .tonight-card { background: none !important; box-shadow: none !important; border: 0 !important; padding: 0 !important; margin: 0 !important; }
+
+/* Toasts: elevated, a coloured icon says how it went. */
+:root[data-look='broadcast'] .toast {
+  background: var(--b-elevated) !important;
+  border: 1px solid var(--b-line-hi) !important;
+  border-radius: 16px !important;
+  color: var(--b-text) !important;
+}
+:root[data-look='broadcast'] .toast-icon { background: var(--b-cell) !important; box-shadow: none !important; color: var(--b-text) !important; }
+:root[data-look='broadcast'] .toast-success .toast-icon { color: var(--b-ok) !important; }
+:root[data-look='broadcast'] .toast-error .toast-icon { color: var(--b-error) !important; }
+:root[data-look='broadcast'] .toast-warning .toast-icon,
+:root[data-look='broadcast'] .toast-warn .toast-icon { color: var(--b-warn) !important; }
+
+/* ---- Progress: a cell groove, the live part glows blue ----------------------- */
+
+:root[data-look='broadcast'] .bar {
+  background: var(--b-cell) !important;
+  border: 0;
+  border-radius: 20px;
+  box-shadow: none;
+}
+:root[data-look='broadcast'] .bar > span,
+:root[data-look='broadcast'] .bar.active > span {
+  background: var(--b-glow) !important;
+  background-image: none !important;
+  border-radius: 20px;
+  box-shadow: none !important;
+  animation: none !important;
+}
+:root[data-look='broadcast'] .bar.warn > span { background: var(--b-warn) !important; }
+:root[data-look='broadcast'] .bar.bad > span { background: var(--b-error) !important; }
+:root[data-look='broadcast'] .skeleton {
+  background: var(--b-cell) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border-radius: 12px !important;
+}
+
+/* ---- The menu and the top bar ------------------------------------------------- */
+
+:root[data-look='broadcast'] .sidebar {
+  background: var(--b-panel) !important;
+  background-image: none !important;
+  border: 0 !important;
+  border-image: none !important;
+}
+:root[data-look='broadcast'] .sidebar a {
+  color: var(--b-dim);
+  background: transparent;
+  border-radius: 12px;
+  font-weight: 600;
+  box-shadow: none !important;
+}
+:root[data-look='broadcast'] .sidebar a:hover { color: var(--b-text); background: var(--b-cell); }
+:root[data-look='broadcast'] .sidebar a .nav-ico,
+:root[data-look='broadcast'] .sidebar a.active .nav-ico,
+:root[data-look='broadcast'] .sidebar a.parent-open .nav-ico,
+:root[data-look='broadcast'] .subnav a .nav-ico,
+:root[data-look='broadcast'] .subnav a.active .nav-ico,
+:root[data-look='broadcast'] .subnav .sn-ico,
+:root[data-look='broadcast'] .subnav .sn-page.active .sn-ico {
+  background: transparent !important;
+  color: inherit !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+:root[data-look='broadcast'] .sidebar a.active,
+:root[data-look='broadcast'] .sidebar a.parent-open,
+:root[data-look='broadcast'] .subnav a.active,
+:root[data-look='broadcast'] .subnav a.sn-head.current,
+:root[data-look='broadcast'] .subnav .sn-pages a.sn-page.active {
+  color: var(--b-on-selected);
+  background: var(--b-selected) !important;
+  box-shadow: none !important;
+}
+:root[data-look='broadcast'] .sidebar a.active::before,
+:root[data-look='broadcast'] .sidebar a.active::after,
+:root[data-look='broadcast'] .sidebar .subnav a.active::before,
+:root[data-look='broadcast'] .sidebar .subnav a.active::after,
+:root[data-look='broadcast'] .sidebar .sn-pages a.sn-page.active::before,
+:root[data-look='broadcast'] .sidebar .sn-pages a.sn-page.active::after { display: none !important; }
+:root[data-look='broadcast'] .subnav,
+:root[data-look='broadcast'] .subnav .sn-pages { border-left-color: var(--b-line) !important; }
+:root[data-look='broadcast'] .subnav a { color: var(--b-dim); background: transparent; }
+:root[data-look='broadcast'] .nav-count,
+:root[data-look='broadcast'] .subnav .sn-count { background: var(--b-cell); color: var(--b-text); box-shadow: none; border-radius: 20px; }
+:root[data-look='broadcast'] .sidebar .nav-about { border: 1px solid var(--b-line) !important; }
+:root[data-look='broadcast'] .sidebar .side-tools { background: var(--b-panel) !important; }
+:root[data-look='broadcast'] .side-tool,
+:root[data-look='broadcast'] .sidebar .side-tools .side-tool,
+:root[data-look='broadcast'] .omni-switch,
+:root[data-look='broadcast'] .top-icon {
+  background: var(--b-cell) !important;
+  color: var(--b-dim) !important;
+  border: 0 !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+:root[data-look='broadcast'] .side-tool:hover,
+:root[data-look='broadcast'] .omni-switch:hover,
+:root[data-look='broadcast'] .top-icon:hover { background: var(--b-cell-hi) !important; color: var(--b-text) !important; }
+:root[data-look='broadcast'] .omni-switch.on,
+:root[data-look='broadcast'] .side-tool.active { background: var(--b-selected) !important; color: var(--b-on-selected) !important; }
+:root[data-look='broadcast'] .topbar {
+  background: var(--b-base) !important;
+  border: 0 !important;
+  backdrop-filter: none !important;
+}
+:root[data-look='broadcast'] .top-actions,
+:root[data-look='broadcast'] .top-tools,
+:root[data-look='broadcast'] .top-search {
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+:root[data-look='broadcast'] .topbar button.top-tonight,
+:root[data-look='broadcast'] .topbar button.top-showtime,
+:root[data-look='broadcast'] .topbar button.top-smh { border-radius: 12px; }
+:root[data-look='broadcast'] .avatar {
+  background: var(--b-cell) !important;
+  color: var(--b-text) !important;
+  border: 0 !important;
+  filter: none !important;
+}
+:root[data-look='broadcast'] .to-top { background: var(--b-elevated) !important; border: 1px solid var(--b-line-hi) !important; }
+:root[data-look='broadcast'] .cbar,
+:root[data-look='broadcast'] .cbar::before,
+:root[data-look='broadcast'] .bks-top,
+:root[data-look='broadcast'] .bks-top::before { background: var(--b-base) !important; }
+:root[data-look='broadcast'] .cbar-pull { background: var(--b-panel) !important; border: 0 !important; box-shadow: none !important; border-radius: 0 0 12px 12px !important; color: var(--b-dim) !important; }
+:root[data-look='broadcast'] .cbar.down .cbar-pull { color: var(--b-text) !important; }
+
+/* The name and the mark: Inter, plain; the mark is Broadcast's own (public/broadcast-mark.svg). */
+:root[data-look='broadcast'] .sidebar .brand-name,
+:root[data-look='broadcast'] .brand-name,
+:root[data-look='broadcast'] .splash-name,
+:root[data-look='broadcast'] .about-hero h1 span,
+:root[data-look='broadcast'] .auth-logo span,
+:root[data-look='broadcast'] .auth-logo,
+:root[data-look='broadcast'] .auth-card h1 {
+  font-family: var(--font-display) !important;
+  font-weight: 750 !important;
+  letter-spacing: -0.02em !important;
+  color: var(--b-text) !important;
+}
+:root[data-look='broadcast'] img.brand-mark,
+:root[data-look='broadcast'] img.usherr-glyph { border-radius: 25%; }
+:root[data-look='broadcast'] .about-credit a { color: var(--b-link) !important; }
+:root[data-look='broadcast'] .neu-ico,
+:root[data-look='broadcast'] .neu-glyph { flex: none; }
+
+/* ---- Home --------------------------------------------------------------------- */
+
+:root[data-look='broadcast'] .hero-welcome {
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  min-height: 0 !important;
+  padding-left: 4px !important;
+}
+:root[data-look='broadcast'] .news-line {
+  background: var(--b-panel) !important;
+  border: 1px solid var(--b-line) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+:root[data-look='broadcast'] .news-line-tag { color: var(--b-glow) !important; background: transparent !important; }
+:root[data-look='broadcast'] .news-line-item { background: none !important; border: 0 !important; box-shadow: none !important; transform: none !important; }
+:root[data-look='broadcast'] .news-line-item:hover { color: var(--b-text) !important; text-decoration: underline; }
+:root[data-look='broadcast'] .health-icon { background: var(--b-surface) !important; border: 0 !important; border-radius: 12px !important; box-shadow: none !important; }
+:root[data-look='broadcast'] .health-item.level-error .health-icon { color: var(--b-error) !important; }
+:root[data-look='broadcast'] .health-item.level-warning .health-icon,
+:root[data-look='broadcast'] .health-item.level-warn .health-icon { color: var(--b-warn) !important; }
+
+/* ---- Posters: the art with 12 corners, the words under it; no ticket stubs,
+   TV sets, record sleeves or book ribbons ----------------------------------- */
+
+:root[data-look='broadcast'] .pcard,
+:root[data-look='broadcast'] .pcard[class*='kind-'] {
+  padding: 0 !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  filter: none !important;
+  clip-path: none !important;
+  mask: none !important;
+  -webkit-mask: none !important;
+}
+:root[data-look='broadcast'] .pcard::before,
+:root[data-look='broadcast'] .pcard::after,
+:root[data-look='broadcast'] .pcard .pcard-art::before,
+:root[data-look='broadcast'] .pcard .pcard-art::after,
+:root[data-look='broadcast'] .pcard .pcard-body::before,
+:root[data-look='broadcast'] .pcard .pcard-body::after,
+:root[data-look='broadcast'] .pcard .pcard-dash,
+:root[data-look='broadcast'] .pcard .pcard-phones,
+:root[data-look='broadcast'] .pcard .pcard-disc,
+:root[data-look='broadcast'] .pcard .pcard-bookmark { display: none !important; content: none !important; }
+:root[data-look='broadcast'] .pcard .pcard-art,
+:root[data-look='broadcast'] .pcard[class*='kind-'] .pcard-art {
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  background: var(--b-cell) !important;
+  box-shadow: none !important;
+  transform: none !important;
+  clip-path: none !important;
+  mask: none !important;
+  -webkit-mask: none !important;
+}
+:root[data-look='broadcast'] .pcard .pcard-art img,
+:root[data-look='broadcast'] .pcard .pcard-art .pcard-link,
+:root[data-look='broadcast'] .pcard[class*='kind-'] .pcard-link,
+:root[data-look='broadcast'] .pcard[class*='kind-'] .pcard-art > img,
+:root[data-look='broadcast'] .pcard[class*='kind-'] .pcard-art > .poster-fallback { border-radius: 12px !important; box-shadow: none !important; transform: none !important; }
+:root[data-look='broadcast'] .poster-fallback,
+:root[data-look='broadcast'] .music-fallback { background: var(--b-cell) !important; background-image: none !important; }
+:root[data-look='broadcast'] .pcard .pcard-body {
+  background: transparent !important;
+  background-image: none !important;
+  color: var(--b-text) !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  clip-path: none !important;
+  mask: none !important;
+  -webkit-mask: none !important;
+  text-align: left !important;
+  padding: 8px 2px 2px !important;
+  font-family: var(--font-body) !important;
+}
+:root[data-look='broadcast'] .pcard .pcard-title { color: var(--b-text) !important; font-family: var(--font-body) !important; font-weight: 600 !important; letter-spacing: 0 !important; }
+:root[data-look='broadcast'] .pcard .pcard-meta,
+:root[data-look='broadcast'] .pcard .pcard-body small { color: var(--b-faint) !important; font-family: var(--font-body) !important; }
+:root[data-look='broadcast'] .pcard:hover .pcard-art { background: var(--b-cell-hi) !important; }
+:root[data-look='broadcast'] .pcard .pill,
+:root[data-look='broadcast'] .pcard .pcard-ribbon {
+  background: var(--b-elevated) !important;
+  color: var(--b-text) !important;
+  border: 0 !important;
+  border-radius: 20px !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  clip-path: none !important;
+  mask: none !important;
+  -webkit-mask: none !important;
+  font-family: var(--font-body) !important;
+  max-width: calc(100% - 12px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:root[data-look='broadcast'] .pcard .pcard-ribbon:empty { display: none !important; }
+:root[data-look='broadcast'] .pcard.selected .pcard-art { outline: 3px solid var(--b-selected); outline-offset: 2px; }
+:root[data-look='broadcast'] .pcard .pcard-progress { border-radius: 0; }
+/* the buttons over a poster: small cells */
+:root[data-look='broadcast'] .pcard .pcard-actions { background: none !important; }
+:root[data-look='broadcast'] .pcard .pcard-actions .icon-btn {
+  background: color-mix(in srgb, var(--b-elevated) 92%, transparent) !important;
+  color: var(--b-text) !important;
+  border: 0 !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+:root[data-look='broadcast'] .pcard .pcard-actions .icon-btn:hover:not(:disabled) { background: var(--b-cell-hi) !important; }
+:root[data-look='broadcast'] .pcard .pcard-actions .icon-btn.primary-act { background: var(--b-primary) !important; color: var(--b-on-primary) !important; }
+:root[data-look='broadcast'] .pcard .pcard-actions .icon-btn.danger { color: var(--b-error) !important; }
+
+/* Comics and NSFW cards: the same plain poster. */
+:root[data-look='broadcast'] .cx-card,
+:root[data-look='broadcast'] .sc-card {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  color: var(--b-text);
+  text-decoration: none !important;
+}
+:root[data-look='broadcast'] .cx-card > img,
+:root[data-look='broadcast'] .cx-card > .cx-noimg,
+:root[data-look='broadcast'] .sc-card .sc-thumb,
+:root[data-look='broadcast'] .sc-card .sc-thumb img { border-radius: 12px !important; background: var(--b-cell); box-shadow: none !important; }
+:root[data-look='broadcast'] .cx-card .hint,
+:root[data-look='broadcast'] .cx-card .cx-count,
+:root[data-look='broadcast'] .sc-card .sc-sub { color: var(--b-faint); }
+:root[data-look='broadcast'] .sc-card.sc-selected .sc-thumb { outline: 3px solid var(--b-selected); outline-offset: 2px; }
+
+/* In theaters now. */
+:root[data-look='broadcast'] .cinema-poster,
+:root[data-look='broadcast'] .cinema-poster img { border-radius: 12px !important; box-shadow: none !important; background: var(--b-cell) !important; }
+:root[data-look='broadcast'] .cinema-title { color: var(--b-text) !important; font-weight: 600; }
+:root[data-look='broadcast'] .lib-after { margin-top: 28px; }
+/* calm: the Showtimes link and the tickets badge in plain secondary words, no orange fill */
+:root[data-look='broadcast'] .cinema-times { color: var(--b-dim) !important; font-size: 0.85rem; }
+:root[data-look='broadcast'] .tickets-button { background: var(--b-cell) !important; color: var(--b-dim) !important; font-weight: 600; letter-spacing: 0; }
+:root[data-look='broadcast'] .cinema-tickets:focus-visible .tickets-button,
+:root[data-look='broadcast'] .cinema-times:focus-visible { background: var(--b-focus) !important; color: var(--b-on-focus) !important; }
+
+/* ---- A title's page ---------------------------------------------------------- */
+
+:root[data-look='broadcast'] .title-hero::after { background: linear-gradient(90deg, var(--b-base) 30%, color-mix(in srgb, var(--b-base) 55%, transparent)) !important; }
+:root[data-look='broadcast'] .title-hero .title-side,
+:root[data-look='broadcast'] .title-hero[class*='kind-'] .title-side {
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  animation: none !important;
+}
+:root[data-look='broadcast'] .title-side::after,
+:root[data-look='broadcast'] .title-hero .title-poster::before,
+:root[data-look='broadcast'] .title-hero .title-poster::after,
+:root[data-look='broadcast'] .title-stub,
+:root[data-look='broadcast'] .title-chin { display: none !important; }
+:root[data-look='broadcast'] .title-hero .title-poster,
+:root[data-look='broadcast'] .title-hero[class*='kind-'] .title-poster {
+  padding: 0 !important;
+  border-radius: 16px !important;
+  background: var(--b-cell) !important;
+  mask: none !important;
+  -webkit-mask: none !important;
+  overflow: hidden;
+}
+:root[data-look='broadcast'] .title-hero .title-poster img { border-radius: 16px !important; }
+:root[data-look='broadcast'] .title-year,
+:root[data-look='broadcast'] .title-facts dt,
+:root[data-look='broadcast'] .title-facts dd { font-family: var(--font-body) !important; }
+:root[data-look='broadcast'] .title-facts { border-color: var(--b-line) !important; }
+:root[data-look='broadcast'] .title-facts dt { color: var(--b-faint); font-weight: 600; letter-spacing: 0.06em; }
+
+/* ---- Activity and the calendar --------------------------------------------------- */
+
+:root[data-look='broadcast'] .wait-search { font-family: var(--font-body) !important; color: var(--b-faint) !important; }
+:root[data-look='broadcast'] .act-quiet { border: 0 !important; }
+:root[data-look='broadcast'] .prog {
+  --line: var(--b-line);
+  --cell: var(--b-surface);
+  --cell-wkend: var(--b-panel);
+  --lamp: var(--b-glow);
+}
+:root[data-look='broadcast'] .prog-month,
+:root[data-look='broadcast'] .prog-title h2 { font-family: var(--font-display) !important; font-weight: 750 !important; }
+:root[data-look='broadcast'] .prog-board { background: var(--b-line) !important; border-radius: 16px !important; box-shadow: none !important; }
+:root[data-look='broadcast'] .prog-dows span { background: var(--b-panel) !important; color: var(--b-faint) !important; font-family: var(--font-body) !important; font-weight: 600; }
+:root[data-look='broadcast'] .prog-cell.out { background: var(--b-panel) !important; }
+:root[data-look='broadcast'] .prog-cell.today { background: var(--b-cell) !important; box-shadow: inset 0 3px 0 var(--b-glow) !important; }
+:root[data-look='broadcast'] .prog-lamp { box-shadow: none !important; animation: none !important; }
+:root[data-look='broadcast'] .prog-console,
+:root[data-look='broadcast'] .prog-round,
+:root[data-look='broadcast'] .prog-today { background: var(--b-cell) !important; box-shadow: none !important; border: 0 !important; }
+:root[data-look='broadcast'] .prog-slot,
+:root[data-look='broadcast'] .prog-card {
+  border: 0 !important;
+  border-radius: 12px !important;
+  background: var(--b-cell) !important;
+  box-shadow: none !important;
+}
+:root[data-look='broadcast'] .prog-slot.s-missing,
+:root[data-look='broadcast'] .prog-card.s-missing { background: var(--b-panel) !important; }
+:root[data-look='broadcast'] .prog-slot.late,
+:root[data-look='broadcast'] .prog-card.late { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--b-warn) 70%, transparent) !important; }
+:root[data-look='broadcast'] .prog-slot.s-downloading::after,
+:root[data-look='broadcast'] .prog-card.s-downloading::after { background: var(--b-glow) !important; box-shadow: none !important; animation: none !important; }
+:root[data-look='broadcast'] .prog-thumb::before,
+:root[data-look='broadcast'] .prog-thumb::after { display: none !important; }
+:root[data-look='broadcast'] .prog-thumb,
+:root[data-look='broadcast'] .prog-thumb img { border-radius: 6px !important; transform: none !important; }
+
+/* ---- Live TV -------------------------------------------------------------------- */
+
+:root[data-look='broadcast'] .tv-tune { background: transparent !important; box-shadow: none !important; border-radius: 12px !important; white-space: normal; }
+:root[data-look='broadcast'] .tv-tune:hover:not(:disabled) { background: var(--b-cell) !important; }
+:root[data-look='broadcast'] .tv-name { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
+
+/* ---- Signing in and the loading screen ------------------------------------------- */
+
+:root[data-look='broadcast'] .auth-page,
+:root[data-look='broadcast'] .splash { background: var(--b-base) !important; background-image: none !important; }
+:root[data-look='broadcast'] .auth-page::before,
+:root[data-look='broadcast'] .auth-page::after { display: none !important; }
+:root[data-look='broadcast'] .auth-card {
+  background: var(--b-surface) !important;
+  border: 1px solid var(--b-line) !important;
+  border-radius: 20px !important;
+}
+:root[data-look='broadcast'] .auth-mark { filter: none !important; box-shadow: none !important; border-radius: 25%; }
+:root[data-look='broadcast'] .splash-label { color: var(--b-faint); }
+
+/* ---- Focus: one blue, always visible, only for keys and the remote ----------------
+   Buttons and anything chip-like fill with the blue (white words); fields,
+   posters and links get a 2px ring. Selected + focused adds a white ring. No
+   scale, no shadow, no delay. */
+
+:root[data-look='broadcast'] :focus-visible {
+  outline: 2px solid var(--b-focus) !important;
+  outline-offset: 2px;
+  scroll-margin: 96px 24px 72px;
+}
+:root[data-look='broadcast'] button:focus-visible,
+:root[data-look='broadcast'] a.btn-link:focus-visible,
+:root[data-look='broadcast'] .btn:focus-visible,
+:root[data-look='broadcast'] .chip:focus-visible,
+:root[data-look='broadcast'] .room-chip:focus-visible,
+:root[data-look='broadcast'] .link-pill:focus-visible,
+:root[data-look='broadcast'] .hero-pill:focus-visible,
+:root[data-look='broadcast'] .seg > a:focus-visible,
+:root[data-look='broadcast'] .page-tabs a:focus-visible,
+:root[data-look='broadcast'] .sidebar a:focus-visible,
+:root[data-look='broadcast'] .subnav a:focus-visible,
+:root[data-look='broadcast'] .menu-pop a:focus-visible,
+:root[data-look='broadcast'] .side-menu a:focus-visible,
+:root[data-look='broadcast'] .side-tool:focus-visible,
+:root[data-look='broadcast'] .top-icon:focus-visible,
+:root[data-look='broadcast'] .ab-slot:focus-visible,
+:root[data-look='broadcast'] .tv-tune:focus-visible,
+:root[data-look='broadcast'] [role='tab']:focus-visible,
+:root[data-look='broadcast'] [role='menuitem']:focus-visible,
+:root[data-look='broadcast'] [role='option']:focus-visible,
+:root[data-look='broadcast'] [role='button']:focus-visible,
+:root[data-look='broadcast'] .dropdown-list li:focus-visible {
+  background: var(--b-focus) !important;
+  color: var(--b-on-focus) !important;
+  border-color: transparent !important;
+  outline: 2px solid transparent !important; /* still drawn in forced colours */
+  filter: none !important;
+}
+:root[data-look='broadcast'] button:focus-visible svg,
+:root[data-look='broadcast'] a:focus-visible svg { color: currentColor !important; }
+/* chosen and focused: the blue with a white ring */
+/* (:not(#b) puts this over the fills above, whatever they sit in) */
+:root[data-look='broadcast'] .active:focus-visible:not(#b),
+:root[data-look='broadcast'] .parent-open:focus-visible:not(#b),
+:root[data-look='broadcast'] [aria-pressed='true']:focus-visible:not(#b),
+:root[data-look='broadcast'] [aria-checked='true']:focus-visible:not(#b),
+:root[data-look='broadcast'] [aria-selected='true']:focus-visible:not(#b),
+:root[data-look='broadcast'] [aria-current='page']:focus-visible:not(#b),
+:root[data-look='broadcast'] .room-chip.on:focus-visible:not(#b) {
+  outline: 2px solid var(--b-ring) !important;
+  outline-offset: 2px !important;
+}
+/* inside a strip (seg) the ring goes inside, where the strip does not clip it */
+:root[data-look='broadcast'] .seg > :focus-visible,
+:root[data-look='broadcast'] .view-switch > :focus-visible { outline-offset: -3px !important; }
+/* fields: the ring, the colour of the words stays */
+:root[data-look='broadcast'] input:focus-visible,
+:root[data-look='broadcast'] select:focus-visible,
+:root[data-look='broadcast'] textarea:focus-visible { outline: 2px solid var(--b-focus) !important; outline-offset: 1px; border-color: var(--b-focus) !important; }
+/* a slider grabbed by OK (remote/remote.ts): the glow says Left and Right now move it */
+:root[data-look='broadcast'] input[type='range'][data-remote-grab] { outline: 2px dashed var(--b-glow) !important; outline-offset: 4px; accent-color: var(--b-glow); }
+/* posters: the ring goes round the art, not the words */
+:root[data-look='broadcast'] .pcard a:focus-visible,
+:root[data-look='broadcast'] .pcard .pcard-link:focus-visible { outline: none !important; }
+:root[data-look='broadcast'] .cx-card:focus-visible > img,
+:root[data-look='broadcast'] .cinema-poster:focus-visible,
+:root[data-look='broadcast'][data-remote='1'] .pcard:focus-within .pcard-art,
+:root[data-look='broadcast'][data-remote='1'] .sc-card:focus-within .sc-thumb { outline: 3px solid var(--b-focus) !important; outline-offset: 2px; }
+/* (kept apart: a browser without :has() drops only these) */
+:root[data-look='broadcast'] .pcard:has(.pcard-link:focus-visible) .pcard-art,
+:root[data-look='broadcast'] .pcard:has(> a:focus-visible) .pcard-art,
+:root[data-look='broadcast'] .sc-card:has(a:focus-visible) .sc-thumb { outline: 3px solid var(--b-focus) !important; outline-offset: 2px; }
+:root[data-look='broadcast'] .cx-card:focus-visible { outline: none !important; background: transparent !important; }
+:root[data-look='broadcast'] .pcard:has(a:focus-visible) .pcard-title { color: var(--b-text) !important; text-decoration: underline; text-decoration-color: var(--b-focus); text-underline-offset: 3px; }
+/* the switch: a ring round its track */
+:root[data-look='broadcast'] .switch input:focus-visible + .switch-track { outline: 2px solid var(--b-focus) !important; outline-offset: 2px; }
+
+/* Things shown only under the pointer also show when the remote is on them. */
+:root[data-look='broadcast'] .pcard:focus-within .pcard-actions { opacity: 1; visibility: visible; }
+:root[data-look='broadcast'] .tag-chip:focus-within button,
+:root[data-look='broadcast'] .tag-chip button:focus-visible { opacity: 1; }
+:root[data-look='broadcast'] .np-list li:focus-within .np-grip,
+:root[data-look='broadcast'] .mpl-tracks li:focus-within .np-grip { opacity: 1; }
+
+/* ---- A TV: everything bigger for the sofa (TV size, or a TV's browser) ------------ */
+/* Same scale as the lobby layout's (lobby.css): nothing ends up under 18px. */
+:root[data-layout='broadcast'][data-tv] { zoom: 1.4; }
+:root[data-layout='broadcast'][data-tv] .app-shell { height: calc(100dvh / 1.4); }
+:root[data-look='broadcast'][data-tv] :focus-visible { outline-width: 3px !important; }
+
+/* The page sits beside the menu, so it is narrower than in the other looks:
+   a long button label (Russian, German, Polish) wraps inside its card instead
+   of running off it, at any width. */
+:root[data-look='broadcast'] main.content button.btn-with-icon { max-width: 100%; white-space: normal; text-align: center; }

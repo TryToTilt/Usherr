@@ -32,6 +32,21 @@ import { albumCoverUrl, PlayerContext, PlayerTimeContext, trackUrl, useMusicPlay
 import { useToast } from './Toast'
 import '../player.css'
 import { withBase } from '../base'
+import { useRemote } from '../remote' // Usherr Broadcast: the remote's media keys
+import { broadcastOn } from '../neu/look' // Usherr Broadcast
+import '../broadcast/screens.css' // Usherr Broadcast: the now-playing bar
+
+// Usherr Broadcast: a TV remote's media key can arrive twice, once as a key and
+// once through the Media Session; the second within this long is the same press.
+const SAME_PRESS_MS = 400
+let lastPress = 0
+const samePress = () => {
+  if (!broadcastOn()) return false // other looks: every press counts, as always
+  const now = Date.now()
+  const same = now - lastPress < SAME_PRESS_MS
+  lastPress = now
+  return same
+}
 
 // The music player: one pair of audio elements for the whole app (see
 // musicEngine.ts), so a song keeps playing while you move between pages, and a
@@ -694,10 +709,10 @@ export function MusicPlayerProvider({ children, popout = false }: { children: Re
         // An action this browser doesn't know is skipped.
       }
     }
-    set('play', () => void engine.play().catch(() => setPlaying(false)))
-    set('pause', () => engine.pause())
-    set('previoustrack', () => prev())
-    set('nexttrack', () => advance())
+    set('play', () => !samePress() && void engine.play().catch(() => setPlaying(false)))
+    set('pause', () => !samePress() && engine.pause())
+    set('previoustrack', () => !samePress() && prev())
+    set('nexttrack', () => !samePress() && advance())
     set('seekto', (d) => d.seekTime != null && seek(d.seekTime))
     set('seekbackward', (d) => seek(Math.max(0, engine.position - (d.seekOffset ?? 10))))
     set('seekforward', (d) => seek(engine.position + (d.seekOffset ?? 10)))
@@ -705,6 +720,24 @@ export function MusicPlayerProvider({ children, popout = false }: { children: Re
       for (const a of ['play', 'pause', 'previoustrack', 'nexttrack', 'seekto', 'seekbackward', 'seekforward'] as const) set(a, null)
     }
   }, [engine, prev, advance, seek])
+
+  // Usherr Broadcast: with a remote, Play/Pause plays or pauses the music, Fast forward and Next go to
+  // the next track, Rewind and Previous to the one before (a video playing on the page keeps its keys)
+  useRemote((action) => {
+    if (popout || !latest.current.current) return undefined
+    const video = Array.from(document.querySelectorAll('video')).some((v) => !v.paused)
+    if (video) return undefined
+    const go = (f: () => void) => {
+      if (!samePress()) f()
+      return true
+    }
+    if (action === 'playpause') return go(toggle)
+    if (action === 'play') return go(() => void engine.play().catch(() => setPlaying(false)))
+    if (action === 'pause') return go(() => engine.pause())
+    if (action === 'fastforward' || action === 'next') return go(advance)
+    if (action === 'rewind' || action === 'previous') return go(prev)
+    return undefined
+  }, broadcastOn())
 
   const api_ = useMemo<PlayerApi>(
     () => ({
@@ -786,6 +819,13 @@ export function MiniPlayer() {
       <section className="mini-player" data-walk="music-bar" aria-label={t('Music player')}>
         <Cover albumId={c.albumId} />
         <div className="mp-info">
+          {/* Usherr Broadcast: what the bar is doing, and the remote's keys while a remote is in use */}
+          {broadcastOn() && (
+            <small className="mp-state">
+              {p.playing ? t('Playing') : t('Paused')}
+              <span className="mp-keys"> · {t('⏪ ⏩ skip · ▶❚❚ pause')}</span>
+            </small>
+          )}
           <strong title={c.title}>{c.title}</strong>
           <span title={`${c.artist} · ${c.album}`}>{p.problem || [c.artist, c.album].filter(Boolean).join(' · ')}</span>
         </div>

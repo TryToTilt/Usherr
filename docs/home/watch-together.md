@@ -18,8 +18,8 @@ It comes in layers, each optional:
 
 ## Linked Usherrs
 
-An administrator switches it on under **Settings → Movie night → Linked
-Usherrs**: **Link with other Usherrs** is off until you do.
+An administrator switches it on under **Server › People › Linked Usherrs**
+(in Classic or Neu: **Settings → Movie night → Linked Usherrs**): **Link with other Usherrs** is off until you do.
 
 1. **Invite a friend's Usherr** makes a one-time code
    (`USH-XXXX-XXXX-XXXX-XXXX-XXXX-X`). It works once, for 24 hours, and can be
@@ -99,6 +99,12 @@ pre-show is playing in step, and has a **seat map** of who's coming. Press
 Your seat is the one printed on your stub. The lobby works for your own
 showtimes too.
 
+In Broadcast the lobby is a full screen made for the remote: pick your seat
+with the arrows and OK, chat with quick replies (or **Finish on your phone**
+to type there), react, and **Start the film**, **Skip the pre-show**, use your
+phone as the remote, or **Leave**. Your crew's vote shows on **Movie night** as
+cards you press to vote.
+
 ### Chat and reactions
 
 - **Chat** reaches every Usherr at the screening, on the Showtime page and on
@@ -146,8 +152,9 @@ badge.
 
 ## Crews
 
-A crew is your movie-night group between parties. Open **Crews** in the menu
-(next to Showtime) and press **Make a crew**: give it a name and tick the
+A crew is your movie-night group between parties. Open **Movie night ›
+Crews and votes** in the menu (in Classic or Neu: **Crews**, next to Showtime)
+and press **Make a crew**: give it a name and tick the
 linked Usherrs in it. Each one gets an invite, and in each house **only the
 people who join it themselves are in it** (**Join the crew**). The crew sees
 your first name. **Leave the crew** works any time. **End the crew**, for

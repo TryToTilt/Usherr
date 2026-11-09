@@ -16,6 +16,7 @@ const out = process.env.PDF ?? join(docs, 'usherr-guide.pdf') // Usherr
 const brand = (s) => s.replace(/(?<![\w/.@-])Mediarium(?![\w/-])/g, 'Usherr')
 const PAGES = [
   ['getting-started.md', 'Getting started'],
+  ['broadcast.md', 'Broadcast and the remote'],
   ['finding.md', 'Finding something to watch'],
   ['watching.md', 'Watching it'],
   ['watch-together.md', 'Watching together'],

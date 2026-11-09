@@ -9,6 +9,7 @@ export function currentPalette(): string {
 
 export function markSrc(palette = currentPalette()): string {
   if (document.documentElement.dataset.look === 'neu') return withBase('/neu-mark.svg') // Usherr Neu
+  if (document.documentElement.dataset.look === 'broadcast') return withBase('/broadcast-mark.svg') // Usherr Broadcast
   return withBase(palette === 'wine' ? '/usherr-mark.png' : `/usherr-mark-${palette}.png`)
 }
 

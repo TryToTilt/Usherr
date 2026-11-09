@@ -19,15 +19,29 @@ try {
   // blocked storage: wine
 }
 // Usherr Neu (neu/look.ts), also before anything paints.
+// Usherr: nothing saved (or blocked storage) is Broadcast, with its own layout.
+let tvUA = false
 try {
-  const look = localStorage.getItem('usherr-look')
+  tvUA = /SMART-TV|SmartTV|Tizen|Web0S|webOS|BRAVIA|AFT[A-Z]|CrKey|GoogleTV|Android TV|AppleTV/i.test(navigator.userAgent)
+  let look: string | null = null
+  try {
+    look = localStorage.getItem('usherr-look')
+  } catch {
+    // blocked storage: Broadcast
+  }
   if (look === 'neu' || look === 'lobby') document.documentElement.dataset.look = 'neu'
   if (look === 'lobby') document.documentElement.dataset.layout = 'lobby' // Neu with the new layout
+  if (look !== 'neu' && look !== 'lobby' && look !== 'classic') {
+    document.documentElement.dataset.look = 'broadcast'
+    document.documentElement.dataset.layout = 'broadcast'
+  }
   // and on a TV everything bigger: picked under You, or a TV's own browser
+  // Usherr: a TV's own browser is marked too, so the remote (remote/) is on from the start
+  if (tvUA) document.documentElement.dataset.tvBrowser = '1'
   const tv = localStorage.getItem('usherr-tv')
-  if (tv === '1' || (tv === null && /SMART-TV|SmartTV|Tizen|Web0S|webOS|BRAVIA|AFT[A-Z]|CrKey|GoogleTV|Android TV|AppleTV/i.test(navigator.userAgent))) document.documentElement.dataset.tv = '1'
+  if (tv === '1' || (tv === null && tvUA)) document.documentElement.dataset.tv = '1'
 } catch {
-  // blocked storage: Classic
+  // blocked storage: Broadcast
 }
 
 // The app puts a page where it belongs when going back or forward (App shell); the browser's own guess would fight it.

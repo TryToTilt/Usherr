@@ -84,14 +84,11 @@ export function ChatText({ m, link }: { m: ChatMessage; link?: boolean }) {
   return <p className="pc-text">{link ? m.text : <DiscordText text={m.text} />}</p>
 }
 
-export function PartyChat({ showtimeId, tall }: { showtimeId: number; tall?: boolean }) {
+// Usherr Broadcast: the chat's messages and its "say", shared by the chat
+// below and the Broadcast lobby's quick replies (ShowtimeBroadcast.tsx).
+export function usePartyChat(showtimeId: number): { a: ChatAnswer | null; msgs: ChatMessage[]; say: (words: string, spoilerToo: boolean) => Promise<void> } {
   const [a, setA] = useState<ChatAnswer | null>(null)
   const [msgs, setMsgs] = useState<ChatMessage[]>([])
-  const [text, setText] = useState('')
-  const [spoiler, setSpoiler] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const end = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let live = true
@@ -121,14 +118,9 @@ export function PartyChat({ showtimeId, tall }: { showtimeId: number; tall?: boo
     }
   }, [showtimeId])
 
-  useEffect(() => {
-    if (!tall || !a?.link) end.current?.scrollIntoView({ block: 'end' })
-  }, [msgs.length, tall, a?.link])
-
-  if (!a) return null
-
   // say sends a message (throws what went wrong).
   const say = async (words: string, spoilerToo: boolean) => {
+    if (!a) throw new Error(t('The chat isn’t ready yet.'))
     const res = await fetch(base(showtimeId), {
       method: 'POST',
       credentials: 'include',
@@ -139,6 +131,22 @@ export function PartyChat({ showtimeId, tall }: { showtimeId: number; tall?: boo
     if (!res.ok) throw new Error(d?.error ?? t('Something went wrong (error {status}).', { status: res.status }))
     if (d?.message) setMsgs((list) => merge(list, d.message as ChatMessage))
   }
+  return { a, msgs, say }
+}
+
+export function PartyChat({ showtimeId, tall }: { showtimeId: number; tall?: boolean }) {
+  const { a, msgs, say } = usePartyChat(showtimeId) // Usherr Broadcast: the hook above
+  const [text, setText] = useState('')
+  const [spoiler, setSpoiler] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const end = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!tall || !a?.link) end.current?.scrollIntoView({ block: 'end' })
+  }, [msgs.length, tall, a?.link])
+
+  if (!a) return null
 
   if (tall && a.link) return <PartyPhone showtimeId={showtimeId} answer={a} msgs={msgs} say={say} />
 

@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon'
 import { locale, t } from '../i18n'
 import { tvPrefsNow } from './tvPrefs'
+import { broadcastOn } from '../neu/look' // Usherr Broadcast
+import './tvBroadcast.css' // Usherr Broadcast
 
 export interface SurfChannel {
   id: number
@@ -47,6 +49,12 @@ export function useSurfKeys(on: { up: () => void; down: () => void; number: (n: 
       if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'ChannelDown') return void (e.preventDefault(), h.down())
       if (e.key === 'Backspace' || e.key === 'l' || e.key === 'L') return void (e.preventDefault(), h.last())
       if (e.key === 'i' || e.key === 'I' || e.key === 'Info') return void h.info()
+      // Usherr Broadcast: OK shows or hides the overlay (OK on a button still presses it)
+      if (e.key === 'Enter' && broadcastOn() && document.querySelector('.bov') && !(el && el.closest('button, a[href], select, summary, [role="button"]'))) {
+        e.preventDefault()
+        window.dispatchEvent(new Event(OSD_TOGGLE))
+        return
+      }
       if (/^[0-9]$/.test(e.key)) {
         digits.current += e.key
         window.clearTimeout(timer.current)
@@ -161,8 +169,12 @@ export function StaticBurst({ run, force }: { run: number; force?: boolean }) {
   return <canvas ref={canvas} width={160} height={90} className={`tv-static${on ? ' on' : ''}`} aria-hidden="true" />
 }
 
+// Usherr Broadcast: OK while watching asks the overlay to show or hide.
+const OSD_TOGGLE = 'usherr-tv-osd'
+
 // The info banner along the bottom: channel, what's on, time left, next.
 export function InfoBanner({ ch, show, typed }: { ch?: SurfChannel; show: boolean; typed: string }) {
+  if (broadcastOn()) return <BroadcastOverlay ch={ch} show={show} typed={typed} /> // Usherr Broadcast
   if (typed) return <div className="tv-banner on tv-banner-typed">{typed}</div>
   if (!ch) return null
   const now = ch.now
@@ -224,6 +236,103 @@ export function SurfButtons({ up, down, last, info, startOver }: { up: () => voi
       <button type="button" className="icon-btn" onClick={info} aria-label={t('What’s on')} title={t('What’s on (I)')}>
         <Icon name="info" size={16} />
       </button>
+    </div>
+  )
+}
+
+// Usherr Broadcast: the overlay while watching, in the Broadcast look: the
+// channel's number in a badge, its name in capitals, what's on (title,
+// episode, times, a glowing progress line, the clock) and an Up Next card.
+// It shows on each channel change for a few seconds; OK shows or hides it.
+function BroadcastOverlay({ ch, show, typed }: { ch?: SurfChannel; show: boolean; typed: string }) {
+  const [forced, setForced] = useState<boolean | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+  const [nextPoster, setNextPoster] = useState('')
+  const open = forced ?? show
+  const openRef = useRef(open)
+  openRef.current = open
+  // a channel change (or I) shows it again, whatever OK last said
+  useEffect(() => setForced(null), [show, ch?.id])
+  useEffect(() => {
+    const on = () => setForced(!openRef.current)
+    window.addEventListener(OSD_TOGGLE, on)
+    const tm = window.setInterval(() => setNow(Date.now()), 15_000)
+    return () => {
+      window.removeEventListener(OSD_TOGGLE, on)
+      window.clearInterval(tm)
+    }
+  }, [])
+  const next = ch?.next
+  useEffect(() => {
+    setNextPoster('')
+    if (!ch || !next) return
+    let gone = false
+    fetch(`/api/tv/channels/${ch.id}/info?at=${new Date(next.start).getTime() + 1000}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { info?: { poster?: string } } | null) => !gone && setNextPoster(d?.info?.poster ?? ''))
+      .catch(() => undefined)
+    return () => {
+      gone = true
+    }
+  }, [ch?.id, next?.start]) // eslint-disable-line react-hooks/exhaustive-deps
+  const cur = ch?.now
+  const progress = cur ? Math.max(0, Math.min(1, (now - new Date(cur.start).getTime()) / (new Date(cur.end).getTime() - new Date(cur.start).getTime()))) : 0
+  return (
+    <div className={`bov${open || typed ? ' on' : ''}`} aria-live="polite">
+      {typed ? (
+        <span className="bov-typed">{typed}</span>
+      ) : ch ? (
+        <>
+          <div className="bov-shade" />
+          <div className="bov-hint" aria-hidden="true">
+            <span>
+              <b>▲ ▼</b> {t('channel')}
+            </span>
+            <span>
+              <b>OK</b> {t('info')}
+            </span>
+            <span>
+              <b>Back</b> {t('guide')}
+            </span>
+          </div>
+          <div className="bov-now">
+            <span className="bov-badge">{ch.logoUrl ? <img src={ch.logoUrl} alt={String(ch.number)} /> : ch.number}</span>
+            <div className="bov-text">
+              <span className="bov-name">
+                {ch.logoUrl ? `${ch.number} · ` : ''}
+                {ch.name}
+              </span>
+              <span className="bov-title">{cur ? cur.title : t('Up next')}</span>
+              {cur && (
+                <span className="bov-ep">
+                  {cur.subtitle ? `${cur.subtitle} · ` : ''}
+                  {clock(cur.start)} – {clock(cur.end)}
+                </span>
+              )}
+              {cur && (
+                <div className="bov-prog">
+                  <span className="bov-track">
+                    <span style={{ width: `${progress * 100}%` }} />
+                  </span>
+                  <span>{new Date(now).toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' })}</span>
+                </div>
+              )}
+            </div>
+          </div>
+          {next && (
+            <div className="bov-next">
+              {nextPoster ? <img src={nextPoster} alt="" /> : <span className="bov-noposter" />}
+              <div>
+                <small>{t('Up Next')}</small>
+                <strong>{next.title}</strong>
+                <span>
+                  {clock(next.start)} – {clock(next.end)}
+                </span>
+              </div>
+            </div>
+          )}
+        </>
+      ) : null}
     </div>
   )
 }

@@ -3,6 +3,7 @@
 import { t } from '../../i18n'
 import { sportsApi } from '../../home/sportsApi'
 import type { SmhCtx, SmhStep, Walkthrough } from '../types'
+import { bc, bcTo } from '../look' // Usherr Broadcast: words for its own pages
 
 const pick = (c: SmhCtx, key: string) => (c.answers[key] as { value: string } | undefined)?.value
 
@@ -187,7 +188,7 @@ export const followTeam: Walkthrough = {
       kind: 'done',
       when: (c) => c.answers.sportsReady !== true,
       title: t('Sports isn’t set up yet'),
-      text: t('Sports runs on Usherr’s own engine (TheSportsDB, no Sportarr needed) or on Sportarr. An administrator sets it up under Settings, Extras, Sports.'),
+      text: bc(t('Sports runs on Usherr’s own engine (TheSportsDB, no Sportarr needed) or on Sportarr. An administrator sets it up under Server, Kinds of media, Sports.'), t('Sports runs on Usherr’s own engine (TheSportsDB, no Sportarr needed) or on Sportarr. An administrator sets it up under Settings, Extras, Sports.')),
     },
     { kind: 'go', to: '/sports', title: t('Sports'), text: t('The games of the coming two weeks, the leagues in your library and the teams you follow.') },
     {
@@ -253,7 +254,7 @@ export const getSports: Walkthrough = {
       kind: 'done',
       when: (c) => c.answers.sportsReady !== true || c.answers.sportsOwn !== true,
       title: t('This needs Usherr’s own engine'),
-      text: t('Under Settings, Extras, Sports, choose Usherr’s own engine and a Sports folder (where downloaded games go). With Sportarr, Sportarr does the downloading.'),
+      text: bc(t('Under Server, Kinds of media, Sports, choose Usherr’s own engine and a Sports folder (where downloaded games go). With Sportarr, Sportarr does the downloading.'), t('Under Settings, Extras, Sports, choose Usherr’s own engine and a Sports folder (where downloaded games go). With Sportarr, Sportarr does the downloading.')),
     },
     { kind: 'go', to: '/sports', title: t('Sports'), text: t('Your leagues are listed under Leagues.') },
     {
@@ -274,7 +275,7 @@ export const getSports: Walkthrough = {
     {
       kind: 'say',
       title: t('Coming from Sportarr?'),
-      text: t('Under Settings, Extras, Sports, Bring my followed leagues from Sportarr adds its leagues and teams here, with whether each gets its new games. It only reads Sportarr.'),
+      text: bc(t('Under Server, Kinds of media, Sports, Bring my followed leagues from Sportarr adds its leagues and teams here, with whether each gets its new games. It only reads Sportarr.'), t('Under Settings, Extras, Sports, Bring my followed leagues from Sportarr adds its leagues and teams here, with whether each gets its new games. It only reads Sportarr.')),
     },
     {
       kind: 'say',
@@ -305,7 +306,7 @@ export const playOnTv: Walkthrough = {
       title: t('First, on the TV box'),
       text: t('On the Android TV box: Settings, About, press Build seven times to turn on Developer options. Then in Developer options, turn on Network debugging (USB debugging on some boxes). Note the box’s address (Settings, Network); a fixed address for it in your router helps.'),
     },
-    { kind: 'go', to: '/settings/extras', title: t('Extras'), text: t('Play on TV is one of the cards here.') },
+    { kind: 'go', to: bcTo('/settings/play-on-tv', '/settings/extras#play-on-tv'), title: bc(t('Play on TV'), t('Extras')), text: bc(t('Server, Watching, Play on TV.'), t('Play on TV is one of the cards here.')) },
     { kind: 'point', target: 'tv-pair-form', until: 'next', title: t('The TV’s address and name'), text: t('Type the box’s address and a name (Living room TV), then Save.') },
     { kind: 'point', target: 'tv-pair', until: 'next', title: t('Pair'), text: t('Press Pair, then allow the prompt that appears on the TV. Test it starts something on the box.') },
     { kind: 'done', title: t('Play on TV is ready'), text: t('In the player, Play on Living room TV (your TV’s name) sends what you’re watching to the box, which plays it in VLC or opens it in Stremio.') },

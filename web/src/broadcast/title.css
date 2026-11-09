@@ -1,0 +1,78 @@
+/* Usherr Broadcast: a title's page (TitleLayout's 'broadcast' layout, the
+   mock-up's Title screen). Only ever drawn in Broadcast. */
+
+.fp-broadcast { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+.fp-broadcast > .card,
+.fp-broadcast > section { margin: 0; min-width: 0; }
+
+/* the hero: the backdrop across the whole card, washed from the left and the bottom */
+:root[data-look='broadcast'] .fp-broadcast .title-hero {
+  grid-template-columns: minmax(140px, 260px) minmax(0, 1fr);
+  align-items: end;
+  min-height: min(62vh, 560px);
+  margin: 0;
+  padding: clamp(18px, 2.6vw, 40px);
+  border: 0;
+  border-radius: 16px;
+  background: var(--b-panel);
+  overflow: hidden;
+}
+:root[data-look='broadcast'] .fp-broadcast .title-hero::after {
+  display: block !important;
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, var(--b-base) 22%, color-mix(in srgb, var(--b-base) 72%, transparent) 50%, color-mix(in srgb, var(--b-base) 18%, transparent)),
+    linear-gradient(0deg, var(--b-base), transparent 50%) !important;
+}
+:root[data-look='broadcast'] .fp-broadcast .title-scene { inset: 0; width: 100%; height: 100%; max-height: none; border-radius: inherit; }
+:root[data-look='broadcast'] .fp-broadcast .title-scene img,
+:root[data-look='broadcast'] .fp-broadcast .title-scene .scene-video { -webkit-mask-image: none; mask-image: none; }
+:root[data-look='broadcast'] .fp-broadcast .title-scene img { opacity: 1; animation: none; width: 100%; height: 100%; object-fit: cover; }
+:root[data-look='broadcast'] .fp-broadcast .title-scene::before,
+:root[data-look='broadcast'] .fp-broadcast .title-scene:not(.video-on)::after { display: none; }
+:root[data-look='broadcast'] .fp-broadcast .title-hero-bg { inset: -40px; height: auto; opacity: 0.6; -webkit-mask-image: none; mask-image: none; }
+:root[data-look='broadcast'] .fp-broadcast .title-side { position: relative; top: auto; align-self: end; }
+:root[data-look='broadcast'] .fp-broadcast .title-info { align-self: end; gap: 14px; }
+:root[data-look='broadcast'] .fp-broadcast .title-info h1 { font-size: clamp(2rem, 4.2vw, 3.8rem); line-height: 1.05; font-weight: 800; }
+:root[data-look='broadcast'] .fp-broadcast .title-overview { max-width: 70ch; font-size: 1.08rem; line-height: 1.5; color: var(--b-dim); }
+:root[data-look='broadcast'] .fp-broadcast .title-actions { margin-top: 6px; }
+
+/* More like this, and other poster lists on the page: one row the remote goes along */
+:root[data-look='broadcast'] .fp-broadcast .poster-grid {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 6px 4px 10px;
+  margin: 0 -4px;
+  scrollbar-width: thin;
+}
+:root[data-look='broadcast'] .fp-broadcast .poster-grid > * { flex: 0 0 auto; width: 150px; }
+:root[data-look='broadcast'] .fp-broadcast .rail-head h2,
+:root[data-look='broadcast'] .fp-broadcast > .card > h2 { font-size: 1.35rem; }
+
+/* a show's episodes (LobbyEpisodes): a panel, the one you're part way through a cell */
+:root[data-look='broadcast'] .fp-broadcast .lobby-eps-list { background: var(--b-panel); box-shadow: none; border-radius: 16px; }
+:root[data-look='broadcast'] .fp-broadcast .lobby-ep { border-radius: 12px; }
+:root[data-look='broadcast'] .fp-broadcast .lobby-ep + .lobby-ep { border-top-color: var(--b-line); }
+:root[data-look='broadcast'] .fp-broadcast .lobby-ep.now { box-shadow: none; background: var(--b-cell); }
+:root[data-look='broadcast'] .fp-broadcast .lobby-ep-bar { background: var(--b-cell-hi); }
+:root[data-look='broadcast'] .fp-broadcast .lobby-ep-bar span { background: var(--b-glow); }
+:root[data-look='broadcast'] .fp-broadcast .lobby-ep-state.left { color: var(--b-glow); }
+:root[data-look='broadcast'] .fp-broadcast .lobby-eps-head h2 { font-size: 1.35rem; }
+
+/* Manage, opened from the More sheet */
+.fp-broadcast .bc-manage { scroll-margin-top: 80px; }
+.fp-broadcast .bc-manage .fp-manage-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
+.fp-broadcast .bc-manage .fp-manage-head h2 { margin: 0; }
+.fp-broadcast .bc-manage .fp-manage-head .fp-sum { margin: 0; flex: 1; color: var(--b-dim); }
+
+@media (max-width: 700px) {
+  :root[data-look='broadcast'] .fp-broadcast .title-hero { grid-template-columns: minmax(0, 1fr); min-height: 0; padding-top: 140px; }
+  :root[data-look='broadcast'] .fp-broadcast .title-hero > .title-side { display: none; }
+  :root[data-look='broadcast'] .fp-broadcast .title-info h1 { font-size: clamp(1.8rem, 8.4vw, 2.4rem); }
+  :root[data-look='broadcast'] .fp-broadcast .bc-title-actions > :first-child { flex: 1 1 100%; justify-content: center; }
+  :root[data-look='broadcast'] .fp-broadcast .poster-grid > * { width: 120px; }
+}

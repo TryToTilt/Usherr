@@ -24,6 +24,8 @@ import { useRoomLink, type RoomLink } from './roomLink'
 import { HostPartyButtons, PartyMoments } from './Party' // Usherr: the party: lobby, intermission, verdict
 import { Link } from 'react-router-dom'
 import './showtime.css'
+import { broadcastOn } from '../neu/look' // Usherr Broadcast
+import { BroadcastLobby, ComingUp, CrewVotes, NightHero } from './ShowtimeBroadcast' // Usherr Broadcast: Movie night's own layout
 
 // findStream starts the best stream for a showtime's film at this device's
 // quality, trying the next release when one won't start (an indexer that
@@ -74,12 +76,12 @@ async function startFilm(s: Showtime, ahead?: Promise<StreamStart> | null, room?
 
 // LinkedParty: Usherr. A linked screening's party (the lobby, the
 // intermission, the verdict), where its room says the film has got to.
-function LinkedParty({ s }: { s: Showtime }) {
+function LinkedParty({ s, noLobby }: { s: Showtime; noLobby?: boolean }) { // Usherr Broadcast: noLobby, the lobby is its own screen there
   const { link, room } = useRoomLink(s.id)
   const at = link?.at() ?? null
   const state = at?.state
   const preshow = state === 'preshow' && room ? room.preshowSeconds + (at?.position ?? 0) : null
-  return <PartyMoments showtimeId={s.id} title={s.title} film={state === 'film' || state === 'paused'} preshow={preshow} preshowTotal={room?.preshowSeconds} pausedAt={state === 'paused' ? at?.position : undefined} />
+  return <PartyMoments showtimeId={s.id} title={s.title} film={noLobby || state === 'film' || state === 'paused'} preshow={preshow} preshowTotal={room?.preshowSeconds} pausedAt={state === 'paused' ? at?.position : undefined} />
 }
 
 // BookFilm: book a film from the Showtime page itself: search, pick, then
@@ -196,6 +198,10 @@ export default function ShowtimePage() {
   const [started, setStarted] = useState<number | null>(null) // the film is on
   const [starting, setStarting] = useState<number | null>(null) // ... being started
   const [error, setError] = useState('')
+  // Usherr Broadcast: the look's own layout, its full-screen lobby, and the pre-show skipped here
+  const broadcast = broadcastOn()
+  const [lobby, setLobby] = useState(false)
+  const [skipPre, setSkipPre] = useState<number | null>(null)
   const load = useCallback(() => {
     listShowtimes()
       .then((d) => {
@@ -238,12 +244,12 @@ export default function ShowtimePage() {
   }, [next, ready, room, due, preSecs])
   const preStart = next && preSecs && preSecs.id === next.id && preSecs.at === next.atMs && preSecs.secs > 0 ? next.atMs - preSecs.secs * 1000 : null
   useEffect(() => {
-    if (!next || !ready || room || preStart === null || due || serverNow < preStart) return
+    if (!next || !ready || room || preStart === null || due || serverNow < preStart || skipPre === next.id) return // Usherr Broadcast: skipPre
     const key = `${next.id}-${next.atMs}`
     if (preTried.current === key) return
     preTried.current = key
     void playWithPreshow({ showtime: next.id, budget: Math.max(30, Math.round((next.atMs - serverNow) / 1000)) }, () => undefined)
-  }, [next, ready, room, preStart, due, serverNow])
+  }, [next, ready, room, preStart, due, serverNow, skipPre])
   // A film that isn't in the library: its stream is found while the pre-show
   // runs (from five minutes before at the latest), so it's ready at showtime.
   const ahead = useRef<{ id: number; at: number; p: Promise<StreamStart> } | null>(null)
@@ -317,8 +323,70 @@ export default function ShowtimePage() {
     load()
   }
 
+  // Usherr Broadcast: what Invite does for the next showtime: linked Usherrs, else Discord.
+  const canRun = !!next && (next.mine || admin) && next.state !== 'done' && !next.hosted
+  const invite =
+    next && canRun && linkOn && !next.party?.joined
+      ? { label: t('Invite'), run: () => setPicking(picking === next.id ? null : next.id), expanded: picking === next.id }
+      : next && canRun && communityOn && !next.party && next.state === 'booked'
+        ? { label: t('Invite'), run: () => void share(next) }
+        : undefined
+  const preshowOn = !!next && !room && preStart !== null && !due && serverNow >= preStart
+
   return (
-    <div className="page showtime-page">
+    <div className={`page showtime-page${broadcast ? ' sht-broadcast' : ''}`}>
+      {broadcast && (
+        <>
+          <NightHero
+            next={next}
+            serverNow={serverNow}
+            due={!!due}
+            ready={ready && !room}
+            starting={!!next && starting === next.id}
+            error={error}
+            onLobby={() => {
+              setReady(true) // opening the lobby here makes this the screen the film plays on
+              setLobby(true)
+            }}
+            invite={invite}
+            extra={next && picking === next.id && canRun ? <InviteLinked showtime={next} onChanged={load} /> : null}
+          />
+          <CrewVotes />
+          <ComingUp
+            list={(list ?? []).filter((s) => s.id !== next?.id && s.state !== 'done' && showtimeEnds(s) > serverNow)}
+            onOpen={(s) => {
+              const row = document.getElementById(`sht-row-${s.id}`)
+              row?.scrollIntoView({ block: 'center' })
+              row?.querySelector<HTMLElement>('button, a[href]')?.focus({ preventScroll: true })
+            }}
+          />
+          {lobby && next && (
+            <BroadcastLobby
+              s={next}
+              serverNow={serverNow}
+              due={!!due}
+              preshowOn={preshowOn}
+              canStart={(next.mine || admin) && started !== next.id && starting !== next.id}
+              onStart={() => {
+                setReady(true)
+                setLobby(false)
+                go(next)
+              }}
+              onSkipPre={
+                !room && next.preshowMin > 0 && !due && skipPre !== next.id && !preshowOn
+                  ? () => {
+                      setSkipPre(next.id)
+                      toast.info(t('The pre-show won’t play here. The film still starts on time.'))
+                    }
+                  : undefined
+              }
+              room={room ? <ScreeningRoom key={next.id} showtime={next} joined={ready} onJoin={() => setReady(true)} start={startSynced} /> : undefined}
+              onClose={() => setLobby(false)}
+            />
+          )}
+        </>
+      )}
+      {!broadcast && (
       <section className={`sht-screen${next ? '' : ' empty'}`}>
         {next && room ? (
           <>
@@ -368,19 +436,20 @@ export default function ShowtimePage() {
           </div>
         )}
       </section>
+      )}
 
-      {next && room && <LinkedParty key={next.id} s={next} />}
+      {next && room && <LinkedParty key={next.id} s={next} noLobby={broadcast} />}
       {next && !room && (
         <PartyMoments
           key={next.id}
           showtimeId={next.id}
           title={next.title}
-          film={!!due}
+          film={broadcast || !!due} // Usherr Broadcast: the lobby is its own screen there
           preshow={preStart !== null && !due && serverNow >= preStart ? (serverNow - preStart) / 1000 : null}
           preshowTotal={preStart !== null ? (next.atMs - preStart) / 1000 : undefined}
         />
       )}
-      {next && ((next.party && !next.party.waiting) || room) && <PartyChat showtimeId={next.id} />}
+      {next && ((next.party && !next.party.waiting) || room) && !broadcast && <PartyChat showtimeId={next.id} />}
       {(() => {
         // Usherr: the first friend's party still to set up (any of them, not only the next on screen)
         const j = (list ?? []).find((s) => s.party?.joined && (s.party.waiting || s.party.needLink) && s.state !== 'done')
@@ -401,7 +470,7 @@ export default function ShowtimePage() {
         {list && list.length === 0 && <p className="hint">{t('Nothing booked.')}</p>}
         <ul>
           {(list ?? []).map((s) => (
-            <li key={s.id} className={`sht-row st-${s.state}`}>
+            <li key={s.id} id={broadcast ? `sht-row-${s.id}` : undefined} className={`sht-row st-${s.state}`}>
               {s.posterUrl ? <img src={s.posterUrl} alt="" /> : <span className="sht-row-ph" />}
               <div>
                 <strong>{s.title}</strong>
@@ -461,7 +530,7 @@ export default function ShowtimePage() {
                   </button>
                 </span>
               )}
-              {picking === s.id && (s.mine || admin) && s.state !== 'done' && <InviteLinked showtime={s} onChanged={load} />}
+              {picking === s.id && (s.mine || admin) && s.state !== 'done' && !(broadcast && s.id === next?.id) && <InviteLinked showtime={s} onChanged={load} />}
             </li>
           ))}
         </ul>

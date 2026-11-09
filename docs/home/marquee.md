@@ -162,7 +162,7 @@ it was played never shows the result.
 
 Scores come from your sports backend, updated every minute while a screen
 shows sports: with Sportarr, live from Sportarr's own score feed (the score and
-whether a game is live or over). A paid TheSportsDB key (Settings → Extras →
+whether a game is live or over). A paid TheSportsDB key (Server › Kinds of media › Sports, or Settings → Extras →
 Sports) adds the clock ("Q3 08:12", "2H 85'") and the teams' crests, and gives
 Usherr's own engine its live scores.
 
@@ -188,7 +188,8 @@ something starts playing* is on, as soon as something starts.
 Usherr also has a pre-show of its own, played before the film itself on the
 Showtime screen, in Usherr's player and in the Jellyfin app: themes,
 schedules, your clips by category, downloaded coming-soon trailers. It's on
-**Settings → Movie night → Pre-show**, and has its own page in this guide:
+**Server › Watching › Pre-show** (**Settings → Movie night → Pre-show** in
+Classic or Neu), and has its own page in this guide:
 [The pre-show](preshow.md). The Marquee follows it piece by piece by itself.
 
 ## Theme music
@@ -233,7 +234,7 @@ automation:
 ## Scripts and buttons (the API)
 
 Anything that can call a web address can steer the screens: a Stream Deck,
-iOS Shortcuts, Tasker, a script. Make an API key in **Settings › Security**
+iOS Shortcuts, Tasker, a script. Make an API key in **You › Your settings › Security** (**Settings › Security** in Classic or Neu)
 (as an administrator) and send it as `X-Api-Key`. A screen is named by its
 name (`tablet`), its id, or `all`.
 

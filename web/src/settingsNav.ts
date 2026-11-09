@@ -2,6 +2,8 @@ import { BRAND } from './brand' // Usherr
 import type { IconName } from './components/Icon'
 import { t, tc } from './i18n.ts'
 import { lobbyOn } from './neu/look.ts' // Usherr: the new layout
+import { broadcastOn } from './onemenu/broadcast.ts' // Usherr Broadcast: its own settings groups
+import { BROADCAST_GROUPS, broadcastPages } from './onemenu/broadcastNav.ts' // Usherr Broadcast
 
 // The settings pages, in the order they appear under Settings in the sidebar.
 // Each has its own soft colour so the list is easy to scan. Pages marked
@@ -67,7 +69,8 @@ export const SETTINGS_REDIRECTS: [from: string, to: string][] = [
 // The settings pages an account may open: everything for an administrator,
 // only the member pages for everyone else.
 export function settingsNavFor(admin: boolean, viewer = false) {
-  const pages = admin ? SETTINGS_NAV : SETTINGS_NAV.filter((s) => s.member)
+  const all: NavPage[] = broadcastOn() ? broadcastPages(SETTINGS_NAV) : SETTINGS_NAV // Usherr Broadcast: its own list (onemenu/broadcastNav.ts)
+  const pages = admin ? all : all.filter((s) => s.member)
   return viewer ? pages.filter((s) => !s.notViewer) : pages
 }
 
@@ -105,7 +108,7 @@ export const inPage = (pathname: string, to: string) => pathname === to || pathn
 // left with one page takes that page's name.
 export function settingsGroupsFor(admin: boolean, viewer = false): SettingsGroup[] {
   const pages = settingsNavFor(admin, viewer)
-  return GROUPS.map((g) => {
+  return (broadcastOn() ? BROADCAST_GROUPS : GROUPS).map((g) => { // Usherr Broadcast: seven groups and Your settings
     const visible = g.pages.map((to) => pages.find((p) => p.to === to)).filter((p): p is NavPage => !!p)
     return { ...g, label: visible.length === 1 && g.pages.length > 1 ? visible[0].label : visible.length === 1 && !admin ? visible[0].label : g.label, pages: visible }
   }).filter((g) => g.pages.length > 0)
@@ -138,7 +141,8 @@ export function pageHelp(pathname: string, admin = true): string {
 }
 
 export function pageTitle(pathname: string, admin = true): string {
-  if (pathname === '/') return lobbyOn() ? t('Home') : t('Dashboard') // Usherr: the new layout's Home
+  if (pathname === '/') return lobbyOn() || broadcastOn() ? t('Home') : t('Dashboard') // Usherr: the new layout's Home (and Broadcast's)
+  if (pathname === '/find') return t('Find') // Usherr Broadcast
   if (pathname === '/server') return t('Server') // Usherr
   if (pathname === '/server/overview') return t('Server · Overview')
   const group = groupFor(pathname, admin)
@@ -146,7 +150,7 @@ export function pageTitle(pathname: string, admin = true): string {
     const page = group.pages.find((p) => inPage(pathname, p.to))
     return page && group.pages.length > 1 ? `${group.label} · ${page.label}` : group.label
   }
-  const settings = SETTINGS_NAV.find((s) => inPage(pathname, s.to))
+  const settings = settingsNavFor(true).find((s) => inPage(pathname, s.to)) // Usherr Broadcast: its own pages too
   if (settings) return settings.label
   if (pathname.startsWith('/settings')) return t('Settings')
   if (pathname.startsWith('/discover')) return t('Discover')

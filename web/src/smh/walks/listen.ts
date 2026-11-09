@@ -4,6 +4,10 @@
 // follow, so those two show the way in and say what's there.
 import { t } from '../../i18n'
 import type { Walkthrough } from '../types'
+import { bc, PRESS } from '../look' // Usherr Broadcast: words for its own pages
+
+// Usherr Broadcast: the players' button is in the menu there, not the top bar.
+const playersText = bc(t('In the menu, the play button opens the players and apps.'), t('The play button at the top opens the players and apps.'))
 
 export const playMusic: Walkthrough = {
   id: 'play-music',
@@ -125,7 +129,7 @@ export const listenAudiobook: Walkthrough = {
   icon: 'headphones',
   words: 'audiobook listen player books sleep timer speed chapters bookmark skip',
   simple: [
-    { kind: 'point', target: 'tool-play', act: 'click', until: { seen: 'books-listen' }, title: t('Players'), text: t('The play button at the top opens the players and apps.') },
+    { kind: 'point', target: 'tool-play', act: 'click', until: { seen: 'books-listen' }, title: t('Players'), text: playersText, remote: bc(PRESS.menu, '') },
     { kind: 'point', target: 'books-listen', until: 'next', title: t('Usherr Books'), text: t('Opens your audiobooks in a window of its own. Tap a book’s Listen to start.') },
     {
       kind: 'say',
@@ -150,7 +154,7 @@ export const readEbook: Walkthrough = {
   icon: 'book',
   words: 'ebook read reader kindle epub kobo e-reader opds koreader readest send email highlight scroll page turn curl',
   simple: [
-    { kind: 'point', target: 'tool-play', act: 'click', until: { seen: 'books-read' }, title: t('Players'), text: t('The play button at the top opens the players and apps.') },
+    { kind: 'point', target: 'tool-play', act: 'click', until: { seen: 'books-read' }, title: t('Players'), text: playersText, remote: bc(PRESS.menu, '') },
     { kind: 'point', target: 'books-read', until: 'next', title: t('Usherr Books'), text: t('Opens your ebooks in a window of its own. Tap a book’s Read to open it.') },
     {
       kind: 'say',
@@ -228,7 +232,7 @@ export const musicApps: Walkthrough = {
   icon: 'headphones',
   words: 'music phone app subsonic opensubsonic symfonium dsub substreamer play:sub feishin app password last.fm scrobble listenbrainz mobile data',
   simple: [
-    { kind: 'go', to: '/settings/services', title: t('Linked services'), text: t('Under Settings, Account & Access.') },
+    { kind: 'go', to: '/settings/services', title: t('Linked services'), text: bc(t('Under You, Your settings.'), t('Under Settings, Account & Access.')) },
     {
       kind: 'point',
       target: 'phone-apps',

@@ -14,6 +14,8 @@ import { t } from '../i18n'
 import { openReport } from '../report'
 import { useFocusTrap } from '../useFocusTrap'
 import { closeDoctor, startSmh } from './engine'
+import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast
+import { fixPath } from './look' // Usherr Broadcast: fixes on Extras go to their cards' pages
 import './smh.css'
 
 // The parts that are checked, and which checks belong to each.
@@ -78,7 +80,7 @@ export default function Doctor() {
           <p>{i.impact}</p>
           <div className="doc-acts">
             {i.action && (
-              <Link className="btn-sm primary" to={i.action.path} onClick={closeDoctor}>
+              <Link className="btn-sm primary" to={fixPath(i.action.path, broadcastOn())} onClick={closeDoctor}>
                 {i.action.label}
               </Link>
             )}
@@ -162,7 +164,11 @@ export default function Doctor() {
                   <Icon name="refresh" size={13} /> {t('Check again')}
                 </button>
               </div>
-              <p className="hint">{t('Still stuck? Settings, Logs and errors has the technical detail, and Report a problem sends it to the people who make Usherr.')}</p>
+              <p className="hint">
+                {broadcastOn()
+                  ? t('Still stuck? Server, Setup and health, Logs and errors has the technical detail, and Report a problem sends it to the people who make Usherr.')
+                  : t('Still stuck? Settings, Logs and errors has the technical detail, and Report a problem sends it to the people who make Usherr.')}
+              </p>
             </>
           )}
         </div>

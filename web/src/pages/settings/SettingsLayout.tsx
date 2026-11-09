@@ -8,6 +8,9 @@ import { useFindOnPage } from '../../findOnPage'
 import { t } from '../../i18n'
 import { pageBlurb, pageHelp, pageParts } from '../../settingsNav'
 import '../../settings.css'
+import { useBroadcastSettingsKeys } from '../../broadcast/settingsKeys' // Usherr Broadcast: switches with Left and Right
+import { FinishOnPhoneButton } from '../../components/PhoneHandoff' // Usherr Broadcast
+import { broadcastOn } from '../../neu/look' // Usherr Broadcast
 
 // Holds the open settings page. Pages that share a sidebar entry are listed
 // under it in the sidebar, and the top bar names the group and the page. On
@@ -15,6 +18,7 @@ import '../../settings.css'
 export default function SettingsLayout() {
   const { pathname } = useLocation()
   useFindOnPage()
+  useBroadcastSettingsKeys() // Usherr Broadcast
   const { user } = useAuth()
   const admin = isAdmin(user)
   const parts = pageParts(pathname, admin)
@@ -43,6 +47,12 @@ export default function SettingsLayout() {
           <button type="button" className="link-btn" onClick={fold.foldAll}>
             {t('Fold all')}
           </button>
+        </p>
+      )}
+      {/* Usherr Broadcast: on a TV, anything that needs typing is finished on a phone (this page, opened there signed in) */}
+      {broadcastOn() && (
+        <p className="fold-all">
+          <FinishOnPhoneButton path={pathname} what={t('these settings')} className="link-btn" />
         </p>
       )}
       <Suspense fallback={null}>

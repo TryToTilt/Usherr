@@ -91,10 +91,10 @@ export default function Tonight({ autoAsk, onPick }: { autoAsk?: boolean; onPick
 
   return (
     // Usherr: just the button, on its own line (Roulette is the dice in the top bar).
-    <section className={`card tonight-card${answer || error ? '' : ' tonight-idle'}`} aria-label={t('Tonight')}>
+    <section className={`card tonight-card${answer || error ? '' : ' tonight-idle'}`} data-walk="tonight-card" aria-label={t('Tonight')}>{/* Usherr Broadcast: data-walk for Show me how (Tonight is on Find there) */}
       <div className="tonight-head tonight-solo">
         {answer?.note && <p className="hint">{answer.note}</p>}
-        <button className={`btn-with-icon tonight-ask${answer ? '' : ' primary'}`} onClick={() => void ask(!!answer)} disabled={busy}>
+        <button className={`btn-with-icon tonight-ask${answer ? '' : ' primary'}`} data-walk="tonight-ask" onClick={() => void ask(!!answer)} disabled={busy}>
           <Icon name={answer ? 'shuffle' : 'sparkles'} size={14} /> {busy ? t('Thinking…') : answer ? t('Something else') : t('What should I watch tonight?')}
         </button>
       </div>

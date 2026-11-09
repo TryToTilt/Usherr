@@ -36,6 +36,8 @@ var viewerMayWrite = map[string]bool{
 	"PUT /api/auth/passkeys/{id}": true, "DELETE /api/auth/passkeys/{id}": true,
 	"POST /api/auth/oidc/link": true, "DELETE /api/auth/oidc/link": true,
 	"PUT /api/books/{id}/progress": true,
+	// Usherr: signing a TV in as yourself, and a phone link to your own page
+	"POST /api/auth/tv/code/{code}": true, "POST /api/auth/handoff": true,
 }
 
 // Things a viewer may not even read: they belong to whoever manages the account.

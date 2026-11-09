@@ -4,6 +4,7 @@ import { t } from '../../i18n'
 import { openShowtimeBooking } from '../../home/ShowtimePill'
 import type { ShowtimeFilm } from '../../home/ShowtimeButton'
 import type { SmhChoice, SmhCtx, SmhStep, Walkthrough } from '../types'
+import { bc } from '../look' // Usherr Broadcast: words for its own pages
 
 const film = (c: SmhCtx) => c.answers.film as { label: string; data: ShowtimeFilm } | undefined
 
@@ -49,12 +50,21 @@ const book = (): SmhStep => ({
   text: (c) => (c.watch ? t('Booking it for you.') : t('Press Book it.')),
 })
 
+// Usherr Broadcast: no countdown in the top bar there; it's on Home and Movie night.
 const pill = (): SmhStep => ({
   kind: 'point',
+  look: 'other',
   target: 'showtime-pill',
   until: 'next',
   title: t('Your countdown'),
   text: t('This button counts down to the showtime, from any page. Whatever it says, it opens the Showtime screen.'),
+})
+
+const countdown = (): SmhStep => ({
+  kind: 'say',
+  look: 'broadcast',
+  title: t('Your countdown'),
+  text: t('Home and Movie night count down to the showtime. At showtime, open Movie night on the TV and press Open the lobby.'),
 })
 
 export const bookShowtime: Walkthrough = {
@@ -70,11 +80,12 @@ export const bookShowtime: Walkthrough = {
     when(),
     book(),
     pill(),
+    countdown(),
     {
       kind: 'done',
       title: (c) => t('{title} is booked', { title: film(c)?.data.title ?? t('Your film') }),
       text: t('At showtime, open the Showtime screen in the browser on the TV and leave it there. It runs the pre-show and starts the film by itself.'),
-      shortcut: t('Next time: the clock on any film card, then Book a showtime.'),
+      shortcut: bc(t('Next time: More on a film’s page (the Options key), then Book a showtime.'), t('Next time: the clock on any film card, then Book a showtime.')),
     },
   ],
   advanced: [
@@ -136,6 +147,7 @@ export const bookShowtime: Walkthrough = {
     },
     book(),
     pill(),
+    countdown(),
     {
       kind: 'say',
       title: t('Watching with friends who run their own Usherr?'),
@@ -150,8 +162,8 @@ export const bookShowtime: Walkthrough = {
     {
       kind: 'done',
       title: (c) => t('{title} is booked', { title: film(c)?.data.title ?? t('Your film') }),
-      text: t('Your own clips and themes are under Settings, Pre-show. Show Me How has a walkthrough for that too.'),
-      shortcut: t('Next time: the clock on any film card, then Book a showtime.'),
+      text: bc(t('Your own clips and themes are under Server, Watching, Pre-show. Show Me How has a walkthrough for that too.'), t('Your own clips and themes are under Settings, Pre-show. Show Me How has a walkthrough for that too.')),
+      shortcut: bc(t('Next time: More on a film’s page (the Options key), then Book a showtime.'), t('Next time: the clock on any film card, then Book a showtime.')),
       then: { id: 'host-screening', label: t('Host a screening for friends') },
     },
   ],

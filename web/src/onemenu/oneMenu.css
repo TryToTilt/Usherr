@@ -1,0 +1,150 @@
+/* Usherr Broadcast: the one menu (OneMenu.tsx). Only drawn in the Broadcast
+   look (AppShell adds .one-menu to the shell); Classic's drawer and the lobby
+   layout keep their own files. Colours come from the look's own variables.
+   Modes on a wider screen: .mm-open (the whole menu in a column), .mm-icons
+   (a narrow rail that widens over the page while hovered, focused or opened),
+   .mm-hidden (a drawer, as navDrawer.css draws it). Phones: index.css's
+   drawer plus the bar along the bottom. */
+
+.one-nav { display: flex; flex-direction: column; gap: 2px; }
+.one-nav .nav-count { margin-left: auto; }
+.one-nav .nav-count.one-warn { color: var(--warning); }
+.one-nav .nav-chev { margin-left: auto; display: inline-flex; transition: transform 0.15s ease; }
+.one-nav .nav-count + .nav-chev { margin-left: 6px; }
+.one-sub { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 6px 14px; padding-left: 6px; border-left: 1px solid var(--border); }
+.sidebar .one-sub > a,
+.one-sub .one-sub-btn { font-size: 0.92em; padding-top: 7px; padding-bottom: 7px; }
+.one-sub .one-sub-btn {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding-left: 12px;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.one-sub .one-sub-btn:hover { background: var(--surface-2); }
+.one-sub .one-head {
+  margin: 10px 0 2px;
+  padding: 0 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.one-rule { border: 0; border-top: 1px solid var(--border); margin: 6px 12px; width: auto; }
+.one-tools { margin-top: 12px; }
+/* Broadcast's top bar has no players, guide or theme buttons: they are here at every width
+   (projection.css hides the menu's copy on a wide screen for the other looks) */
+.app-shell.one-menu .sidebar .one-tools .side-tools { display: flex; position: static; background: none !important; padding: 10px 8px 4px; justify-content: flex-start; gap: 6px; }
+/* under Server, the settings groups are always unfolded */
+.sidebar .one-server-pages .sn-collapse { grid-template-rows: 1fr; }
+.sidebar .one-server-pages .sn-collapse .sn-collapse-inner { visibility: visible; }
+
+/* the left edge opens a hidden menu */
+.one-edge { display: none; }
+
+@media (min-width: 901px) {
+  /* Always open: a column of its own */
+  .app-shell.one-menu.mm-open { grid-template-columns: 248px minmax(0, 1fr); }
+  .app-shell.one-menu.mm-open .topbar .menu-button { display: none !important; }
+  .app-shell.one-menu.mm-open .sidebar { overflow-y: auto; height: 100vh; height: 100dvh; position: sticky; top: 0; }
+  .app-shell.one-menu.mm-open .sidebar .menu-close { display: none; }
+
+  /* Icons: a rail that widens over the page */
+  .app-shell.one-menu.mm-icons { grid-template-columns: 72px minmax(0, 1fr); }
+  /* the rail is fixed (out of the grid), so the page names its column */
+  .app-shell.one-menu.mm-icons > .main-area { grid-column: 2; min-width: 0; }
+  .app-shell.one-menu.mm-icons .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: 72px;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 900;
+    padding-left: 8px;
+    padding-right: 8px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    transition: width 0.18s ease;
+  }
+  .app-shell.one-menu.mm-icons .sidebar.open { width: 268px; box-shadow: 8px 0 30px rgba(0, 0, 0, 0.35); }
+  .app-shell.one-menu.mm-icons .sidebar:not(.open) :is(.nav-label, .nav-chev, .one-sub, .one-tools, .brand-text, .side-version, .menu-close) { display: none !important; }
+  .app-shell.one-menu.mm-icons .sidebar:not(.open) .nav-count { position: absolute; margin: -18px 0 0 18px; font-size: 0.65rem; }
+  .app-shell.one-menu.mm-icons .sidebar:not(.open) a { justify-content: center; position: relative; }
+  .app-shell.one-menu.mm-icons .sidebar .menu-close { display: none; }
+  /* the menu button opens the whole rail (a mouse or the focus does too) */
+  .app-shell.one-menu.mm-icons .topbar .menu-button { display: inline-flex; align-items: center; justify-content: center; }
+
+  /* Hidden: a strip along the left edge opens it */
+  .app-shell.one-menu.mm-hidden .one-edge { display: block; position: fixed; inset: 0 auto 0 0; width: 8px; z-index: 850; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell.one-menu.mm-icons .sidebar { transition: none; }
+}
+
+/* ---- Phones and small tablets: the bar along the bottom ---------------- */
+
+.one-tabs { display: none; }
+@media (max-width: 900px) {
+  .one-tabs {
+    display: flex;
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 850;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
+  .one-tabs a {
+    flex: 1;
+    min-width: 0;
+    min-height: 54px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    color: var(--text-dim);
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1.1;
+    text-decoration: none;
+    border-radius: 12px;
+  }
+  /* every label whole: a long one ("Movie night") takes two lines rather than "Movie ..." */
+  .one-tabs a > span:last-child { max-width: 100%; text-align: center; white-space: normal; overflow-wrap: normal; hyphens: none; }
+  .one-tab-ico { position: relative; display: inline-grid; place-items: center; width: 44px; height: 30px; border-radius: 999px; }
+  /* the place you're in is "selected" (deep blue behind the icon); the bright blue is for focus only */
+  .one-tabs a.active { color: var(--text); }
+  .one-tabs a.active .one-tab-ico { background: var(--b-selected, var(--accent-subtle)); color: var(--b-on-selected, currentColor); }
+  .one-tab-dot { position: absolute; top: 3px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--warning); }
+  /* room for the bar under the page and the things that float over it */
+  .app-shell.one-menu .content { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  .app-shell.one-menu .to-top,
+  .app-shell.one-menu .mini-player { bottom: calc(78px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+
+/* You > Your settings: the menu's mode */
+.one-mode-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 12px; }
+.one-mode-choice label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.you-places { margin-top: 8px; }
+
+/* The Library's pages: the kinds as one row of chips at the top (LibraryKinds) */
+.b-kinds { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 30px; } /* clear of the pinned filter bar's cover strip (.cbar::before, 26px) */
+.b-kinds .b-kind { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 20px; font-size: 1.02rem; font-weight: 600; text-decoration: none; white-space: nowrap; overflow-wrap: normal; }
+.b-kinds .b-kind > span { white-space: nowrap; }
+@media (max-width: 700px) {
+  /* one line that scrolls sideways on a phone */
+  .b-kinds { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -4px; padding: 2px 4px 4px; }
+  .b-kinds .b-kind { min-height: 44px; padding: 0 16px; font-size: 0.95rem; }
+}
+/* the row says which kind is open, so the page's own kind drop-down steps aside */
+.content:has(> .b-kinds) .kind-pick { display: none; }

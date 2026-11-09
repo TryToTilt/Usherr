@@ -5,7 +5,9 @@ import { useFamilyLevel } from '../home/useFamily' // Usherr
 import { useAuth } from '../AuthContext'
 import { AnimeRails, ComicsDiscover, DTAB_INFO, NsfwDiscover, asTab, useDiscoverTabs, type DTab } from '../home/DiscoverTabs' // home fork
 import { LeaningsBar } from '../home/leanings' // home fork
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { broadcastKinds } from '../onemenu/kinds' // Usherr Broadcast: one order, one set of names
+import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast
 import { api, isAdmin, isRequested, ApiError, type BookFound, type DiscoverMovie, type MusicType } from '../api'
 import { PicksProvider, pickKey, usePicks } from '../discoverPicks'
 import AddDialog, { type AddTarget } from '../components/AddDialog'
@@ -242,6 +244,7 @@ function DiscoverPage() {
   // home fork: the Library's tabs, in its order (no All tab)
   const adminUser = isAdmin(useAuth().user)
   const dtabs = useDiscoverTabs(adminUser)
+  const navigate = useNavigate() // Usherr Broadcast: Manga's Discover is a page of its own
   const dtab: DTab = asTab(ui.kind, dtabs)
   const setTab = (k: DTab) => patchUi({ kind: k, genre: '', type: 'all', sort: ui.sort === 'rating' && k !== 'movie' && k !== 'tv' ? 'popular' : ui.sort })
   const special = dtab === 'anime' || dtab === 'comics' || dtab === 'nsfw'
@@ -370,7 +373,9 @@ function DiscoverPage() {
   }
 
   // Usherr: the kinds as one drop-down (CompactBar.tsx).
-  const switcher = <KindPicker options={dtabs.map((k) => ({ key: k, label: DTAB_INFO[k].label(), glyph: DTAB_INFO[k].glyph, color: DTAB_INFO[k].color }))} value={dtab} onChange={(k) => setTab(k as DTab)} />
+  // Usherr Broadcast: the kinds in the one order, with Manga's Discover among them.
+  const mangaHere = broadcastOn() && on('manga')
+  const switcher = <KindPicker options={broadcastKinds([...dtabs.map((k) => ({ key: k as string, label: DTAB_INFO[k].label(), glyph: DTAB_INFO[k].glyph, color: DTAB_INFO[k].color })), ...(mangaHere ? [{ key: 'manga', label: t('Manga'), glyph: 'manga' as const, color: 'var(--c-manga)' }] : [])])} value={dtab} onChange={(k) => (k === 'manga' ? navigate('/manga/discover') : setTab(k as DTab))} />
 
   // The rails of one kind, for its own tab or for its section on the All tab.
   function body(kind: Section, short: boolean) {

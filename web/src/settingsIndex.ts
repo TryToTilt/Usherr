@@ -1,5 +1,7 @@
 import { t } from './i18n.ts'
 import { settingsGroupsFor, settingsNavFor } from './settingsNav.ts'
+import { broadcastOn } from './onemenu/broadcast.ts' // Usherr Broadcast
+import { broadcastCardMoves } from './onemenu/broadcastNav.ts' // Usherr Broadcast
 import { rank, type Searchable } from './settingsSearch.ts'
 
 // Everything the search bar can take you to inside Settings: every page, the
@@ -218,8 +220,9 @@ export function buildSettingsIndex(admin: boolean, viewer: boolean, modulesOn: (
     const key = p.to.replace('/settings/', '')
     return { to: p.to, page: true, label: p.label, trail: g && g.pages.length > 1 ? g.label : t('Settings'), words: `${p.blurb} ${PAGE_WORDS[key] ?? ''}` }
   })
+  const moved: Record<string, string> = broadcastOn() ? broadcastCardMoves() : {} // Usherr Broadcast: cards on their new pages
   for (const c of cardSpecs()) {
-    const to = `/settings/${c.to}`
+    const to = `/settings/${moved[c.label] ?? c.to}`
     const page = pages.find((p) => p.to === to)
     if (!page || (c.admin && !admin) || (c.module && !c.module.some(modulesOn))) continue
     out.push({ to, page: false, anchor: c.label, label: c.label, trail: trailOf(to, page.label), words: c.words })

@@ -16,6 +16,7 @@ import { isTypingTarget } from '../shortcuts'
 import { buildSettingsIndex, searchSettings, type SettingsEntry } from '../settingsIndex'
 import { effectiveTab, planSettings, readSearchTab, rememberSearchTab, type SearchTab } from '../searchGroups'
 import { t } from '../i18n'
+import { OnScreenKeyboard } from './OnScreenKeyboard' // Usherr: a keyboard on screen for a TV
 
 // The always-visible search bar. It searches the movie and TV databases live
 // as you type and lists matches right under the box, with posters, so you can
@@ -27,7 +28,8 @@ export function capitalizeFirst(v: string): string {
 
 // home fork: the AI bar reuses it on pages, with its own placeholder, a slot
 // for its Search/AI switch, and without the "/" shortcut (the header keeps it).
-export default function SearchBox({ placeholderText, extra, noShortcut, autoFocus, onQuery }: { placeholderText?: string; extra?: ReactNode; noShortcut?: boolean; autoFocus?: boolean; onQuery?: (q: string) => void } = {}) {
+// Usherr: keyboard offers a keyboard on screen (for a TV with no keyboard of its own); off unless asked for.
+export default function SearchBox({ placeholderText, extra, noShortcut, autoFocus, onQuery, keyboard }: { placeholderText?: string; extra?: ReactNode; noShortcut?: boolean; autoFocus?: boolean; onQuery?: (q: string) => void; keyboard?: boolean } = {}) {
   // Usherr: titles streamed but not in the library say "Streams".
   const streamedMovie = useStreamed('movie')
   const streamedShow = useStreamed('tv')
@@ -57,6 +59,7 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
   // All | Media | Settings: the last one used is kept in this browser.
   const [tab, setTab] = useState<SearchTab>(() => readSearchTab())
   const [allSettings, setAllSettings] = useState(false)
+  const [osk, setOsk] = useState(false) // Usherr: the keyboard on screen is open
 
   // A new search starts with the short list of settings again.
   useEffect(() => setAllSettings(false), [q])
@@ -390,7 +393,30 @@ export default function SearchBox({ placeholderText, extra, noShortcut, autoFocu
         autoComplete="off"
       />
       {extra}
-      {showPanel && (
+      {keyboard && ( // Usherr
+        <button type="button" className="icon-btn searchbox-osk-btn" aria-expanded={osk} aria-label={t('Keyboard on screen')} title={t('Keyboard on screen')} onClick={() => setOsk(!osk)}>
+          <Icon name="grid" size={15} />
+        </button>
+      )}
+      {keyboard && osk && (
+        <div className="searchbox-panel searchbox-osk">
+          <OnScreenKeyboard
+            value={q}
+            onChange={(v) => {
+              setQ(capitalizeFirst(v))
+              onQuery?.(capitalizeFirst(v))
+              setOpen(true)
+            }}
+            onSubmit={(v) => {
+              setOsk(false)
+              setOpen(false)
+              if (v.trim()) navigate(`/search?q=${encodeURIComponent(v.trim())}`)
+            }}
+            onClose={() => setOsk(false)}
+          />
+        </div>
+      )}
+      {showPanel && !osk && (
         <div className="searchbox-panel" ref={panel}>
           {nHits > 0 && (
             <div className="searchbox-tabbar">

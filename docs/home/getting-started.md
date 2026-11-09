@@ -8,6 +8,13 @@ apps, AI helpers, scores and age ratings, Discover recipes and more. Everything
 Mediarium does is still here and works the same way; this guide covers what
 Usherr adds and how to set it up.
 
+Usherr's look is **Broadcast**: dark and clear, with one menu of seven places,
+made for a TV remote as well as a mouse. A TV signs in with your phone, and
+pages with typing to do can be finished on your phone. See [Broadcast and the
+remote](broadcast.md). The older looks, **Usherr Neu** and **Usherr Classic**,
+are still there with their own menus and pages; where a step differs, this
+guide gives the Broadcast way first and the Classic or Neu way second.
+
 New to all of this? The [Start page](https://trytotilt.github.io/Usherr/start/)
 goes from nothing to Usherr and Jellyfin running on Windows in six steps, and
 **Show me how** (in the top bar, and
@@ -66,22 +73,28 @@ feature on the real screens.
 ![The setup wizard's Extras step: the address, streaming engine, StreamNZB, AI, scores, In theaters and Marquee cards, each optional](images/wizard-extras.png)
 2. Add a movie from **Discover**. If it downloads and lands in your library
    folder, the basics work.
-3. Open **Settings → General → Setup checklist**. It lists every part
+3. Open **Server › Setup and health › Setup checklist** (in Classic or Neu:
+   **Settings → General → Setup checklist**). It lists every part
    Usherr can use, whether it's ready, and what's missing, with a
    **Test it** button where there is one, **Set up** to go to its settings and
    **Guide** for its card in this guide.
 
 ![The Setup checklist: how many parts are ready, then each part with its state, what it still needs, and Test it, Set up and Guide buttons](images/setup-checklist.png)
 
-4. Add the optional parts you want, one at a time, mostly from
-   **Settings → Extras**. Each card there says what it needs, shows whether it
-   is ready, and has a **Test it** button.
+4. Add the optional parts you want, one at a time. In Broadcast each one
+   has its card on its feature's page under **Server** (Streaming, Live TV,
+   AI, Comics and so on; [where each card went](broadcast.md#where-everything-moved));
+   in Classic or Neu they're together on **Settings → Extras**. Each card says
+   what it needs, shows whether it is ready, and has a **Test it** button.
 
 ![Settings → Extras: one card per optional part, each marked Optional with its state: Ready, Needs setting up or Off](images/extras.png)
 
 ## Usherr's look
 
-- **Look** (*Settings → General*): **Usherr Classic**, **Usherr Neu**, a
+- **Look** (*You › Your settings › Look and language* in Broadcast,
+  *Settings → General* in Classic or Neu): **Broadcast**, the default, made
+  for the sofa and a remote ([Broadcast and the remote](broadcast.md));
+  **Usherr Classic**; **Usherr Neu**, a
   soft raised look with its own icons and font, in light and dark, or **Neu,
   new layout**: Neu with your libraries always in sight down the side, tabs
   along the bottom of a phone, a **Home** page for watching (the next
@@ -92,7 +105,9 @@ feature on the real screens.
 - **Main colour**, under the highlight colour: Midnight navy, Espresso,
   Forest, Plum, Oxblood, Ocean, Stone or OLED black, each light and dark, or
   the highlight's own tint. Kept per browser.
-- **The menu** is a drawer behind the hamburger on every screen. On a wide
+- **The menu** in Broadcast is one menu with seven places, as icons, always
+  open or hidden ([menu modes](broadcast.md#menu-modes)). In Classic and Neu
+  it is a drawer behind the hamburger on every screen. On a wide
   screen it stays open while the mouse is over it and slides away a moment
   after the mouse leaves (**How soon the menu slides away**, in *Settings →
   General*: from right away to 10 seconds, 3 to start with), with a click or
@@ -101,7 +116,8 @@ feature on the real screens.
   Comics and NSFW pulls down from under the top bar; closed, a slim handle
   says what's showing.
 - **Poster size**: a slider in every library.
-- **Tonight's picks** is in the top bar, beside the dice.
+- **Tonight's picks** and the dice (Roulette) are on **Find** in Broadcast,
+  and in the top bar in Classic and Neu.
 
 ## How the parts fit together
 

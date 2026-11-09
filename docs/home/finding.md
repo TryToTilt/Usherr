@@ -12,7 +12,8 @@ bar, Discover, the Library, Upcoming and this guide. **Skip the tour** ends it;
 
 ## The Dashboard
 
-The first page you see.
+The first page you see. In Broadcast it's **Home** (below); in Classic and Neu
+it's the Dashboard.
 
 - **Ask Usherr anything** at the top: type what you're in the mood for, in
   your own words, such as *a 90s heist movie, not too violent*. The chips under
@@ -31,6 +32,16 @@ The first page you see.
   someone else's. **Continue reading** does the same for manga you're part
   way through.
 
+In **Broadcast**, **Home** takes the Dashboard's place: what you were
+watching up top with **Resume** ready to press, then **Tonight** (the next
+showtime, a crew vote, a new manga volume, a game today and, for
+administrators, when the Server needs you; each card only when there's
+something to say), **On now** (Live TV channels with what's airing; OK tunes
+in), Continue, Recently added and For you. The Ask bar is in the top bar, and
+**Find** in the menu has search and Ask, Discover by kind, Roulette, Tonight,
+people you follow and *Things you can do* (see [Broadcast and the
+remote](broadcast.md#the-one-menu)).
+
 In the new layout (*Neu, new layout*, Settings → General → Look), **Home**
 takes the Dashboard's place: the next showtime, Continue watching and
 reading, Just added and Coming soon.
@@ -39,8 +50,8 @@ reading, Just added and Coming soon.
 
 ## Roulette
 
-Can't decide? **Roulette** (on the Tonight card and on Discover, next to
-*Your recipes*) spins for one title:
+Can't decide? **Roulette** (on **Find** in Broadcast; on the Tonight card and
+on Discover, next to *Your recipes*, in every look) spins for one title:
 
 - **Already here** picks from what the people watching can play and haven't
   seen; **Something new** picks from well-rated titles the house doesn't have yet.
@@ -69,9 +80,10 @@ nobody else in the household sees them.
 
 ## Your stack
 
-The films and shows you've pulled out to watch next, kept as a stack of
-tickets in the menu, under **Settings**. It is your own, and it follows you to
-your phone.
+The films and shows you've pulled out to watch next. In Broadcast it's on
+**You**, and **Stack** is one of the buttons on a title's page; in Classic and
+Neu it's a stack of tickets in the menu, under **Settings**. It is your own,
+and it follows you to your phone.
 
 - **Stack** puts a title on top: the stack button on any poster card
   (Discover, the Library) and on a title's page. Tap it again to take it off.
@@ -114,7 +126,11 @@ like your favourites. It changes as you vote and watch.
 
 ## You
 
-**You** (in the menu behind your initial, top right) is your own page:
+**You** (a place in the menu in Broadcast; in Classic and Neu, in the menu
+behind your initial, top right) is your own page. In Broadcast it starts with
+this year's films and episodes, buttons for **Your year**, **Diary**, **Stubs
+and badges**, **Your settings** and **Show me how**, then your Stack and *Keep
+going* (what you're reading, listening to and watching). It has:
 
 - **Your taste** in films and in shows: the people, subjects and genres you
   lean towards, and the ones you don't, worked out from your votes and what
@@ -176,7 +192,8 @@ you there.
   - **Trakt:** type your Trakt user name. Your profile has to be public while it
     imports (you can make it private again afterwards). Your watch history and
     ratings come in. This needs Trakt's key, which an administrator adds under
-    **Settings → Info, lists and subtitles → Import lists**.
+    **Server › Libraries › Import lists** (in Classic or Neu: **Settings →
+    Info, lists and subtitles → Import lists**).
 
 The account has to match someone on the media server by name (user name,
 first name, or the part of the e-mail address before the @) for the Diary to
@@ -208,7 +225,9 @@ counted, and the total says *about*.
 
 ## Discover
 
-Rows of films and shows to browse, picked in different ways. Switch between
+Rows of films and shows to browse, picked in different ways. In Broadcast,
+open it from **Find › Discover** and pick a kind (Manga's Discover is there
+too); in Classic and Neu it's **Discover** in the menu. Switch between
 **Movies**, **TV**, **Anime**, books, music and comics with the tabs at the top.
 
 ![Discover: the tabs, the filters, then rows such as Top rated and Box office](images/discover.png)
@@ -266,17 +285,18 @@ Both are remembered on each device, so the TV room and a phone can differ.
 Tap a face in a film's cast to open that person's page: who they are, and their
 films and shows, best known first. **Follow** them to see what they have new or
 coming in Discover's *From people you follow* row and under
-**Upcoming → Following**.
+**Library › Coming up › Following** (**Upcoming → Following** in Classic and
+Neu; **Find › People you follow** goes there too).
 
 ![A person's page with Follow, their biography and their films](images/person.png)
 
-**Upcoming → Following** lists everyone you follow, what's coming soon and out
+**Following** lists everyone you follow, what's coming soon and out
 this past year, and a row for each person. Search there to follow someone by
 name; the × on a name unfollows.
 
 ## Complete your library
 
-A card on Discover (and in the Library) opens **Complete your library**: what's
+A card on Discover (and in the Library, and on **Find** in Broadcast) opens **Complete your library**: what's
 missing from film series you have part of, from directors and actors you
 collect, and from the classics, with how complete each is. **Ignore** hides a
 series, director or actor you don't care about.

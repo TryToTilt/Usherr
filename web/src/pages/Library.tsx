@@ -18,6 +18,8 @@ import '../home/library.css' // library hook (home fork)
 import { defaultProfileFor } from '../profileDefaults'
 import { useModules, type MediaKind } from '../ModulesContext'
 import { activeLibraryTab, libraryTabs } from '../libraryTabs'
+import { broadcastKinds } from '../onemenu/kinds' // Usherr Broadcast
+import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast
 import MusicLibrary from './MusicLibrary'
 import BookLibrary from './BookLibrary'
 import ActionMenu from '../components/ActionMenu'
@@ -830,7 +832,7 @@ export default function Library() {
     music: artists?.length, ebook: bookCount('ebook'), audiobook: bookCount('audiobook'), comics: undefined, manga: undefined, nsfw: undefined,
   }
   // Usherr: the kinds as one drop-down (CompactBar.tsx); music and books show it in their own toolbars too.
-  const kindSwitch = <KindPicker options={kinds.map((k) => ({ key: k, label: TAB_LABEL[k], glyph: TAB_GLYPH[k], color: TAB_COLOR[k], count: counts[k] }))} value={active} onChange={(k) => chooseKind(k as Tab)} />
+  const kindSwitch = <KindPicker options={broadcastKinds(kinds.map((k) => ({ key: k as string, label: TAB_LABEL[k], glyph: TAB_GLYPH[k], color: TAB_COLOR[k], count: counts[k] })))} value={active} onChange={(k) => chooseKind(k as Tab)} /> // Usherr Broadcast: one order, one set of names
 
   // home fork: how the shelves are cut, remembered for each tab
   const [rowsByMap, setRowsByMap] = useState<Record<string, RowsBy>>({})
@@ -1136,7 +1138,7 @@ export default function Library() {
         </div>
       )}
 
-      {kind === 'movie' && !filtersActive && <InTheaters />} {/* Usherr: films in cinemas */}
+      {kind === 'movie' && !filtersActive && !broadcastOn() && <InTheaters />} {/* Usherr: films in cinemas (Broadcast: under the library, which comes first) */}
       {error && <p className="error-text">{error}</p>}
 
       {shown === null ? (
@@ -1274,6 +1276,7 @@ export default function Library() {
           />
         </table>
       )}
+      {kind === 'movie' && !filtersActive && broadcastOn() && <div className="lib-after"><InTheaters /></div>} {/* Usherr Broadcast: films in cinemas, after the library */}
     </div>
   )
 }

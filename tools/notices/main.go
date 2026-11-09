@@ -258,6 +258,17 @@ Both images are built on Debian and install these from Debian packages, unchange
 The ` + "`-full`" + ` image is built on the official FlareSolverr image (MIT), which brings Python, Chromium and their own licences: see https://github.com/FlareSolverr/FlareSolverr.
 `
 
+// Usherr: designs the look follows. No code, logo, name or brand colours are
+// copied, so nothing ships from them; the design language is credited here.
+const designs = `## Designs
+
+| Design | What Usherr uses it for | Licence |
+|---|---|---|
+| [Clickarr's design language](https://github.com/thegregstengel/clickarr/blob/main/docs/design/design-language.md) | the Broadcast look: depth by lightness, the corner sizes, one focus colour, the remote's focus rules | MIT |
+
+Broadcast follows Clickarr's design language, adapted. Clickarr's name, logo and brand gradient are not used.
+`
+
 // dataSources are services whose data the program shows. They are not code, so
 // they bring no files into the build; the licence of the data is credited here.
 const dataSources = `## Data from other services
@@ -280,9 +291,11 @@ func render(goMods, npm, fonts []component) []byte {
 	fmt.Fprintf(&b, "- [Packages bundled into the web app](#web-app-packages) (%d)\n", len(npm))
 	fmt.Fprintf(&b, "- [Fonts](#fonts) (%d)\n", len(fonts))
 	b.WriteString("- [Tools in the Docker images](#tools-in-the-docker-images)\n")
-	b.WriteString("- [Data from other services](#data-from-other-services)\n\n")
+	b.WriteString("- [Data from other services](#data-from-other-services)\n")
+	b.WriteString("- [Designs](#designs)\n\n") // Usherr
 	b.WriteString(imageTools)
 	b.WriteString("\n" + dataSources)
+	b.WriteString("\n" + designs) // Usherr
 	section := func(title, anchor string, list []component) {
 		fmt.Fprintf(&b, "\n## %s\n\n<a id=\"%s\"></a>\n\n| Name | Version | Licence |\n|---|---|---|\n", title, anchor)
 		for _, c := range list {

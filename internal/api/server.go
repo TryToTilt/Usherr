@@ -167,6 +167,7 @@ type Server struct {
 	twoStep  twoStepChallenges // sign-ins waiting for their app code (two_step.go)
 	ssoS     ssoState          // single sign-on, directory sign-in and passkeys (signin_methods.go)
 	resetS   resetState        // Usherr: Forgot password? limits (home_password_reset.go)
+	tvSign   tvSignInState     // Usherr: Sign in on a TV and Finish on your phone (home_tv_signin.go)
 
 	torrents torrentRegistry // live torrent clients, so the on/off switch can stop them
 	irc      ircLibrary      // the titles IRC announcements are matched against (irc_announce_decide.go)
@@ -434,6 +435,7 @@ func (s *Server) Routes() http.Handler {
 	public.HandleFunc("GET /api/auth/oidc/callback", s.handleOIDCCallback)
 	public.HandleFunc("POST /api/auth/passkey/login/begin", s.handlePasskeyLoginBegin)
 	public.HandleFunc("POST /api/auth/passkey/login/finish", s.handlePasskeyLoginFinish)
+	s.registerTVSignInPublic(public) // Usherr: Sign in on a TV (home_tv_signin.go)
 	// Calendar apps read the feed without signing in; the secret address is the key.
 	public.HandleFunc("GET /api/calendar/feed/{file}", s.handleCalendarFeed)
 	s.registerTVFeedRoutes(public)   // Mediarium TV feeds for Jellyfin (home fork)
@@ -1333,6 +1335,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("POST /api/auth/two-step/enable", s.handleTwoStepEnable)
 	member.HandleFunc("POST /api/auth/two-step/disable", s.handleTwoStepDisable)
 	member.HandleFunc("POST /api/auth/two-step/recovery", s.handleTwoStepRecovery)
+	s.registerTVSignIn(member, admin) // Usherr: Sign in on a TV and Finish on your phone (home_tv_signin.go)
 	admin.HandleFunc("GET /api/scripts", s.handleGetScripts)
 	admin.HandleFunc("PUT /api/scripts", s.handlePutScripts)
 	admin.HandleFunc("POST /api/scripts/test", s.handleTestScript)

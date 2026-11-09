@@ -15,7 +15,17 @@ export interface SmhCtx {
   mode: SmhMode
   watch: boolean // Usherr presses the buttons itself
   admin: boolean
+  // Usherr Broadcast: the look is Broadcast (its own menu, settings pages
+  // and title pages), and the remote is likely in hand (Broadcast, a TV's
+  // browser, or arrows in use), so steps can say which button to press.
+  broadcast?: boolean
+  remote?: boolean
 }
+
+// Usherr Broadcast: a step or walkthrough only for one look. Broadcast has
+// its own menu, settings pages and title pages; 'other' is Classic and Neu,
+// which keep theirs exactly as before.
+export type SmhLook = 'broadcast' | 'other'
 
 export type SmhText = string | ((c: SmhCtx) => string)
 
@@ -44,6 +54,8 @@ interface StepBase {
   text?: SmhText
   when?: (c: SmhCtx) => boolean // skipped when false
   path?: string // the page this step is on; wandering off offers "Take me back"
+  look?: SmhLook // Usherr Broadcast: only in this look (left out of the other's count)
+  remote?: SmhText // Usherr Broadcast: which remote button to press; '' for none (smh/look.ts guesses otherwise)
 }
 
 export type SmhStep =
@@ -93,6 +105,7 @@ export interface Walkthrough {
   words?: string // more words to find it by in the menu's search
   admin?: boolean // only administrators see it
   needs?: ModuleKey | 'comics' // only when this kind of media is on
+  look?: SmhLook // Usherr Broadcast: only listed in this look
   simple: SmhStep[]
   advanced?: SmhStep[]
 }

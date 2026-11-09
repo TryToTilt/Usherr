@@ -1,6 +1,7 @@
 // Usherr SMH: turn an ebook into an audiobook with Read-to-Me.
 import { t } from '../../i18n'
 import type { SmhStep, Walkthrough } from '../types'
+import { bc } from '../look' // Usherr Broadcast: words for its own pages
 
 const start: SmhStep[] = [
   {
@@ -47,7 +48,7 @@ const done: SmhStep = {
   kind: 'done',
   title: t('Your audiobook is being made'),
   text: t('It takes a while: the page says how long. You can leave, it carries on. Listen while it is being made plays the chapters already done, and the finished book appears in Audiobooks.'),
-  shortcut: t('To get a notice when it’s done: Settings, Notifications, tick Audiobooks made.'),
+  shortcut: bc(t('To get a notice when it’s done: Server, People, Notifications, tick Audiobooks made.'), t('To get a notice when it’s done: Settings, Notifications, tick Audiobooks made.')),
 }
 
 export const ebookToAudiobook: Walkthrough = {

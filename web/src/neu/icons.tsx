@@ -10,7 +10,7 @@ import {
   Shield, Shuffle, SkipBack, SkipForward, SlidersHorizontal, Sparkles, Square, Star, Sun, ThumbsDown, ThumbsUp, Trash2,
   TriangleAlert, Trophy, Tv, User, Volume2, VolumeOff, VolumeX, X,
 } from 'lucide-react'
-import { neuOn } from './look'
+import { broadcastOn, neuOn } from './look'
 
 const ICONS: Record<string, LucideIcon> = {
   search: Search, trakt: CircleCheckBig, sort: ArrowUpDown, eye: Eye, 'eye-off': EyeOff, trash: Trash2, open: ArrowRight,
@@ -34,9 +34,9 @@ const KINDS: Record<string, LucideIcon> = {
 }
 
 export function neuIcon(name: string): LucideIcon | null {
-  return neuOn() ? (ICONS[name] ?? null) : null
+  return neuOn() || broadcastOn() ? (ICONS[name] ?? null) : null // Usherr: Broadcast draws with them too
 }
 
 export function neuKind(kind: string): LucideIcon | null {
-  return neuOn() ? (KINDS[kind] ?? null) : null
+  return neuOn() || broadcastOn() ? (KINDS[kind] ?? null) : null
 }

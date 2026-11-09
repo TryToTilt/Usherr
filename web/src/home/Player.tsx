@@ -25,8 +25,10 @@ import { RoomBar, RoomPaused, useRoomFollow } from './RoomFollow' // Usherr: ...
 import { HeatStrip, ReactButtons, ReactionLayer, useReactions } from './Reactions' // Usherr: linked screenings, step 4: reactions pinned to the moment
 import { PartyStage } from './Party' // Usherr: the party: the intermission and the verdict over the film
 import type { Reaction } from './reactionMath'
+import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast
 
 const PreshowRun = lazy(() => import('./PreshowRun')) // Usherr: the pre-show before the film
+const PlayerControls = lazy(() => import('../broadcast/PlayerControls')) // Usherr Broadcast: the player's own controls instead of the browser's
 
 export type PlayKind = 'movie' | 'episode' | 'video'
 // stream: a "Stream now" session (home_streaming.go); onKeep downloads it for later.
@@ -500,6 +502,10 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
   // stage's (the video and the chat), not the video's alone, which would hide it.
   const stageRef = useRef<HTMLDivElement>(null)
   const [partyOn, setPartyOn] = useState(partyOverlaySaved)
+  // Usherr Broadcast: its own controls over the picture (broadcast/PlayerControls.tsx); Neu and Classic keep the browser's.
+  // A Live TV channel keeps its own keys (up and down change channel, TVSurf.tsx) and the browser's controls.
+  const bc = broadcastOn() && !inline && !req.channel && !req.live && !req.card && !req.direct
+  const [osd, setOsd] = useState(true)
   const overlay = !!req.party && partyOn
   const toggleParty = () => {
     const on = !partyOn
@@ -1240,6 +1246,18 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
     }
   }
 
+  // Usherr: a sound track or subtitle picked (the menu up top, or Broadcast's controls).
+  const pickAudio = (tr: PlayTrack) => (req.stream ? setStreamTrack(tr.index) : setRedo({ ...redo, at: fileTime(), audio: tr.index }))
+  const pickSubtitle = (tr: PlayTrack | null) => {
+    if (tr?.kind === 'image') {
+      setSub(null)
+      setRedo({ ...redo, at: fileTime(), audio: plan?.audio, burn: tr.index })
+      return
+    }
+    setSub(tr)
+    if (redo?.burn !== undefined) setRedo({ ...redo, at: fileTime(), audio: plan?.audio, burn: undefined })
+  }
+
   if (inline)
     return (
       <div className="hp-inline">
@@ -1252,7 +1270,7 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
       </div>
     )
   return (
-    <div className="hp-player" role="dialog" aria-modal="true" aria-label={t('Playing {title}', { title: req.title })} onClick={onClose}>
+    <div className={`hp-player${bc ? ` hp-bc${osd ? '' : ' osd-off'}` : ''}`} role="dialog" aria-modal="true" aria-label={t('Playing {title}', { title: req.title })} onClick={onClose}>
       <div className="hp-box" onClick={(e) => e.stopPropagation()}>
         <div className="hp-head">
           <span className="hp-title">
@@ -1272,22 +1290,14 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
               </button>
             </div>
           )}
-          {tracks && (
+          {tracks && !bc && (
             <TracksMenu
               tracks={tracks}
               audio={req.stream ? (streamTrack ?? streamFirst) : plan?.audio}
               burn={redo?.burn}
               sub={sub}
-              onAudio={(tr) => (req.stream ? setStreamTrack(tr.index) : setRedo({ ...redo, at: fileTime(), audio: tr.index }))}
-              onSub={(tr) => {
-                if (tr?.kind === 'image') {
-                  setSub(null)
-                  setRedo({ ...redo, at: fileTime(), audio: plan?.audio, burn: tr.index })
-                  return
-                }
-                setSub(tr)
-                if (redo?.burn !== undefined) setRedo({ ...redo, at: fileTime(), audio: plan?.audio, burn: undefined })
-              }}
+              onAudio={pickAudio}
+              onSub={pickSubtitle}
             />
           )}
           {req.party && (
@@ -1300,7 +1310,7 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
               <Icon name="maximize" size={14} />
             </button>
           )}
-          {posItem && plan && !error && !req.sync && (
+          {posItem && plan && !error && !req.sync && !bc && (
             <button type="button" className="btn-sm btn-with-icon hp-startover" onClick={startOver} title={t('Start over')}>
               <Icon name="skip-prev" size={14} /> <span>{t('Start over')}</span>
             </button>
@@ -1325,9 +1335,44 @@ function PlayerView({ req, onClose, inline = false, muted = false }: { req: Requ
           <div className="hp-stage" ref={stageRef} onDoubleClick={overlay ? stageFullscreen : undefined}>
             {overlay && req.party && <PartyOverlay showtimeId={req.party} />}
             {reactSrc && (req.party || reactions.list.length > 0) && <ReactionLayer list={reactions.list} position={fileTime} liveRef={floatNow} />}
-            <video ref={videoRef} controls controlsList={overlay ? 'nofullscreen' : undefined} autoPlay playsInline onEnded={() => req.onEnded?.()} onError={() => plan?.mode === 'direct' && !convertInstead() && !failOver() && setFailed(true)}>
+            <video ref={videoRef} controls={!bc} controlsList={overlay ? 'nofullscreen' : undefined} autoPlay playsInline onEnded={() => req.onEnded?.()} onError={() => plan?.mode === 'direct' && !convertInstead() && !failOver() && setFailed(true)}>
               {subSrc && <track key={subSrc} kind="subtitles" src={subSrc} srcLang={sub?.lang} label={sub?.lang ?? t('Subtitles')} default />}
             </video>
+            {bc && (
+              // Usherr Broadcast: the controls over the picture
+              <Suspense fallback={null}>
+                <PlayerControls
+                  video={videoRef}
+                  title={req.title}
+                  subtitle={req.subtitle}
+                  shift={plan?.converted ? (plan.shift ?? 0) : 0}
+                  live={!!req.live}
+                  tracks={tracks}
+                  audio={req.stream ? (streamTrack ?? streamFirst) : plan?.audio}
+                  sub={sub}
+                  burn={redo?.burn}
+                  onAudio={pickAudio}
+                  onSub={pickSubtitle}
+                  startOver={posItem && plan && !req.sync ? startOver : undefined}
+                  another={
+                    req.onNext
+                      ? {
+                          busy: nexting,
+                          run: () => {
+                            setNexting(true)
+                            setTvNote('')
+                            req.onNext?.(fileTime()).catch((e: Error) => {
+                              setTvNote(e.message)
+                              setNexting(false)
+                            })
+                          },
+                        }
+                      : undefined
+                  }
+                  onShown={setOsd}
+                />
+              </Suspense>
+            )}
             {resumed && !!req.resumedFrom && (
               <div className="hp-resumed" role="status">
                 <span>{t('Picked up at {time}', { time: clockOf(req.resumedFrom) })}</span>

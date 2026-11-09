@@ -23,6 +23,11 @@ import TitleHero, { TitleFacts } from '../components/TitleHero'
 import { useFilmPage } from '../home/filmLayout' // Usherr: the title page's layouts
 import LobbyEpisodes, { epCode, minutesLeft, useKeptPlaces } from '../home/LobbyEpisodes' // Usherr: the new layout
 import { lobbyOn } from '../neu/look' // Usherr: the new layout
+import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast: one main button, the rest in More
+import { BroadcastTitleActions, markWatched, MoreSheet, PrimaryButton, useTitleMore, type MoreRow } from '../broadcast/MoreSheet' // Usherr Broadcast
+import { firstPlayable } from '../broadcast/logic' // Usherr Broadcast: Play S1E1
+import { openSmhMenu } from '../smh/engine' // Usherr Broadcast: Show me how, from More
+import { openReport } from '../report' // Usherr Broadcast
 import TitleLayout from '../home/TitleLayout' // Usherr
 import SimilarShows from '../home/SimilarShows' // Usherr
 import WatchLinks from '../components/WatchLinks'
@@ -110,6 +115,9 @@ function SeriesPage() {
   // searching, files), shown with Manage or on their own.
   const { resolved: layout, show } = useFilmPage()
   const [manageOpen, setManageOpen] = useState(false)
+  // Usherr Broadcast: the More sheet (the Options key opens it too).
+  const broadcast = broadcastOn()
+  const moreSheet = useTitleMore(broadcast)
   const [epTools, setEpTools] = useState(false)
   const tools = epTools || manageOpen
   const places = useKeptPlaces() // Usherr: Resume, in the new layout
@@ -448,7 +456,7 @@ function SeriesPage() {
   // Usherr: in the new layout a member sees the show for watching: no
   // monitoring, sizes, download counts or Manage. Resume picks up the
   // episode this person is part way through in Usherr's own player.
-  const lobby = lobbyOn()
+  const lobby = lobbyOn() || broadcast // Usherr Broadcast: the same page for watching (Resume, the episodes by season)
   const memberView = lobby && !admin
   const hasManage = admin || (!memberView && (canManage || !viewer))
   const resume = (() => {
@@ -506,6 +514,36 @@ function SeriesPage() {
       )}
     </>
   )
+
+  // Usherr Broadcast: one main button (Play the episode you're part way
+  // through, or the first one), then Stack, Trailer and More; the rest is in
+  // the More sheet (broadcast/MoreSheet.tsx).
+  const startEp = resume?.episode ?? firstPlayable(series.episodes)
+  const playStart = startEp && can(me, 'play') ? () => playEpisode(startEp) : undefined
+  moreSheet.playRef.current = playStart // the remote's Play key
+  const broadcastActions = broadcast && (
+    <BroadcastTitleActions
+      primary={startEp && playStart ? <PrimaryButton icon="play" walk="title-play" label={t('Play {code}', { code: epCode(startEp.season, startEp.episode) })} onClick={playStart} title={resume ? t('{n} min left', { n: minutesLeft(resume.place) }) : undefined} /> : undefined}
+      stack={<StackButton item={{ kind: 'tv', tmdbId: series.tmdbId, title: series.title, year: series.year, posterUrl: series.posterUrl }} />}
+      onMore={() => moreSheet.setOpen(true)}
+    />
+  )
+  const moreRows: MoreRow[] = !broadcast
+    ? []
+    : [
+        { key: 'watched', icon: 'check', label: t('Mark watched'), hint: t('In your diary'), run: () => markWatched('tv', series.tmdbId).then(() => toast.success(t('Marked watched.')), (e: Error) => toast.error(e.message)) },
+        { key: 'rate', icon: 'star', label: t('Rate it'), node: <VoteButtons kind="tv" refId={series.tmdbId} meta={{ title: series.title, year: series.year, image: series.posterUrl }} /> },
+        ...(playStart ? [{ key: 'tracks', icon: 'captions' as const, label: t('Subtitles and audio'), hint: t('In the player'), run: playStart }] : []),
+        { key: 'catch-up', node: <CatchUp tmdbId={series.tmdbId} /> },
+        { key: 'like', node: <WhatsItLike kind="tv" tmdbId={series.tmdbId} title={series.title} /> },
+        { key: 'skip', node: <SkipGuide tmdbId={series.tmdbId} title={series.title} /> },
+        ...(series.downloadedCount > 0 ? [{ key: 'watch-in', node: <WatchLinks tmdbId={series.tmdbId} kind="tv" /> }] : []),
+        { key: 'smh', icon: 'sparkles', label: t('Show me how'), hint: t('From here'), run: openSmhMenu },
+        ...(!admin ? [{ key: 'report', icon: 'warning' as const, label: t('Something wrong with it?'), hint: t('Tell an admin'), run: () => openReport('problem') }] : []),
+        ...(canManage ? [{ key: 'better', admin: true, icon: 'search' as const, label: t('Find missing episodes'), run: () => void searchNow() }] : []),
+        ...(admin ? [{ key: 'art', admin: true, icon: 'image' as const, label: t('Change the artwork'), node: <ArtworkButton kind="tv" tmdbId={series.tmdbId} title={series.title} /> }] : []),
+        ...(hasManage ? [{ key: 'manage', walk: 'title-manage', admin: true, icon: 'sliders' as const, label: t('Manage files'), hint: t('Episodes, quality, folder, remove'), run: () => setManageOpen(true) }] : []),
+      ]
 
   // Manage: the show, its files and downloads, and the library's settings for it.
   const manage = hasManage && (
@@ -837,6 +875,7 @@ function SeriesPage() {
 
   const dialogs = (
     <>
+      {moreSheet.open && <MoreSheet eyebrow={series.title} rows={moreRows} onClose={() => moreSheet.setOpen(false)} />} {/* Usherr Broadcast */}
       {changingFolder && <LocateDialog kind="series" id={seriesId} start={series.folderPath} onClose={() => setChangingFolder(false)} onDone={load} />}
       {linking && (
         <LocateDialog
@@ -862,7 +901,7 @@ function SeriesPage() {
       <TitleLayout
         layout={layout}
         show={show}
-        hero={<TitleHero info={info} status={status} actions={everyday} layout={layout} fullPlot={show.fullPlot} />}
+        hero={<TitleHero info={info} status={status} actions={broadcastActions || everyday} layout={layout} fullPlot={show.fullPlot} />} /* Usherr Broadcast: its own buttons */
         facts={<TitleFacts info={info} />}
         scores={show.scores && <ScoresLine kind="tv" tmdbId={series.tmdbId} />}
         where={show.streaming && <StreamingOn kind="tv" tmdbId={series.tmdbId} />}

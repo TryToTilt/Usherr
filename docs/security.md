@@ -208,6 +208,29 @@ All three are off by default, and none of them takes the password away unless an
 
 **Getting back in.** `MEDIARIUM_DISABLE_SSO=1` on the container switches single sign-on and directory sign-in off and the password form on, whatever is saved. Password sign-in can only be turned off by an administrator who is signed in through single sign-on, the directory or a passkey, and turns itself back on when no other way works. See [accounts.md](./accounts.md#turning-password-sign-in-off).
 
+## Sign in on a TV
+
+Typing a password with a TV remote is slow, so a TV can sign in with your phone instead. On the TV's sign-in page, choose **Sign in with your phone** (a TV's own browser starts there). The TV shows a code like `ABCD-EFGH` and a QR code. Scan it with a phone that is already signed in to Usherr (or open `/tv-code` there and type the code), check the TV shows the same code, and press **Approve**. The TV signs in as you, for the usual seven days.
+
+What keeps it safe:
+
+- A code works once, for five minutes. Codes are eight letters and numbers (no look-alikes such as 0 and O), so they can't be guessed in that time: each account may try ten wrong codes in fifteen minutes, then has to wait.
+- The QR code carries only the address and the code, never a password, key or session. The TV also gets a long random pairing secret it keeps in the page's memory; only the browser that holds it can be signed in by the approval. Knowing a code alone signs nothing in.
+- The TV learns nothing about who will approve it. It only hears "waiting", "denied" or "ran out" until it is signed in.
+- Approving needs a browser that is signed in to Usherr: not an API key, and not a TV that was itself signed in by a code. Two-step sign-in is respected because a session only ever exists after the whole sign-in, second step included, so the phone's approval stands in for the TV's whole sign-in. The phone page shows what kind of device asked ("Chrome on NVIDIA Shield") and warns when the TV isn't on your home network. Never approve a code someone sends you: whoever holds the TV it came from would be signed in as you.
+- One address may have three codes waiting and ask for ten in fifteen minutes; no more than a hundred wait at once. Codes live only in memory, so a restart ends them.
+- Every approval goes in the log and in the Activity feed (administrators), and the TV is listed under **Signed-in devices** as a TV code sign-in with its kind of device, where you can sign it out.
+- View-only and family accounts can use it; a TV signed in this way can do exactly what the account can.
+- An administrator can switch it off under **Settings > Account & Access > Ways to sign in > Sign in on a TV**. Switching it off also ends codes that are waiting.
+
+## Finish on your phone
+
+A page on the TV with something to type (a review, a chat, a setting) can offer **Finish on your phone**. It shows a QR code and a short code that open the same page on your phone.
+
+- The link opens one page of Usherr itself: only a path such as `/title/603`, checked against a list of the app's own pages. A full address, `//other.example`, backslashes and `..` are refused.
+- It works once, for ten minutes, and only for the account that made it. A phone signed in as someone else is told so and the link stays usable for its owner. A phone that isn't signed in shows the sign-in page first, then goes on to the page.
+- Nothing secret goes in it, and it signs nobody in.
+
 ## Who can do what
 
 **A basic user** can search, add titles, follow downloads, watch files in the browser and manage their own profile and API keys. They cannot read settings, credentials, folder paths (mostly), logs or other accounts, cannot start updates or backups, and see a generic message when something goes wrong on the server. They cannot make Mediarium fetch an address of their choosing: a grab only works on a release a search showed them.

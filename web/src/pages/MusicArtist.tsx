@@ -1,4 +1,4 @@
-import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import VoteButtons from '../home/VoteButtons' // home fork
 import { MoreLikeArtist } from '../home/AIMusic' // home fork
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
@@ -31,6 +31,8 @@ import type { Searched } from '../searched'
 import { useDocumentTitle } from '../documentTitle'
 import { plural, t, st } from '../i18n'
 import '../music.css'
+import { broadcastOn } from '../neu/look' // Usherr Broadcast: an album with the remote
+import Sheet, { type SheetRow } from '../broadcast/Sheet' // Usherr Broadcast
 
 type Tab = 'tracks' | 'releases' | 'events' | 'files'
 
@@ -468,6 +470,7 @@ function AlbumCard({
   const toast = useToast()
   const [note, setNote] = useState<AlbumRescanReport | null>(null)
   const [rescanning, setRescanning] = useState(false)
+  const [sheet, setSheet] = useState(false) // Usherr Broadcast: the album's actions, from the Options key
   // Looks at the files in the album's folder again (administrators): files put
   // there by hand are matched to tracks, files removed by hand are let go.
   async function rescan() {
@@ -493,9 +496,43 @@ function AlbumCard({
       toast.error(e instanceof Error ? e.message : String(e))
     }
   }
+  // Usherr Broadcast: the album's top is one stop for the remote: OK plays it (or opens its details
+  // when it isn't here yet), Play/Pause plays it, Options shows everything else for it.
+  const sheetRows: SheetRow[] = [
+    ...(album.status === 'downloaded' ? [{ key: 'play', label: t('Play'), onPress: () => void playAlbum() }] : []),
+    ...(can(me, 'manage') ? [{ key: 'search', label: album.status === 'downloaded' ? t('Look for better') : t('Search now'), disabled: busy || album.status === 'downloading' || !!live, onPress: onSearchNow }] : []),
+    ...(can(me, 'releases') ? [{ key: 'releases', label: t('Choose a release'), onPress: () => onOpen('releases') }] : []),
+    { key: 'details', label: t('Details'), onPress: () => onOpen('tracks') },
+    { key: 'monitor', label: album.monitored ? t('Stop monitoring {title}', { title: album.title }) : t('Monitor {title}', { title: album.title }), onPress: onToggleMonitored },
+    ...(isAdmin(me) && album.status !== 'downloading' && !live ? [{ key: 'rescan', label: t('Rescan album folder'), disabled: rescanning, onPress: () => void rescan() }] : []),
+  ]
+  const remoteTop = broadcastOn()
+    ? {
+        tabIndex: 0,
+        role: 'button',
+        'aria-label': album.title,
+        'data-remote-card': '',
+        onKeyDown: (e: ReactKeyboardEvent<HTMLDivElement>) => {
+          if (e.target !== e.currentTarget || e.altKey || e.ctrlKey || e.metaKey) return
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            if (album.status === 'downloaded') void playAlbum()
+            else onOpen('tracks')
+          } else if (e.key === 'ContextMenu' || e.key === 'm' || e.key === 'M') {
+            e.preventDefault()
+            setSheet(true)
+          } else if (e.key === 'MediaPlayPause' || e.key === 'MediaPlay') {
+            if (album.status !== 'downloaded') return
+            e.preventDefault()
+            void playAlbum()
+          }
+        },
+      }
+    : {}
   return (
     <article id={`album-${album.id}`} className={`album-card${open ? ' open' : ''}${album.monitored ? '' : ' dim'}${live ? ' is-live' : ''}`}>
-      <div className="album-top">
+      {sheet && <Sheet title={album.title} eyebrow={artistName} rows={sheetRows} onClose={() => setSheet(false)} />}
+      <div className="album-top" {...remoteTop}>
         <span className="album-sleeve">
           <span className="sleeve-disc" aria-hidden="true" />
           <Cover thumb src={album.coverUrl} alt={t('{title} cover', { title: album.title })} className="album-cover" />

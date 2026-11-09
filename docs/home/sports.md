@@ -4,7 +4,8 @@
 two days, to catch up), the leagues in your library and the teams you follow.
 It runs on Usherr's own engine (leagues and games from TheSportsDB; Usherr
 streams and downloads the games itself) or on Sportarr (which keeps the
-leagues and downloads the games). Set it up in **Settings → Extras → Sports**
+leagues and downloads the games). Set it up in **Server › Kinds of media › Sports** (in Classic or Neu:
+**Settings → Extras → Sports**)
 (see [Setting up each part](integrations.md#sports)).
 
 ## Finding a league or a team
@@ -43,7 +44,7 @@ scores** turns them on (each device remembers it).
 
 Usherr downloads games with the indexers and download clients it already uses
 for films and shows (its own Usenet downloader, SABnzbd, NZBGet or torrents),
-so no other app is needed. It needs a **Sports folder** (Settings → Extras →
+so no other app is needed. It needs a **Sports folder** (Server › Kinds of media › Sports, or Settings → Extras →
 Sports; empty means *Sports* next to your TV folder when that sits in a media
 folder, like `/data/media/tv`; a TV folder mounted on its own, like `/tv`,
 needs a Sports folder mounted and entered).
@@ -134,7 +135,8 @@ Add the Sports folder to Plex or Jellyfin as a **TV shows** library.
 
 ## Moving from Sportarr
 
-1. In **Settings → Extras → Sports**, choose **Usherr's own engine**, set the
+1. In **Server › Kinds of media › Sports** (**Settings → Extras → Sports** in
+   Classic or Neu), choose **Usherr's own engine**, set the
    **Sports folder**, the **Quality for games**, and save. A folder of its own
    is simplest while you compare. It can also be the folder Sportarr fills:
    Usherr only replaces a file there that has exactly the name it would give
@@ -179,7 +181,7 @@ leagues, and the games wanted.
 
 Everyone can look. **Stream** needs the *Play* permission; adding a league,
 following a team, **Get**, **Search now**, **Pick** and a league's
-**Downloads** need *Manage the library* (**Settings → Accounts**). Stopping
+**Downloads** need *Manage the library* (**Server › People › Accounts**; **Settings → Accounts** in Classic or Neu). Stopping
 following a team (the **×** next to it) keeps its games and files.
 
 Sports artwork comes through Usherr, so it shows on every device the same way.

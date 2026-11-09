@@ -6,12 +6,16 @@ Streamystats or Tautulli (Watching), a watchdog container (Service checks),
 Maintainerr (Clean-up rule sets), and Radarr's and Sonarr's own profile and
 tag pages.
 
-In the new layout (**Settings → General → Look → Neu, new layout**), the
+In Broadcast, the **Server** place in the menu (administrators) has Today,
+Activity and the settings in seven groups: see [Broadcast and the
+remote](broadcast.md#server-the-seven-groups). In the new layout (**Settings →
+General → Look → Neu, new layout**), the
 **Server** area gathers these with what needs you and every settings group.
 
 ## Watching
 
-**Settings → System → Watching.** Usherr keeps its own watch history from
+**You › Your settings › Watching** in Broadcast (**Settings → System →
+Watching** in Classic or Neu). Usherr keeps its own watch history from
 Plex, Jellyfin and Emby. It asks the servers what is playing every half
 minute (every minute when nothing is) and keeps each playback: who, the film
 or episode, the app and device, at home or away, direct play, direct stream or
@@ -37,7 +41,8 @@ playbacks go once a day). Players' IP addresses are only kept if you switch
 
 ## Service checks
 
-**Settings → System → Service checks** (also a tile in the Server area).
+**Server › Setup and health › Service checks** in Broadcast (**Settings →
+System → Service checks** in Classic or Neu; also a tile in the Server area).
 Usherr asks the addresses you list every so often and shows whether each is
 answering, since when, its response time, the latest checks as a strip, uptime
 over the last 24 hours and 7 days, and its outages.
@@ -51,7 +56,7 @@ over the last 24 hours and 7 days, and its outages.
   restart or a blip stays quiet). **Check this service** tests an address
   before you save it.
 - **Messages**: tick **Service down** and **Service back** on a notification
-  (Settings → Notifications). You get one message when a service stops
+  (Server › People › Notifications; Settings → Notifications in Classic or Neu). You get one message when a service stops
   answering and one when it's back.
 
 Leave user names and passwords out of the address. A key in the address is
@@ -59,7 +64,8 @@ fine: only administrators see it, and it never goes in a message.
 
 ## Clean-up rule sets and Leaving soon
 
-**Settings → Connections → Media servers**, under *What's been watched*. Rule sets go
+**Server › Watching › Media servers** (**Settings → Connections → Media
+servers** in Classic or Neu), under *What's been watched*. Rule sets go
 further than the basic clean-up rules (which keep working as they did).
 
 1. **Add a rule set** for the movies, the TV shows or one library folder.
@@ -96,7 +102,8 @@ Safe by default:
 
 ## Quality profiles: Simple and Advanced
 
-**Settings → Library → Quality**, the switch beside *Quality profiles*.
+**Server › Libraries › Quality** (**Settings → Library → Quality** in Classic
+or Neu), the switch beside *Quality profiles*.
 
 - **Simple**: pick a quality (**Save space**, **HD**, **Best HD**, **4K** or
   **4K, else HD**), set the largest file with the slider or by typing any size
@@ -111,7 +118,7 @@ Safe by default:
 - Both have **Try a release name**: it judges any release name against the
   profile as it stands in the form, with the same checks a search makes.
 
-**Custom formats from Radarr and Sonarr** (Settings → System → Move from
+**Custom formats from Radarr and Sonarr** (Server › Setup and health › Move from other apps; Settings → System → Move from
 other apps, tick *Custom formats*) come over ready to score in Usherr's own profiles. Their profiles
 stay behind. Importing again updates the copies instead of adding more, and a
 format both apps have under one name is kept as two, the TV one named
@@ -119,7 +126,8 @@ format both apps have under one name is kept as two, the TV one named
 
 ## Tags that do something
 
-**Settings → Library → Automatic searching**, **Tags**.
+**Server › Libraries › Automatic searching** (**Settings → Library →
+Automatic searching** in Classic or Neu), **Tags**.
 
 - **Auto-tagging**: a rule gives its tag to every movie or show that matches
   it, by genre, years, the language it was made in, movie or show, and library
@@ -133,7 +141,8 @@ Tags still become collections in Plex, Jellyfin and Emby.
 
 ## Friends sign in with Jellyfin or Plex
 
-**Settings → Account & Access → Ways to sign in → Sign in with Jellyfin or
+**Server › People › Ways to sign in** in Broadcast, or **Settings → Account &
+Access → Ways to sign in** in Classic or Neu, **→ Sign in with Jellyfin or
 Plex** (off until switched on).
 
 - **Sign in with Jellyfin**: the sign-in form checks the name and password with

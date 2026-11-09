@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api, type Book } from '../api'
 import Icon from '../components/Icon'
 import { withBase } from '../base'
@@ -9,6 +9,8 @@ import { openingPage } from './shelfMath'
 import Marks from './Marks'
 import { marksApi, pageOfMark } from './marksApi'
 import { saveProgress } from './progress'
+import { remoteHasReaderKey, useBroadcastReader } from '../readers/useBroadcastReader' // Usherr Broadcast: the remote
+import ReaderSheet from '../readers/ReaderSheet' // Usherr Broadcast
 
 type View = 'single' | 'double'
 type Fit = 'page' | 'width'
@@ -43,6 +45,8 @@ export default function ComicReader({ book, at = 0 }: { book: Book; at?: number 
   const [turnPrefs, setTurnPrefs] = useState(storedTurn)
   const [panel, setPanel] = useState(false)
   const [marksOpen, setMarksOpen] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false) // Usherr Broadcast: the settings sheet
+  const navigate = useNavigate() // Usherr Broadcast: Back closes the comic
   const [bad, setBad] = useState<Set<number>>(new Set())
   const stage = useRef<HTMLDivElement>(null)
   const turning = useRef(false)
@@ -134,6 +138,7 @@ export default function ComicReader({ book, at = 0 }: { book: Book; at?: number 
   // Keys: the arrows go the way the comic reads, Space and Page Down always forward.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (remoteHasReaderKey(e)) return // Usherr Broadcast: the remote has it (useBroadcastReader)
       if ((e.target as HTMLElement | null)?.closest?.('input, select, textarea, button')) return
       if (e.key === 'ArrowRight') void turn(rtl ? 'prev' : 'next')
       else if (e.key === 'ArrowLeft') void turn(rtl ? 'next' : 'prev')
@@ -201,6 +206,8 @@ export default function ComicReader({ book, at = 0 }: { book: Book; at?: number 
     saveTurn(patch)
     setTurnPrefs((p) => ({ ...p, ...patch }))
   }
+  // Usherr Broadcast: the remote turns pages the way the comic reads, Options opens the settings sheet
+  const remote = useBroadcastReader({ turn: (d) => void turn(d > 0 ? 'next' : 'prev'), rtl, sheet: sheetOpen, setSheet: setSheetOpen, close: () => navigate('/bookshelf') })
 
   if (error)
     return (
@@ -223,8 +230,8 @@ export default function ComicReader({ book, at = 0 }: { book: Book; at?: number 
   const ordered = rtl ? [...shown].reverse() : shown
   const percent = pages > 1 ? ((page - 1) / (pages - 1)) * 100 : 100
   return (
-    <div className="rdr cmx" dir="ltr">
-      <header className="rdr-top">
+    <div className="rdr cmx" dir="ltr" {...remote.rootProps}>
+      <header className="rdr-top" data-reader-bar="">
         <Link className="icon-btn" to="/bookshelf" title={t('Back to your books')} aria-label={t('Back to your books')}>
           <Icon name="chevron-left" size={20} />
         </Link>
@@ -359,6 +366,54 @@ export default function ComicReader({ book, at = 0 }: { book: Book; at?: number 
         />
         <span className="rdr-pct">{Math.round(percent)}%</span>
       </footer>
+      {/* Usherr Broadcast: the View settings as a sheet for the remote */}
+      {remote.on && sheetOpen && (
+        <ReaderSheet
+          eyebrow={book.title}
+          onClose={() => setSheetOpen(false)}
+          rows={[
+            { key: 'view', label: t('Pages'), choices: [{ id: 'single', label: t('One page') }, { id: 'double', label: t('Two pages') }], value: prefs.view, onChoose: (v) => setPrefs((p) => ({ ...p, view: v === 'double' ? 'double' : 'single' })) },
+            { key: 'fit', label: t('Fit'), choices: [{ id: 'page', label: t('Whole page') }, { id: 'width', label: t('Width') }], value: prefs.fit, onChoose: (v) => setPrefs((p) => ({ ...p, fit: v === 'width' ? 'width' : 'page' })) },
+            {
+              key: 'direction',
+              label: t('Reading direction'),
+              choices: [
+                { id: 'auto', label: t('Automatic') },
+                { id: 'ltr', label: t('Left to right') },
+                { id: 'rtl', label: t('Right to left') },
+              ],
+              value: prefs.direction,
+              onChoose: (v) => setPrefs((p) => ({ ...p, direction: v === 'ltr' || v === 'rtl' ? v : 'auto' })),
+            },
+            {
+              key: 'turn',
+              label: t('Page turn'),
+              choices: [
+                { id: 'slide', label: t('Slide') },
+                { id: 'fade', label: t('Fade') },
+                { id: 'none', label: t('None') },
+              ],
+              value: turnPrefs.turn,
+              onChoose: (v) => chooseTurn({ turn: v as Turn }),
+            },
+            ...(turnPrefs.turn !== 'none'
+              ? [
+                  {
+                    key: 'speed',
+                    label: t('Turn speed'),
+                    choices: [
+                      { id: 'fast', label: t('Fast') },
+                      { id: 'normal', label: t('Normal') },
+                      { id: 'slow', label: t('Slow') },
+                    ],
+                    value: turnPrefs.speed,
+                    onChoose: (v: string) => chooseTurn({ speed: v as TurnSpeed }),
+                  },
+                ]
+              : []),
+          ]}
+        />
+      )}
     </div>
   )
 }

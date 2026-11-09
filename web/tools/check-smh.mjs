@@ -27,6 +27,8 @@ const walk = (dir) => {
       const s = readFileSync(p, 'utf8')
       for (const m of s.matchAll(/data-walk="([a-z0-9-]+)"/g)) exact.add(m[1])
       for (const m of s.matchAll(/data-walk=\{[^`}]*`([a-z0-9-]+)\$\{/g)) prefixes.push(m[1])
+      // Usherr Broadcast: a label handed down as a prop (walk="reader-sheet") or on a More row ({ walk: 'title-manage' })
+      for (const m of s.matchAll(/\bwalk(?:=|: )['"]([a-z0-9-]+)['"]/g)) exact.add(m[1])
     }
   }
 }
@@ -36,17 +38,20 @@ const exists = (id) => exact.has(id) || prefixes.some((p) => id.startsWith(p))
 // What each walkthrough points at. A target worked out from an answer is
 // tried with every choice the walkthrough offers.
 const problems = []
+// Usherr Broadcast: each look's steps (a step can be for one look only), its targets worked out for that look.
+const { forLook } = await import(pathToFileURL(join(src, 'smh', 'look.ts')).href)
+for (const broadcast of [false, true])
 for (const w of WALKS) {
   const choices = [...w.simple, ...(w.advanced ?? [])].flatMap((s) => (s.kind === 'ask' && Array.isArray(s.choices) ? s.choices : []))
   for (const mode of ['simple', 'advanced']) {
-    for (const s of w[mode] ?? []) {
+    for (const s of forLook(w[mode] ?? [], broadcast)) {
       const ids = []
       if (s.kind === 'point') {
         if (typeof s.target === 'string') ids.push(s.target)
         else for (const c of choices) {
           const answers = new Proxy({}, { get: () => ({ value: c.value, label: c.label }) })
           try {
-            ids.push(s.target({ answers, mode, watch: false, admin: true }))
+            ids.push(s.target({ answers, mode, watch: false, admin: true, broadcast }))
           } catch {
             // a target that needs another kind of answer
           }

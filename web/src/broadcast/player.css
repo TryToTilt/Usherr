@@ -1,0 +1,114 @@
+/* Usherr Broadcast: the player full screen with its own controls
+   (PlayerControls.tsx; home/Player.tsx adds .hp-bc in Broadcast only). */
+
+.hp-player.hp-bc { padding: 0; background: #000; display: block; }
+.hp-bc .hp-box { width: 100%; height: 100dvh; display: flex; flex-direction: column; gap: 0; }
+.hp-bc .hp-stage { flex: 1 1 auto; min-height: 0; background: #000; }
+.hp-bc .hp-stage > video { width: 100%; height: 100%; max-height: none; border-radius: 0; object-fit: contain; }
+.hp-bc .hp-msg { margin: auto; max-width: 720px; }
+/* the top bar (sound sync, the party chat, close) sits over the picture and goes with the controls */
+.hp-bc .hp-head { position: absolute; z-index: 4; top: 0; left: 0; right: 0; padding: 18px 28px; justify-content: flex-end; background: linear-gradient(180deg, rgba(5, 7, 15, 0.7), transparent); transition: opacity var(--b-fast, 150ms) ease-out; }
+.hp-bc .hp-head .hp-title { visibility: hidden; }
+.hp-bc.osd-off .hp-head { opacity: 0; pointer-events: none; }
+.hp-bc .hp-note,
+.hp-bc .hp-actions,
+.hp-bc .hp-react { padding: 6px 28px; }
+.hp-bc .hp-upnext,
+.hp-bc .hp-resumed,
+.hp-bc .hp-skip { z-index: 6; bottom: 220px; }
+
+.bp-osd { position: absolute; inset: 0; z-index: 5; pointer-events: none; color: #f2f5fa; font-family: var(--font-body, Inter, system-ui, sans-serif); font-variant-numeric: tabular-nums; }
+.bp-osd::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(5, 7, 15, 0.6), rgba(5, 7, 15, 0) 25%, rgba(5, 7, 15, 0) 50%, rgba(5, 7, 15, 0.92)); transition: opacity var(--b-fast, 150ms) ease-out; }
+.bp-osd.off::before { opacity: 0; }
+.bp-osd.off > * { visibility: hidden; opacity: 0; }
+.bp-osd > * { transition: opacity var(--b-fast, 150ms) ease-out; }
+.bp-bottom, .bp-list { pointer-events: auto; }
+.bp-where { position: absolute; left: 40px; top: 28px; font-size: 1rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #a9b4c8; pointer-events: none; }
+.bp-bottom { position: absolute; left: 40px; right: 40px; bottom: 40px; display: flex; flex-direction: column; gap: 16px; }
+.bp-title { margin: 0; font-size: clamp(1.5rem, 2.6vw, 2.6rem); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bp-sub { font-weight: 500; color: #a9b4c8; }
+
+.bp-bar {
+  width: 100%;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(19, 26, 54, 0.6);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.bp-bar:hover { background: rgba(34, 53, 89, 0.8); }
+.bp-track { position: relative; flex: 1; height: 8px; border-radius: 4px; background: #2a3550; overflow: hidden; }
+.bp-track > span { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: #00acff; box-shadow: 0 0 12px rgba(0, 172, 255, 0.55); }
+.bp-clock { font-size: 1.15rem; font-weight: 600; white-space: nowrap; }
+.bp-bar:focus-visible .bp-track { background: rgba(255, 255, 255, 0.35); }
+.bp-bar:focus-visible .bp-track > span { background: #fff; box-shadow: none; }
+
+.bp-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.bp-btn {
+  min-height: 56px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 12px;
+  background: #131a36;
+  color: #f2f5fa;
+  font: inherit;
+  font-size: 1.08rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  max-width: 100%;
+}
+.bp-btn:hover:not(:disabled) { background: #223559; }
+
+.bp-list {
+  position: absolute;
+  z-index: 7;
+  right: 40px;
+  bottom: 40px;
+  width: min(520px, calc(100% - 32px));
+  max-height: 70%;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 20px;
+  border-radius: 16px;
+  background: #131a36;
+}
+.bp-list strong { font-size: 1.3rem; margin-bottom: 6px; }
+.bp-list button {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #f2f5fa;
+  font: inherit;
+  font-size: 1.05rem;
+  text-align: left;
+  cursor: pointer;
+}
+.bp-list button:hover { background: #1a2a47; }
+.bp-dot { width: 18px; flex: none; }
+
+@media (max-width: 700px) {
+  .bp-where { left: 16px; top: 16px; }
+  .bp-bottom { left: 12px; right: 12px; bottom: 16px; gap: 10px; }
+  .bp-bar { gap: 12px; padding: 0 14px; }
+  .bp-btn { min-height: 46px; padding: 0 14px; font-size: 0.95rem; }
+  .hp-bc .hp-upnext, .hp-bc .hp-resumed, .hp-bc .hp-skip { bottom: 200px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bp-osd > *, .bp-osd::before, .hp-bc .hp-head { transition: none; }
+}

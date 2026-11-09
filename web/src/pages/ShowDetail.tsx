@@ -14,6 +14,11 @@ import TitleHero, { TitleFacts } from '../components/TitleHero'
 import { useFilmPage } from '../home/filmLayout' // Usherr: the title page's layouts
 import TitleLayout from '../home/TitleLayout' // Usherr
 import { lobbyOn } from '../neu/look' // Usherr: the new layout
+import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast: one main button, the rest in More
+import { BroadcastTitleActions, markWatched, MoreSheet, PrimaryButton, useTitleMore, type MoreRow } from '../broadcast/MoreSheet' // Usherr Broadcast
+import { openSmhMenu } from '../smh/engine' // Usherr Broadcast: Show me how, from More
+import { openReport } from '../report' // Usherr Broadcast
+import { useToast } from '../components/Toast' // Usherr Broadcast: Mark watched
 import SimilarShows from '../home/SimilarShows' // Usherr
 import { CastCard, PeopleLinks, SeasonsCard, titleLinks } from '../components/TitlePreview'
 import { crewWith } from '../people'
@@ -40,6 +45,10 @@ export default function ShowDetail() {
   // Usherr: the layout this browser chose (Settings, General), and Manage.
   const { resolved: layout, show: shows } = useFilmPage()
   const [manageOpen, setManageOpen] = useState(false)
+  // Usherr Broadcast: the More sheet (the Options key opens it too).
+  const broadcast = broadcastOn()
+  const moreSheet = useTitleMore(broadcast)
+  const toast = useToast()
   const [similar, setSimilar] = useState<DiscoverMovie[]>([])
   useEffect(() => {
     api.tmdbSimilarShows(id).then(setSimilar).catch(() => undefined)
@@ -93,7 +102,7 @@ export default function ShowDetail() {
         </button>
       )}
       <button className={`${streamedHere ? '' : 'primary '}btn-with-icon big`} data-walk="title-add" onClick={() => setAdding(true)}>
-        <Icon name="plus" size={18} /> {!lobbyOn() ? t('Add to library') : can(me, 'addDirect') ? t('Add it') : t('Ask for it')}
+        <Icon name="plus" size={18} /> {!lobbyOn() && !broadcast ? t('Add to library') : can(me, 'addDirect') ? t('Add it') : t('Ask for it')}
       </button>
       <StackButton item={{ kind: 'tv', tmdbId: show.tmdbId, title: show.title, year: show.year, posterUrl: show.posterUrl }} /> {/* Usherr */}
       <VoteButtons kind="tv" refId={show.tmdbId} meta={{ title: show.title, year: show.year, image: show.posterUrl }} /> {/* home fork */}
@@ -107,6 +116,30 @@ export default function ShowDetail() {
       )}
     </>
   )
+  // Usherr Broadcast: one main button (Watch when it streams, else Ask for
+  // it), then Stack, Trailer and More; the rest is in the More sheet.
+  moreSheet.playRef.current = streamedHere ? () => void watchStreamed() : undefined // the remote's Play key
+  const ask = can(me, 'addDirect') ? t('Add it') : t('Ask for it')
+  const broadcastActions = broadcast && (
+    <BroadcastTitleActions
+      primary={streamedHere ? <PrimaryButton icon="play" label={t('Watch (streams)')} onClick={() => void watchStreamed()} /> : <PrimaryButton icon="plus" walk="title-add" label={ask} onClick={() => setAdding(true)} />}
+      stack={<StackButton item={{ kind: 'tv', tmdbId: show.tmdbId, title: show.title, year: show.year, posterUrl: show.posterUrl }} />}
+      onMore={() => moreSheet.setOpen(true)}
+    />
+  )
+  const moreRows: MoreRow[] = !broadcast
+    ? []
+    : [
+        ...(streamedHere ? [{ key: 'ask', icon: 'plus' as const, label: ask, run: () => setAdding(true) }] : []),
+        { key: 'watched', icon: 'check', label: t('Mark watched'), hint: t('In your diary'), run: () => markWatched('tv', show.tmdbId).then(() => toast.success(t('Marked watched.')), (e: Error) => toast.error(e.message)) },
+        { key: 'rate', icon: 'star', label: t('Rate it'), node: <VoteButtons kind="tv" refId={show.tmdbId} meta={{ title: show.title, year: show.year, image: show.posterUrl }} /> },
+        { key: 'catch-up', node: <CatchUp tmdbId={show.tmdbId} /> },
+        { key: 'like', node: <WhatsItLike kind="tv" tmdbId={show.tmdbId} title={show.title} /> },
+        { key: 'skip', node: <SkipGuide tmdbId={show.tmdbId} title={show.title} /> },
+        { key: 'smh', icon: 'sparkles', label: t('Show me how'), hint: t('From here'), run: openSmhMenu },
+        ...(!admin ? [{ key: 'report', icon: 'warning' as const, label: t('Something wrong with it?'), hint: t('Tell an admin'), run: () => openReport('problem') }] : []),
+        ...(admin ? [{ key: 'art', admin: true, icon: 'image' as const, label: t('Change the artwork'), node: <ArtworkButton kind="tv" tmdbId={show.tmdbId} title={show.title} /> }] : []),
+      ]
   const manage = admin && (
     <div className="fp-manage" data-walk="title-manage-panel">
       <div className="title-actions">
@@ -119,7 +152,7 @@ export default function ShowDetail() {
     <TitleLayout
       layout={layout}
       show={shows}
-      hero={<TitleHero info={info} status={status} actions={everyday} layout={layout} fullPlot={shows.fullPlot} />}
+      hero={<TitleHero info={info} status={status} actions={broadcastActions || everyday} layout={layout} fullPlot={shows.fullPlot} />} /* Usherr Broadcast: its own buttons */
       facts={<TitleFacts info={info} />}
       scores={shows.scores && <ScoresLine kind="tv" tmdbId={show.tmdbId} />}
       where={shows.streaming && <StreamingOn kind="tv" tmdbId={show.tmdbId} />}
@@ -134,6 +167,7 @@ export default function ShowDetail() {
       label={t('About this show')}
       dialogs={
         <>
+          {moreSheet.open && <MoreSheet eyebrow={show.title} rows={moreRows} onClose={() => moreSheet.setOpen(false)} />} {/* Usherr Broadcast */}
           {sheet > 0 && (
             <Suspense fallback={null}>
               <StreamedSheet id={sheet} tmdbId={show.tmdbId} title={show.title} onClose={() => setSheet(0)} />

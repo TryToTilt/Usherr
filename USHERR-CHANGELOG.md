@@ -5,6 +5,73 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.64.1] - 2026-11-08
+
+### Fixed
+
+- **Left at the left edge opens the menu again** in Broadcast, with the page you're on highlighted; Left stays in its row instead of jumping to the row below.
+- **Broadcast, tidied after a first look on the real server:** Home no longer says its name twice and its Tonight cards use plain text, with an amber sign when the Server needs you. On a phone every label in the bottom bar fits. Find has one search box and four short "things you can do" (the rest one press away). The Library has the row of kinds at the top and "In theaters now" below your own library, with calm ticket badges. Live TV keeps Guide and Multiview in view and puts the setup buttons under "Channels and setup"; long channel names take two lines. Movie night with nothing booked is no longer dim. Small posters load smaller pictures, and blue is kept for what's highlighted.
+
+## [2.64.0] - 2026-11-08
+
+### Broadcast
+
+- **A new look, Broadcast, is now the default.** It's dark and clear, made to be used from the sofa: things stand out by being lighter, not by shadows, and there's one blue that shows where you are. It comes with its own font (Inter) and numbers that line up for times. A light version is there for the light setting. If you picked Neu or Classic before, nothing changes for you; you can switch any time under Settings > General > Light or dark.
+- **Use Usherr with a TV remote or the arrow keys.** The arrows move to the nearest thing in that direction, OK opens it, and Back closes what's open or goes back a page. Open windows keep the arrows inside them, and typing in a box is never interrupted. Sliders (like volume) move only after you press OK on them, and OK again lets go. On a TV's own browser this is on from the start.
+- **Live TV opens on a new guide, made for the remote.** Channels down the side (number, name and a star for favourites), two hours across, and a glowing line at now. Up and Down land on what's on at the same time on the next channel, Left and Right go along a channel, and the hours move along when you reach the edge. Under the guide, a card shows the programme you're on: OK watches what's on now, or opens a later one so you can set a reminder. The Options key (or the Options button) has Remind me, Record, Start over and the channel's star. The other guide styles are still in the style list.
+- **While you watch a channel,** OK shows or hides a new overlay: the channel number and name, what's on with its episode and times, a progress line, and an Up Next card. Up and Down still change channel and Back goes back to the guide.
+- **Movie night has a new layout:** tonight's showtime first, with Open the lobby, Invite and Book another; your crew's vote as cards you press to vote; and the showtimes coming up.
+- **The lobby is a full screen of its own:** pick your seat with the arrows and OK, chat with quick replies (or type), react with HA, EEK, WOW, NOPE and CLAP, and Start the film, Skip the pre-show, use your phone, or Leave.
+- **The channel editor is easier with a remote:** the name is the only typing, the number has − and +, shows, order and start times are buttons to press, and Save, Watch it now and Fill it with AI are at the bottom. Genres, films, streamed shows, parts of the day, the logo and the rest are under Advanced.
+- **A new Home for Broadcast.** What you were watching is up top with Resume ready to press, then Tonight: the next showtime, a crew vote, a new manga volume, a game today and, for administrators, when the Server needs you (each card only when there's something to say). Then On now (Live TV channels with what's airing; OK tunes in), Continue, Recently added and For you.
+- **Title pages with one main button.** Play (on a show, Play S1 E4: the episode you were part way through, or the first one), or Ask for it, has the remote's first focus, then Stack, Trailer and More. **More** holds the rest: book a showtime, watch with a friend, mark watched, rate it, subtitles and audio, Show me how, and for administrators finding a better copy, choosing a release, changing the artwork and managing the files. The Options key (M) opens it too, and on any poster it opens that title's More. Seasons and episodes go by the arrows, and More like this is one row.
+- **The player has its own controls in Broadcast.** The title, a bar that Left and Right move by 10 seconds (the fast forward and rewind keys by 30; OK or Play/Pause pauses), then Subtitles, Audio, another release for a stream, and Start over. They fade after a few seconds of playing and come back with any key; Back hides them, and Back again leaves the film. Live TV, Neu and Classic keep the browser's controls.
+- **Read with a remote.** In the manga, comic, book and PDF readers, Left and Right turn the page the way the book reads (Left goes on in a right-to-left manga), and so do Fast forward and Rewind. OK shows or hides the bar, Up moves to it, Back closes what's open and then the book. The Options key opens the reader settings as a list you change with Left and Right; saving a manga page, which used to need a long press or a right-click, is in that list too.
+- **Music with a remote.** Play/Pause plays and pauses, Fast forward and Rewind skip to the next or previous track, and the music bar says whether it's playing. On an artist's page each album is one stop: OK plays it, Options shows everything else for it.
+- **You, made for the sofa:** this year's films and episodes at the top, buttons for Your year, Diary, Stubs and badges, Your settings and Show me how, then your Stack and Keep going (what you're reading, listening to and watching).
+- **Your settings as rows** you change with Left and Right: the menu, how fast it slides away, the look, light or dark, text size and language (the look and the language switch when you press OK), then your profile, security, linked services and MangaDex.
+- **Server's Today** shows three tiles: Downloads, Wanted and Needs you. In Activity each download is one stop: OK shows Pause, Retry, Find another, Stop or Remove (Remove always asks first).
+- **Switches on the settings pages** turn on with Right and off with Left.
+
+### One menu
+
+These come with the Broadcast look. Classic and Neu keep their menus, pages and settings exactly as before.
+
+- **One menu with seven places:** Home, Find, Library, Live TV, Movie night, You and, for administrators, Server (with a count of what needs you).
+- **Choose how the menu sits** under You, Your settings, Look and language: always open, icons (a narrow row that opens when you point at it or move to it, the new default) or hidden (the menu button or the left edge of the screen opens it). The slide-away time still applies.
+- **Phones get a bar along the bottom:** Home, Find, Library, Live TV, Movie night and You. Server is reached from You.
+- **A leaner top bar:** the search and Ask bar, Show me how and your profile. Roulette and Tonight moved to Find, the next showtime is on Home and Movie night, and the players menu, the guide and light or dark are at the bottom of the menu.
+- **Find, a new page:** search and Ask, Discover by kind (Manga's Discover included), Roulette, Tonight, people you follow, and the things you can do, with Show me how for each.
+- **The kinds of media in one order everywhere** (Movies, TV shows, Anime, Music, Books, Manga, Comics), with the same names in the menu, the Library, Discover and the Comics, Manga and NSFW pages. Sports, Coming up and the streamed library are under Library too; NSFW 18+ has a line of its own for the accounts allowed it.
+- **Server, regrouped:** Today (what needs you, downloads, wanted), Activity, and the settings in seven groups: Setup and health, Libraries, Getting media, Watching, Kinds of media, People, Smarts and connections. Your own settings (look, profile, security, linked services, MangaDex, your statistics) are under You.
+- **Settings > Extras is gone in Broadcast:** each of its cards is now on its feature's page, such as Streaming, Live TV, Play on TV, Apps on phones and TVs, Comics, Sports, Books and Read-to-Me, NSFW 18+, AI, News and in theaters, and Scores on Movie and show info. Old links to it open the card's new page.
+- **Schedules and quiet times on one page:** the schedules, the speed schedule, Quiet for a while and the notifications' quiet hours.
+- **Both addresses on one page, Addresses:** the address people use from outside, and the one your TV and media server use at home.
+### Sign in on a TV
+
+- **Sign in with your phone.** On a TV, the sign-in page shows a code and a QR code instead of asking for a password. Scan it with your phone while signed in, press Approve, and the TV signs in as you. A code works once, for five minutes. A TV's own browser starts there by itself.
+- **Type a TV's code** on your phone at `/tv-code` if scanning doesn't suit you. The phone shows what kind of TV asked and warns when it isn't on your home network.
+- **TVs show up under Signed-in devices** with their kind of device ("Chrome on NVIDIA Shield"), so you can sign one out.
+- **Administrators can switch it off** under Settings > Account & Access > Ways to sign in. It's on to begin with.
+- **Finish on your phone.** Pages can hand themselves to your phone with a QR code, so you type there instead of with the remote. The link opens the same page, works once for ten minutes, and only for you.
+- **A keyboard on screen** for TVs with no keyboard of their own: letters in a grid you move through with the arrows, plus your recent searches.
+
+### Guide and website
+
+- A new guide page, Broadcast and the remote: the look, the one menu and its seven places, the menu's three modes, every key on a TV remote, signing in on a TV, Finish on your phone, Your settings, and a table of where each old Settings and Extras page is now. It's in the in-app guide and near the front of the PDF guide.
+- The rest of the guide gives the Broadcast way to a page first and the Classic or Neu way second, wherever the two differ: getting started, finding, watching, Live TV, watching together, community, setting up each part, manga, Read-to-Me and the others.
+- The README leads with Broadcast and using Usherr on a TV with a remote.
+- Show me how on the website: four new pages (Use Usherr with a TV remote, Sign in on a TV with your phone, Finish on your phone, Choose the look) in a new On the TV group, and every page says where it starts in Broadcast and in Classic or Neu.
+- The Start page's "What's in Usherr now" begins with Broadcast, the remote and signing in on a TV.
+### Show me how
+
+- **Every walkthrough works in Broadcast.** They go to the new places: Manage files and Stream under a title's More, Roulette and Tonight on Find, the lobby on Movie night, and the settings that were on Extras on their own pages under Server. Classic and Neu walk through them exactly as before.
+- **Walkthroughs say which remote button to press** in Broadcast or on a TV: Press OK, Press Options (☰) for More, Press Left for the menu.
+- **New walkthroughs:** sign in on a TV with your phone, finish on your phone, choose how the menu sits, everything else for a title (More), read with a remote, use the Live TV guide with a remote, and the Movie night lobby (your seat, quick replies, reactions, your phone).
+- **The words point at the new places** in Broadcast, such as Server, Kinds of media, Sports instead of Settings, Extras, Sports.
+- **The setup wizard in Broadcast** says where each setting lives later (Server, Getting media, Usenet), and its Extras step says which page each extra is on now. On a TV, the steps with keys and passwords to type offer Finish on your phone.
+- **The Doctor's fix buttons** for the address and the virtual drive open their own pages in Broadcast, and a new tip suggests the More walkthrough when you're using a remote.
+
 ## [2.63.0] - 2026-11-08
 
 ### Changed

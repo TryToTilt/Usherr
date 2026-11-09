@@ -9,9 +9,16 @@ export const HOME_TOPICS: TopicDef[] = [
   {
     id: 'home-start',
     title: 'Getting started with Usherr’s own parts',
-    summary: 'What Usherr adds, what you need for it, the quickest way to a working server, and its looks: Neu, the new layout, TV size.',
+    summary: 'What Usherr adds, what you need for it, the quickest way to a working server, and its looks: Broadcast, Neu, Classic.',
     group: HOME_GROUP,
     sources: [{ file: 'home/getting-started.md' }],
+  },
+  {
+    id: 'home-broadcast',
+    title: 'Broadcast and the remote',
+    summary: 'The Broadcast look, the one menu, every key on a TV remote, signing in on a TV, finishing on your phone, and where each page moved.',
+    group: HOME_GROUP,
+    sources: [{ file: 'home/broadcast.md' }],
   },
   {
     id: 'home-setup',
@@ -23,14 +30,14 @@ export const HOME_TOPICS: TopicDef[] = [
   {
     id: 'home-finding',
     title: 'Finding something to watch',
-    summary: 'The Dashboard and Continue watching, Discover and its rows, asking the AI, recipes, the family filter, picking seasons.',
+    summary: 'Home or the Dashboard, Find, Discover and its rows, asking the AI, Roulette, recipes, the family filter, picking seasons.',
     group: HOME_GROUP,
     sources: [{ file: 'home/finding.md' }],
   },
   {
     id: 'home-watching',
     title: 'Watching it',
-    summary: 'Play or Stream, film and show pages, picking up where you left off, Showtimes and the lobby, the TV, Live TV, comics.',
+    summary: 'Play or Stream, title pages and More, picking up where you left off, Showtimes and the lobby, the TV, Live TV, comics.',
     group: HOME_GROUP,
     sources: [{ file: 'home/watching.md' }],
   },
@@ -51,7 +58,7 @@ export const HOME_TOPICS: TopicDef[] = [
   {
     id: 'home-livetv',
     title: 'Live TV',
-    summary: 'Channels from your library and streams, packs and the AI builder, Real TV, the encoder and watermark, Jellyfin, Plex, IPTV.',
+    summary: 'The guide and the remote, channels from your library and streams, packs, the AI builder, Real TV, Jellyfin, Plex, IPTV.',
     group: HOME_GROUP,
     sources: [{ file: 'home/live-tv.md' }],
   },

@@ -332,6 +332,7 @@ type sessionPayload struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 	Method    string    `json:"method"`
 	Current   bool      `json:"current"`
+	Device    string    `json:"device,omitempty"` // Usherr: the kind of device, for a TV sign-in
 }
 
 // handleListSessions lists the places the caller is signed in (GET
@@ -351,7 +352,7 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]sessionPayload, len(list))
 	for i, x := range list {
-		out[i] = sessionPayload{CreatedAt: x.CreatedAt, ExpiresAt: x.ExpiresAt, Method: x.Method, Current: x.Current}
+		out[i] = sessionPayload{CreatedAt: x.CreatedAt, ExpiresAt: x.ExpiresAt, Method: x.Method, Current: x.Current, Device: x.Device}
 	}
 	writeJSON(w, http.StatusOK, out)
 }

@@ -33,6 +33,11 @@ import Switch from '../components/Switch'
 import TitleHero, { TitleFacts } from '../components/TitleHero'
 import { useFilmPage } from '../home/filmLayout' // Usherr: the film page's layouts
 import { lobbyOn } from '../neu/look' // Usherr: the new layout
+import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast: one main button, the rest in More
+import { BroadcastTitleActions, markWatched, MoreSheet, PrimaryButton, useTitleMore, type MoreRow } from '../broadcast/MoreSheet' // Usherr Broadcast
+import { openShowtimeBooking } from '../home/ShowtimePill' // Usherr Broadcast: Book a showtime, from More
+import { openSmhMenu } from '../smh/engine' // Usherr Broadcast: Show me how, from More
+import { openReport } from '../report' // Usherr Broadcast
 import TitleLayout from '../home/TitleLayout' // Usherr: Cinema, Side by side, Streaming
 import { CastCard, PeopleLinks, titleLinks } from '../components/TitlePreview'
 import { crewWith } from '../people'
@@ -91,6 +96,9 @@ function MoviePage() {
   // section (a tab, a fold or a panel, by layout).
   const { resolved: layout, show } = useFilmPage()
   const [manageOpen, setManageOpen] = useState(false)
+  // Usherr Broadcast: the More sheet (the Options key opens it too).
+  const broadcast = broadcastOn()
+  const moreSheet = useTitleMore(broadcast)
   const [similar, setSimilar] = useState<DiscoverMovie[]>([])
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(false)
@@ -347,10 +355,11 @@ function MoviePage() {
   const stateKey = !inLibrary ? (streamedHere ? 'streams' : null) : movie.status === 'downloaded' ? 'downloaded' : movie.status === 'downloading' ? 'downloading' : monitored === false ? 'added' : 'searching'
   // Usherr: in the new layout a member sees what it means for watching, never
   // the file's quality or whether it's monitored.
-  const memberView = lobbyOn() && !admin
+  const memberView = (lobbyOn() || broadcast) && !admin // Usherr Broadcast: the same
   const state = !stateKey ? null : !memberView ? describeState(stateKey) : stateKey === 'downloaded' ? null : stateKey === 'downloading' ? { ...describeState('downloading'), label: t('On its way') } : stateKey === 'streams' ? describeState('streams') : { ...describeState('pending'), label: t('Not here yet'), hint: t('It’s on the list, and not here yet.') }
   const canPlayIt = movie.status === 'downloaded' && !!movie.libraryId && can(me, 'play')
   const play = canPlayIt ? () => playTitle('movie', movie.libraryId!, movie.title) : undefined /* play hook (home fork) */
+  moreSheet.playRef.current = play // Usherr Broadcast: the remote's Play key
 
   const heroInfo = {
     ...movie,
@@ -396,7 +405,7 @@ function MoviePage() {
       ) : (
         <>
           <button className="primary btn-with-icon big" data-walk="title-add" onClick={() => setAdding(true)}>
-            <Icon name="plus" size={18} /> {!lobbyOn() ? t('Add to library') : can(me, 'addDirect') ? t('Add it') : t('Ask for it')}
+            <Icon name="plus" size={18} /> {!lobbyOn() && !broadcast ? t('Add to library') : can(me, 'addDirect') ? t('Add it') : t('Ask for it')}
           </button>
           {can(me, 'play') && (
             // stream hook (home fork): watch it now, add it later if you like it
@@ -416,6 +425,43 @@ function MoviePage() {
       {movie.status === 'downloaded' && <WatchLinks tmdbId={movie.tmdbId} kind="movie" />}
     </>
   )
+
+  // Usherr Broadcast: one main button (Play, or Ask for it), then Stack,
+  // Trailer and More; the rest of the everyday actions and the
+  // administrators' are in the More sheet (broadcast/MoreSheet.tsx).
+  const broadcastActions = broadcast && (
+    <BroadcastTitleActions
+      primary={
+        !inLibrary ? (
+          <PrimaryButton icon="plus" walk="title-add" label={can(me, 'addDirect') ? t('Add it') : t('Ask for it')} onClick={() => setAdding(true)} />
+        ) : canPlayIt && play ? (
+          <PrimaryButton icon="play" walk="title-play" label={t('Play')} onClick={play} />
+        ) : movie.status !== 'downloaded' && can(me, 'play') ? (
+          <StreamButton target={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title }} onKeep={can(me, 'manage') ? () => void searchNow() : undefined} />
+        ) : undefined
+      }
+      stack={<StackButton item={{ kind: 'movie', ...filmItem }} />}
+      onMore={() => moreSheet.setOpen(true)}
+    />
+  )
+  const moreRows: MoreRow[] = !broadcast
+    ? []
+    : [
+        { key: 'showtime', icon: 'clock', label: t('Book a showtime'), run: () => openShowtimeBooking({ ...filmItem, runtime: movie.runtime }) },
+        { key: 'friend', icon: 'user', label: t('Watch with a friend'), hint: t('Movie night'), run: () => navigate('/showtime') },
+        ...(!inLibrary && can(me, 'play') ? [{ key: 'stream', node: <StreamButton target={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title }} onKeep={() => setAdding(true)} /> }] : []),
+        { key: 'watched', icon: 'check', label: t('Mark watched'), hint: t('In your diary'), run: () => markWatched('movie', movie.tmdbId).then(() => toast.success(t('Marked watched.')), (e: Error) => toast.error(e.message)) },
+        { key: 'rate', icon: 'star', label: t('Rate it'), node: <VoteButtons kind="movie" refId={movie.tmdbId} meta={{ title: movie.title, year: movie.year, image: movie.posterUrl }} /> },
+        ...(play ? [{ key: 'tracks', icon: 'captions' as const, label: t('Subtitles and audio'), hint: t('In the player'), run: play }] : []),
+        { key: 'like', node: <WhatsItLike kind="movie" tmdbId={movie.tmdbId} title={movie.title} /> },
+        ...(movie.status === 'downloaded' ? [{ key: 'watch-in', node: <WatchLinks tmdbId={movie.tmdbId} kind="movie" /> }] : []),
+        { key: 'smh', icon: 'sparkles', label: t('Show me how'), hint: t('From here'), run: openSmhMenu },
+        ...(!admin ? [{ key: 'report', icon: 'warning' as const, label: t('Something wrong with it?'), hint: t('Tell an admin'), run: () => openReport('problem') }] : []),
+        ...(inLibrary && can(me, 'manage') ? [{ key: 'better', admin: true, icon: 'search' as const, label: movie.status === 'downloaded' ? t('Look for a better copy') : t('Find and download now'), run: () => void searchNow() }] : []),
+        ...(inLibrary && can(me, 'releases') ? [{ key: 'choose', admin: true, icon: 'list' as const, label: t('Choose a release'), run: () => void chooseRelease() }] : []),
+        ...(admin ? [{ key: 'art', admin: true, icon: 'image' as const, label: t('Change the artwork'), node: <ArtworkButton kind="movie" tmdbId={movie.tmdbId} title={movie.title} /> }] : []),
+        ...(hasManage ? [{ key: 'manage', walk: 'title-manage', admin: true, icon: 'sliders' as const, label: t('Manage files'), hint: t('Quality, folder, files, remove'), run: () => setManageOpen(true) }] : []),
+      ]
 
   // Manage: the file, its downloads and the library's settings for it.
   const manage = hasManage && (
@@ -572,6 +618,7 @@ function MoviePage() {
   )
   const dialogs = (
     <>
+      {moreSheet.open && <MoreSheet eyebrow={movie.title} rows={moreRows} onClose={() => moreSheet.setOpen(false)} />} {/* Usherr Broadcast */}
       {locating && movie.libraryId && <LocateDialog kind="movie" id={movie.libraryId} start={movie.folderPath} onClose={() => setLocating(false)} onDone={reload} />}
       {adding && (
         <AddDialog
@@ -585,7 +632,7 @@ function MoviePage() {
       )}
     </>
   )
-  const hero = <TitleHero onPlay={play} info={heroInfo} status={statusTag} actions={everyday} layout={layout} fullPlot={show.fullPlot} />
+  const hero = <TitleHero onPlay={play} info={heroInfo} status={statusTag} actions={broadcastActions || everyday} layout={layout} fullPlot={show.fullPlot} /> /* Usherr Broadcast: its own buttons */
 
   return (
     <TitleLayout

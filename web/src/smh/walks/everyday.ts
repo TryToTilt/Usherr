@@ -5,6 +5,7 @@ import { api } from '../../api'
 import { t } from '../../i18n'
 import { streamingOn } from '../../home/streamApi'
 import type { SmhChoice, SmhCtx, SmhStep, Walkthrough } from '../types'
+import { bc, PRESS } from '../look' // Usherr Broadcast: steps and words for its own pages
 
 const pick = (c: SmhCtx, key: string) => (c.answers[key] as { value: string; label: string } | undefined)?.value
 
@@ -34,7 +35,7 @@ export const vote: Walkthrough = {
       title: t('Why vote?'),
       text: t('Every thumb teaches Usherr what you like and what isn’t for you. Your For you row, your match on every title, Tonight’s picks and Roulette all get better with each one. Your votes are your own: nobody else in the house sees them.'),
     },
-    { kind: 'go', to: '/discover', title: t('Discover'), text: t('Rate 20 is up here, next to Roulette.') },
+    { kind: 'go', to: '/discover', title: t('Discover'), text: bc(t('Rate 20 is up here.'), t('Rate 20 is up here, next to Roulette.')) },
     {
       kind: 'point',
       target: 'rate20',
@@ -63,7 +64,7 @@ export const vote: Walkthrough = {
       title: t('Why vote?'),
       text: t('Every thumb teaches Usherr your taste: the genres, actors, directors and subjects you keep coming back to. It also learns from what you finish in Jellyfin. Your votes are your own.'),
     },
-    { kind: 'go', to: '/discover', title: t('Discover'), text: t('Rate 20 is up here, next to Roulette.') },
+    { kind: 'go', to: '/discover', title: t('Discover'), text: bc(t('Rate 20 is up here.'), t('Rate 20 is up here, next to Roulette.')) },
     { kind: 'point', target: 'rate20', act: 'click', until: { seen: 'rate-deck' }, title: t('Rate 20'), text: t('Twenty titles, some from your library, some well known.') },
     { kind: 'point', target: 'rate-deck', until: 'next', title: t('Like, Not for me, or Skip'), text: t('→ likes, ← passes, space skips. A title you give a thumbs down stops showing in Discover’s rows.') },
     {
@@ -115,6 +116,7 @@ export const stack: Walkthrough = {
       until: 'next',
       title: t('Your stack'),
       text: t('It lives in the menu: the front ticket is the newest. Swipe it, or use the arrows, to go through. Tap the poster to open it or play it.'),
+      remote: bc(PRESS.menu, ''),
     },
     {
       kind: 'done',
@@ -135,7 +137,8 @@ export const roulette: Walkthrough = {
   icon: 'dice',
   words: 'roulette random spin pick decide surprise what to watch',
   simple: [
-    { kind: 'point', target: 'roulette', act: 'click', until: { seen: 'roulette-box' }, title: t('Roulette'), text: t('The dice, at the top of every page.') },
+    { kind: 'go', look: 'broadcast', to: '/find', title: t('Find'), text: t('Roulette is on Find, in the menu.') },
+    { kind: 'point', target: 'roulette', act: 'click', until: { seen: 'roulette-box' }, title: t('Roulette'), text: bc(t('Under Not sure what to watch?'), t('The dice, at the top of every page.')) },
     {
       kind: 'point',
       target: 'roulette-box',
@@ -147,7 +150,7 @@ export const roulette: Walkthrough = {
       kind: 'done',
       title: t('Enjoy the film'),
       text: t('The better-rated titles, and those that fit the people watching, come up more often. Anything any of them gave a thumbs down never does.'),
-      shortcut: t('Next time: the dice at the top.'),
+      shortcut: bc(t('Next time: Find, then Roulette.'), t('Next time: the dice at the top.')),
     },
   ],
 }
@@ -160,9 +163,21 @@ export const tonight: Walkthrough = {
   icon: 'sparkles',
   words: 'tonight picks what to watch suggestion continue next episode',
   simple: [
-    { kind: 'point', target: 'tonight', act: 'click', until: { seen: 'tonight-box' }, title: t('Tonight’s picks'), text: t('At the top of every page.') },
+    { kind: 'point', look: 'other', target: 'tonight', act: 'click', until: { seen: 'tonight-box' }, title: t('Tonight’s picks'), text: t('At the top of every page.') },
+    { kind: 'go', look: 'broadcast', to: '/find', title: t('Find'), text: t('Tonight’s picks are on Find, in the menu.') },
+    { kind: 'point', look: 'broadcast', target: 'tonight-ask', act: 'click', until: 'next', optional: true, title: t('Tonight’s picks'), text: t('Press What should I watch tonight?, then Next.') },
     {
       kind: 'point',
+      look: 'broadcast',
+      target: 'tonight-card',
+      until: 'next',
+      optional: true,
+      title: t('Three picks'),
+      text: t('From what’s already here: something you’re part-way through, the next episode of a show you watch, and films or shows you have but haven’t seen. Press one to play it.'),
+    },
+    {
+      kind: 'point',
+      look: 'other',
       target: 'tonight-box',
       until: 'next',
       title: t('Three picks'),
@@ -172,7 +187,7 @@ export const tonight: Walkthrough = {
       kind: 'done',
       title: t('Enjoy'),
       text: t('Want more choice? Roulette spins for one; the Ask bar takes it in your own words (“a 90s heist movie, not too violent”).'),
-      shortcut: t('Next time: Tonight’s picks, at the top.'),
+      shortcut: bc(t('Next time: Find, then Tonight’s picks.'), t('Next time: Tonight’s picks, at the top.')),
     },
   ],
 }
@@ -228,6 +243,18 @@ export const streamOrKeep: Walkthrough = {
       ],
     },
     {
+      // Usherr Broadcast: Stream is in the title's More sheet there
+      kind: 'point',
+      look: 'broadcast',
+      target: 'title-more',
+      act: 'click',
+      until: { seen: 'more-sheet' },
+      when: (c) => !inLib(c) && pick(c, 'how') === 'stream',
+      title: t('More'),
+      text: t('Stream is under More.'),
+      remote: PRESS.more,
+    },
+    {
       kind: 'point',
       target: 'stream-btn',
       act: 'click',
@@ -250,13 +277,13 @@ export const streamOrKeep: Walkthrough = {
       until: 'next',
       when: (c) => !inLib(c) && (pick(c, 'how') === 'add' || !canStream(c)),
       title: t('Add to library'),
-      text: (c) => (canStream(c) ? '' : t('Streaming isn’t set up on this Usherr (an administrator can switch it on under Settings, Extras), so this one goes in the library. ')) + t('Press Add to library, keep the usual choices, and Usherr finds a copy and downloads it. Activity shows how it’s going.'),
+      text: (c) => (canStream(c) ? '' : c.broadcast ? t('Streaming isn’t set up on this Usherr (an administrator can switch it on under Server, Getting media, Streaming), so this one goes in the library. ') : t('Streaming isn’t set up on this Usherr (an administrator can switch it on under Settings, Extras), so this one goes in the library. ')) + t('Press Add to library, keep the usual choices, and Usherr finds a copy and downloads it. Activity shows how it’s going.'),
     },
     {
       kind: 'done',
       title: t('Enjoy the film'),
       text: t('Titles marked Streams in the Library aren’t on disk: they always play this way.'),
-      shortcut: t('Next time: a film’s page, then Stream or Add to library.'),
+      shortcut: bc(t('Next time: a film’s page, then Add it, or Stream under More.'), t('Next time: a film’s page, then Stream or Add to library.')),
     },
   ],
 }
@@ -267,6 +294,7 @@ export const streamOrKeep: Walkthrough = {
 export const filmLayout: Walkthrough = {
   id: 'film-layout',
   group: 'watch',
+  look: 'other', // Usherr Broadcast: its title pages have one layout, made for the remote
   title: t('Choose how a film’s or show’s page looks'),
   blurb: t('Cinema, Side by side or Streaming, per browser: the TV and your laptop can each have their own.'),
   icon: 'film',
@@ -314,7 +342,7 @@ export const diary: Walkthrough = {
       text: t('Log something adds a film or show you watched elsewhere, with the day. Import brings in your Letterboxd diary or your Trakt history.'),
     },
     { kind: 'go', to: '/you/wrapped', title: t('Wrapped'), text: t('Your year in watching: hours, films, episodes, your longest run of days, the shows you couldn’t stop and what your year was made of. Earlier years are a tap away.') },
-    { kind: 'done', title: t('That’s your diary'), text: t('The more it knows, the better your suggestions.'), shortcut: t('Next time: your initial, top right, then You, Diary.') },
+    { kind: 'done', title: t('That’s your diary'), text: t('The more it knows, the better your suggestions.'), shortcut: bc(t('Next time: You, in the menu, then Diary.'), t('Next time: your initial, top right, then You, Diary.')) },
   ],
 }
 

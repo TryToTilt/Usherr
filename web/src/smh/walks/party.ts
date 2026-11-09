@@ -4,7 +4,20 @@
 // vote on the next film and film clubs.
 import { crewsApi } from '../../home/crewsApi'
 import { t } from '../../i18n'
-import type { SmhCtx, Walkthrough } from '../types'
+import type { SmhCtx, SmhStep, Walkthrough } from '../types'
+import { bc } from '../look' // Usherr Broadcast: words for its own pages
+
+// Usherr Broadcast: the lobby is its own screen there, opened from Movie night.
+export const openLobby = (): SmhStep => ({
+  kind: 'point',
+  look: 'broadcast',
+  target: 'night-lobby',
+  act: 'click',
+  until: { seen: 'lobby' },
+  optional: true,
+  title: t('Open the lobby'),
+  text: t('On Movie night, for the next showtime.'),
+})
 
 const pick = (c: SmhCtx, key: string) => (c.answers[key] as { value: string } | undefined)?.value
 const has = (id: string) => !!document.querySelector(`[data-walk="${id}"]`)
@@ -25,7 +38,7 @@ export const linkUsherr: Walkthrough = {
       title: t('What linking does'),
       text: t('Two Usherrs that are linked can share screenings, chat at them and make crews. Each house plays its own copy of the film, and the link keeps everyone in step: no video crosses between houses, and nobody opens a port.'),
     },
-    { kind: 'go', to: '/settings/linked', title: t('Linked Usherrs'), text: t('Under Settings, Movie night.') },
+    { kind: 'go', to: '/settings/linked', title: t('Linked Usherrs'), text: bc(t('Under Server, People.'), t('Under Settings, Movie night.')) },
     {
       kind: 'point',
       target: 'linked-switch',
@@ -80,7 +93,7 @@ const hostSteps = (advanced: boolean): Walkthrough['simple'] => [
   {
     kind: 'say',
     title: t('First, book the film'),
-    text: t('Book a showtime as usual: the film, the time and the pre-show. Linked Usherrs need to be switched on (Settings, Movie night, Linked Usherrs).'),
+    text: bc(t('Book a showtime as usual: the film, the time and the pre-show. Linked Usherrs need to be switched on (Server, People, Linked Usherrs).'), t('Book a showtime as usual: the film, the time and the pre-show. Linked Usherrs need to be switched on (Settings, Movie night, Linked Usherrs).')),
   },
   { kind: 'go', to: '/showtime', title: t('The Showtime page'), text: t('Your showtimes are listed further down.') },
   {
@@ -100,7 +113,10 @@ const hostSteps = (advanced: boolean): Walkthrough['simple'] => [
   {
     kind: 'say',
     title: t('The lobby'),
-    text: t('Before the film, the Showtime page counts down, shows which part of the pre-show is playing in step at every house, and has a seat map of who’s coming. Press Take my seat when you’re settled in: everyone else shows as on the way. Your seat is the one printed on your ticket stub.'),
+    text: bc(
+      t('Before the film, Open the lobby on Movie night counts down, says which part of the pre-show is playing in step at every house, and has a seat map of who’s coming. Press a free seat when you’re settled in: everyone else shows as on the way. Your seat is the one printed on your ticket stub.'),
+      t('Before the film, the Showtime page counts down, shows which part of the pre-show is playing in step at every house, and has a seat map of who’s coming. Press Take my seat when you’re settled in: everyone else shows as on the way. Your seat is the one printed on your ticket stub.'),
+    ),
   },
   {
     kind: 'say',
@@ -155,9 +171,28 @@ export const partyPhone: Walkthrough = {
   icon: 'monitor',
   words: 'phone companion remote react reactions chat spoiler pause play host screening watch party sofa',
   simple: [
-    { kind: 'go', to: '/showtime', title: t('The Showtime page'), text: t('A screening’s chat is here, under the countdown.') },
+    { kind: 'go', to: '/showtime', title: bc(t('Movie night'), t('The Showtime page')), text: bc(t('The lobby has the phone link.'), t('A screening’s chat is here, under the countdown.')) },
+    openLobby(),
     {
       kind: 'point',
+      look: 'broadcast',
+      target: 'lobby-phone',
+      until: 'next',
+      optional: true,
+      title: t('On your phone'),
+      text: t('Use my phone as the remote shows a code: scan it with your phone and the screening’s page opens there, signed in as you. Leave it open while the film plays on the TV.'),
+    },
+    {
+      kind: 'say',
+      look: 'broadcast',
+      when: () => !has('lobby-phone'),
+      title: t('When a screening is on'),
+      text: t('Movie night has Open the lobby for your next showtime: the phone code is there. Or open Usherr on your phone, then Movie night.'),
+      qr: () => `${window.location.origin}/showtime`,
+    },
+    {
+      kind: 'point',
+      look: 'other',
       target: 'party-phone-link',
       until: 'next',
       optional: true,
@@ -166,6 +201,7 @@ export const partyPhone: Walkthrough = {
     },
     {
       kind: 'say',
+      look: 'other',
       when: () => !has('party-phone-link'),
       title: t('When a screening is on'),
       text: t('The chat and its On your phone link show on the Showtime page for a screening you’re at: one you host or said I’m in to.'),
@@ -216,7 +252,7 @@ export const startCrew: Walkthrough = {
       kind: 'say',
       when: () => !has('crew-make'),
       title: t('Link an Usherr first'),
-      text: t('A crew is made of linked Usherrs. An administrator links this Usherr with a friend’s under Settings, Movie night, Linked Usherrs.'),
+      text: bc(t('A crew is made of linked Usherrs. An administrator links this Usherr with a friend’s under Server, People, Linked Usherrs.'), t('A crew is made of linked Usherrs. An administrator links this Usherr with a friend’s under Settings, Movie night, Linked Usherrs.')),
     },
     {
       kind: 'point',

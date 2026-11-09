@@ -1,6 +1,7 @@
 # When something goes wrong
 
-Start with **Settings → System → Logs and errors**: Usherr lists the errors
+Start with **Server › Setup and health › Logs and errors** (in Classic or Neu:
+**Settings → System → Logs and errors**): Usherr lists the errors
 it noticed, in plain words, with what to do about each. The Dashboard's
 *to fix* count opens the same list. For a failed download, **Explain this** on
 its Activity entry asks the AI what went wrong (when the AI is set up).
@@ -25,7 +26,8 @@ Jellyfin installed on Windows) keep working.
 Restart or update Usherr only when **Activity** shows nothing downloading,
 importing, unpacking or verifying. A restart part-way through an import can
 leave a finished download unimported, or tidy it away as a leftover.
-**Settings → System → Server** can pause downloads first.
+**Server › Setup and health › Server and updates** (**Settings → System →
+Server** in Classic or Neu) can pause downloads first.
 
 ## No sound in the browser
 
@@ -35,14 +37,16 @@ beside the picture; the picture isn't touched. If it stays silent:
 
 - Check the browser tab isn't muted, and the player's own volume.
 - A file played from the library is converted by Jellyfin when it's
-  connected (**Settings → Connections → Media servers**), else by Usherr.
+  connected (**Server › Watching › Media servers**; **Settings → Connections →
+  Media servers** in Classic or Neu), else by Usherr.
 - **Play on TV** or the Jellyfin app play these sounds as they are.
 
 ## A stream plays sound but no picture
 
 The release is probably AV1, which some TV boxes (the NVIDIA Shield among
 them) can't decode in hardware. Pick a release in H.264 or HEVC instead, or
-leave AV1 out with a quality profile (**Settings → Library → Quality**).
+leave AV1 out with a quality profile (**Server › Libraries › Quality**; **Settings → Library → Quality** in
+Classic or Neu).
 
 ## Streams start slowly, or stop
 
@@ -50,7 +54,8 @@ leave AV1 out with a quality profile (**Settings → Library → Quality**).
   if Usherr, StreamNZB and other apps share one provider, split the
   connections between them (see [Usenet and indexers](integrations.md#usenet-and-indexers)).
 - Downloads running at the same time take bandwidth and connections:
-  **While someone is watching** (Settings → Connections → Media servers) pauses
+  **While someone is watching** (on Media servers: Server › Watching, or
+  Settings → Connections) pauses
   them while anyone is watching in Jellyfin.
 - A second provider as backup fills in articles the first one is missing.
 - With StreamNZB as the engine, **Test it** on the Streaming (StreamNZB) card
@@ -68,9 +73,11 @@ leave AV1 out with a quality profile (**Settings → Library → Quality**).
 
 ## Jellyfin doesn't show new downloads or streamed titles
 
-- **Settings → Connections → Media servers:** test the connection; check the
+- **Media servers** (**Server › Watching** in Broadcast, **Settings →
+  Connections** in Classic or Neu): test the connection; check the
   folder mapping if Jellyfin sees your folders under other names.
-- For streamed titles, check the *Streamed library* card in Extras: the folder
+- For streamed titles, check the *Streamed library* card (**Server › Getting media › Streaming** in Broadcast,
+  Settings › Extras in Classic or Neu): the folder
   must be mapped into Usherr at `/data/streamed`, and be part of a Jellyfin
   library.
 
@@ -82,7 +89,8 @@ Plex reads streamed titles from the [virtual drive](integrations.md#virtual-driv
 - **On the Plex computer, open the drive.** If it opens slowly or not at all,
   rclone can't reach Usherr. The usual reason is that a restart gave the
   computer a new address on your network, and rclone still has the old one.
-- **Plex on the same computer as Usherr:** on the drive card in Extras, set
+- **Plex on the same computer as Usherr:** on the drive card (**Server › Getting media › Streaming**, or Settings ›
+  Extras in Classic or Neu), set
   **Plex runs on** to *This computer*, run the setup command again, and mount
   the drive again (or sign out and in, with the startup file). rclone then
   uses `127.0.0.1`, which never changes.

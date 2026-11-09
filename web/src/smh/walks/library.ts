@@ -4,6 +4,7 @@
 import { api } from '../../api'
 import { t } from '../../i18n'
 import type { SmhChoice, SmhCtx, SmhStep, Walkthrough } from '../types'
+import { bc } from '../look' // Usherr Broadcast: words for its own pages
 
 const pick = (c: SmhCtx, key: string) => (c.answers[key] as { value: string; label: string } | undefined)?.value
 const label = (c: SmhCtx) => (c.answers.film as { label: string } | undefined)?.label ?? ''
@@ -60,7 +61,17 @@ const openManage = (anyFilm = false): SmhStep => ({
   text: t('Everything about the file and its downloads is under Manage on a film’s page.'),
   run: async () => {
     const panel = document.querySelector<HTMLElement>('[data-walk="title-manage-panel"]')
-    if (!panel || panel.offsetParent === null) document.querySelector<HTMLElement>('[data-walk="title-manage"]')?.click()
+    if (!panel || panel.offsetParent === null) {
+      // Usherr Broadcast: Manage files is a row of the title's More sheet there
+      const manage = document.querySelector<HTMLElement>('[data-walk="title-manage"]')
+      const more = document.querySelector<HTMLElement>('[data-walk="title-more"]')
+      if (manage) manage.click()
+      else if (more) {
+        more.click()
+        await new Promise((r) => setTimeout(r, 250))
+        document.querySelector<HTMLElement>('[data-walk="title-manage"]')?.click()
+      }
+    }
     await new Promise((r) => setTimeout(r, 300))
   },
 })
@@ -120,12 +131,12 @@ export const subtitles: Walkthrough = {
       kind: 'say',
       when: (c) => inLib(c) && !document.querySelector('[data-walk="title-subs"]'),
       title: t('Subtitles are off'),
-      text: t('An administrator switches them on under Settings, Subtitles, and picks the languages and services.'),
+      text: bc(t('An administrator switches them on under Server, Libraries, Subtitles, and picks the languages and services.'), t('An administrator switches them on under Settings, Subtitles, and picks the languages and services.')),
     },
     {
       kind: 'say',
       title: t('Let them come by themselves'),
-      text: t('Under Settings, Subtitles, Languages, tick Download after each import: Usherr then gets subtitles for every new film and episode, within the services’ daily limits. In the player, the subtitle button picks the language.'),
+      text: bc(t('Under Server, Libraries, Subtitles, Languages, tick Download after each import: Usherr then gets subtitles for every new film and episode, within the services’ daily limits. In the player, the subtitle button picks the language.'), t('Under Settings, Subtitles, Languages, tick Download after each import: Usherr then gets subtitles for every new film and episode, within the services’ daily limits. In the player, the subtitle button picks the language.')),
     },
     { kind: 'done', title: t('Subtitles sorted'), text: t('The Dashboard says when downloaded titles have none yet, with a Get subtitles button.') },
   ],
@@ -157,7 +168,7 @@ export const moveTitle: Walkthrough = {
       kind: 'say',
       when: (c) => inLib(c) && !document.querySelector('[data-walk="title-keepin"]'),
       title: t('Only one folder so far'),
-      text: t('Keep it in appears once your library has more than one folder: add one under Settings, Library, Folders, in More folders for other titles.'),
+      text: bc(t('Keep it in appears once your library has more than one folder: add one under Server, Libraries, Folders, in More folders for other titles.'), t('Keep it in appears once your library has more than one folder: add one under Settings, Library, Folders, in More folders for other titles.')),
     },
     { kind: 'done', title: t('That’s moving'), text: t('A move never overwrites anything, and undoes itself if something goes wrong. Activity says when it’s done.') },
   ],
@@ -286,6 +297,6 @@ export const restylePosters: Walkthrough = {
       title: t('Pick, or restyle'),
       text: t('Pick another poster, background or logo from the choices, and Jellyfin and Usherr show it. Your style puts a clean picture together with the title in your own fonts and layout; Change the style opens the designer, on this film.'),
     },
-    { kind: 'done', title: t('That’s Re-Posterr'), text: t('Settings, Re-Posterr can restyle the whole library at once, and put anything back as it was.') },
+    { kind: 'done', title: t('That’s Re-Posterr'), text: bc(t('Server, Libraries, Artwork (Re-Posterr) can restyle the whole library at once, and put anything back as it was.'), t('Settings, Re-Posterr can restyle the whole library at once, and put anything back as it was.')) },
   ],
 }

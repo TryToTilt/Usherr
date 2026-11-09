@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import ReleaseSpecTags from '../home/ReleaseSpecs' // home fork
 import ExplainFailure from '../home/ExplainFailure' // home fork
 import { Link, useNavigate } from 'react-router-dom'
@@ -37,6 +37,8 @@ import { locale, plural, t, tx, st } from '../i18n'
 import { useUrlState } from '../useUrlState'
 import { keptDataText, keptFileLine } from '../keptFile'
 import '../activity.css'
+import { broadcastOn } from '../neu/look' // Usherr Broadcast: a download with the remote
+import Sheet, { type SheetRow } from '../broadcast/Sheet' // Usherr Broadcast
 
 type Tab = 'queue' | 'clients' | 'history' | 'requests' | 'reports' | 'blocklist' | 'bin'
 
@@ -311,6 +313,10 @@ function QueueDetails({ q, admin }: { q: QueueItem; admin: boolean }) {
 
 function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProps) {
   const me = useAuth().user
+  const navigate = useNavigate() // Usherr Broadcast
+  const confirm = useConfirm() // Usherr Broadcast: Remove from the sheet always asks
+  const [sheet, setSheet] = useState(false) // Usherr Broadcast: OK on a download shows what can be done with it
+  const remote = broadcastOn()
   const transfer = useTransferRate(q)
   const link = itemLink(q)
   const running = RUNNING.has(q.status)
@@ -319,8 +325,47 @@ function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProp
   const showBar = (running && q.status !== 'queued') || q.status === 'conflict' || q.status === 'paused'
   const barTone = q.status === 'failed' ? 'bad' : q.status === 'conflict' ? 'warn' : q.status === 'paused' ? 'paused' : ''
   const note = stateNote(q)
+  // Usherr Broadcast: the same actions as the buttons, where the buttons offer them. Usherr never
+  // removes anything without asking: Remove asks here even where the button doesn't.
+  const sheetRows = (): SheetRow[] => {
+    const rows: SheetRow[] = []
+    if (running && admin) rows.push({ key: 'pause', label: t('Pause'), disabled: working, onPress: () => void act(q, () => api.pauseQueueItem(q.id), t('Paused.'), 'pause') })
+    if (q.status === 'paused' && admin) rows.push({ key: 'resume', label: t('Resume'), disabled: working, onPress: () => void act(q, () => api.resumeQueueItem(q.id), t('Resuming.'), 'resume') })
+    if ((q.status === 'failed' || q.status === 'stopped') && can(me, 'retry')) rows.push({ key: 'retry', label: t('Retry'), disabled: working, onPress: () => void act(q, () => api.retryQueueItem(q.id), t('Trying that release again.')) })
+    if (q.status === 'failed' && admin) rows.push({ key: 'another', label: t('Find another'), disabled: working, onPress: () => void act(q, () => api.blocklistQueueItem(q.id), t('Blocklisted. Looking for another release.')) })
+    if ((running || q.status === 'paused') && admin) rows.push({ key: 'stop', label: t('Stop'), danger: true, disabled: working, onPress: () => void stop(q) })
+    if ((q.status === 'completed' || q.status === 'failed' || q.status === 'stopped' || q.status === 'paused') && admin)
+      rows.push({
+        key: 'remove',
+        label: t('Remove'),
+        danger: true,
+        disabled: working,
+        onPress: async () => {
+          // remove() asks for a paused download or kept files; for the rest, ask here
+          if (!(q.status === 'paused' || q.keptFiles) && !(await confirm({ title: t('Remove this download?'), body: <p>{t('It will leave the list.')}</p>, confirmLabel: t('Remove'), danger: true }))) return
+          await remove(q)
+        },
+      })
+    if (link) rows.push({ key: 'open', label: t('Open'), onPress: () => navigate(link) })
+    return rows
+  }
+  const remoteRow = remote
+    ? {
+        tabIndex: 0,
+        'data-remote-card': '',
+        'aria-label': `${q.title} · ${statusLabel(q)}`,
+        onKeyDown: (e: ReactKeyboardEvent<HTMLDivElement>) => {
+          if (e.target !== e.currentTarget || e.altKey || e.ctrlKey || e.metaKey) return
+          if (e.key === 'Enter' || e.key === 'ContextMenu' || e.key === 'm' || e.key === 'M') {
+            e.preventDefault()
+            setSheet(true)
+          }
+        },
+      }
+    : {}
   return (
-    <div className={`qrow st-${q.status}${q.status === 'failed' ? ' failed' : ''} kind-${q.bookId ? 'book' : q.albumId ? 'music' : q.seriesId ? 'tv' : 'movie'}`}>
+    <div className={`qrow st-${q.status}${q.status === 'failed' ? ' failed' : ''} kind-${q.bookId ? 'book' : q.albumId ? 'music' : q.seriesId ? 'tv' : 'movie'}`} {...remoteRow}>
+      {sheet && <Sheet title={q.title} eyebrow={statusLabel(q)} text={q.releaseTitle} rows={sheetRows()} onClose={() => setSheet(false)} />}
       <div className="qthumb">
         {q.albumId ? <Cover src={q.posterUrl} thumb /> : q.posterUrl ? <img src={q.posterUrl} alt="" loading="lazy" /> : <PosterFallback />}
         {admin && onPick && (
@@ -431,7 +476,7 @@ function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProp
           {q.sizeBytes > 0 && <span>{formatBytes(q.sizeBytes)}</span>}
         </div>
       ) : null}
-      <div className="row-actions qactions">
+      <div className="row-actions qactions" data-remote-skip={remote ? '' : undefined}>
         {q.status === 'conflict' && admin && (
           <>
             <button className="primary btn-sm" disabled={working} onClick={() => void act(q, () => api.resolveConflict(q.id, true), t('File replaced.'))}>

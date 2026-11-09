@@ -28,6 +28,8 @@
 .smh-bar i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
 .smh-coach h2 { margin: 2px 0 0; font-size: 1.12rem; }
 .smh-text { margin: 0; color: var(--text-dim); line-height: 1.5; }
+/* Usherr Broadcast: which remote button the step wants */
+.smh-remote { margin: 6px 0 0; font-size: 0.86em; font-weight: 600; color: var(--accent, var(--text)); }
 .smh-note { margin: 0; font-size: 0.88rem; color: var(--warning); }
 .smh-note.bad { color: var(--danger); }
 .smh-busy { margin: 0; font-size: 0.88rem; color: var(--text-dim); font-style: italic; }

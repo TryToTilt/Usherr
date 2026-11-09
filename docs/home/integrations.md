@@ -4,9 +4,13 @@ Every service Usherr can use, one card each: what it does, whether you
 need it, where to get it, where to put it in Usherr, and how to check it
 works. Only the first two are required.
 
-Most optional parts live in **Settings → Extras**. Each card there shows its
-state (**Ready**, **Needs setting up** or **Off**) and a **Needs:** note that
-says exactly what's missing.
+In the Broadcast look, each optional part's card is on its feature's page
+under **Server** (Streaming, Live TV, AI, Comics and the rest; see [where
+everything moved](broadcast.md#where-everything-moved)). In Classic and Neu,
+most of them live together in **Settings → Extras**. Each card shows its state
+(**Ready**, **Needs setting up** or **Off**) and a **Needs:** note that says
+exactly what's missing. Below, the Broadcast place comes first and the Classic
+or Neu place second.
 
 ## TMDB
 
@@ -15,8 +19,9 @@ episode list comes from, and what Discover browses.
 
 - **Get it:** make a free account at themoviedb.org, then *Settings → API* and
   ask for a developer key. The "API Key" (v3) is the one to copy.
-- **Put it in:** the setup wizard asks for it, or **Settings → Info, lists and
-  subtitles → Movie and show info**.
+- **Put it in:** the setup wizard asks for it, or **Server › Libraries ›
+  Movie and show info** (in Classic or Neu: **Settings → Info, lists and
+  subtitles → Movie and show info**).
 - **Check:** Discover shows posters. Without the key, Discover is empty and
   adding a title says to add the key first.
 
@@ -31,10 +36,11 @@ so no SABnzbd or NZBGet is needed.
 - **Get it:** a paid Usenet provider (any with a long retention), and one or
   more Newznab indexers (most have a free tier with a daily limit). If you
   already use Prowlarr, add each indexer with its own feed address from
-  Prowlarr, or bring them all over with **Settings → System → Move from other
-  apps**.
-- **Put it in:** **Settings → Indexers & Search** for indexers,
-  **Settings → Downloading → Usenet** for the provider (address, port, SSL,
+  Prowlarr, or bring them all over with **Server › Setup and health › Move
+  from other apps** (**Settings → System → Move from other apps**).
+- **Put it in:** **Server › Getting media › Indexers** for indexers and
+  **Server › Getting media › Usenet** for the provider (in Classic or Neu:
+  **Settings → Indexers & Search** and **Settings → Downloading → Usenet**) (address, port, SSL,
   username, password, connections).
 - **Check:** each indexer and provider has a test button. Then search a title's
   releases from its page.
@@ -51,11 +57,13 @@ the player, Live TV and the streamed library work through.
 
 - **Get it:** install Jellyfin (free) or Emby on the same server, with libraries
   on the same folders Usherr files into.
-- **Put it in:** **Settings → Connections → Media servers**: its address and an
+- **Put it in:** **Server › Watching › Media servers** (in Classic or Neu:
+  **Settings → Connections → Media servers**): its address and an
   API key made in Jellyfin's *Dashboard → API Keys*. If Jellyfin sees your
   folders under other names (Jellyfin runs outside Docker, for example),
   add a **folder mapping** there too.
-- **Check:** the card in **Settings → Extras** says **Ready**, and new
+- **Check:** the *Jellyfin or Emby* card (on **Media servers** in Broadcast,
+  **Settings → Extras** in Classic or Neu) says **Ready**, and new
   downloads appear in Jellyfin within a minute.
 - **While someone is watching** on the same page pauses downloads whenever
   someone is watching in Jellyfin, and resumes them about a minute after. With
@@ -71,16 +79,17 @@ Diary and taste from Plex's history, the Marquee's *Now showing*, intro and
 credits markers, Re-Posterr, the pre-show as Plex's pre-roll, Live TV in
 Plex's guide, and streamed titles through the [virtual drive](#virtual-drive-for-plex).
 
-- **Put it in:** **Settings → Connections → Media servers → Sign in with
-  Plex**. For a Plex on the same computer as Docker, Usherr uses
+- **Put it in:** **Server › Watching › Media servers → Sign in with Plex**
+  (in Classic or Neu: **Settings → Connections → Media servers**). For a Plex on the same computer as Docker, Usherr uses
   `http://host.docker.internal:32400`.
 - **Converting for Usherr's player.** When a browser can't play a file as it
   is and no Jellyfin or Emby converts it, Plex does, before Usherr's own
   (slower) conversion. On the graphics card it needs Plex Pass and, in Plex,
   **Settings → Transcoder → Use hardware acceleration when available**;
   Plex's dashboard then shows *Transcode (hw)*. Plex only converts a file
-  it has in a library. With Jellyfin connected too, **Settings → Extras →
-  Converting for the player** chooses who goes first: whichever is connected
+  it has in a library. With Jellyfin connected too, **Converting for the player**
+  (on **Server › Watching › Media servers**; **Settings → Extras** in Classic
+  or Neu) chooses who goes first: whichever is connected
   (Jellyfin or Emby, then Plex), Jellyfin, Plex, or Usherr itself. Whichever
   can't convert a file hands on to the next, and Usherr is always last.
 
@@ -91,8 +100,9 @@ add-on, and a virtual drive mounted on another computer.** The address your
 TV, phone and media server use to reach Usherr. It has to work from another
 device, so it's your server's network address, not `localhost`.
 
-- **Put it in:** **Settings → Extras → Usherr's address on your network**,
-  for example `http://192.168.1.20:8264`.
+- **Put it in:** **Server › Smarts and connections › Addresses** (in Classic
+  or Neu: **Settings → Extras → Usherr's address on your network**), for
+  example `http://192.168.1.20:8264`.
 - **Check:** open that address on your phone while on the same network.
 - **Keep it from changing.** Your router hands out these addresses, and can
   give the server a new one after a restart: then everything using the old
@@ -100,7 +110,8 @@ device, so it's your server's network address, not `localhost`.
   reservation** (some routers say *static lease* or *address reservation*)
   and reserve the address the server has now. Do the same for a separate
   Plex or Jellyfin computer, and for a NAS that holds your films.
-- **Not the same as *Address of Mediarium*** (**Settings → General**). That
+- **Not the same as *Address of Mediarium*** (beside it on **Addresses** in
+  Broadcast, **Settings → General** in Classic or Neu). That
   one is the full `https://` address people open Usherr at from anywhere,
   used for links in messages, passkeys and single sign-on. This one is the
   plain address at home. Many households only need this one.
@@ -109,7 +120,8 @@ device, so it's your server's network address, not `localhost`.
 
 ## Streaming engine (Usherr or StreamNZB)
 
-**Settings → Extras → Streaming engine** says which engine plays streams:
+**Streaming engine**, on **Server › Getting media › Streaming** (in Classic or
+Neu: **Settings → Extras → Streaming engine**), says which engine plays streams:
 **Stream now**, the streamed library (the Jellyfin pointer files) and streamed
 Live TV channels. If the chosen one finds nothing, the other is tried.
 
@@ -148,7 +160,8 @@ Live TV channels.
 
 - **Get it:** run StreamNZB next to Usherr (its own container), with your
   Usenet provider set up in it.
-- **Put it in:** **Settings → Extras → Streaming (StreamNZB)**: its address
+- **Put it in:** **Server › Getting media › Streaming** (in Classic or Neu:
+  **Settings → Extras → Streaming (StreamNZB)**): its address
   (empty means `http://host.docker.internal:7000`) and its admin token, from
   StreamNZB's `config.json` (`admin_token`). Or map that `config.json` into
   Usherr at `/streamnzb/config.json` (read only) and leave the token empty.
@@ -186,8 +199,8 @@ Plex, with **WinFsp** on Windows. Both are free and come from their own
 websites: Usherr doesn't install anything on your computer.
 
 - **It's on by itself** when Plex is your media server and Jellyfin and Emby
-  aren't. Otherwise switch it on in **Settings → Extras → Virtual drive (for
-  Plex)**.
+  aren't. Otherwise switch it on in **Server › Getting media › Streaming** (in
+  Classic or Neu: **Settings → Extras → Virtual drive (for Plex)**).
 - **What's on the drive.** A drive needs each file's size before it's played,
   so a streamed film or episode appears once Usherr knows its release. Anything
   someone plays (in Usherr, Jellyfin or the add-on) is kept at once, at no
@@ -247,7 +260,7 @@ websites: Usherr doesn't install anything on your computer.
      runs every time you sign in, waits until Usherr answers, then mounts the
      drive with its window hidden. It holds no password (rclone keeps it).
      Delete the file from that folder to stop it.
-  5. With Plex connected to Usherr (**Settings → Connections → Media servers**), press **Add
+  5. With Plex connected to Usherr (**Server › Watching › Media servers**; **Settings → Connections → Media servers** in Classic or Neu), press **Add
      them to Plex for me** on the card: Usherr makes **Movies-Stream**,
      **TV-Stream** and **Anime-Stream** (a folder already in one of your
      libraries is left as it is). Or, by hand: in Plex, add `U:\Movies` to a Movies library and `U:\TV` (and `U:\Anime`)
@@ -287,7 +300,8 @@ or in an IPTV app.
 
 - **Set it up:** make a channel on the **Live TV** page (**New channel**, a
   **Channel pack**, or **Build with AI**), then **Add to Jellyfin** on the
-  Live TV card here.
+  Live TV card (**Server › Watching › Live TV**, or **Settings → Extras** in
+  Classic or Neu).
 - **Check:** the channel plays on the Live TV page, and shows in Jellyfin's
   guide after its next refresh.
 
@@ -305,7 +319,8 @@ debugging to do it.
 - **On the TV box:** turn on *Developer options* (press *Build* seven times in
   *Settings → About*), then *Network debugging* (*USB debugging* on some boxes).
   A fixed address for the box in your router helps.
-- **Put it in:** **Settings → Extras → Play on TV**: the box's address and a
+- **Put it in:** **Server › Watching › Play on TV** (in Classic or Neu:
+  **Settings → Extras → Play on TV**): the box's address and a
   name, then **Pair** and allow the prompt that appears on the TV.
 - **Check:** **Play on TV** on a title page starts it on the box.
 
@@ -329,7 +344,7 @@ a TV or a computer.
   - **Subtitles** from your library's files: the text subtitles in the file or
     next to it.
   - **Live TV:** a channel plays through the same address the tuner feed uses.
-- **Put it in:** **Settings → Extras → Stremio and Nuvio** (an administrator), or the **You** page (everyone: each person's own link is there). Check the address your
+- **Put it in:** **Server › Watching › Apps on phones and TVs** (in Classic or Neu: **Settings → Extras → Stremio and Nuvio**) for an administrator, or the **You** page (everyone: each person's own link is there). Check the address your
   devices use for Usherr (your home network address, such as
   `http://192.168.1.20:8264`, or your https address from outside), then copy the
   link or scan the QR code. In Stremio: *Add-ons → Add add-on*, paste the link.
@@ -356,9 +371,11 @@ without you.
 - **Choose one:** **Ollama** on your own computer (free and private), **Claude**
   (knows films best; paid by use, and `claude-haiku-5-5` as the model keeps it
   to pennies), or an **OpenAI-compatible server** such as LM Studio.
-- **Put it in:** **Settings → Extras → AI**. *Answers a day for each person*
+- **Put it in:** **Server › Smarts and connections › AI** (in Classic or
+  Neu: **Settings → Extras → AI**). *Answers a day for each person*
   keeps use in check (administrators aren't limited).
-- **Check:** **Test it**, then ask something in the bar at the top of Discover.
+- **Check:** **Test it**, then ask something in the Ask bar (the top bar, or
+  **Find**, in Broadcast; the top of Discover in Classic or Neu).
 
 See [The AI](ai.md) for every feature, the models and what they cost.
 
@@ -371,7 +388,8 @@ Sense Media ages on Discover and title pages, and as filters in Discover
 recipes. The family filter uses the Common Sense ages first.
 
 - **Get it:** a free API key from mdblist.com (*Preferences → API*).
-- **Put it in:** **Settings → Extras → Scores (MDBList)**.
+- **Put it in:** **Server › Libraries › Movie and show info** (in Classic or
+  Neu: **Settings → Extras → Scores (MDBList)**).
 - **Check:** **Test it**. Your library's titles are filled in first, a little
   each hour; Discover's are fetched as you browse.
 
@@ -379,7 +397,9 @@ recipes. The family filter uses the Common Sense ages first.
 
 ## Entertainment news
 
-**Optional, needs the AI.** Short news under *Tonight* on the Dashboard: film
+**Optional, needs the AI.** Set up on **Server › Smarts and connections ›
+News and in theaters** (in Classic or Neu: **Settings → Extras**). Short news
+under *Tonight* on the Dashboard: film
 and TV, home theater, books, comics and music. Every few hours Usherr reads
 the feeds and the AI writes a short summary of each story, linking titles it
 names to your library.
@@ -392,7 +412,8 @@ names to your library.
 
 ## In theaters
 
-**Optional.** Films in cinemas near you: the *In theaters now* rows on the
+**Optional.** On **Server › Smarts and connections › News and in theaters**
+(in Classic or Neu: **Settings → Extras**). Films in cinemas near you: the *In theaters now* rows on the
 Dashboard and at the top of Library → Movies, cinema openings on the
 calendar, and links to showtimes on a film's page.
 
@@ -414,15 +435,16 @@ calendar, and links to showtimes on a film's page.
 ## Marquee
 
 **Optional.** A lobby display for a tablet or a screen by the TV, with its own
-page (**Marquee** in the menu). See [The Marquee](marquee.md) for setting up a
+page (**Server › Watching › Marquee** in Broadcast, with the **Marquee
+screen** under **Movie night**; **Marquee** in the menu in Classic or Neu). See [The Marquee](marquee.md) for setting up a
 screen, the looks, the pre-show, Home Assistant and the API.
 
 ## Pre-show
 
 **Optional, nothing needed.** A cinema's pre-show before a film: a welcome,
 trailers for what's coming, your own clips, the rating and the countdown. It's
-ready as it is ("Movie night"); set it up on **Settings → Movie night →
-Pre-show**.
+ready as it is ("Movie night"); set it up on **Server › Watching ›
+Pre-show** (in Classic or Neu: **Settings → Movie night → Pre-show**).
 
 - **Your clips:** put videos in the pre-show folder (`preshow` in Usherr's
   config folder), one folder per category, or upload them there.
@@ -441,7 +463,8 @@ Jellyfin and Plex from TMDB (and fanart.tv), and asks before changing anything.
 - **Needs:** Jellyfin or Plex connected, and the TMDB key. Plex keeps posters
   and backgrounds; logos, season posters and title cards are Jellyfin's.
 - **fanart.tv (optional):** a free personal key from your fanart.tv profile,
-  pasted on **Settings → Re-Posterr**.
+  pasted on **Server › Libraries › Artwork (Re-Posterr)** (**Settings →
+  Re-Posterr** in Classic or Neu).
 - **Your style (optional):** posters, season posters, episode title cards and
   backgrounds made by Re-Posterr, the title in your font and layout on art
   without words; your own overlays, a style per library.
@@ -456,10 +479,12 @@ Jellyfin and Plex from TMDB (and fanart.tv), and asks before changing anything.
 page-flip reader, with story arcs and a weekly pull list.
 
 - **Get it:** a free ComicVine API key from comicvine.gamespot.com/api.
-- **Put it in:** **Turn Comics on** in **Settings → Extras**, then the key under
+- **Put it in:** **Turn Comics on** in **Server › Kinds of media › Comics**
+  (in Classic or Neu: **Settings → Extras**), then the key under
   *Settings* on the **Comics** page. Comics are searched in your indexers'
   comics category.
-- **Direct downloads (optional):** the *GetComics* card adds GetComics as a
+- **Direct downloads (optional):** the *GetComics* card (on the same page)
+  adds GetComics as a
   source. If GetComics shows a Cloudflare check, run FlareSolverr and enter its
   address (usually `http://host.docker.internal:8191`).
 - **Check:** search for a series on the Comics page and add it.
@@ -471,7 +496,8 @@ page-flip reader, with story arcs and a weekly pull list.
 **Optional.** A **Sports** page for everyone: leagues, the teams you follow and
 the games of the coming two weeks. Games **stream** like films and episodes,
 and **download** into a Sports folder that Plex and Jellyfin read. Choose what
-it runs on in the *Sports* card in **Settings → Extras**:
+it runs on in the *Sports* card on **Server › Kinds of media › Sports** (in
+Classic or Neu: **Settings → Extras**):
 
 - **Sportarr (stacked):** run Sportarr (github.com/Sportarr/Sportarr) next to
   Usherr, like Radarr or Sonarr, with your indexers (add it to Prowlarr as a
@@ -507,7 +533,8 @@ gets a **Read to me** button; the finished audiobook is filed with your audioboo
 - **Get them:** run Kokoro (and, if you want it, Chatterbox) as containers on a
   computer with an NVIDIA card. The compose file and the steps are in
   [Read-to-Me](read-to-me.md#setting-it-up).
-- **Put them in:** **Settings → Extras → Read-to-Me**: Kokoro's address (from
+- **Put them in:** **Server › Kinds of media › Books and Read-to-Me** (in
+  Classic or Neu: **Settings → Extras → Read-to-Me**): Kokoro's address (from
   Usherr's container, `http://host.docker.internal:8881`) and, optionally,
   Chatterbox's (`http://host.docker.internal:4123`). **Night only** keeps the work
   to the hours you choose.
@@ -518,11 +545,14 @@ gets a **Read to me** button; the finished audiobook is filed with your audioboo
 
 **Optional, off unless you turn it on.** Adult videos, with performers and
 studios. Only administrators, and accounts an administrator gives the **NSFW
-18+** permission (Settings → Account & Access → All accounts), ever see it: it is hidden from
+18+** permission (**Server › People › Accounts**; Settings → Account & Access
+→ All accounts in Classic or Neu), ever see it: it is hidden from
 everyone else, keeps its own library and its own download queue, and never
 sends notifications. The server must allow it (`USHERR_ALLOW_ADULT`).
 
-It is reached only from its own page, the **NSFW 18+** link in the menu. It
+Switch it on in **Server › Kinds of media › NSFW 18+** (in Classic or Neu:
+**Settings → Extras**). It is reached only from its own page, the **NSFW 18+**
+link in the menu (its own line under **Library** in Broadcast). It
 isn't a choice in Discover's or the Library's media picker, even for
 administrators, and nothing NSFW is ever shared with crews.
 
@@ -557,12 +587,14 @@ and **Stop**.
 
 ## Schedules
 
-**Settings → Schedules** keeps heavy work to the hours you choose. Make named
+**Server › Getting media › Schedules and quiet times** (in Classic or Neu:
+**Settings → Schedules**) keeps heavy work to the hours you choose. Make named
 schedules (one time range every day, or days and times), then give each task
 one: automatic searches, downloads, repair and unpacking, and media server
 refreshes. Anything you start by hand always runs at once. **Quiet for…**
 holds every heavy task for a while, such as when TV time starts early;
-everything picks up again by itself.
+everything picks up again by itself. In Broadcast the same page also has the
+speed schedule and the notifications' quiet hours.
 
 ## Music in phone apps (Subsonic)
 
@@ -573,7 +605,8 @@ OpenSubsonic, the same way you would with Navidrome: Symfonium and Tempo
 playlists, star songs (the same as the heart in Usherr), see lyrics and
 send plays to ListenBrainz and Last.fm.
 
-1. **Settings → Services → Phone apps.** Switch on **Let phone apps sign in**.
+1. **You › Your settings › Linked services → Phone apps** (in Classic or
+   Neu: **Settings → Services → Phone apps**). Switch on **Let phone apps sign in**.
 2. Click **Make an app password** and copy it now: it is shown once. It is
    your one app password for reading and music apps, the same as your
    e-reader password (if you already use one for an e-reader, making a new
@@ -611,8 +644,10 @@ account, from the web player and from phone apps.
 1. An administrator makes an API account at
    [last.fm/api/account/create](https://www.last.fm/api/account/create) (any
    name and description; leave the callback empty), then pastes its **API
-   key** and **Shared secret** under **Settings → Services → Last.fm**.
-2. Each person opens **Settings → Services → Last.fm**, clicks **Connect
+   key** and **Shared secret** under **Last.fm** in Linked services (**You ›
+   Your settings › Linked services** in Broadcast, **Settings → Services** in
+   Classic or Neu).
+2. Each person opens **Last.fm** in the same place, clicks **Connect
    Last.fm**, approves Usherr on last.fm, and comes back connected.
 3. Optional: **Love what I like** loves a track on Last.fm when you give it a
    heart in Usherr.
@@ -627,7 +662,8 @@ sent later (up to two weeks old).
 own Usherr, to watch together without Discord: screenings in step, a party
 chat and reactions, stubs and crews.
 
-- **Put it in:** **Settings → Movie night → Linked Usherrs**, switch on
+- **Put it in:** **Server › People › Linked Usherrs** (in Classic or Neu:
+  **Settings → Movie night → Linked Usherrs**), switch on
   **Link with other Usherrs**, then **Invite a friend's Usherr** (a code that
   works once, for 24 hours) or paste a friend's code under **Join with a
   code**.
@@ -642,13 +678,15 @@ relay, which can't read what it passes on. See
 ## Notifications
 
 **Optional.** Messages when something is added, downloaded or fails, by email,
-ntfy, Discord, Telegram and others, under **Settings → Connections →
-Notifications**. Each person can also choose their own under
-**Settings → Your profile**.
+ntfy, Discord, Telegram and others, under **Server › People ›
+Notifications** (in Classic or Neu: **Settings → Connections →
+Notifications**). Each person can also choose their own under **You › Your
+settings › Your profile** (**Settings → Your profile**).
 
 ## Reaching Usherr away from home
 
 Usherr is meant to sit behind your home network. To use it from your phone
 away from home, use a private network such as Tailscale (nothing opened to the
 internet), or a reverse proxy with HTTPS. Turn on two-step sign-in or passkeys
-under **Settings → Account & Access → Security** before opening it up.
+under **You › Your settings › Security** (**Settings → Account & Access →
+Security** in Classic or Neu) before opening it up.

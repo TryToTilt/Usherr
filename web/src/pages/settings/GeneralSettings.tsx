@@ -13,6 +13,9 @@ import MenuHideChoice from '../../components/MenuHideChoice' // Usherr: how soon
 import FilmLayoutChoice from '../../home/FilmLayoutChoice' // Usherr: the film page's layout
 import ThemeToggle from '../../components/ThemeToggle'
 import { PushCard } from '../../components/UpdateCards'
+import { broadcastOn } from '../../onemenu/broadcast' // Usherr Broadcast
+import { MenuModeChoice } from '../../onemenu/OneMenu' // Usherr Broadcast: the one menu's mode
+import YourSettings from '../../broadcast/YourSettings' // Usherr Broadcast: the rows a remote changes
 import { LANGUAGES, chooseLanguage, currentLanguage, locale, t, type Lang } from '../../i18n'
 
 // The language the app itself is shown in (not the audio or subtitle language).
@@ -65,6 +68,7 @@ function LookCard() {
       <PaletteChoice />
       <BaseChoice />
       <LookChoice />
+      {broadcastOn() && <MenuModeChoice />} {/* Usherr Broadcast */}
       <MenuHideChoice />
     </fieldset>
   )
@@ -118,17 +122,23 @@ function LegalCard() {
 // Settings > General: what is about the app as a whole. Everyone sees the
 // language and the look; the address of the server, updates and the legal
 // notice are for administrators.
-export default function GeneralSettings() {
+// Usherr Broadcast: General is split there. `part="you"` (the page, under You >
+// Your settings) is this browser's language and look; `part="server"` (under
+// Server > Setup and health > Server and updates) is the rest, and the address
+// is on Smarts and connections > Addresses. Other looks show it all as before.
+export default function GeneralSettings({ part }: { part?: 'you' | 'server' } = {}) {
   const { user } = useAuth()
-  const admin = isAdmin(user)
+  const admin = isAdmin(user) && (part === 'server' || !broadcastOn()) // Usherr Broadcast
+  const mine = part !== 'server' // Usherr Broadcast
   return (
     <div className="settings-stack">
-      <LanguageCard />
-      <LookCard />
-      <FilmLayoutChoice /> {/* Usherr */}
-      <NewsStyleCard /> {/* Usherr */}
-      <TimeZoneCard admin={admin} />
-      {admin && <PublicAddress />}
+      {mine && broadcastOn() && <YourSettings />} {/* Usherr Broadcast: language, look and the menu as rows */}
+      {mine && !broadcastOn() && <LanguageCard />}
+      {mine && !broadcastOn() && <LookCard />}
+      {mine && <FilmLayoutChoice />} {/* Usherr */}
+      {mine && <NewsStyleCard />} {/* Usherr */}
+      {mine && <TimeZoneCard admin={isAdmin(user)} />}
+      {admin && !broadcastOn() && <PublicAddress />}
       {admin && (
         <details className="how-details span-all">
           <summary>{t('Advanced: updates pushed through the API')}</summary>

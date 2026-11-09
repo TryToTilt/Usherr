@@ -6,7 +6,8 @@ import { useNavigate } from 'react-router-dom'
 import { api, type IndexerConfig, type MediaServer, type QualityProfile, type Settings as SettingsData, type UsenetServer } from '../api'
 import { useAuth } from '../AuthContext'
 import { titleFor } from '../documentTitle'
-import WizardHelp from '../smh/WizardHelp' // Usherr: Show Me How on each step
+import WizardHelp, { WizardPhone } from '../smh/WizardHelp' // Usherr: Show Me How on each step (Broadcast: and Finish on your phone)
+import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast: the extras' new homes
 import BrandMark from '../components/BrandMark'
 import LogoGlyph from '../components/LogoGlyph'
 import Icon from '../components/Icon'
@@ -273,6 +274,14 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
   useEffect(() => {
     if (step === S.sources) loadIndexers()
   }, [step, loadIndexers])
+  // Usherr Broadcast: on a TV-size screen, the steps with keys and passwords to
+  // type offer Finish on your phone; Done reloads what the phone saved.
+  const phoneDone = useCallback(() => {
+    loadSvc()
+    loadIndexers()
+    loadServers()
+    loadMediaServers()
+  }, [loadSvc, loadIndexers, loadServers, loadMediaServers])
 
   useEffect(() => {
     if (step >= S.types) loadSvc()
@@ -578,6 +587,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
           <div className="card">
             <h2>{t('Connect your services')}</h2>
             <WizardHelp step="services" />
+            <WizardPhone what={t('Connect services')} onDone={phoneDone} /> {/* Usherr Broadcast */}
             {video ? (
               <p className="wizard-lead">
                 {t("A few free services provide movie details, lists and subtitles. They're built in, so there's nothing to set up. If a shared limit is ever hit, the dashboard tells you and you can add your own free key in Settings.")}
@@ -641,6 +651,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
         <div className="card grid-form">
           <h2>{t('Add your indexers')}</h2>
           <WizardHelp step="sources" />
+          <WizardPhone what={t('Indexers & Search')} onDone={phoneDone} /> {/* Usherr Broadcast */}
           <p className="wizard-lead">{t('Indexers are the sites Mediarium searches for downloads. Add at least one: choose Usenet or torrent, pick the indexer, paste its API key and click Add.')}</p>
           <div className="wizard-indexers">
             <IndexerForm onAdded={loadIndexers} />
@@ -705,6 +716,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
         <div className="card grid-form">
           <h2>{t('Add your Usenet provider')}</h2>
           <WizardHelp step="usenet" />
+          <WizardPhone what={t('Usenet provider')} onDone={phoneDone} /> {/* Usherr Broadcast */}
           <p className="wizard-lead">{t('Mediarium downloads by itself, so all it needs is the news-server login from your Usenet provider. Skip this if you only use torrents.')}</p>
           <div className="wizard-indexers">
             <UsenetServerForm
@@ -845,6 +857,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
         <div className="card grid-form">
           <h2>{t('Connect your media server')}</h2>
           <WizardHelp step="server" />
+          <WizardPhone what={t('Media server')} onDone={phoneDone} /> {/* Usherr Broadcast */}
           <p className="wizard-lead">
             {t('Optional. Connect Plex, Jellyfin or Emby to get "Watch in" links and have new files show up there on their own. Or do it later under Settings > Connections > Media servers.')}
           </p>
@@ -894,7 +907,9 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
           <h2>{t('Extras')}</h2>
           <WizardHelp step="extras" />
           <p className="wizard-lead">
-            {t('All optional, and each can wait. Set up the ones you want now, or later under Settings > Extras. Live TV, playing on a TV, comics, news, Sports and Read-to-Me are there too, and Settings > General > Setup checklist shows what is ready.')}{' '}
+            {broadcastOn() // Usherr Broadcast: each extra lives on its feature's page there
+              ? t('All optional, and each can wait. Set up the ones you want now, or later under Server, each on its feature’s page: Streaming under Getting media, the AI and news under Smarts and connections, the Marquee, the pre-show, Live TV and playing on a TV under Watching, comics, Sports and Read-to-Me under Kinds of media. Server, Setup and health, Setup checklist shows what is ready.')
+              : t('All optional, and each can wait. Set up the ones you want now, or later under Settings > Extras. Live TV, playing on a TV, comics, news, Sports and Read-to-Me are there too, and Settings > General > Setup checklist shows what is ready.')}{' '}
             <HelpLink topic="home-setup" />
           </p>
           <ExtrasSettings only={['address', 'streaming', 'ai', 'scores', 'cinema', 'marquee', 'preshow', 'reposterr']} />
@@ -926,7 +941,10 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
           )}
           {gaps !== null && gaps.length > 0 && <SetupGaps gaps={gaps} onGo={(to) => void finish(to)} />}
           <p className="finish-smh">
-            <Icon name="compass" size={16} /> {t('Not sure what to do next? Show me how, in the top bar, walks you through anything, step by step: bringing in the library you have, adding the family, Usherr on your phone, getting manga, watching with friends. Something not right? It checks Usherr for you too.')}
+            <Icon name="compass" size={16} />{' '}
+            {broadcastOn() // Usherr Broadcast: Show me how is in the menu there
+              ? t('Not sure what to do next? Show me how, in the menu, walks you through anything, step by step: bringing in the library you have, adding the family, Usherr on your phone, signing in on the TV, watching with friends. Something not right? It checks Usherr for you too.')
+              : t('Not sure what to do next? Show me how, in the top bar, walks you through anything, step by step: bringing in the library you have, adding the family, Usherr on your phone, getting manga, watching with friends. Something not right? It checks Usherr for you too.')}
           </p>
           <div className="finish-points">
             <span>

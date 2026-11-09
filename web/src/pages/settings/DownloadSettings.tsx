@@ -20,6 +20,7 @@ import { plural, t, tx, st } from '../../i18n'
 import InfoTip from '../../components/InfoTip'
 import TipLabel from '../../components/TipLabel'
 import SpeedSchedule from '../../components/SpeedSchedule'
+import { broadcastOn } from '../../onemenu/broadcast' // Usherr Broadcast
 import { firstError, numberRange } from '../../validate'
 
 // Downloading: Mediarium downloads for itself. Usenet needs only your
@@ -120,12 +121,14 @@ export default function DownloadRulesSettings() {
         </legend>
         <TempFolderCard key={settings ? 'loaded' : 'loading'} saved={settings?.downloadsTempPath ?? ''} ready={settings !== null} onSaved={loadSettings} />
       </fieldset>
+      {!broadcastOn() && ( // Usherr Broadcast: on Schedules and quiet times there
       <fieldset className="group folders">
         <legend>
           <Icon name="moon" size={14} /> <TipLabel help="downloads#speed-schedule">{t('Speed schedule')}</TipLabel>
         </legend>
         <SpeedSchedule />
       </fieldset>
+      )}
       <fieldset className="group folders">
         <legend>
           <Icon name="shield" size={14} /> <TipLabel help="downloads#checks-on-releases">{t('Checks on releases')}</TipLabel>

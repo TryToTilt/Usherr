@@ -92,7 +92,7 @@ export function EagerImagesProvider({ children, afterMs = 1500 }: { children: Re
 
 // A TMDB poster comes in several sizes. A card is a couple of hundred pixels wide, so the
 // browser gets the 342 wide one, and the 500 wide one only on a sharp screen.
-function cardPoster(url: string, width: number): string {
+export function cardPoster(url: string, width: number): string {
   return url.replace('/t/p/w500/', `/t/p/w${width}/`)
 }
 function cardSrcSet(url: string): string | undefined {

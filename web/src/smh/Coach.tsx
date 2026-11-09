@@ -10,7 +10,10 @@ import { useAuth } from '../AuthContext'
 import Icon from '../components/Icon'
 import { QRCode } from '../components/TwoStepCard'
 import { t } from '../i18n'
+import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast
+import { remoteOn, tvBrowser } from '../remote/remote' // Usherr Broadcast: remote hints
 import DecisionCard from './DecisionCard'
+import { forLook, remoteHint } from './look' // Usherr Broadcast: steps by look, remote hints
 import { markSmhDone, setSmhRun, smhSecrets, startSmh, stopSmh, type SmhRun } from './engine'
 import type { SmhChoice, SmhCtx, SmhStep, SmhText } from './types'
 import { walkById } from './walks'
@@ -53,6 +56,9 @@ function useBox(id: string | undefined): { el: HTMLElement | null; box: DOMRect 
       // A settings card folded to its title row is unfolded.
       const card = raw?.closest('[data-folded]')
       if (card) (card.firstElementChild as HTMLElement | null)?.click()
+      // Usherr Broadcast: a folded section (Live TV's "Channels and setup") is unfolded.
+      const fold = raw?.closest<HTMLDetailsElement>('details[data-walk-unfold]:not([open])')
+      if (fold) fold.open = true
       // Something in the side menu (your stack) opens the menu, and keeps it
       // open while the step is about it (it slides away when left alone).
       const menu = raw?.closest('#main-menu')
@@ -92,9 +98,12 @@ export default function Coach({ run }: { run: SmhRun }) {
   const navigate = useNavigate()
   const location = useLocation()
   const walk = walkById(run.id)
-  const steps = (walk && ((run.mode === 'advanced' && walk.advanced) || walk.simple)) || []
+  // Usherr Broadcast: the steps for this look (a step can be Broadcast's
+  // only, or Classic and Neu's only); the look never changes without a reload.
+  const broadcast = broadcastOn()
+  const steps = forLook((walk && ((run.mode === 'advanced' && walk.advanced) || walk.simple)) || [], broadcast)
   const withSecrets = (a: Record<string, unknown>) => ({ ...a, ...Object.fromEntries([...smhSecrets].map(([k, v]) => [k, { value: v, label: '•••' }])) })
-  const ctx: SmhCtx = { answers: withSecrets(run.answers), mode: run.mode, watch: run.watch, admin: isAdmin(user) }
+  const ctx: SmhCtx = { answers: withSecrets(run.answers), mode: run.mode, watch: run.watch, admin: isAdmin(user), broadcast, remote: tvBrowser() || remoteOn() } // Usherr Broadcast: remote hints only with a remote or the arrows
   const step: SmhStep | undefined = steps[run.i]
 
   // The next step that applies (a step's when can skip it), or the end.
@@ -146,13 +155,15 @@ export default function Coach({ run }: { run: SmhRun }) {
 
   // go: Usherr opens the page itself, unless the person taps the link.
   const goTo = step?.kind === 'go' ? (typeof step.to === 'function' ? step.to(ctx) : step.to) : null
-  // A page with a ?tab= in its address is matched with it.
-  const here = location.pathname + (goTo?.includes('?') ? location.search : '')
+  // A page with a ?tab= in its address is matched with it; a #card at the
+  // end only scrolls to the card (Usherr Broadcast: and so arrives).
+  const goPage = goTo?.split('#')[0] ?? null
+  const here = location.pathname + (goPage?.includes('?') ? location.search : '')
   useEffect(() => {
-    if (goTo && (run.watch || !(step?.kind === 'go' && step.via)) && here !== goTo) navigate(goTo)
+    if (goTo && (run.watch || !(step?.kind === 'go' && step.via)) && here !== goPage) navigate(goTo)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goTo, run.i])
-  const arrived = goTo != null && here === goTo
+  const arrived = goPage != null && here === goPage
 
   // point: wait for a tap on it, a page, or something to show up or go away.
   useEffect(() => {
@@ -237,6 +248,7 @@ export default function Coach({ run }: { run: SmhRun }) {
   const phone = window.innerWidth < 640
   const pos = phone ? (atBottom ? 'top' : 'bottom') : box && box.right > window.innerWidth - 400 && atBottom ? 'top' : 'bottom'
 
+  const hint = remoteHint(step, ctx)
   const pause = () => setSmhRun({ ...run, paused: true })
   const finish = () => {
     markSmhDone(run.id)
@@ -263,6 +275,7 @@ export default function Coach({ run }: { run: SmhRun }) {
         </div>
         <h2>{say(step.title, ctx)}</h2>
         {step.text && <p className="smh-text">{say(step.text, ctx)}</p>}
+        {hint && <p className="smh-remote">{hint}</p>} {/* Usherr Broadcast: which remote button */}
 
         {wandered && (
           <p className="smh-note">

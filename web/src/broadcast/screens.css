@@ -1,0 +1,219 @@
+/* Usherr Broadcast: phase 4c's screens (the readers' remote and settings
+   sheet, music's now-playing bar, You, Your settings, Server's Today and
+   Activity's rows). Everything is behind data-look="broadcast", so Neu and
+   Classic stay as they are. Tokens and focus come from neu/broadcast.css:
+   the one blue for focus, depth by lightness, no shadows. */
+
+/* ---- Rows a remote changes with Left and Right (Rows.tsx) -------------- */
+:root[data-look='broadcast'] .b-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--b-cell);
+  color: var(--b-text);
+  font: inherit;
+  font-size: 17px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+:root[data-look='broadcast'] .b-row:hover { background: var(--b-cell-hi); }
+:root[data-look='broadcast'] .b-row:disabled { opacity: 0.5; cursor: default; }
+:root[data-look='broadcast'] .b-row.b-danger .b-row-label { color: var(--b-error); }
+:root[data-look='broadcast'] .b-row:focus-visible .b-row-label,
+:root[data-look='broadcast'] .b-row:focus-visible.b-danger .b-row-label { color: var(--b-on-focus); }
+:root[data-look='broadcast'] .b-row-label { font-weight: 600; min-width: 0; }
+:root[data-look='broadcast'] .b-row-val {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--b-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+:root[data-look='broadcast'] .b-row:focus-visible .b-row-val,
+:root[data-look='broadcast'] .b-row:focus-within .b-row-val { color: var(--b-on-focus); }
+:root[data-look='broadcast'] .b-row-now { min-width: 6em; text-align: center; color: inherit; }
+:root[data-look='broadcast'] .b-row-arrow { opacity: 0.7; padding: 0 2px; }
+:root[data-look='broadcast'] .b-row-arrow:hover { opacity: 1; }
+:root[data-look='broadcast'] .b-row-ok { font-size: 13px; opacity: 0.85; }
+:root[data-look='broadcast'] .b-row select { min-width: 9em; }
+:root[data-look='broadcast'] .b-row:focus-within:not(:focus-visible) { box-shadow: inset 0 0 0 2px var(--b-focus); }
+
+/* ---- The sheet (Sheet.tsx) ------------------------------------------- */
+:root[data-look='broadcast'] .b-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: var(--b-scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+:root[data-look='broadcast'] .b-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(560px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 24px;
+  border-radius: 16px;
+  background: var(--b-elevated);
+  color: var(--b-text);
+}
+:root[data-look='broadcast'] .b-sheet-side { position: absolute; right: 32px; top: 32px; max-height: calc(100vh - 64px); }
+:root[data-look='broadcast'] .b-sheet-eyebrow { font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: var(--b-dim); }
+:root[data-look='broadcast'] .b-sheet-title { margin: 0; font-size: 26px; }
+:root[data-look='broadcast'] .b-sheet-text { margin: 0 0 6px; color: var(--b-dim); }
+:root[data-look='broadcast'] .b-sheet-rows { display: flex; flex-direction: column; gap: 4px; }
+@media (max-width: 640px) {
+  :root[data-look='broadcast'] .b-sheet-side { position: static; }
+}
+
+/* ---- The readers with a remote (readers/useBroadcastReader.ts) -------- */
+:root[data-look='broadcast'] [data-reader-root]:focus,
+:root[data-look='broadcast'] [data-reader-root]:focus-visible { outline: none !important; }
+
+/* ---- Music: the now-playing bar -------------------------------------- */
+:root[data-look='broadcast'] .mini-player .mp-state {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--b-glow);
+}
+:root[data-look='broadcast'] .mini-player .mp-keys { display: none; color: var(--b-dim); text-transform: none; letter-spacing: 0; }
+:root[data-look='broadcast'][data-remote='1'] .mini-player .mp-keys { display: inline; }
+:root[data-look='broadcast'] .album-top[data-remote-card]:focus-visible { outline-offset: 4px; border-radius: 12px; }
+
+/* ---- You (YouTop.tsx) ------------------------------------------------- */
+:root[data-look='broadcast'] .b-you { display: flex; flex-direction: column; gap: 20px; margin-bottom: 24px; }
+:root[data-look='broadcast'] .b-you-head { display: flex; align-items: center; gap: 20px; }
+:root[data-look='broadcast'] .b-you-avatar {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: 36px;
+  background: var(--b-selected);
+  color: var(--b-on-selected);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 700;
+}
+:root[data-look='broadcast'] .b-you-name { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+:root[data-look='broadcast'] .b-you-name h2 { margin: 0; font-size: 28px; }
+:root[data-look='broadcast'] .b-you-year { color: var(--b-dim); font-variant-numeric: tabular-nums; }
+:root[data-look='broadcast'] .b-you-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+:root[data-look='broadcast'] .b-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--b-cell);
+  color: var(--b-text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+:root[data-look='broadcast'] .b-btn:hover { background: var(--b-cell-hi); }
+:root[data-look='broadcast'] .b-btn.active { background: var(--b-selected); color: var(--b-on-selected); }
+:root[data-look='broadcast'] .b-sec { margin: 4px 0 10px; font-size: 20px; }
+:root[data-look='broadcast'] .b-you-stack { display: flex; gap: 8px; overflow-x: auto; padding: 4px; }
+:root[data-look='broadcast'] .b-you-poster {
+  flex: none;
+  width: 120px;
+  aspect-ratio: 2 / 3;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--b-cell);
+  color: var(--b-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 13px;
+  text-decoration: none;
+}
+:root[data-look='broadcast'] .b-you-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+:root[data-look='broadcast'] .b-you-keep { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+:root[data-look='broadcast'] .b-you-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: var(--b-surface);
+  color: var(--b-text);
+  text-decoration: none;
+  min-width: 0;
+}
+:root[data-look='broadcast'] .b-you-card:hover { background: var(--b-cell); }
+:root[data-look='broadcast'] .b-you-card:focus-visible { background: var(--b-focus) !important; color: var(--b-on-focus) !important; }
+:root[data-look='broadcast'] .b-you-kind { font-size: 13px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; opacity: 0.75; }
+:root[data-look='broadcast'] .b-you-title { font-size: 20px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-look='broadcast'] .b-you-sub { opacity: 0.75; }
+
+/* ---- Your settings (YourSettings.tsx) --------------------------------- */
+:root[data-look='broadcast'] .b-ys { display: flex; gap: 40px; align-items: flex-start; }
+:root[data-look='broadcast'] .b-ys-rows { display: flex; flex-direction: column; gap: 4px; flex: 1 1 640px; min-width: 0; max-width: 900px; }
+:root[data-look='broadcast'] .b-ys-help { flex: 0 1 340px; color: var(--b-dim); line-height: 1.5; position: sticky; top: 16px; }
+:root[data-look='broadcast'] .b-ys-help p { margin: 0 0 12px; }
+:root[data-look='broadcast'] .b-ys-help-title { color: var(--b-text); font-weight: 600; }
+:root[data-look='broadcast'] .b-ys-help-keys { font-size: 14px; color: var(--b-faint); }
+@media (max-width: 900px) {
+  :root[data-look='broadcast'] .b-ys { flex-direction: column; gap: 16px; }
+  :root[data-look='broadcast'] .b-ys-help { position: static; }
+}
+
+/* ---- Server > Today (ServerToday.tsx) --------------------------------- */
+:root[data-look='broadcast'] .b-today { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+:root[data-look='broadcast'] .b-today-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  min-height: 120px;
+  padding: 20px 24px;
+  border-radius: 16px;
+  background: var(--b-surface);
+  color: var(--b-text);
+  text-decoration: none;
+}
+:root[data-look='broadcast'] .b-today-tile:hover { background: var(--b-cell); }
+:root[data-look='broadcast'] .b-today-tile:focus-visible { background: var(--b-focus) !important; color: var(--b-on-focus) !important; }
+:root[data-look='broadcast'] .b-today-label { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 700; }
+:root[data-look='broadcast'] .b-today-sub { font-size: 16px; opacity: 0.8; }
+:root[data-look='broadcast'] .b-dot { width: 12px; height: 12px; border-radius: 6px; background: var(--b-ok); flex: none; }
+:root[data-look='broadcast'] .tone-live .b-dot { background: var(--b-glow); }
+:root[data-look='broadcast'] .tone-warn .b-dot { background: var(--b-warn); }
+
+/* ---- Activity: a download is one stop (pages/Queue.tsx) ---------------- */
+:root[data-look='broadcast'] .qrow[data-remote-card] { border-radius: 16px; }
+:root[data-look='broadcast'] .qrow[data-remote-card]:focus-visible { outline: 2px solid var(--b-focus) !important; outline-offset: 2px; background: var(--b-cell); }
+
+/* ---- TV size: nothing under 18px -------------------------------------- */
+:root[data-look='broadcast'][data-tv='1'] .b-row { min-height: 72px; font-size: 22px; padding: 12px 24px; }
+:root[data-look='broadcast'][data-tv='1'] .b-row-ok,
+:root[data-look='broadcast'][data-tv='1'] .b-sheet-eyebrow,
+:root[data-look='broadcast'][data-tv='1'] .b-you-kind,
+:root[data-look='broadcast'][data-tv='1'] .b-ys-help-keys,
+:root[data-look='broadcast'][data-tv='1'] .mini-player .mp-state { font-size: 18px; }
+:root[data-look='broadcast'][data-tv='1'] .b-sheet { width: min(680px, 100%); }
+:root[data-look='broadcast'][data-tv='1'] .b-sheet-title { font-size: 32px; }
+:root[data-look='broadcast'][data-tv='1'] .b-btn { min-height: 60px; font-size: 22px; padding: 0 26px; }
+:root[data-look='broadcast'][data-tv='1'] .b-today-label { font-size: 26px; }
+:root[data-look='broadcast'][data-tv='1'] .b-today-sub { font-size: 20px; }
+:root[data-look='broadcast'][data-tv='1'] .b-you-poster { width: 150px; }

@@ -3,6 +3,8 @@
 // and choose the channel it posts in.
 import { t } from '../../i18n'
 import type { Walkthrough } from '../types'
+import { bc } from '../look' // Usherr Broadcast: words for its own pages
+import { openLobby } from './party'
 
 export const communityBot: Walkthrough = {
   id: 'community-bot',
@@ -28,7 +30,7 @@ export const communityBot: Walkthrough = {
       title: t('A channel for Usherr'),
       text: t('In your Discord server, make a text channel such as #usherr-showtimes. While you try it out, make it private (only you), and add the bot to it after inviting it.'),
     },
-    { kind: 'go', to: '/settings/community', title: t('Community'), text: t('Under Settings, Movie night.') },
+    { kind: 'go', to: '/settings/community', title: t('Community'), text: bc(t('Under Server, People.'), t('Under Settings, Movie night.')) },
     {
       kind: 'point',
       target: 'community-token',
@@ -113,9 +115,20 @@ export const partyChat: Walkthrough = {
   icon: 'chat',
   words: 'discord watch party chat phone thread talk message during film linked screening spoiler',
   simple: [
-    { kind: 'go', to: '/showtime', title: t('The Showtime page'), text: t('A showtime shared as a watch party has its chat here.') },
+    { kind: 'go', to: '/showtime', title: bc(t('Movie night'), t('The Showtime page')), text: bc(t('A showtime’s chat is in its lobby.'), t('A showtime shared as a watch party has its chat here.')) },
+    openLobby(),
     {
       kind: 'point',
+      look: 'broadcast',
+      target: 'lobby-chat',
+      until: 'next',
+      optional: true,
+      title: t('The chat'),
+      text: t('Everyone in the lobby, at every Usherr there. Quick replies and reactions take one press; Write on my phone opens the chat on your phone for anything longer. At a Discord watch party, the party’s thread shows here.'),
+    },
+    {
+      kind: 'point',
+      look: 'other',
       target: 'party-chat',
       until: 'next',
       optional: true,
@@ -215,7 +228,7 @@ export const linkDiscord: Walkthrough = {
       title: t('Type /link in Discord'),
       text: t('In the Discord server Usherr posts in, type /link in any channel, choose Usherr’s /link from the list and press Enter. The bot answers with six numbers. Only you see them, and they work for 10 minutes.'),
     },
-    { kind: 'go', to: '/settings/services', title: t('Linked services'), text: t('Under Settings, Account & Access.') },
+    { kind: 'go', to: '/settings/services', title: t('Linked services'), text: bc(t('Under You, Your settings.'), t('Under Settings, Account & Access.')) },
     {
       kind: 'point',
       target: 'discord-link',

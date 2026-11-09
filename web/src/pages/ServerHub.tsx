@@ -8,6 +8,9 @@ import { settingsGroupsFor } from '../settingsNav'
 import { useLive } from '../useLive'
 import { useUnreadErrors } from '../useProblems'
 import '../neu/lobbyHome.css'
+import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast: Today, Activity and seven groups
+import { YOUR_SETTINGS } from '../onemenu/broadcastNav' // Usherr Broadcast
+import ServerToday from '../broadcast/ServerToday' // Usherr Broadcast: the three Today tiles
 
 // Usherr: the Server area of the new layout (administrators only). The whole
 // management side in one place, so it never sits in the way of watching:
@@ -50,10 +53,26 @@ export default function ServerHub() {
 
   const needs = (data?.health ?? []).filter((h) => h.level !== 'info')
   const wanted = (data?.library.wanted.movies ?? 0) + (data?.library.wanted.episodes ?? 0)
-  const groups = settingsGroupsFor(true)
+  const broadcast = broadcastOn()
+  const groups = settingsGroupsFor(true).filter((g) => !broadcast || g.key !== YOUR_SETTINGS) // Usherr Broadcast: Your settings are under You
   return (
     <div className="server-hub">
       <h1 style={{ margin: 0 }}>{t('Server')}</h1>
+      {broadcast && (
+        <section>
+          <h2 style={{ margin: '4px 0 12px' }}>{t('Today')}</h2>
+          {/* Usherr Broadcast: Downloads, Wanted and Needs you, as in the mock-up */}
+          <ServerToday
+            loading={!data}
+            downloads={downloads}
+            wanted={wanted}
+            needs={needs.length + (unreadErrors > 0 ? 1 : 0) + servicesDown}
+            needsTo={needs[0]?.action?.path ?? (unreadErrors > 0 ? '/settings/logs' : servicesDown > 0 ? '/settings/service-checks' : '/server')}
+            needsLine={needs[0]?.title ?? (unreadErrors > 0 ? (unreadErrors === 1 ? t('1 new error') : t('{n} new errors', { n: unreadErrors })) : undefined)}
+          />
+        </section>
+      )}
+      {(!broadcast || needs.length > 0 || unreadErrors > 0) && ( // Usherr Broadcast: the list only when something needs you
       <section>
         <h2>{t('Needs you')}</h2>
         {!data ? (
@@ -91,6 +110,24 @@ export default function ServerHub() {
           </ul>
         )}
       </section>
+      )}
+      {broadcast ? (
+        <>
+          <section>
+            <h2>{t('Activity')}</h2>
+            <div className="server-tiles">
+              {/* Usherr Broadcast: Downloads and Wanted are Today's tiles above */}
+              <Tile to="/server/overview" icon="grid" title={t('Overview')} sub={t('The full dashboard: library size, folders, recent downloads')} />
+              <Tile to="/settings/service-checks" icon="activity" title={t('Service checks')} sub={t('Whether Jellyfin and your other programs are answering')} count={servicesDown} />
+              <Tile to="/queue?tab=history" icon="clock" title={t('History')} sub={t('What was grabbed, imported and deleted')} />
+              <Tile to="/queue?tab=requests" icon="chat" title={t('Requests')} sub={t('What people asked for')} />
+              <Tile to="/queue?tab=reports" icon="warning" title={t('Reports')} sub={t('Problems people reported')} />
+              <Tile to="/queue?tab=blocklist" icon="ban" title={t('Blocklist')} sub={t('Releases that won’t be grabbed again')} />
+              <Tile to="/queue?tab=bin" icon="trash" title={t('Recycle bin')} sub={t('Deleted files, kept for a while')} />
+            </div>
+          </section>
+        </>
+      ) : (
       <section>
         <h2>{t('Day to day')}</h2>
         <div className="server-tiles">
@@ -103,6 +140,7 @@ export default function ServerHub() {
           <Tile to="/preshow/manage" icon="film" title={t('Pre-show')} sub={t('What plays before a showtime')} />
         </div>
       </section>
+      )}
       <section>
         <h2>{t('Settings')}</h2>
         <div className="server-tiles">

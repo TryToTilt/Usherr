@@ -9,7 +9,8 @@ import { useEffect, useState } from 'react'
 import Icon from '../components/Icon'
 import { locale, t } from '../i18n'
 import { ChannelPreview, playChannel } from './Player'
-import { setTVPrefs, useTVPrefs, type GuideStyle } from './tvPrefs'
+import { chooseGuideStyle, guideStyleOf, setTVPrefs, useTVPrefs, type GuideStyle } from './tvPrefs'
+import { broadcastOn } from '../neu/look' // Usherr Broadcast
 
 interface GChannel {
   id: number
@@ -41,17 +42,21 @@ export const STYLES: { key: GuideStyle; label: () => string }[] = [
   { key: 'listings', label: () => t('Newspaper listings') },
   { key: 'nowon', label: () => t('Now on (tiles)') },
 ]
+// Usherr Broadcast: its own grid, first, and only while the look is Broadcast.
+const BROADCAST_STYLE: { key: GuideStyle; label: () => string } = { key: 'broadcast', label: () => t('Broadcast grid') }
 
 // The options above the guide.
 export function GuideOptions() {
   const p = useTVPrefs()
-  const grid = p.style === 'modern' || p.style === 'rounded' || p.style === 'cable'
+  const style = guideStyleOf(p) // Usherr Broadcast
+  const styles = broadcastOn() ? [BROADCAST_STYLE, ...STYLES] : STYLES
+  const grid = style === 'modern' || style === 'rounded' || style === 'cable'
   return (
     <div className="tvo">
       <label className="tvo-style">
         <Icon name="grid" size={14} />
-        <select value={p.style} onChange={(e) => setTVPrefs({ style: e.target.value as GuideStyle })} aria-label={t('Guide style')}>
-          {STYLES.map((s) => (
+        <select value={style} onChange={(e) => chooseGuideStyle(e.target.value as GuideStyle)} aria-label={t('Guide style')}>
+          {styles.map((s) => (
             <option key={s.key} value={s.key}>
               {s.label()}
             </option>
@@ -67,7 +72,7 @@ export function GuideOptions() {
           ))}
         </div>
       )}
-      {(grid || p.style === 'listings') && (
+      {(grid || style === 'listings') && (
         <div className="seg" role="group" aria-label={t('How far ahead')}>
           {([6, 12, 24] as const).map((h) => (
             <button key={h} type="button" className={p.hours === h ? 'active' : ''} onClick={() => setTVPrefs({ hours: h })}>

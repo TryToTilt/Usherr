@@ -4,7 +4,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from '../components/Icon'
+import { cardPoster } from '../components/PosterCard' // Usherr Broadcast: the small poster size
 import { t } from '../i18n'
+import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast
 import { loadCinema, nearUrl, theatreUrl, ticketsFor, whereElseUrl, type Cinema } from './cinema'
 import './cinema.css'
 
@@ -35,7 +37,7 @@ export default function InTheaters() {
         {c.results.map((m) => (
           <li key={m.tmdbId} className="cinema-item">
             <Link to={`/title/${m.tmdbId}`} className="cinema-poster" title={m.title}>
-              {m.posterUrl ? <img src={m.posterUrl} alt="" loading="lazy" draggable={false} /> : <span className="cinema-noposter">{m.title}</span>}
+              {m.posterUrl ? <img src={broadcastOn() ? cardPoster(m.posterUrl, 342) : m.posterUrl} alt="" loading="lazy" draggable={false} /> : <span className="cinema-noposter">{m.title}</span>}
               {m.inLibrary && (
                 <span className="cinema-have" title={t('In your library')}>
                   <Icon name="check" size={11} />
@@ -97,7 +99,7 @@ function TicketsLink({ c, title }: { c: Cinema; title: string }) {
   const label = tix.name ? t('Tickets on {service}', { service: tix.name }) : t('Tickets')
   return (
     <a className="cinema-tickets" href={tix.url} target="_blank" rel="noopener noreferrer" title={label} aria-label={label}>
-      {c.logos?.[tix.service] ? <img className="tickets-logo" src={`/api/home/link-logo/${tix.service}`} alt="" /> : <TicketsButton name={tix.name || t('Tickets')} />}
+      {c.logos?.[tix.service] && !broadcastOn() ? <img className="tickets-logo" src={`/api/home/link-logo/${tix.service}`} alt="" /> : <TicketsButton name={tix.name || t('Tickets')} />}
     </a>
   )
 }

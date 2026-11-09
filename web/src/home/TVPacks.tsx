@@ -72,7 +72,7 @@ function PacksDialog({ box, onClose, onPick }: { box: React.RefObject<HTMLDivEle
   )
 }
 
-export function AIBuildButton({ onPick }: { onPick: (d: Draft) => void }) {
+export function AIBuildButton({ onPick, label, className }: { onPick: (d: Draft) => void; label?: string; className?: string }) { // Usherr Broadcast: label and className, for the Broadcast channel editor
   const aiOn = useAIOn()
   const [open, setOpen] = useState(false)
   const [prompt, setPrompt] = useState('')
@@ -95,8 +95,8 @@ export function AIBuildButton({ onPick }: { onPick: (d: Draft) => void }) {
   }
   return (
     <>
-      <button type="button" className="btn-with-icon" data-walk="tv-ai" onClick={() => setOpen(true)}>
-        <Icon name="sparkles" size={16} /> {t('Build with AI')}
+      <button type="button" className={className ?? 'btn-with-icon'} data-walk="tv-ai" onClick={() => setOpen(true)}>
+        <Icon name="sparkles" size={16} /> {label ?? t('Build with AI')}
       </button>
       {open &&
         createPortal(

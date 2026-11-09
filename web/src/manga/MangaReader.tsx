@@ -23,6 +23,8 @@ import type { PdfPages } from './pdfPages'
 import { lookFilter, saveLook, storedLook, type ReaderLook } from './readerLook'
 import ReaderSettings, { cursorHint, HeaderButton, readerClass, ReaderProgress, readerStyle, resolvedBackground, useReaderOptions, WideStrip, type WideStripHandle } from '../readers/ReaderSettings'
 import { isHeaderKey } from '../readers/readerOptions'
+import { remoteHasReaderKey, useBroadcastReader } from '../readers/useBroadcastReader' // Usherr Broadcast: the remote
+import ReaderSheet, { directionRow, layoutRow, sharedRows } from '../readers/ReaderSheet' // Usherr Broadcast
 import { browseApi, dexItem, saveDexPlace, saveDexPrefs, storedDexPrefs, type DexReading } from './browseApi'
 import { saveTurnEffect, storedTurnEffect, type TurnEffect } from './turnEffect'
 import './manga.css'
@@ -76,6 +78,7 @@ function ReaderVolume({ volumeId, chapter, dex, startPage, onClose, onNext, onDe
   const [effect, setEffect] = useState<TurnEffect>(storedTurnEffect)
   const [look, setLook] = useState<ReaderLook>(storedLook)
   const [optsOpen, setOptsOpen] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false) // Usherr Broadcast: the reader settings sheet
   const [marksOpen, setMarksOpen] = useState(false)
   const [hint, setHint] = useState(false)
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 })
@@ -593,6 +596,7 @@ function ReaderVolume({ volumeId, chapter, dex, startPage, onClose, onNext, onDe
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      if (remoteHasReaderKey(e)) return // Usherr Broadcast: the remote has it (useBroadcastReader)
       // Typing a bookmark's note doesn't turn pages.
       if ((e.target as HTMLElement | null)?.closest?.('input:not([type="range"]), textarea, select')) return
       setHint(false)
@@ -614,6 +618,17 @@ function ReaderVolume({ volumeId, chapter, dex, startPage, onClose, onNext, onDe
   }, [turn])
   const toggleHeader = useRef<() => void>(() => undefined)
   toggleHeader.current = () => changeOpts({ header: !opts.header })
+  // Usherr Broadcast: the remote turns pages the way the book reads, OK shows the bar, Options the settings sheet
+  const remote = useBroadcastReader({
+    turn: (d) => void turn(d),
+    rtl,
+    vertical: scroll,
+    bar: opts.header,
+    setBar: (on) => changeOpts({ header: on }),
+    sheet: sheetOpen,
+    setSheet: setSheetOpen,
+    close: () => closeNow.current(),
+  })
 
   // ---- your choices ----
 
@@ -678,8 +693,8 @@ function ReaderVolume({ volumeId, chapter, dex, startPage, onClose, onNext, onDe
   const style = { ...readerStyle(opts, filter) }
 
   return createPortal(
-    <div className={`cx-reader mr-reader ${readerClass(opts)}`} data-walk="mg-reader" role="dialog" aria-label={info?.title ?? t('Manga reader')} style={style}>
-      <div className="cx-reader-bar">
+    <div className={`cx-reader mr-reader ${readerClass(opts)}`} data-walk="mg-reader" role="dialog" aria-label={info?.title ?? t('Manga reader')} style={style} {...remote.rootProps}>
+      <div className="cx-reader-bar" data-reader-bar="">
         <button className="btn-sm" onClick={onClose} aria-label={t('Close the reader')}>
           <Icon name="x" size={16} />
         </button>
@@ -933,6 +948,81 @@ function ReaderVolume({ volumeId, chapter, dex, startPage, onClose, onNext, onDe
         </div>
       )}
       {total > 0 && <ReaderProgress opts={opts} page={page} total={total} rtl={rtl} onJump={jumpTo} />}
+      {/* Usherr Broadcast: the settings as a sheet for the remote; holding a page (or right-clicking) to save it is a row here */}
+      {remote.on && sheetOpen && total > 0 && (
+        <ReaderSheet
+          eyebrow={info?.title}
+          onClose={() => setSheetOpen(false)}
+          rows={[
+            directionRow(direction, chooseDirection, scroll),
+            layoutRow(layoutChoices, shownLayout, (id) => chooseLayout(id as MangaLayout)),
+            ...(!flat
+              ? [
+                  {
+                    key: 'fit',
+                    label: t('Fit'),
+                    choices: [
+                      { id: 'page', label: t('Whole page') },
+                      { id: 'width', label: t('Width') },
+                      { id: 'height', label: t('Height') },
+                      { id: 'original', label: t('Actual size') },
+                    ],
+                    value: look.fit,
+                    onChoose: (v: string) => changeLook({ fit: v as PageFit }),
+                  },
+                ]
+              : []),
+            ...(!flat && fit === 'page' && !reduced
+              ? [
+                  {
+                    key: 'turn',
+                    label: t('Page turn'),
+                    choices: [
+                      { id: 'curl', label: t('Curl') },
+                      { id: 'slide', label: t('Slide') },
+                      { id: 'none', label: t('None') },
+                    ],
+                    value: effect,
+                    onChoose: (v: string) => chooseEffect(v as TurnEffect),
+                  },
+                ]
+              : []),
+            {
+              key: 'bright',
+              label: t('Brightness'),
+              choices: [100, 80, 60, 40].map((n) => ({ id: String(n), label: `${n}%` })),
+              value: String(Math.round(look.brightness / 20) * 20 || 100),
+              onChoose: (v: string) => changeLook({ brightness: Number(v) }),
+            },
+            { key: 'dark', label: t('Dark pages'), choices: [{ id: 'on', label: t('On') }, { id: 'off', label: t('Off') }], value: look.dark ? 'on' : 'off', onChoose: (v: string) => changeLook({ dark: v === 'on' }) },
+            ...sharedRows(opts, changeOpts),
+            ...(!flat && placed.length > 0
+              ? [
+                  {
+                    key: 'save',
+                    label: t('Save page {n}', { n: placed[0].n }),
+                    onPress: () => {
+                      setSheetOpen(false)
+                      const r = stage.current?.getBoundingClientRect()
+                      if (r) offerSave(r.left + r.width / 2, r.top + r.height / 2)
+                      window.setTimeout(() => document.querySelector<HTMLElement>('.mr-save')?.focus(), 80) // OK saves it
+                    },
+                  },
+                ]
+              : []),
+            {
+              key: 'all',
+              label: t('All reading options'),
+              onPress: () => {
+                setSheetOpen(false)
+                setMarksOpen(false)
+                setOptsOpen(true)
+                window.setTimeout(() => document.querySelector<HTMLElement>('.cx-reader-opts button:not(:disabled)')?.focus(), 80)
+              },
+            },
+          ]}
+        />
+      )}
     </div>,
     document.body,
   )

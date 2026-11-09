@@ -21,7 +21,8 @@ the rating, the countdown and the feature as each piece plays.
 part-way starts without a pre-show; one tried for under a minute starts from
 the beginning, with it.
 
-Everything is on **Settings → Movie night → Pre-show** (`/preshow/manage`),
+Everything is on **Server › Watching › Pre-show** in Broadcast (**Settings →
+Movie night → Pre-show** in Classic or Neu; `/preshow/manage`),
 for administrators.
 
 ## Nothing to set up
@@ -195,7 +196,8 @@ with the key in `X-Api-Key`; each piece comes from a signed
 
 Plex plays the same videos before every film: its **pre-roll** (*Cinema
 Trailers pre-roll video*, a Plex Pass feature), a list of files on the
-Plex computer. **Settings → Movie night → Pre-show → In the Plex app**:
+Plex computer. **Pre-show → In the Plex app** (under **Server › Watching** in
+Broadcast, **Settings → Movie night** in Classic or Neu):
 
 - **Before films in Plex** puts a pre-show together for Plex every half hour,
   so it keeps changing: the theme's clips, the trailers downloaded and the

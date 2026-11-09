@@ -31,6 +31,8 @@ import { isLayout, keyTurn, spreadEnd, spreadOf, stepSpread, swipeTurn, tapTurn,
 import { flipSpeeds, type FlipSpeed } from './comicFlipSpeed'
 import ReaderSettings, { cursorHint, HeaderButton, readerClass, ReaderProgress, readerStyle, TapZones, useReaderOptions, WideStrip, type WideStripHandle } from '../readers/ReaderSettings' // Usherr: options shared with the Manga reader
 import { COMICS_OPTIONS, isHeaderKey } from '../readers/readerOptions'
+import { remoteHasReaderKey, useBroadcastReader } from '../readers/useBroadcastReader' // Usherr Broadcast: the remote
+import ReaderSheet, { directionRow, layoutRow, sharedRows } from '../readers/ReaderSheet' // Usherr Broadcast
 import Shelves from './Shelves' // home fork
 import { groupShelves, letterShelves, RowsByPick, ShelfControls, useShelfView } from './shelfKit' // home fork
 import { locale, plural, t } from '../i18n'
@@ -944,6 +946,7 @@ const layoutNames = (): { id: ReaderLayout; label: string; title: string }[] => 
 function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: number }; onClose: () => void; startPage: number; onNext: (id: number) => void }) {
   const [marksOpen, setMarksOpen] = useState(false)
   const [optsOpen, setOptsOpen] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false) // Usherr Broadcast: the reader settings sheet
   const [info, setInfo] = useState<ComicPages | null>(null)
   const [error, setError] = useState('')
   const [direction, setDirection] = useState<ReadDirection>('ltr')
@@ -1137,6 +1140,7 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
   }, [page, total, issue.id, view])
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      if (remoteHasReaderKey(e)) return // Usherr Broadcast: the remote has it (useBroadcastReader)
       // Typing a bookmark's note doesn't turn pages.
       if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select')) return
       const turn = keyTurn(e.key, rtl)
@@ -1157,14 +1161,25 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
   }, [go, onClose, rtl, view])
   const toggleHeader = useRef<() => void>(() => undefined)
   toggleHeader.current = () => changeOpts({ header: !opts.header })
+  // Usherr Broadcast: the remote turns pages the way the comic reads, OK shows the bar, Options the settings sheet
+  const remote = useBroadcastReader({
+    turn: (d) => go(d),
+    rtl,
+    vertical: view === 'webtoon',
+    bar: opts.header,
+    setBar: (on) => changeOpts({ header: on }),
+    sheet: sheetOpen,
+    setSheet: setSheetOpen,
+    close: () => closeNow.current(),
+  })
 
   const shown = view === 'double' ? spreadOf(page, total) : [page]
   const nextUp = info?.next
   const nextHere = nextUp?.have ? nextUp : info?.nextHave
 
   return createPortal(
-    <div className={`cx-reader ${readerClass(opts)}`} data-walk="cx-reader" role="dialog" aria-label={info?.title ?? t('Comic reader')} style={readerStyle(opts)}>
-      <div className="cx-reader-bar" data-walk="cx-reader-bar">
+    <div className={`cx-reader ${readerClass(opts)}`} data-walk="cx-reader" role="dialog" aria-label={info?.title ?? t('Comic reader')} style={readerStyle(opts)} {...remote.rootProps}>
+      <div className="cx-reader-bar" data-walk="cx-reader-bar" data-reader-bar="">
         <button className="btn-sm" onClick={onClose} aria-label={t('Close the reader')}>
           <Icon name="x" size={16} />
         </button>
@@ -1333,6 +1348,43 @@ function ComicReaderIssue({ issue, onClose, startPage, onNext }: { issue: { id: 
         </div>
       )}
       {total > 0 && <ReaderProgress opts={opts} page={page} total={total} rtl={rtl} onJump={jumpTo} />}
+      {/* Usherr Broadcast: the settings as a sheet for the remote */}
+      {remote.on && sheetOpen && total > 0 && (
+        <ReaderSheet
+          eyebrow={info?.title}
+          onClose={() => setSheetOpen(false)}
+          rows={[
+            directionRow(direction, switchDirection, view === 'webtoon'),
+            layoutRow(layoutNames(), view, (id) => switchView(id as ReaderLayout)),
+            ...(view === 'slide' || view === 'double'
+              ? [
+                  {
+                    key: 'fit',
+                    label: t('Fit'),
+                    choices: [
+                      { id: 'height', label: t('Fit page') },
+                      { id: 'width', label: t('Fit width') },
+                    ],
+                    value: fit,
+                    onChoose: (v: string) => setFit(v === 'width' ? 'width' : 'height'),
+                  },
+                ]
+              : []),
+            ...sharedRows(opts, changeOpts),
+            { key: 'default', label: defaultSaved ? t('Saved as your default') : t('Use these for other comics too'), disabled: defaultSaved, onPress: makeDefault },
+            {
+              key: 'all',
+              label: t('All reading options'),
+              onPress: () => {
+                setSheetOpen(false)
+                setMarksOpen(false)
+                setOptsOpen(true)
+                window.setTimeout(() => document.querySelector<HTMLElement>('.cx-reader-opts button:not(:disabled)')?.focus(), 80)
+              },
+            },
+          ]}
+        />
+      )}
     </div>,
     document.body,
   )

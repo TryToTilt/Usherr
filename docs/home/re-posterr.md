@@ -6,8 +6,10 @@ server's titles, so a film looks the same in every Jellyfin or Plex app, on the
 Marquee and in Usherr. Only pictures change, never a file, and every change can
 be put back.
 
-It's on **Settings → Re-Posterr** (`/settings/re-posterr`), for
-administrators. It needs Jellyfin or Plex (Settings → Connections → Media servers) and a
+It's on **Server › Libraries › Artwork (Re-Posterr)** in Broadcast
+(**Settings → Re-Posterr** in Classic or Neu; `/settings/re-posterr`), for
+administrators. It needs Jellyfin or Plex (Server › Watching › Media servers,
+or Settings → Connections → Media servers) and a
 TMDB key. With both, a title's pictures go to both.
 
 **With Plex**: posters and backgrounds go to Plex and are locked there, so
@@ -171,7 +173,8 @@ titles need looking at.
 
 ## Collections
 
-**Settings → Re-Posterr → Collections.** Usherr makes collections in
+**Server › Libraries › Collections** (**Settings → Re-Posterr → Collections**
+in Classic or Neu). Usherr makes collections in
 Jellyfin and Plex and keeps them up to date, so Kometa isn't needed for them.
 A collection's titles come from:
 
@@ -200,7 +203,8 @@ the servers too; the titles themselves are never touched.
 
 ## Poster badges
 
-**Settings → Re-Posterr → Poster badges** (off until you switch them on).
+**Server › Libraries › Poster badges** (**Settings → Re-Posterr → Poster
+badges** in Classic or Neu; off until you switch them on).
 Small badges on the posters Jellyfin and Plex show: 4K, 1080p or 720p, HDR,
 HDR10+ or Dolby Vision, the best sound (Atmos, DTS:X, TrueHD, DTS-HD MA), 5.1
 or 7.1, the rating (your media server's, or IMDb's from MDBList scores) and

@@ -504,10 +504,18 @@ const (
 	MethodPlex     = "plex"     // Usherr
 	MethodPasskey  = "passkey"
 	MethodProxy    = "proxy"
+	// Usherr: a TV signed in by a code a signed-in phone approved (internal/api/home_tv_signin.go).
+	MethodTV = "tv"
 )
 
 // CreateSessionVia is CreateSession that also records how the person signed in.
 func (s *Service) CreateSessionVia(userID int64, method string) (token string, expiresAt time.Time, err error) {
+	return s.CreateSessionOn(userID, method, "")
+}
+
+// CreateSessionOn is CreateSessionVia that also keeps what kind of device it
+// is for (Usherr: "Chrome on Android TV" for a TV sign-in; "" otherwise).
+func (s *Service) CreateSessionOn(userID int64, method, device string) (token string, expiresAt time.Time, err error) {
 	token, err = randomToken()
 	if err != nil {
 		return "", time.Time{}, err
@@ -516,8 +524,8 @@ func (s *Service) CreateSessionVia(userID int64, method string) (token string, e
 	expiresAt = now.Add(sessionTTL)
 	// Sessions nobody signed out of would otherwise stay in the table forever.
 	_, _ = s.db.Exec(`DELETE FROM sessions WHERE expires_at < ?`, now.UTC().Format(time.RFC3339Nano))
-	_, err = s.db.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, method, last_used_at) VALUES (?, ?, ?, ?, ?)`,
-		hashToken(token), userID, expiresAt.UTC().Format(time.RFC3339Nano), method, now.UTC().Format(time.RFC3339Nano))
+	_, err = s.db.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, method, last_used_at, device) VALUES (?, ?, ?, ?, ?, ?)`,
+		hashToken(token), userID, expiresAt.UTC().Format(time.RFC3339Nano), method, now.UTC().Format(time.RFC3339Nano), device)
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("insert session: %w", err)
 	}
@@ -576,12 +584,13 @@ type SessionInfo struct {
 	ExpiresAt time.Time
 	Method    string // how it was started: see MethodPassword and friends
 	Current   bool   // the session making the request
+	Device    string // Usherr: the kind of device, for a TV sign-in; "" otherwise
 }
 
 // SessionsOf lists the unexpired sessions of userID, newest first. current is
 // the raw token of the session asking, so it can be marked.
 func (s *Service) SessionsOf(userID int64, current string) ([]SessionInfo, error) {
-	rows, err := s.db.Query(`SELECT token_hash, created_at, expires_at, method, last_used_at, idle_ended_at FROM sessions WHERE user_id = ? ORDER BY created_at DESC`, userID)
+	rows, err := s.db.Query(`SELECT token_hash, created_at, expires_at, method, last_used_at, idle_ended_at, device FROM sessions WHERE user_id = ? ORDER BY created_at DESC`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list sessions: %w", err)
 	}
@@ -589,9 +598,9 @@ func (s *Service) SessionsOf(userID int64, current string) ([]SessionInfo, error
 	mine := hashToken(current)
 	var out []SessionInfo
 	for rows.Next() {
-		var hash, created, expires, method string
+		var hash, created, expires, method, device string
 		var lastUsed, idleEnded sql.NullString
-		if err := rows.Scan(&hash, &created, &expires, &method, &lastUsed, &idleEnded); err != nil {
+		if err := rows.Scan(&hash, &created, &expires, &method, &lastUsed, &idleEnded, &device); err != nil {
 			return nil, fmt.Errorf("scan session: %w", err)
 		}
 		exp, err := time.Parse(time.RFC3339Nano, expires)
@@ -602,7 +611,7 @@ func (s *Service) SessionsOf(userID int64, current string) ([]SessionInfo, error
 			continue // ended for being idle: not a place the person is signed in any more
 		}
 		made, _ := time.Parse(time.RFC3339Nano, created)
-		out = append(out, SessionInfo{CreatedAt: made, ExpiresAt: exp, Method: method, Current: current != "" && hash == mine})
+		out = append(out, SessionInfo{CreatedAt: made, ExpiresAt: exp, Method: method, Current: current != "" && hash == mine, Device: device})
 	}
 	return out, rows.Err()
 }

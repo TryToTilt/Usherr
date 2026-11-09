@@ -2,7 +2,9 @@
 
 Manga is its own section, apart from Comics. You add a series by its English title, Usherr looks for its volumes through your indexers, and it tells you in plain words what's happening and why nothing has come yet.
 
-It's off until you switch it on in **Settings > Media types**.
+It's off until you switch it on in **Server › Libraries › Media types** (in Classic or Neu: **Settings > Media types**).
+
+Where this page says **Settings > Manga**, in the Broadcast look that's **Server › Kinds of media › Manga**; **Settings > MangaDex account** is **You › Your settings › MangaDex account**, **Settings > Notifications** is **Server › People › Notifications**, and **Settings > Library > Folders** is **Server › Libraries › Folders**. Manga itself is **Library › Manga**. See [Broadcast and the remote](home/broadcast.md).
 
 ## Reading
 
@@ -22,7 +24,8 @@ Tap a volume that's on disk to read it, or press **Continue** on the series' pag
   - **Greyscale**, **Dim the pages**, and the **Background**: the reader's dark, Usherr's theme, white or black.
   - **Keyboard shortcuts** lists the keys.
   These are kept for each series on this device, and the last ones you chose are where a new series starts. Out of the box nothing looks or works differently.
-- **Saving a page:** hold a finger on it, or right-click, then **Save page**.
+- **Saving a page:** hold a finger on it, or right-click, then **Save page**. With a remote it's in the reader settings the Options key opens.
+- **With a remote** (Broadcast): Left and Right turn the page the way the book reads (Left goes on in a right-to-left manga), and so do Fast forward and Rewind. OK shows or hides the bar, Up moves to it, Back closes what's open and then the book. The Options key opens the reader settings as a list you change with Left and Right.
 - **The screen stays on** while you read, where the browser allows it (on a phone that usually needs an https address), until 15 minutes pass with no turn.
 - **The last page** offers the next volume, or says it isn't here yet.
 - **Your place** is kept per person, on any device. Reaching the last page marks a volume read, and the next one takes its place in Continue. Under **⋯** on a volume: mark read, mark read up to here, save the file, and **Keep on this device** to read it with no connection.
@@ -31,7 +34,7 @@ CBZ and CBR read as they are. A PDF's pages are drawn in your browser, a few at 
 
 ## Discover
 
-**Manga > Discover** is the one place to find manga, without leaving Usherr. It shows what's trending, popular or new on AniList, and you can pick a genre. It needs no key or account, and only accounts allowed to add manga see it. 18+ series and novels aren't on these shelves.
+**Manga > Discover** (in Broadcast also **Find › Discover › Manga**) is the one place to find manga, without leaving Usherr. It shows what's trending, popular or new on AniList, and you can pick a genre. It needs no key or account, and only accounts allowed to add manga see it. 18+ series and novels aren't on these shelves.
 
 **Add** on a tile is one press. **Add gets** above the tiles says what that press wants: all volumes, new volumes only or nothing yet, remembered on this device. A series with no official English edition known waits, and its page says why and offers fan scans. Tap a cover for more about it first.
 

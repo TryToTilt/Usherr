@@ -16,8 +16,9 @@ Friends who run their own Usherr can also watch together with no Discord at
 all: linked Usherrs, screenings in step, a party chat, reactions and crews.
 See [Watching together](watch-together.md).
 
-Everything is on **Settings → Movie night → Community**
-(`/settings/community`), for administrators. **Show me how** walks you
+Everything is on **Server › People › Community** in Broadcast
+(**Settings → Movie night → Community** in Classic or Neu;
+`/settings/community` in every look), for administrators. **Show me how** walks you
 through it.
 
 ## Make the bot
@@ -67,7 +68,8 @@ Usherr knows who presses *I'm in* and whose review is whose:
 1. In the Discord server, type `/link` in any channel, choose Usherr's
    `/link` from the list and press Enter. The bot answers with six numbers.
    Only you see them, and they work for 10 minutes.
-2. In Usherr, open **Settings → Account & Access → Linked services**, type
+2. In Usherr, open **You › Your settings › Linked services** (in Classic or
+   Neu: **Settings → Account & Access → Linked services**), type
    the numbers under **Discord** and press **Link**.
 
 Linking posts nothing: only what you choose to share is ever posted. **Unlink**
@@ -146,7 +148,8 @@ apps:
   your phone.
 
 What you type is posted in the thread under your own Discord name and picture,
-so link your Discord account first (Settings, Linked services). Nobody can be
+so link your Discord account first (Linked services, under You › Your
+settings, or Settings in Classic and Neu). Nobody can be
 pinged from Usherr. Edits and deletions in Discord show in Usherr too, and the
 chat stays with the party after the film. The Discord app shows the same
 thread, so people can chat from either.

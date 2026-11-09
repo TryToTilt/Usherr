@@ -48,6 +48,12 @@ import AmbientBackdrop from './AmbientBackdrop'
 import SideStack from '../home/SideStack' // Usherr: your stack, under Settings
 import { lobbyOn } from '../neu/look' // Usherr: the new layout
 import { LobbyNav, LobbyTabs, useServerNeeds } from './LobbyNav'
+import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast: the one menu
+import { LibraryKinds, OneMenu, OneTabs } from '../onemenu/OneMenu' // Usherr Broadcast
+import { MENU_MODE_EVENT, menuMode } from '../onemenu/menuMode' // Usherr Broadcast: open, icons or hidden
+import { YOUR_SETTINGS } from '../onemenu/broadcastNav' // Usherr Broadcast
+import { REMOTE_EVENT, type RemoteDetail } from '../remote/remote' // Usherr Broadcast: Left at the edge opens the menu
+import PosterOptions from '../broadcast/PosterOptions' // Usherr Broadcast: a poster's Options key is its title's More sheet
 
 const NAV: { to: string; label: string; icon: IconName; sec: SectionKey; end?: boolean }[] = [
   { to: '/', label: t('Dashboard'), icon: 'grid', sec: 'dashboard', end: true },
@@ -75,6 +81,13 @@ const LIBRARY_LINE: Record<LibraryTab, { label: string; glyph: 'movie' | 'tv' | 
   comics: { label: t('Comics'), glyph: 'comic', color: 'var(--c-comics)' }, // Usherr
   manga: { label: t('Manga'), glyph: 'manga', color: 'var(--c-manga)' }, // Usherr
   nsfw: { label: t('NSFW 18+'), glyph: 'movie', color: 'var(--c-nsfw)' }, // Usherr
+}
+
+// Usherr Broadcast: the page's own heading says the same as the top bar
+// (ignoring case and spacing), so the top bar's copy can go.
+function sameHeading(pageH1: string, top: string): boolean {
+  const norm = (x: string) => x.replace(/\s+/g, ' ').trim().toLowerCase()
+  return norm(pageH1) !== '' && norm(pageH1) === norm(top)
 }
 
 // Where Back goes from a detail page that was opened directly; undefined
@@ -223,13 +236,32 @@ function Shell() {
   // Errors from the last day that nobody has marked as read (administrators only).
   const unreadErrors = useUnreadErrors(admin)
   const lobby = lobbyOn() // Usherr: the new layout, set before the first paint
-  const needs = useServerNeeds(admin && lobby, unreadErrors)
+  const broadcast = broadcastOn() // Usherr Broadcast: the one menu, set before the first paint
+  const needs = useServerNeeds(admin && (lobby || broadcast), unreadErrors)
+  // Usherr Broadcast: how the menu sits on a wider screen (onemenu/menuMode.ts), and whether the screen is wide.
+  const [mode, setMode] = useState(menuMode)
+  useEffect(() => {
+    const read = () => setMode(menuMode())
+    window.addEventListener(MENU_MODE_EVENT, read)
+    return () => window.removeEventListener(MENU_MODE_EVENT, read)
+  }, [])
+  const [wide, setWide] = useState(() => !window.matchMedia('(max-width: 900px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 900px)')
+    const read = () => setWide(!mq.matches)
+    mq.addEventListener('change', read)
+    return () => mq.removeEventListener('change', read)
+  }, [])
+  const pinned = broadcast && mode === 'open' && wide // Usherr Broadcast: always open
   const errorDot = <span className="nav-dot" role="img" aria-label={t('New errors')} title={t('New errors. See Settings, System, Logs and errors.')} />
 
   // Close the mobile drawer whenever the page changes (a Library line only changes the address's query).
   // Usherr: on a wider screen it stays open while you go from page to page.
+  // Usherr Broadcast: the icon rail folds as soon as a page is chosen from it.
+  const railMode = broadcast && mode === 'icons' && wide
   useEffect(() => {
-    if (window.matchMedia('(max-width: 900px)').matches) setMenuOpen(false)
+    if (window.matchMedia('(max-width: 900px)').matches || railMode) setMenuOpen(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a change of page folds it
   }, [location.pathname, location.search])
   // Usherr: on a wider screen the open menu sits over the page without
   // dimming it. It stays while the mouse is over it, and slides away the
@@ -256,7 +288,7 @@ function Shell() {
       if (e.key === 'Escape') setMenuOpen(false)
     }
     // Opened from the hamburger, the mouse isn't on the menu yet.
-    if (!nav.matches(':hover')) arm(Math.max(hideS * 1000, MENU_GRACE_MS))
+    if (!nav.matches(':hover') && !nav.contains(document.activeElement)) arm(Math.max(hideS * 1000, MENU_GRACE_MS)) // Usherr Broadcast: or focus (the rail opens on focus)
     nav.addEventListener('pointerenter', stay)
     nav.addEventListener('pointerleave', leave)
     nav.addEventListener('focusin', stay)
@@ -269,6 +301,59 @@ function Shell() {
       document.removeEventListener('keydown', onKey)
     }
   }, [menuOpen, hideS])
+
+  // Usherr Broadcast: the icon rail (and a hidden menu's left edge) opens when the
+  // mouse comes onto it or the focus moves into it, and folds when the focus
+  // leaves it; the slide-away timer above still applies to the mouse.
+  useEffect(() => {
+    if (!broadcast || pinned || !wide) return
+    const nav = navRef.current
+    if (!nav) return
+    const open = () => setMenuOpen(true)
+    const away = (e: FocusEvent) => {
+      const to = e.relatedTarget as Node | null
+      if (to && nav.contains(to)) return
+      if (!nav.matches(':hover')) setMenuOpen(false)
+    }
+    // The widened rail lies over the left of the page: once the mouse is on
+    // the page it folds at once (the slide-away wait is for leaving the
+    // screen's edge, not for reaching the page under it).
+    const page = nav.parentElement?.querySelector<HTMLElement>(':scope > .main-area')
+    const onPage = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse' && !nav.matches(':hover')) setMenuOpen(false)
+    }
+    if (mode === 'icons') {
+      nav.addEventListener('pointerenter', open)
+      page?.addEventListener('pointerover', onPage)
+    }
+    nav.addEventListener('focusin', open)
+    nav.addEventListener('focusout', away)
+    return () => {
+      page?.removeEventListener('pointerover', onPage)
+      nav.removeEventListener('pointerenter', open)
+      nav.removeEventListener('focusin', open)
+      nav.removeEventListener('focusout', away)
+    }
+  }, [broadcast, pinned, wide, mode])
+
+  // Usherr Broadcast: Left at the left edge of a page (the remote's "menu")
+  // opens the menu and puts the highlight on the page you're on.
+  useEffect(() => {
+    if (!broadcast) return
+    const onRemote = (e: Event) => {
+      if ((e as CustomEvent<RemoteDetail>).detail?.action !== 'menu') return
+      const nav = navRef.current
+      if (!nav) return
+      e.preventDefault()
+      setMenuOpen(true)
+      window.setTimeout(() => {
+        const here = nav.querySelector<HTMLElement>('a[aria-current="page"]') ?? nav.querySelector<HTMLElement>('a[href], button')
+        here?.focus()
+      }, 30)
+    }
+    window.addEventListener(REMOTE_EVENT, onRemote)
+    return () => window.removeEventListener(REMOTE_EVENT, onRemote)
+  }, [broadcast])
 
   // On a phone the search is an icon that opens a bar over the header.
   const [searchOpen, setSearchOpen] = useState(false)
@@ -349,6 +434,7 @@ function Shell() {
   const heading = location.pathname.startsWith('/help') ? t('User guide') : pageTitle(location.pathname, admin)
   const parts = pageParts(location.pathname, admin)
   const headingText = parts.group ? `${parts.group} · ${parts.page}` : heading
+  const findOwnsSearch = broadcast && location.pathname === '/find' // Usherr Broadcast: one search box on Find
   const headingNode = (
     <span className="top-text">
       {parts.group ? (
@@ -420,6 +506,7 @@ function Shell() {
   }, [menuOpen])
 
   const [pageHasHeading, setPageHasHeading] = useState(false)
+  const [pageH1, setPageH1] = useState('') // Usherr Broadcast: the page's own heading, so the top bar doesn't say it twice
   // Title, show, book and artist pages get a Back button: it returns to
   // wherever the page was opened from, or to its section when it was opened
   // directly (a link from outside, a fresh tab).
@@ -433,7 +520,13 @@ function Shell() {
   useEffect(() => {
     const el = mainRef.current
     if (!el) return
-    const check = () => setPageHasHeading(el.querySelector('h1') !== null)
+    const check = () => {
+      const h1 = el.querySelector('h1')
+      setPageHasHeading(h1 !== null)
+      // Usherr Broadcast: only a heading you can see (a page-header's h1 is hidden, the top bar says it)
+      const box = h1?.getBoundingClientRect()
+      setPageH1(h1 && box && box.width > 2 && box.height > 2 ? (h1.textContent?.trim() ?? '') : '')
+    }
     check()
     const watch = new MutationObserver(check)
     watch.observe(el, { childList: true, subtree: true })
@@ -477,7 +570,7 @@ function Shell() {
         <div className={`sn-collapse${openGroup === 'settings' ? ' open' : ''}`} id="sn-settings" onKeyDown={subMenuKeys('settings')}>
         <div className="sn-collapse-inner">
         <div className="subnav" style={{ ['--nc' as string]: 'var(--c-settings)' }}>
-          {settingsGroups.map((g) => {
+          {(broadcast ? settingsGroups.filter((g) => g.key !== YOUR_SETTINGS) : settingsGroups).map((g) => { // Usherr Broadcast: Your settings are under You
             const current = g.pages.some((p) => inPage(location.pathname, p.to))
             if (g.pages.length === 1) {
               return (
@@ -561,7 +654,8 @@ function Shell() {
   )
 
   return (
-    <div className={`app-shell ${lobby ? 'nav-lobby' : 'nav-drawer'}`} data-section={sectionFor(location.pathname)}>
+    <div className={`app-shell ${broadcast ? `one-menu mm-${mode}${mode === 'hidden' ? ' nav-drawer' : ''}` : lobby ? 'nav-lobby' : 'nav-drawer'}`} data-section={sectionFor(location.pathname)}>
+      {broadcast && mode === 'hidden' && <div className="one-edge" aria-hidden="true" onPointerEnter={() => setMenuOpen(true)} />} {/* Usherr Broadcast: the left edge opens the hidden menu */}
       <a
         className="skip-link"
         href="#main"
@@ -574,8 +668,9 @@ function Shell() {
       </a>
       <PlayerHost /> {/* play hook (home fork) */}
       <ShowtimeBookingHost /> {/* Usherr: "Book a showtime" from a card */}
+      {broadcast && <PosterOptions />} {/* Usherr Broadcast */}
       <div className={`sidebar-backdrop${menuOpen ? ' open' : ''}`} onClick={() => setMenuOpen(false)} />
-      <nav id="main-menu" ref={navRef} className={`sidebar${menuOpen ? ' open' : ''}`} aria-label={tc('menu', 'Main')}>
+      <nav id="main-menu" ref={navRef} className={`sidebar${menuOpen || pinned ? ' open' : ''}`} aria-label={tc('menu', 'Main')}>
         <div className="brand">
           {/* Usherr: the open menu covers the top bar's hamburger, so it has its own, in the same place */}
           <button type="button" className="menu-button menu-close" onClick={() => setMenuOpen(false)} aria-controls="main-menu" aria-expanded={menuOpen} aria-label={t('Close menu')}>
@@ -587,7 +682,9 @@ function Shell() {
           </span>
         </div>
         <div className={`side-scroll${moreBelow ? ' more-below' : ''}`} ref={scrollRef}>
-        {lobby ? (
+        {broadcast ? (
+          <OneMenu entries={libraryLines} sportsOn={sportsOn} downloads={active} needs={needs} serverMenu={settingsSub} tools={tools} /> // Usherr Broadcast: the one menu
+        ) : lobby ? (
           <LobbyNav
             lines={libraryLines.map((l) => ({ ...LIBRARY_LINE[l.tab], to: l.to, active: l.active }))}
             admin={admin}
@@ -700,7 +797,7 @@ function Shell() {
       <div className="main-area">
         <AmbientBackdrop />
         <header className="topbar">
-          <button ref={menuButton} className="menu-button" aria-controls="main-menu" onClick={() => setMenuOpen((o) => !o)} aria-label={t('Open menu')} aria-expanded={menuOpen}>
+          <button ref={menuButton} className="menu-button" aria-controls="main-menu" onClick={() => setMenuOpen((o) => !o)} aria-label={t('Open menu')} aria-expanded={menuOpen || pinned}>
             <Icon name="menu" size={20} />
           </button>
           {backTo && (
@@ -709,35 +806,46 @@ function Shell() {
               <span>{t('Back')}</span>
             </button>
           )}
-          {lobby && pageHasHeading ? null : pageHasHeading ? <p className="top-title" title={headingText}>{headingNode}</p> : <h1 className="top-title" title={headingText}>{headingNode}</h1>}
+          {(lobby && pageHasHeading) || (broadcast && pageHasHeading && sameHeading(pageH1, headingText)) ? null : pageHasHeading ? <p className="top-title" title={headingText}>{headingNode}</p> : <h1 className="top-title" title={headingText}>{headingNode}</h1>}
           <div className={`top-search${searchOpen ? ' open' : ''}`}>
+            {findOwnsSearch ? null : ( // Usherr Broadcast: Find has its own search box, so the top bar's steps aside there
+            <>
             {location.pathname === '/calendar' ? <CalendarHeaderSearch /> : <OmniBar key={omniPage} page={omniPage} header />} {/* Usherr: search or ask the AI, from any page, shaped by the page you are on; on the Calendar it searches the calendar */}
             <button type="button" className="icon-btn top-search-close" onClick={() => setSearchOpen(false)} aria-label={t('Close search')}>
               <Icon name="x" size={18} />
             </button>
+            </>
+            )}
           </div>
-          <RouletteButton iconOnly className="icon-btn top-dice" /> {/* Usherr: Roulette */}
+          {!broadcast && <RouletteButton iconOnly className="icon-btn top-dice" />} {/* Usherr: Roulette (Broadcast: on Find) */}
           <SmhButton /> {/* Usherr: Show Me How */}
-          <ShowtimePill /> {/* Usherr: Showtime, counting down, from any page */}
-          <TonightButton /> {/* Usherr: what to watch tonight */}
+          {!broadcast && <ShowtimePill />} {/* Usherr: Showtime, counting down, from any page (Broadcast: on Home and Movie night) */}
+          {!broadcast && <TonightButton />} {/* Usherr: what to watch tonight (Broadcast: on Find) */}
+          {!findOwnsSearch && (
           <button type="button" className="icon-btn search-toggle" onClick={() => setSearchOpen(true)} aria-label={t('Search')}>
             <Icon name="search" size={19} />
           </button>
+          )}
           <div className="top-actions">
             {demoEnabled() && (
               <span className="demo-chip" title={t('Sample data is showing. Turn it off from your profile menu.')}>
                 <Icon name="flask" size={14} /> <span className="demo-chip-label">{t('Demo data')}</span>
               </span>
             )}
+            {!broadcast && ( // Usherr Broadcast: a lean top bar; the players, the guide and light or dark are in the menu
+              <>
             <SideTools ebooksOn={ebooksOn} audiobooksOn={audiobooksOn} musicOn={musicOn} homes={homes} apps={apps} showSupport={admin && showSupport} variant="top" />
             <span className="top-theme">
               <ThemeToggle />
             </span>
+              </>
+            )}
             <ProfileMenu />
           </div>
         </header>
         <ImportBanner />
         <main id="main" className="content" ref={mainRef} tabIndex={-1}>
+          {broadcast && <LibraryKinds entries={libraryLines} sportsOn={sportsOn} />} {/* Usherr Broadcast: the kinds as one row of chips on the Library's pages */}
           <Suspense fallback={<PageLoading />}>
             <Outlet />
           </Suspense>
@@ -749,7 +857,7 @@ function Shell() {
         <FeedbackNudge />
         <ReportHost />
       </div>
-      {lobby && <LobbyTabs admin={admin} needs={needs} />}
+      {broadcast ? <OneTabs needs={needs} /> : lobby && <LobbyTabs admin={admin} needs={needs} />} {/* Usherr Broadcast: the phone's bar */}
     </div>
   )
 }

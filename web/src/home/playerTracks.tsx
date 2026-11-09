@@ -108,6 +108,12 @@ function subLabel(tr: PlayTrack) {
   return bits.join(' · ')
 }
 
+// Usherr Broadcast: the player's own controls (broadcast/PlayerControls.tsx)
+// name the tracks and keep the choice the same way as this menu.
+export { soundLabel, subLabel }
+export const keepAudioLang = (lang?: string) => set(AUDIO_KEY, lang ?? '')
+export const keepSubLang = (lang?: string) => set(SUB_KEY, lang ?? '')
+
 // pickSub is the subtitle to show by itself: the person's language, as text
 // and not just the forced lines; none when they don't read subtitles.
 export function pickSub(tr: Tracks, lang: string): PlayTrack | null {

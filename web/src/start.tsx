@@ -9,6 +9,8 @@ import './usherr-theme.css' // Usherr: the cinema palette, last
 import './usherr-palettes.css' // Usherr: the other colour choices, after it
 import './usherr-bases.css' // Usherr: the main colours, over those
 import './neu/neu.css' // Usherr Neu, when picked
+import './neu/broadcast.css' // Usherr Broadcast, when picked (the default)
+import { startRemote } from './remote' // Usherr: arrows, Back and Options from a TV remote
 import { demoEnabled, installDemo } from './demo'
 import App from './App.tsx'
 import { ToastProvider } from './components/Toast'
@@ -17,6 +19,7 @@ import { PUSH_WORKER } from './push'
 import { BASE_PATH } from './base'
 import { isStaleWorker } from './staleWorker'
 
+startRemote() // Usherr: the remote (remote/)
 if (demoEnabled()) installDemo()
 
 // Mediarium's only service worker is the push one (push-sw.js), which caches

@@ -1,0 +1,114 @@
+/* Usherr Broadcast: Home (BroadcastHome.tsx). Only ever drawn in Broadcast. */
+
+.bh-home { display: flex; flex-direction: column; gap: 28px; padding-bottom: 32px; min-width: 0; }
+
+/* the hero: Continue watching */
+.bh-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--b-panel);
+  min-height: 260px;
+  display: flex;
+  align-items: center;
+}
+.bh-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: min(62%, 900px);
+  background: var(--art, none) center 30% / cover no-repeat;
+  opacity: 0.85;
+}
+.bh-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--b-panel) 38%, color-mix(in srgb, var(--b-panel) 70%, transparent) 58%, transparent 88%);
+}
+.bh-hero-text { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 10px; padding: 32px 40px; max-width: min(720px, 100%); min-width: 0; }
+.bh-eyebrow { font-size: 0.85rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--b-dim); }
+.bh-hero-title { margin: 0; font-size: clamp(1.8rem, 3.4vw, 3.2rem); line-height: 1.1; font-weight: 800; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.bh-hero-meta { font-size: 1.1rem; color: var(--b-dim); font-variant-numeric: tabular-nums; }
+.bh-hero-btns { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+.bh-hero-btns .big { min-height: 52px; padding: 0 26px; font-size: 1.1rem; border-radius: 12px; }
+.bh-btn { background: var(--b-surface); color: var(--b-text); display: inline-flex; align-items: center; text-decoration: none; }
+
+/* a live progress line: the glow is for live things only */
+.bh-track { display: block; height: 6px; border-radius: 3px; background: var(--b-cell-hi); overflow: hidden; width: min(420px, 100%); }
+.bh-track > span { display: block; height: 100%; border-radius: 3px; background: var(--b-glow); }
+
+/* rows */
+.bh-section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.bh-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.bh-head h2 { margin: 0; font-size: 1.35rem; font-weight: 650; }
+.bh-note { margin-left: 10px; font-size: 1rem; font-weight: 400; color: var(--b-dim); }
+.bh-more { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 12px; color: var(--b-dim); text-decoration: none; font-weight: 600; }
+.bh-more:hover { background: var(--b-cell); color: var(--b-text); }
+.bh-more:focus-visible { background: var(--b-focus) !important; color: var(--b-on-focus) !important; }
+.bh-row { display: flex; gap: 14px; overflow-x: auto; overflow-y: visible; padding: 6px 4px 10px; margin: -6px -4px 0; scrollbar-width: thin; }
+.bh-row > .pcard { flex: 0 0 auto; width: 150px; }
+
+/* Tonight */
+.bh-card {
+  flex: 0 0 auto;
+  width: min(360px, 82vw);
+  min-height: 84px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: var(--b-panel);
+  color: var(--b-text);
+  text-decoration: none;
+}
+.bh-card:hover { background: var(--b-cell); color: var(--b-text); }
+.bh-card:focus-visible { background: var(--b-focus) !important; color: var(--b-on-focus) !important; outline: 2px solid transparent !important; }
+.bh-card:focus-visible .bh-card-sub { color: var(--b-on-focus); }
+.bh-card-icon { flex: none; width: 48px; height: 48px; border-radius: 12px; background: var(--b-elevated); display: grid; place-items: center; }
+.bh-card:focus-visible .bh-card-icon { background: color-mix(in srgb, #fff 18%, transparent); }
+/* a warning (the Server needs you): an amber icon; the words stay plain */
+.bh-card-warn .bh-card-icon { color: var(--b-warn); }
+.bh-card-warn:focus-visible .bh-card-icon { color: var(--b-on-focus); }
+.bh-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bh-card-title { font-size: 1.05rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.bh-card-sub { font-size: 0.92rem; color: var(--b-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* On now */
+.bh-live {
+  flex: 0 0 auto;
+  width: min(300px, 78vw);
+  min-height: 132px;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 0;
+  background: var(--b-cell);
+  color: var(--b-text);
+  text-align: left;
+  cursor: pointer;
+}
+.bh-live:hover { background: var(--b-cell-hi); }
+.bh-live:focus-visible { background: var(--b-focus) !important; color: var(--b-on-focus) !important; }
+.bh-live-num { position: absolute; left: 10px; top: 10px; min-width: 44px; height: 34px; padding: 0 10px; border-radius: 12px; background: var(--b-surface); font-weight: 700; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+.bh-live-logo { position: absolute; right: 12px; top: 10px; max-width: 72px; max-height: 34px; object-fit: contain; }
+.bh-live-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; width: 100%; }
+.bh-live-title { font-weight: 650; font-size: 1.02rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bh-live-sub { font-size: 0.88rem; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bh-live .bh-track { width: 100%; }
+.bh-live:focus-visible .bh-track > span { background: #fff; }
+
+.bh-empty { padding: 32px; border-radius: 16px; background: var(--b-panel); display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.bh-empty h2 { margin: 0; }
+.bh-empty p { margin: 0; color: var(--b-dim); }
+
+@media (max-width: 700px) {
+  .bh-hero { min-height: 220px; }
+  .bh-hero::before { width: 100%; opacity: 0.35; }
+  .bh-hero-text { padding: 22px 20px; }
+  .bh-row > .pcard { width: 124px; }
+}

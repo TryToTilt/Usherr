@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Usherr Broadcast's mark: a flat tile in the focus blue with a rounded play shape. No gradient, no shadow. -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="#1479FD"/>
+  <path d="M26 20.5c0-2.3 2.5-3.7 4.4-2.5l14.4 9.1c1.8 1.2 1.8 3.8 0 5L30.4 41.2c-1.9 1.2-4.4-.2-4.4-2.5z" fill="#F2F5FA"/>
+</svg>

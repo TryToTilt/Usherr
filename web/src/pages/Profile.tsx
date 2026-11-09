@@ -1,3 +1,4 @@
+import { TVSignInCard } from '../components/TVSignInCard' // Usherr
 import { BRAND } from '../brand' // Usherr
 import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -800,6 +801,7 @@ export function SignInSettings() {
     <div className="settings-stack">
       <SignInMethods />
       <MediaSignInCard />
+      <TVSignInCard /> {/* Usherr: Sign in on a TV */}
       <ProxySignIn />
     </div>
   )

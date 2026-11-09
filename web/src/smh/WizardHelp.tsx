@@ -6,6 +6,8 @@
 import { useState } from 'react'
 import Icon from '../components/Icon'
 import { t } from '../i18n'
+import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast: where each setting lives there
+import { FinishOnPhoneButton, tvScreen } from '../components/PhoneHandoff' // Usherr Broadcast
 import DecisionCard from './DecisionCard'
 import type { SmhDecision } from './types'
 import './smh.css'
@@ -20,6 +22,9 @@ interface Help {
 }
 
 function help(step: WizardStep): Help {
+  // Usherr Broadcast: its settings sit under Server, in seven groups; the
+  // words say where (Classic and Neu keep Settings > … as before).
+  const b = broadcastOn()
   switch (step) {
     case 'admin':
       return {
@@ -39,13 +44,13 @@ function help(step: WizardStep): Help {
           recommend: t('Films and shows first.'),
           later: t('Switch any kind on or off later; switching one off deletes nothing.'),
         },
-        later: t('Settings, Media types, any time.'),
+        later: b ? t('Server, Libraries, Media types, any time.') : t('Settings, Media types, any time.'),
       }
     case 'paths':
       return {
         what: t('Where your films, shows and downloads are, as Usherr sees them inside its container: /data/movies is the folder your setup file mapped (for example D:\\Movies on Windows).'),
         steps: [t('If you made your setup file with the Start page, the boxes are already right: press Continue.'), t('A box with a warning means that folder isn’t mapped in the setup file: check it there.')],
-        later: t('Settings, Library, Folders; more folders can be added there too.'),
+        later: b ? t('Server, Libraries, Folders; more folders can be added there too.') : t('Settings, Library, Folders; more folders can be added there too.'),
       }
     case 'services':
       return {
@@ -54,7 +59,7 @@ function help(step: WizardStep): Help {
           t('Go to themoviedb.org, make a free account, then Settings, API, and ask for a key (choose personal use).'),
           t('Copy the API key (the shorter one, not the long “read access token”) and paste it here. Usherr checks it right away.'),
         ],
-        later: t('Settings, Info, lists and subtitles holds all the keys.'),
+        later: b ? t('Server, Libraries holds all the keys: movie and show info, lists, subtitles.') : t('Settings, Info, lists and subtitles holds all the keys.'),
       }
     case 'sources':
       return {
@@ -64,12 +69,12 @@ function help(step: WizardStep): Help {
           options: [
             { name: t('A free tier'), good: t('Costs nothing; fine to start.'), bad: t('A small number of searches a day.') },
             { name: t('A paid membership'), good: t('Many more searches a day, often better results.'), cost: t('roughly $10 to $20 a year') },
-            { name: t('Prowlarr, if you have it'), good: t('Brings every indexer you already set up there, in one go.'), bad: t('Done later: Settings, Move from other apps.') },
+            { name: t('Prowlarr, if you have it'), good: t('Brings every indexer you already set up there, in one go.'), bad: b ? t('Done later: Server, Setup and health, Move from other apps.') : t('Done later: Settings, Move from other apps.') },
           ],
           recommend: t('Two or three indexers find far more than one. Usherr spreads its searches out so the daily limits last.'),
           later: t('Add or remove indexers any time.'),
         },
-        later: t('Settings, Indexers.'),
+        later: b ? t('Server, Getting media, Indexers.') : t('Settings, Indexers.'),
       }
     case 'usenet':
       return {
@@ -83,7 +88,7 @@ function help(step: WizardStep): Help {
           recommend: t('One unlimited plan. Use port 563 with SSL on.'),
           later: t('Add a second provider later if downloads often fail as incomplete.'),
         },
-        later: t('Settings, Usenet.'),
+        later: b ? t('Server, Getting media, Usenet.') : t('Settings, Usenet.'),
       }
     case 'quality':
       return {
@@ -97,7 +102,7 @@ function help(step: WizardStep): Help {
           recommend: t('1080p for most of the library. For file names, the Jellyfin style is the safe pick if you use Jellyfin.'),
           later: t('Change any title’s quality later; existing files can be renamed in one go.'),
         },
-        later: t('Settings, Quality; Settings, Naming.'),
+        later: b ? t('Server, Libraries, Quality and File names.') : t('Settings, Quality; Settings, Naming.'),
       }
     case 'server':
       return {
@@ -115,19 +120,29 @@ function help(step: WizardStep): Help {
           recommend: t('Whichever you already use. Both can run side by side.'),
           later: t('Add, change or remove media servers any time; the drive has its own switch.'),
         },
-        later: t('Settings, Media servers.'),
+        later: b ? t('Server, Watching, Media servers.') : t('Settings, Media servers.'),
       }
     case 'vpn':
       return {
         what: t('Only for torrents through Usherr’s built-in VPN. Usenet doesn’t need it. With this on, UDP trackers and DHT go through the VPN too, so torrents that only list UDP trackers can start.'),
-        steps: [t('Not using torrents, or no VPN yet? Press Skip for now.'), t('The VPN itself is added later, under Settings, Downloading, VPN and proxy. Show me how, Set up a VPN for torrents, walks you through it.')],
-        later: t('Settings, Downloading, VPN and proxy, any time.'),
+        steps: [
+          t('Not using torrents, or no VPN yet? Press Skip for now.'),
+          b ? t('The VPN itself is added later, under Server, Getting media, VPN and proxy. Show me how, Set up a VPN for torrents, walks you through it.') : t('The VPN itself is added later, under Settings, Downloading, VPN and proxy. Show me how, Set up a VPN for torrents, walks you through it.'),
+        ],
+        later: b ? t('Server, Getting media, VPN and proxy, any time.') : t('Settings, Downloading, VPN and proxy, any time.'),
       }
     case 'extras':
       return {
         what: t('Optional extras: streaming without downloading, the AI, ratings, what’s in theaters, the Marquee, the pre-show and more. None of them is needed to start.'),
-        steps: [t('Skip anything you’re not sure about. Show me how, in the top bar, walks you through each one when you want it.'), t('Watching with friends who run their own Usherr (Linked Usherrs, crews) and Discord watch parties are under Settings, Movie night. Manga sources and a MangaDex account are under Settings, Library.')],
-        later: t('Settings, Extras, any time.'),
+        steps: b
+          ? [
+              t('Skip anything you’re not sure about. Show me how, in the menu, walks you through each one when you want it.'),
+              t('Watching with friends who run their own Usherr (Linked Usherrs, crews) and Discord watch parties are under Server, People. Manga sources are under Server, Kinds of media, and a MangaDex account under You, Your settings.'),
+            ]
+          : [t('Skip anything you’re not sure about. Show me how, in the top bar, walks you through each one when you want it.'), t('Watching with friends who run their own Usherr (Linked Usherrs, crews) and Discord watch parties are under Settings, Movie night. Manga sources and a MangaDex account are under Settings, Library.')],
+        later: b
+          ? t('Server, any time: each one on its feature’s page (Streaming under Getting media; the AI and news under Smarts and connections; scores under Libraries; the Marquee and pre-show under Watching).')
+          : t('Settings, Extras, any time.'),
       }
   }
 }
@@ -175,5 +190,17 @@ export default function WizardHelp({ step }: { step: WizardStep }) {
         </p>
       )}
     </details>
+  )
+}
+
+// Usherr Broadcast: a step with keys and passwords to type, on a TV-size
+// screen: Finish on your phone opens Usherr there (the setup carries on from
+// the same place once you go on to this step), and Done reloads what it saved.
+export function WizardPhone({ what, onDone }: { what: string; onDone: () => void }) {
+  if (!tvScreen()) return null
+  return (
+    <p className="wizard-phone hint">
+      <FinishOnPhoneButton path="/" what={what} onDone={onDone} className="link-btn" /> {t('On your phone, go on to this same step, type it there, then press Done here.')}
+    </p>
   )
 }

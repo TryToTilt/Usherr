@@ -376,7 +376,7 @@ func (s *Server) collectHealth() []healthItem {
 		if s.driveAddress() == "" {
 			addHealth("drive-no-address", "warn", "The virtual drive has no address",
 				"Plex runs on another computer, so rclone there needs Usherr's address on your network to mount the drive. Set it in the first card of Extras.",
-				"Set the address", "/settings/extras")
+				"Set the address", "/settings/extras#address")
 		}
 		// Plex was asked to look at a title on the drive and nothing came to
 		// read it: the drive isn't mounted, or rclone has an old address.
