@@ -2,11 +2,13 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { SearchResult } from '../api'
 import { formatBytes, nameParts } from '../format'
 import { locale, st, t } from '../i18n'
+import { releasePageUrl } from '../releaseLink'
 import { loadShowWhy, saveShowWhy, signed, whyOf, type WhyInfo } from '../releaseWhy'
 import { indexerChoices, type Searched } from '../searched'
-import { FIRST_DIRECTION, ageOf, defaultOrder, filterReleases, publishedAt, qualitiesIn, scoreOf, sortReleases, type ReleaseSortKey, type SortDir } from '../releaseSort'
+import { FIRST_DIRECTION, ageOf, defaultOrder, filterReleases, isFreeleech, publishedAt, qualitiesIn, scoreOf, sortReleases, type ReleaseSortKey, type SortDir } from '../releaseSort'
 import Dropdown from './Dropdown'
 import Icon from './Icon'
+import ReleaseChecks from './ReleaseChecks'
 import TorrentsOffNote from './TorrentsOffNote'
 
 // Interactive-search results: every release with quality info, badges for
@@ -23,6 +25,7 @@ export default function ReleaseTable({
   qualityLabel,
   onStream,
   streaming = null,
+  qualityGroup,
   searched,
 }: {
   results: SearchResult[]
@@ -36,6 +39,8 @@ export default function ReleaseTable({
   // Home fork: "Stream now" for a Usenet release (movie and TV pages only).
   onStream?: (r: SearchResult) => void
   streaming?: string | null
+  // What the Quality filter groups by when releases have no resolution (music: FLAC, MP3 320 ...). Without it the filter uses the resolution.
+  qualityGroup?: (r: SearchResult) => string | undefined
   // What each indexer did: the indexer filter then lists all of them.
   searched?: Searched[]
 }) {
@@ -45,13 +50,28 @@ export default function ReleaseTable({
   const [words, setWords] = useState('')
   const [indexer, setIndexer] = useState('')
   const [quality, setQuality] = useState('')
+  const [freeOnly, setFreeOnly] = useState(false)
+  // The toggle only exists when the list has a freeleech release; without one a stale choice must not hide everything.
+  const anyFree = useMemo(() => results.some(isFreeleech), [results])
+  const freeleech = freeOnly && anyFree
   // "Show why" opens the details of every row; a row's own button overrides it.
   const [showWhy, setShowWhy] = useState(loadShowWhy)
   const [opened, setOpened] = useState<Record<string, boolean>>({})
   const indexers = useMemo(() => indexerChoices(results, searched), [results, searched])
-  const qualities = useMemo(() => qualitiesIn(results), [results])
-  const shown = useMemo(() => sortReleases(defaultOrder(filterReleases(results, { text: words, indexer, quality })), sort?.key ?? null, sort?.dir ?? 1), [results, words, indexer, quality, sort])
-  const filtering = words !== '' || indexer !== '' || quality !== ''
+  const groupOf = (r: SearchResult) => (qualityGroup ? qualityGroup(r) || 'other' : '')
+  const qualities = useMemo(() => {
+    if (!qualityGroup) return qualitiesIn(results)
+    const counts = new Map<string, number>()
+    for (const r of results) counts.set(groupOf(r), (counts.get(groupOf(r)) ?? 0) + 1)
+    return [...counts.keys()].sort((a, b) => (a === 'other' ? 1 : b === 'other' ? -1 : (counts.get(b) ?? 0) - (counts.get(a) ?? 0) || a.localeCompare(b)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results, qualityGroup])
+  const shown = useMemo(() => {
+    const base = qualityGroup ? filterReleases(results, { text: words, indexer, quality: '', freeleech }).filter((r) => !quality || groupOf(r) === quality) : filterReleases(results, { text: words, indexer, quality, freeleech })
+    return sortReleases(defaultOrder(base), sort?.key ?? null, sort?.dir ?? 1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results, words, indexer, quality, freeleech, sort, qualityGroup])
+  const filtering = words !== '' || indexer !== '' || quality !== '' || freeleech
   // New results scroll into view, so they aren't missed above the page.
   const top = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -90,7 +110,7 @@ export default function ReleaseTable({
       </button>
     </th>
   )
-  const qualityName = (q: string) => (q === 'other' ? t('No resolution') : q)
+  const qualityName = (q: string) => (q === 'other' ? (qualityGroup ? t('Unknown') : t('No resolution')) : q)
   const anyWhy = useMemo(() => results.some((r) => whyOf(r) !== null), [results])
   const columns = 7 + (showLanguage ? 1 : 0) + (showScore ? 1 : 0)
   function toggleAll() {
@@ -123,6 +143,11 @@ export default function ReleaseTable({
           />
         )}
         {qualities.length > 1 && <Dropdown label={t('Quality')} value={quality} onChange={setQuality} options={[{ value: '', label: t('Any quality') }, ...qualities.map((q) => ({ value: q, label: qualityName(q) }))]} />}
+        {anyFree && (
+          <button type="button" className="btn-sm" aria-pressed={freeOnly} onClick={() => setFreeOnly((v) => !v)} title={t('Show only releases the tracker counts as free to download')}>
+            {t('Freeleech only')}
+          </button>
+        )}
         {anyWhy && (
           <button type="button" className="btn-sm" aria-pressed={showWhy} onClick={toggleAll} title={t('Open the details under every release: where the score comes from and why an automatic search may skip it')}>
             {t('Show why')}
@@ -137,6 +162,7 @@ export default function ReleaseTable({
               setWords('')
               setIndexer('')
               setQuality('')
+              setFreeOnly(false)
             }}
           >
             {t('Clear filters')}
@@ -179,6 +205,11 @@ export default function ReleaseTable({
                         <wbr />
                       </Fragment>
                     ))}
+                    {pageUrl(r) && (
+                      <a className="rel-link" href={pageUrl(r)} target="_blank" rel="noopener noreferrer" aria-label={t('Open on {indexer}', { indexer: r.indexerName })} title={t('Open on {indexer}', { indexer: r.indexerName })}>
+                        <Icon name="external" size={14} />
+                      </a>
+                    )}
                     {r.best && (
                       <span className="badge downloaded" style={{ marginLeft: 8 }} title={t('The release an automatic search would take')}>
                         {t('Best match')}
@@ -194,6 +225,15 @@ export default function ReleaseTable({
                     {r.cached && (
                       <span className="badge downloaded" style={{ marginLeft: 8 }} title={t('Your debrid service already has this torrent, so it starts at once')}>
                         {t('Cached')}
+                      </span>
+                    )}
+                    {(r.discount ?? 0) > 0 && (
+                      <span
+                        className={`badge${isFreeleech(r) ? ' downloaded' : ''}`}
+                        style={{ marginLeft: 8 }}
+                        title={isFreeleech(r) ? t('Freeleech: this download is not counted against your ratio on the tracker') : t('Discounted: the tracker counts only {n}% of this download against your ratio', { n: 100 - (r.discount ?? 0) })}
+                      >
+                        {isFreeleech(r) ? t('Freeleech') : t('{n}% off', { n: r.discount ?? 0 })}
                       </span>
                     )}
                     {r.belowMinSeeders && (
@@ -247,15 +287,15 @@ export default function ReleaseTable({
                   )}
                   <td className="rel-fit">
                     <span className="badge" title={r.protocol}>
-                      {r.protocol === 'torrent' ? '⇅' : '⇩'} {r.indexerName}
+                      {r.protocol === 'torrent' ? '⇅' : r.protocol === 'soulseek' ? '♫' : '⇩'} {r.indexerName}
                     </span>
                   </td>
                   <td className="rel-fit">{formatBytes(r.sizeBytes)}</td>
                   <td className="rel-fit" title={r.publishDate && publishedAt(r) ? new Date(publishedAt(r)).toLocaleString(locale()) : undefined}>{ageOf(r) || '—'}</td>
-                  <td className={`rel-fit${r.belowMinSeeders ? ' rel-dim' : ''}`}>{r.protocol === 'torrent' ? `${r.seeders ?? 0} / ${r.peers ?? 0}` : '—'}</td>
+                  <td className={`rel-fit${r.belowMinSeeders ? ' rel-dim' : ''}`}>{r.protocol === 'torrent' ? `${r.seeders ?? 0} / ${r.peers ?? 0}` : r.protocol === 'soulseek' ? peerLine(r) : '—'}</td>
                   <td className="rel-fit" style={{ whiteSpace: 'nowrap' }}>
-                    {onStream && r.protocol !== 'torrent' && (
-                      // stream hook (home fork): watch this release now
+                    {onStream && r.protocol === 'usenet' && (
+                      // stream hook (home fork): watch this release now (Usherr: Usenet only, now that Soulseek releases exist too)
                       <button className="btn-sm" style={{ marginRight: 6 }} disabled={streaming === r.downloadUrl} onClick={() => onStream(r)} title={t('Watch this release now without downloading it')}>
                         {streaming === r.downloadUrl ? t('Starting…') : t('Stream')}
                       </button>
@@ -283,7 +323,17 @@ export default function ReleaseTable({
   )
 }
 
+const pageUrl = (r: SearchResult) => releasePageUrl(r)
+
 // scoreTip lists the parts of a release's score for the tooltip of its cell.
+// peerLine is what the seeders column says for a Soulseek release: whether the
+// user has a free slot or how many files wait before yours, and their speed.
+function peerLine(r: SearchResult): string {
+  const parts = [r.peerFree ? t('Free slot') : t('{n} in queue', { n: r.peerQueue ?? 0 })]
+  if (r.peerSpeed && r.peerSpeed > 0) parts.push(`${formatBytes(r.peerSpeed)}/s`)
+  return parts.join(' · ')
+}
+
 function scoreTip(r: SearchResult): string {
   const lines = [
     ...(r.formats ?? []).map((f) => `${f.name} ${signed(f.score)}`),
@@ -298,6 +348,12 @@ function scoreTip(r: SearchResult): string {
 function WhyDetails({ why }: { why: WhyInfo }) {
   return (
     <div className="rel-why">
+      {why.checks.length > 0 && (
+        <div className="rel-why-col">
+          <h4>{t('Why this release?')}</h4>
+          <ReleaseChecks checks={why.checks} />
+        </div>
+      )}
       {(why.score !== undefined || why.terms.length > 0 || why.fix !== 0) && (
         <div className="rel-why-col">
           <h4>{t('Why this score')}</h4>
@@ -336,6 +392,18 @@ function WhyDetails({ why }: { why: WhyInfo }) {
               {why.upgradeUntil > 0 && ` · ${t('Upgrades stop at: {n}', { n: signed(why.upgradeUntil) })}`}
             </p>
           )}
+        </div>
+      )}
+      {why.rank.length > 0 && (
+        <div className="rel-why-col">
+          <h4>{t('Where it ranks')}</h4>
+          <ul className="rel-why-reasons">
+            {why.rank.map((text, i) => (
+              <li key={i} className="rel-why-rank">
+                {st(text)}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
       {why.notBest.length > 0 && (

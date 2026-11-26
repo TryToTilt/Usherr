@@ -195,7 +195,7 @@ func single(rel, title []string, author map[string]bool, b Book) bool {
 		// "Twilight - Eclipse", "[Twilight] - Life and Death": another title
 		// after a dash makes this one the series name (a note in brackets,
 		// like "(The Twilight Saga series_book 1)", doesn't).
-		if k := nextAfterBreaks(rel, end); k >= 0 && rel[k-1] == "|" && titleWordsFollow(rel[k:], author) && !seriesNote(rel[k:]) {
+		if k := nextAfterBreaks(rel, end); k >= 0 && rel[k-1] == "|" && titleWordsFollow(rel[k:], author) && !homeSeriesNote(rel[k:]) {
 			continue
 		}
 		return true
@@ -241,9 +241,9 @@ func titleWordsBefore(before []string, author map[string]bool) bool {
 	return false
 }
 
-// seriesNote reports whether the words up to the next break describe a
+// homeSeriesNote reports whether the words up to the next break describe a
 // series rather than name another book.
-func seriesNote(rest []string) bool {
+func homeSeriesNote(rest []string) bool {
 	for k, w := range rest {
 		if isBreak(w) {
 			break

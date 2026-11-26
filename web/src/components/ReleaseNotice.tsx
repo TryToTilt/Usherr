@@ -4,6 +4,7 @@ import { bookReleaseHint, releaseHint, skippedHint, type Unanswered } from '../r
 import { resultText, seconds, summaryLine, type Searched } from '../searched'
 import { st, t } from '../i18n'
 import Icon from './Icon'
+import SearchesUsed, { type Filtered } from './SearchesUsed'
 
 // "Searched 8 indexers: 2 had releases, 5 had nothing for this title, 1 did
 // not answer." with a button that opens the table behind it: one row for each
@@ -32,7 +33,7 @@ function SearchedSummary({ searched, className }: { searched: Searched[]; classN
               {searched.map((s) => (
                 <tr key={s.name} className={`searched-${s.status}`}>
                   <td>{s.name}</td>
-                  <td>{s.kind === 'usenet' ? t('Usenet') : s.kind === 'torrent' ? t('Torrent') : ''}</td>
+                  <td>{s.kind === 'usenet' ? t('Usenet') : s.kind === 'torrent' ? t('Torrent') : s.kind === 'soulseek' ? t('Soulseek') : ''}</td>
                   <td title={s.reason ? [st(s.reason), s.detail].filter(Boolean).join('\n') : undefined}>
                     {s.status === 'failed' && <Icon name="warning" size={14} className="searched-warn" />}
                     {resultText(s)}
@@ -62,6 +63,7 @@ export default function ReleaseNotice({
   skipped,
   searched,
   ignoredSamples,
+  filtered,
 }: {
   sources: number
   unanswered: Unanswered[]
@@ -74,6 +76,8 @@ export default function ReleaseNotice({
   searched?: Searched[]
   // Names of releases that came back but are not this title (see releaseHint).
   ignoredSamples?: string[]
+  // How many releases were left out or marked, and why (see SearchesUsed).
+  filtered?: Filtered[]
 }) {
   const summary = searched && searched.length > 0 ? searched : null
   const h0 = skipped ? bookReleaseHint(sources, unanswered, results, skipped) : releaseHint(sources, unanswered, results, ignoredSamples)
@@ -85,13 +89,14 @@ export default function ReleaseNotice({
   return (
     <>
       {summary && <SearchedSummary searched={summary} className={className} />}
+      {summary && <SearchesUsed searched={summary} filtered={filtered} className={className} />}
       {h && (
         <p className={className} style={{ color: 'var(--text-dim)' }} role={h.empty ? undefined : 'status'}>
           {h.text}
           {h.link && (
             <>
               {' '}
-              <Link to="/settings/indexers">{t('Settings > Indexers & Search')}</Link>.
+              <Link to="/settings/indexers">{t('Settings > Finding releases > Indexers & Search')}</Link>.
             </>
           )}
         </p>

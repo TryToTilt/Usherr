@@ -35,7 +35,7 @@ const (
 
 // cachedOverScore says a cached release outranks an uncached one of the same
 // quality even when the profile's preferred terms score it lower. Set from
-// Settings > Downloading > Debrid service; the picking code reads it.
+// Settings > Downloading > Torrents; the picking code reads it.
 var cachedOverScore atomic.Bool
 
 type cachedEntry struct {
@@ -259,6 +259,17 @@ func (s *Server) markCachedPayloads(ctx context.Context, rows []searchResultPayl
 // the same pickKey. The indexer's priority and the preferred protocol come
 // first, as they always did; a cached release wins what is left.
 func preferOver(best, candidate *indexers.Result) bool {
+	// The same name posted twice: the later post is the one that was fixed.
+	if newer := newerSameName(best, candidate); newer != nil {
+		return newer == candidate
+	}
+	return preferAttr(best, candidate)
+}
+
+// preferAttr is preferOver without the repost rule: the indexer's priority and
+// the preferred protocol, then a cached release, then more seeders. It looks at
+// each release on its own, so it gives the same answer whatever order they come in.
+func preferAttr(best, candidate *indexers.Result) bool {
 	if preferUsenet(best, candidate) {
 		return true
 	}

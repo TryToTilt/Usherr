@@ -445,3 +445,12 @@ func (s *Server) TestRunCleanupRulesAt(now time.Time) (added, acted, dropped int
 	res, err := s.runCleanupRuleSets(now, true)
 	return len(res.Added), len(res.Acted), len(res.Dropped), err
 }
+
+// TestMCPAdvanceClock moves the clock the MCP download tokens and release ids
+// run on, so a test can let them run out without waiting.
+func (s *Server) TestMCPAdvanceClock(d time.Duration) {
+	s.mcp.dl.mu.Lock()
+	defer s.mcp.dl.mu.Unlock()
+	base := s.mcp.dl.clock()
+	s.mcp.dl.now = func() time.Time { return base.Add(d) }
+}

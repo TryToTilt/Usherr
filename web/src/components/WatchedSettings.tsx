@@ -8,17 +8,17 @@ import { useConfirm } from './ConfirmProvider'
 import TipLabel from './TipLabel'
 import CleanupRuleSets from './CleanupRuleSets' // Usherr
 
-// Settings > Connections > Media servers: reading what's been watched from
+// Settings > Media servers and apps > Media servers: reading what's been watched from
 // Plex, Jellyfin and Emby, and the cleanup rules built on it. Both are off
 // until switched on; cleanup always shows what it would remove first.
 
-function when(iso?: string): string {
+export function when(iso?: string): string {
   if (!iso) return t('never')
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? t('never') : d.toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-function DaysRule({ label, hint, value, onChange, disabled }: { label: string; hint: string; value: number; onChange: (v: number) => void; disabled?: boolean }) {
+export function DaysRule({ label, hint, value, onChange, disabled }: { label: string; hint: string; value: number; onChange: (v: number) => void; disabled?: boolean }) {
   const on = value > 0
   // The number box sits inside the phrase, so split it around the box.
   const [before, after] = t('after {days} days').split('{days}').map((s) => s.trim())

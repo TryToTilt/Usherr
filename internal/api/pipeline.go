@@ -75,7 +75,8 @@ func (s *Server) runPipeline(queueID, movieID int64, movieTitle string, movieYea
 		plain := plainerror.Message(stepErr)
 		_ = s.QueueRepo.SetStatus(queueID, queue.StatusFailed, plain)
 		noteDownloadFailure(queueID, movieTitle, fmt.Sprintf("/title/%d", tmdbID), stepErr)
-		blocklisted := isBadRelease(stepErr) && s.blocklistBadRelease(releaseTitle, protocol, movieID, 0, stepErr)
+		s.doctorNoteFailure(queueID, stepErr)
+		blocklisted := isBadRelease(stepErr) && s.blocklistBadRelease(queueID, releaseTitle, protocol, movieID, 0, stepErr)
 		_ = s.MovieRepo.SetStatus(movieID, restoreStatus, "", "")
 		message := fmt.Sprintf("%s: %s", movieTitle, plain)
 		_ = s.QueueRepo.LogActivity(movieID, "failed", message)
@@ -104,7 +105,7 @@ func (s *Server) runPipeline(queueID, movieID int64, movieTitle string, movieYea
 	if err != nil {
 		return fail(badRelease(fmt.Errorf("couldn't find the movie file in the finished download: %w", err)))
 	}
-	if err := s.checkMovieLength(ctx, tmdbID, videoFile); err != nil {
+	if err := s.checkMovieLength(ctx, tmdbID, releaseTitle, videoFile); err != nil {
 		// A fake, a sample or a cut-off file: nothing is imported, and the bad
 		// download is cleared away before the next release is tried.
 		s.discardWorkDir(incompleteDir, protocol)
@@ -115,7 +116,7 @@ func (s *Server) runPipeline(queueID, movieID int64, movieTitle string, movieYea
 	if m, err := s.MovieRepo.Get(movieID); err == nil {
 		if m.CopyOf != 0 {
 			if root = s.movieCopiesRoot(); root == "" {
-				return fail(errors.New("the folder for second copies isn't set. Choose one in Settings > Library > Folders"))
+				return fail(errors.New("the folder for second copies isn't set. Choose one in Settings > Library and files > Folders"))
 			}
 		} else {
 			root = s.movieRootFor(m) // the folder chosen for this movie, else the main one
@@ -209,12 +210,16 @@ func (s *Server) runPipeline(queueID, movieID int64, movieTitle string, movieYea
 		// "If a file already exists" said to keep the file that is there (or the
 		// new one is not better): that is a decision, not a failure, so no
 		// "failed" notification and nothing in Logs and errors.
+		// The kept file is recorded before the row is marked completed, so a
+		// reader that sees "completed" also sees which file was kept.
+		data := s.discardWorkDirReport(incompleteDir, protocol)
+		s.recordKept(queueID, existing, data)
 		if err := s.QueueRepo.SetStatus(queueID, queue.StatusCompleted, keptExistingMessage); err != nil {
 			return fail(err)
 		}
-		data := s.discardWorkDirReport(incompleteDir, protocol)
-		s.recordKept(queueID, existing, data)
-		_ = s.MovieRepo.SetStatus(movieID, restoreStatus, "", "")
+		if restoreStatus == library.StatusDownloaded || !s.adoptKeptMovieFile(movieID, existing) {
+			_ = s.MovieRepo.SetStatus(movieID, restoreStatus, "", "")
+		}
 		_ = s.QueueRepo.LogActivity(movieID, "kept", fmt.Sprintf("%s: a file is already at %s, so Mediarium kept it and did not import %s.", movieTitle, existing, releaseTitle))
 		s.logKeptData(movieID, 0, data, releaseTitle)
 		return nil
@@ -268,19 +273,34 @@ func (s *Server) prepareDownload(ctx context.Context, queueID int64, downloadURL
 	// Usenet releases go to an external downloader (SABnzbd, NZBGet) when the
 	// person chose that.
 	usenetViaClient := protocol != indexers.ProtocolTorrent && s.usenetClientOn()
-	if (protocol == indexers.ProtocolTorrent && s.downloadClientOn()) || usenetViaClient {
+	// A torrent goes where its indexer asks, or the usual way (torrent_route.go).
+	route := ""
+	if protocol == indexers.ProtocolTorrent {
+		item, err := s.QueueRepo.Get(queueID)
+		if err != nil {
+			return "", fmt.Errorf("read the download: %w", err)
+		}
+		route = s.itemTorrentRoute(item)
+	}
+	if route == indexers.RouteClient || usenetViaClient {
 		// An external client's folder only holds links to its files: it stays in
 		// the downloads folder, never in the temporary download folder.
 		if _, started := s.existingWorkDir(queueID); !started {
 			incompleteDir = s.defaultWorkDirFor(queueID)
 		}
 	}
-	if protocol == indexers.ProtocolTorrent && !s.downloadClientOn() && !s.debridOn() {
+	if route == indexers.RouteBuiltin {
 		// The built-in client files a torrent under its category's folder.
 		incompleteDir = s.assignTorrentDir(queueID)
 	}
 	if err := s.checkTempReady(incompleteDir); err != nil {
 		return "", err
+	}
+	if route != "" {
+		if err := os.MkdirAll(incompleteDir, 0o755); err != nil {
+			return "", fmt.Errorf("create download folder: %w", err)
+		}
+		writeTorrentRoute(incompleteDir, route)
 	}
 
 	// The same release for the same title (by name and size) is not fetched a
@@ -306,10 +326,10 @@ func (s *Server) prepareDownload(ctx context.Context, queueID int64, downloadURL
 	}
 	switch {
 	case reused:
-	case protocol == indexers.ProtocolTorrent && s.downloadClientOn():
+	case route == indexers.RouteClient:
 		viaClient = true
 		downloadErr = s.downloadViaClient(ctx, queueID, downloadURL, incompleteDir)
-	case protocol == indexers.ProtocolTorrent && s.debridOn():
+	case route == indexers.RouteDebrid:
 		downloadErr = s.downloadDebrid(ctx, queueID, downloadURL, incompleteDir)
 	case protocol == indexers.ProtocolTorrent:
 		// The built-in engines keep their own cap, whatever "Downloads at the
@@ -424,6 +444,15 @@ func (s *Server) downloadUsenet(ctx context.Context, queueID int64, nzbURL, inco
 		if err := s.precheckArticles(ctx, queueID, configs, nzb); err != nil {
 			return 0, err
 		}
+	}
+
+	// A release bigger than the free space would fill the disk part way through
+	// and fail then: say so before anything is fetched.
+	if err := os.MkdirAll(incompleteDir, 0o755); err != nil {
+		return 0, fmt.Errorf("create download folder: %w", err)
+	}
+	if err := s.checkRoomForRelease(incompleteDir, nzb.TotalBytes()); err != nil {
+		return 0, err
 	}
 
 	progress := newProgressSaver(func(pct float64) error { return s.QueueRepo.SetProgress(queueID, pct) })
@@ -591,6 +620,12 @@ func (s *Server) downloadTorrent(ctx context.Context, queueID int64, downloadURL
 	// The choices made for this torrent: files left out, order, speed limits.
 	ctl := torrentclient.NewControl(t)
 	s.setUpDownloadControl(queueID, ctl)
+	// The files that will be fetched are known now: refuse a torrent the disk
+	// cannot hold before it starts, not when the disk is full.
+	if err := s.checkRoomForRelease(incompleteDir, ctl.WantedBytes()); err != nil {
+		s.torrents.stop(job)
+		return err
+	}
 	if !s.torrents.attachControl(job, ctl) {
 		s.torrents.stop(job)
 		return context.Canceled
@@ -839,21 +874,25 @@ func (s *Server) resolveConflict(queueID int64, overwrite bool) error {
 	}
 
 	if !overwrite {
+		// The download is not wanted: its working folder goes (a torrent
+		// still seeding keeps it until its seeding goal is met). Nothing was
+		// imported, so a torrent in an external client is left there.
+		// What was kept is recorded before the row is marked completed.
+		data := s.discardWorkDirReport(s.workDirFor(queueID), indexers.Protocol(item.Protocol))
+		s.recordKept(queueID, item.DestPath, data)
 		if err := s.QueueRepo.SetStatus(queueID, queue.StatusCompleted, keptExistingMessage); err != nil {
 			return err
 		}
 		_ = s.QueueRepo.LogActivity(item.MovieID, "kept", fmt.Sprintf("You chose to keep the file at %s, so %s was not imported.", item.DestPath, item.ReleaseTitle))
-		// The download is not wanted: its working folder goes (a torrent
-		// still seeding keeps it until its seeding goal is met). Nothing was
-		// imported, so a torrent in an external client is left there.
-		data := s.discardWorkDirReport(s.workDirFor(queueID), indexers.Protocol(item.Protocol))
-		s.recordKept(queueID, item.DestPath, data)
 		s.logKeptData(item.MovieID, 0, data, item.ReleaseTitle)
 		// The movie keeps the file it has: downloaded when that is still
 		// there, missing otherwise.
 		m, err := s.MovieRepo.Get(item.MovieID)
 		if err != nil {
 			return nil // removed from the library meanwhile
+		}
+		if restoredMovieStatus(m) != library.StatusDownloaded && s.adoptKeptMovieFile(item.MovieID, item.DestPath) {
+			return nil // the file that was kept is the movie's file now
 		}
 		return s.MovieRepo.SetStatus(item.MovieID, restoredMovieStatus(m), "", "")
 	}
@@ -1315,7 +1354,7 @@ func (s *Server) buildDestPathFor(root, movieTitle string, year, tmdbID int, rel
 		moviesPath = s.moviesRoot()
 	}
 	if moviesPath == "" {
-		return "", namedByPreset, fmt.Errorf("the movies folder isn't set. Choose one in Settings > Library > Folders")
+		return "", namedByPreset, fmt.Errorf("the movies folder isn't set. Choose one in Settings > Library and files > Folders")
 	}
 
 	preset, err := s.Settings.Get(settings.KeyNamingPreset)
@@ -1341,6 +1380,7 @@ func (s *Server) buildDestPathFor(root, movieTitle string, year, tmdbID int, rel
 		OriginalTitle: releaseTitle, OriginalFilename: originalStem(videoFile),
 	}
 
+	s.fillFromFile(&ctx, videoFile, format, s.movieFolderFormat())
 	sanitizeMode, replacement := s.illegalCharSettings()
 	// Folder and file use the title in the info language. Indexers are still
 	// searched for the English title the library stores.

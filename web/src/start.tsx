@@ -5,25 +5,29 @@ import './design.css'
 import './setup.css'
 import './projection.css'
 import './mobile.css'
+import './twopane.css'
+import './fold.css'
 import './usherr-theme.css' // Usherr: the cinema palette, last
 import './usherr-palettes.css' // Usherr: the other colour choices, after it
 import './usherr-bases.css' // Usherr: the main colours, over those
 import './neu/neu.css' // Usherr Neu, when picked
 import './neu/broadcast.css' // Usherr Broadcast, when picked (the default)
 import { startRemote } from './remote' // Usherr: arrows, Back and Options from a TV remote
-import { demoEnabled, installDemo } from './demo'
+import { demoEnabled } from './demoFlag'
 import App from './App.tsx'
 import { ToastProvider } from './components/Toast'
 import { ConfirmProvider } from './components/ConfirmProvider'
 import { PUSH_WORKER } from './push'
 import { BASE_PATH } from './base'
 import { isStaleWorker } from './staleWorker'
+import { watchInstallPrompt } from './pwa'
 
 startRemote() // Usherr: the remote (remote/)
-if (demoEnabled()) installDemo()
+watchInstallPrompt()
 
-// Mediarium's only service worker is the push one (push-sw.js), which caches
-// nothing. One left behind by another app that once ran on the same address
+// Mediarium's only service worker is push-sw.js. It keeps the built scripts
+// and styles (never anything from the API) and shows the "can't be reached"
+// page. One left behind by another app that once ran on the same address
 // would answer API calls from its own cache and show stale data, so remove
 // such a worker and reload once. Workers of other apps that share the domain
 // under their own path are not ours to touch (see staleWorker.ts).
@@ -51,7 +55,11 @@ if ('serviceWorker' in navigator && window.isSecureContext && !demoEnabled()) {
   })
 }
 
-createRoot(document.getElementById('root')!).render(
+// The made-up data of the demo is fetched only when the demo is on, and installed before the app asks for anything.
+const demoReady = demoEnabled() ? import('./demo').then((m) => m.installDemo()) : Promise.resolve()
+
+void demoReady.then(() =>
+  createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ToastProvider>
       <ConfirmProvider>
@@ -59,4 +67,5 @@ createRoot(document.getElementById('root')!).render(
       </ConfirmProvider>
     </ToastProvider>
   </StrictMode>,
+  ),
 )

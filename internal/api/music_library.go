@@ -17,6 +17,7 @@ import (
 	"github.com/rdborg/mediarium/internal/cleanup"
 	"github.com/rdborg/mediarium/internal/music"
 	"github.com/rdborg/mediarium/internal/musicbrainz"
+	"github.com/rdborg/mediarium/internal/origin"
 )
 
 // Music library: finding artists on MusicBrainz, adding them with their
@@ -57,8 +58,14 @@ type musicArtistPayload struct {
 	// Albums is only set on GET /api/music/artists/{id} and the add answer.
 	Albums []musicAlbumPayload `json:"albums,omitempty"`
 	// Filter is what the artist page lists and following adds (the artist's own choice or the library's).
+	// Manual is set for an artist added by hand: not on MusicBrainz, never looked up again.
+	Manual bool `json:"manual,omitempty"`
 	// Only set on GET /api/music/artists/{id}.
 	Filter *musicFilterPayload `json:"filter,omitempty"`
+	// Origin is how the artist came into the library (a person, a request, a
+	// library folder scan...), for administrators on GET /api/music/artists/{id};
+	// left out when it was added before that was recorded.
+	Origin *originView `json:"origin,omitempty"`
 }
 
 // musicAlbumPayload is one album, EP or single.
@@ -75,11 +82,20 @@ type musicAlbumPayload struct {
 	Status          string `json:"status"` // missing, downloading or downloaded
 	Quality         string `json:"quality,omitempty"`
 	Path            string `json:"path,omitempty"`
-	CoverURL        string `json:"coverUrl"`        // the cover on this server: GET /api/music/albums/{id}/cover
-	CoverArchiveURL string `json:"coverArchiveUrl"` // the same cover at the Cover Art Archive
+	CoverURL        string `json:"coverUrl"`         // the cover on this server: GET /api/music/albums/{id}/cover
+	CoverArchiveURL string `json:"coverArchiveUrl"`  // the same cover at the Cover Art Archive
+	Manual          bool   `json:"manual,omitempty"` // added by hand: not on MusicBrainz, never looked up again
 	// Tracks is only set on GET /api/music/albums/{id} (empty until the
 	// tracklist has been fetched, which happens on the first grab or import).
 	Tracks []musicTrackPayload `json:"tracks,omitempty"`
+	// OnlySong is the song the album was added for ("Add only this song");
+	// empty when the whole album is wanted. Only set on GET /api/music/albums/{id}.
+	OnlySong string `json:"onlySong,omitempty"`
+	// Origin is how the album came into the library (with its artist, added by
+	// a person, found by following the artist...), for administrators on GET
+	// /api/music/albums/{id} and /api/music/artists/{id}; left out when it was
+	// added before that was recorded.
+	Origin *originView `json:"origin,omitempty"`
 }
 
 type musicTrackPayload struct {
@@ -90,13 +106,16 @@ type musicTrackPayload struct {
 	LengthMs int    `json:"lengthMs"`
 	HasFile  bool   `json:"hasFile"`
 	FilePath string `json:"filePath,omitempty"`
+	// Monitored is false for a track that is not wanted (the album was added
+	// for one song only): it is not imported and not counted as missing.
+	Monitored bool `json:"monitored"`
 }
 
 func toMusicAlbumPayload(a music.Album) musicAlbumPayload {
 	return musicAlbumPayload{
 		ID: a.ID, ArtistID: a.ArtistID, MBID: a.MBID, Title: a.Title, Type: a.Type, ReleaseDate: a.ReleaseDate,
 		Year: a.Year(), Monitored: a.Monitored, Status: string(a.Status), Quality: a.Quality, Path: a.Path,
-		CoverURL: albumCoverURL(a.ID), CoverArchiveURL: musicbrainz.CoverArtURL(a.MBID),
+		CoverURL: albumCoverURL(a.ID), CoverArchiveURL: manualBlank(a.MBID, musicbrainz.CoverArtURL(a.MBID)), Manual: a.Manual(),
 	}
 }
 
@@ -105,7 +124,7 @@ func (s *Server) toMusicArtistPayload(a music.Artist, profiles []music.Profile, 
 	return musicArtistPayload{
 		ID: a.ID, MBID: a.MBID, Name: a.Name, SortName: a.SortName, Disambiguation: a.Disambiguation,
 		Monitored: a.Monitored, MonitorNew: a.MonitorNew, ProfileID: a.ProfileID, ProfileName: p.Name,
-		AddedAt: a.AddedAt, AddedBy: who(a.AddedBy), CoverURL: artistCoverURL(a.ID), ImageURL: artistCoverURL(a.ID),
+		AddedAt: a.AddedAt, AddedBy: who(a.AddedBy), CoverURL: artistCoverURL(a.ID), ImageURL: artistCoverURL(a.ID), Manual: a.Manual(),
 	}
 }
 
@@ -160,6 +179,14 @@ func (s *Server) handleMusicSearchArtists(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "q is required")
 		return
 	}
+	switch r.URL.Query().Get("type") {
+	case "all":
+		s.musicSearchAll(w, r, q)
+		return
+	case "album", "song":
+		s.musicSearchAlbums(w, r, q, r.URL.Query().Get("type") == "song")
+		return
+	}
 	found, err := s.MusicBrainz().SearchArtists(r.Context(), q, 25)
 	if err != nil {
 		musicBrainzError(w, err, "nothing found")
@@ -205,6 +232,9 @@ type addArtistRequest struct {
 	// AlbumMBID (with monitor "none") monitors just this album of the artist.
 	AlbumMBID  string `json:"albumMbid,omitempty"`
 	AlbumTitle string `json:"albumTitle,omitempty"` // for the request list only
+	// Song (with AlbumMBID) makes only that song of the album wanted: "Add
+	// only this song". The album is added and searched as a whole.
+	Song string `json:"song,omitempty"`
 }
 
 // handleAddArtist adds an artist from MusicBrainz with its albums, EPs and
@@ -252,7 +282,8 @@ func (s *Server) handleAddArtist(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID, byline := requester(r)
-	artist, albums, err := s.addArtistFromMusicBrainz(r.Context(), req.MBID, req.Monitor, req.ProfileID, userID)
+	how := addOrigin(r)
+	artist, albums, err := s.addArtistFromMusicBrainz(r.Context(), req.MBID, req.Monitor, req.ProfileID, userID, how)
 	if errors.Is(err, music.ErrArtistExists) {
 		writeError(w, http.StatusConflict, "That artist is already in your library.")
 		return
@@ -263,18 +294,37 @@ func (s *Server) handleAddArtist(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = s.QueueRepo.LogActivity(0, "added", fmt.Sprintf("%s added to the music library with %s%s", artist.Name, plural(len(albums), "release"), byline))
 	if want := strings.TrimSpace(req.AlbumMBID); want != "" {
+		found := false
 		for i, a := range albums {
-			if a.MBID == want && !a.Monitored {
+			if a.MBID != want {
+				continue
+			}
+			found = true
+			if !a.Monitored {
 				if err := s.MusicRepo.SetAlbumMonitored(a.ID, true); err != nil {
 					writeError(w, http.StatusInternalServerError, err.Error())
 					return
 				}
 				albums[i].Monitored = true
 			}
+			s.wantOnlySong(a.ID, req.Song)
+		}
+		// A soundtrack or compilation found through one of its songs is not in
+		// the artist's own list of albums: it is added to the artist all the same.
+		if !found && mbidPattern.MatchString(want) {
+			if added, err := s.addAlbumByMBID(r.Context(), artist.ID, want, origin.Origin{Kind: how.Kind, Name: how.Name, UserID: userID}); err == nil {
+				s.wantOnlySong(added.ID, req.Song)
+				albums = append(albums, added)
+			} else {
+				slog.Info("music: add the album picked with the artist", "album", want, "err", err)
+			}
 		}
 	}
 	if req.SearchNow {
-		s.background(func() { s.searchArtistAlbums(artist.ID) })
+		by := userOrigin(r, origin.Search)
+		s.background(func() {
+			s.searchArtistAlbums(withGrabBy(context.Background(), by), artist.ID)
+		})
 	}
 	payload := s.toMusicArtistPayload(artist, profiles, s.accountNames())
 	payload.Albums = make([]musicAlbumPayload, 0, len(albums))
@@ -289,8 +339,9 @@ func (s *Server) handleAddArtist(w http.ResponseWriter, r *http.Request) {
 }
 
 // addArtistFromMusicBrainz looks an artist and its release groups up and
-// adds them. monitor is all, future or none.
-func (s *Server) addArtistFromMusicBrainz(ctx context.Context, mbid, monitor string, profileID, userID int64) (music.Artist, []music.Album, error) {
+// adds them. monitor is all, future or none; how is how the artist came into
+// the library (its albums come the same way, by userID).
+func (s *Server) addArtistFromMusicBrainz(ctx context.Context, mbid, monitor string, profileID, userID int64, how origin.Origin) (music.Artist, []music.Album, error) {
 	mb := s.MusicBrainz()
 	a, err := mb.GetArtist(ctx, mbid)
 	if err != nil {
@@ -309,6 +360,7 @@ func (s *Server) addArtistFromMusicBrainz(ctx context.Context, mbid, monitor str
 		return music.Album{
 			MBID: g.ID, Title: g.Title, Type: albumType(g.PrimaryType), ReleaseDate: g.FirstReleaseDate,
 			Monitored: monitor == monitorAll || (monitor == monitorFuture && !albumReleased(g.FirstReleaseDate, today)),
+			Origin:    origin.Origin{Kind: how.Kind, Name: how.Name, UserID: userID},
 		}
 	}
 	albums := make([]music.Album, 0, len(groups))
@@ -317,7 +369,7 @@ func (s *Server) addArtistFromMusicBrainz(ctx context.Context, mbid, monitor str
 	}
 	artist, added, err := s.MusicRepo.AddArtist(music.Artist{
 		MBID: a.ID, Name: a.Name, SortName: a.SortName, Disambiguation: a.Disambiguation,
-		Monitored: monitor != monitorNone, MonitorNew: monitor != monitorNone, ProfileID: profileID, AddedBy: userID,
+		Monitored: monitor != monitorNone, MonitorNew: monitor != monitorNone, ProfileID: profileID, AddedBy: userID, Origin: how,
 	}, albums)
 	if err == nil && len(later) > 0 {
 		s.background(func() {
@@ -411,7 +463,12 @@ func (s *Server) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	out := s.toMusicArtistPayload(artist, profiles, s.accountNames())
+	who := s.accountNames()
+	admin := isAdminRequest(r)
+	out := s.toMusicArtistPayload(artist, profiles, who)
+	if admin { // who added what is for administrators, as for movies and shows
+		out.Origin = originOut(artist.Origin, who(artist.AddedBy))
+	}
 	fp := s.artistFilterPayload(id)
 	out.Filter = &fp
 	out.Albums = make([]musicAlbumPayload, 0, len(albums))
@@ -424,7 +481,9 @@ func (s *Server) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 			out.DownloadedCount++
 		}
 		ap := toMusicAlbumPayload(a)
-		if !isAdminRequest(r) {
+		if admin {
+			ap.Origin = originOut(a.Origin, who(a.Origin.UserID))
+		} else {
 			ap.Path = "" // only administrators see where the files lie
 		}
 		out.Albums = append(out.Albums, ap)
@@ -445,14 +504,17 @@ func (s *Server) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := toMusicAlbumPayload(album)
-	if !isAdminRequest(r) {
+	if isAdminRequest(r) {
+		out.Origin = originOut(album.Origin, s.accountNames()(album.Origin.UserID))
+	} else {
 		out.Path = "" // only administrators see where the files lie
 	}
 	out.ArtistName = artist.Name
 	out.Tracks = make([]musicTrackPayload, len(tracks))
 	for i, t := range tracks {
-		out.Tracks[i] = musicTrackPayload{ID: t.ID, Disc: t.Disc, Position: t.Position, Title: t.Title, LengthMs: t.LengthMs, HasFile: t.FilePath != "", FilePath: fileLabel(r, t.FilePath)}
+		out.Tracks[i] = musicTrackPayload{ID: t.ID, Disc: t.Disc, Position: t.Position, Title: t.Title, LengthMs: t.LengthMs, HasFile: t.FilePath != "", FilePath: fileLabel(r, t.FilePath), Monitored: t.Monitored}
 	}
+	out.OnlySong, _ = s.MusicRepo.OnlySong(album.ID)
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -463,7 +525,12 @@ func (s *Server) handleSetAlbumMonitored(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	var req monitoredRequest
+	var req struct {
+		Monitored bool `json:"monitored"`
+		// Song, when sent, makes only that song of the album wanted ("Add
+		// only this song"); an empty one makes every track wanted again.
+		Song *string `json:"song"`
+	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "Couldn't read that request. Reload the page and try again.")
 		return
@@ -476,6 +543,13 @@ func (s *Server) handleSetAlbumMonitored(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if req.Song != nil {
+		if strings.TrimSpace(*req.Song) == "" {
+			s.wantAllTracks(id)
+		} else {
+			s.wantOnlySong(id, *req.Song)
+		}
 	}
 	writeJSON(w, http.StatusOK, nil)
 }
@@ -552,6 +626,7 @@ func (s *Server) removeArtist(id int64, deleteFiles bool) (string, error) {
 	if err := s.MusicRepo.DeleteArtist(id); err != nil {
 		return artist.Name, &removeProblem{http.StatusInternalServerError, err.Error()}
 	}
+	s.forgetManualCovers(albums)
 	msg := artist.Name + " removed from the music library"
 	if len(folders) > 0 {
 		msg += fmt.Sprintf(", with %s", plural(len(folders), "album folder"))
@@ -680,7 +755,7 @@ func (s *Server) wantedAlbums(upgrades bool) ([]wantedAlbum, error) {
 			return nil, nil
 		}
 		switch {
-		case !upgrades && al.Status == music.StatusMissing && albumReleased(al.ReleaseDate, today):
+		case !upgrades && al.Status == music.StatusMissing && (albumReleased(al.ReleaseDate, today) || al.Manual()):
 		case upgrades && al.Status == music.StatusDownloaded && profile.WantsUpgrade(music.Tier(al.Quality)):
 		default:
 			continue
@@ -688,4 +763,41 @@ func (s *Server) wantedAlbums(upgrades bool) ([]wantedAlbum, error) {
 		out = append(out, wantedAlbum{album: al, artist: artist, profile: profile})
 	}
 	return out, nil
+}
+
+// musicSearchAlbums answers a music search by album title, or by song title
+// with the albums the song is on (#143): a soundtrack can be found by a song
+// from the film. The answer has the shape of a Discover album, marked when it
+// is already in the library.
+func (s *Server) musicSearchAlbums(w http.ResponseWriter, r *http.Request, q string, bySong bool) {
+	var found []musicbrainz.FoundAlbum
+	var err error
+	if bySong {
+		found, err = s.MusicBrainz().SearchSongs(r.Context(), q, 25)
+	} else {
+		found, err = s.MusicBrainz().SearchAlbums(r.Context(), q, 25)
+	}
+	if err != nil {
+		musicBrainzError(w, err, "nothing found")
+		return
+	}
+	cands := make([]discoverCandidate, 0, len(found))
+	songs := make([]string, 0, len(found))
+	for _, f := range found {
+		typ := strings.ToLower(f.PrimaryType)
+		if t, ok := discoverType(f.PrimaryType); ok {
+			typ = t
+		}
+		cands = append(cands, discoverCandidate{mbid: f.ID, title: f.Title, typ: typ, artistName: f.ArtistName, artistMBID: f.ArtistID, date: f.FirstReleaseDate})
+		songs = append(songs, f.Song)
+	}
+	items, err := s.discoverItems(cands)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for i := range items {
+		items[i].Song = songs[i]
+	}
+	writeJSON(w, http.StatusOK, items)
 }

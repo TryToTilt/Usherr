@@ -16,6 +16,7 @@ import (
 	"github.com/rdborg/mediarium/internal/musicbrainz"
 	"github.com/rdborg/mediarium/internal/notify"
 	"github.com/rdborg/mediarium/internal/organizer"
+	"github.com/rdborg/mediarium/internal/origin"
 	"github.com/rdborg/mediarium/internal/plainerror"
 	"github.com/rdborg/mediarium/internal/quality"
 	"github.com/rdborg/mediarium/internal/queue"
@@ -39,8 +40,12 @@ func albumLabel(artist music.Artist, album music.Album) string {
 
 // grabAlbum puts a release for an album in the download line, where it starts
 // when a place is free. One download per album: a grab by hand while another
-// runs is refused with 409, an automatic one with errAlreadyGrabbed.
-func (s *Server) grabAlbum(artist music.Artist, album music.Album, releaseTitle, downloadURL string, sizeBytes int64, protocol indexers.Protocol, kind grabKind) (int64, error) {
+// runs is refused with 409, an automatic one with errAlreadyGrabbed. An
+// automatic grab of a release on the blocklist (everywhere, or for this album)
+// is refused with errBlocklisted, as for movies and shows: the search that
+// picked it may have started before the release was blocked. by is who asked
+// for it (see grabOrigin).
+func (s *Server) grabAlbum(artist music.Artist, album music.Album, releaseTitle, downloadURL string, sizeBytes int64, protocol indexers.Protocol, kind grabKind, by origin.Origin) (int64, error) {
 	if protocol == indexers.ProtocolTorrent && !s.torrentReleasesOn() {
 		return 0, errTorrentsDisabled
 	}
@@ -57,9 +62,9 @@ func (s *Server) grabAlbum(artist music.Artist, album music.Album, releaseTitle,
 		}
 		return 0, alreadyDownloadingError{release: running}
 	}
-	if kind.refusesDuplicates() && s.nzbLinkHeld(downloadURL, releaseTitle) {
+	if err := s.grabRefused(kind, releaseTitle, downloadURL, sizeBytes, blocklist.Scope{AlbumID: album.ID}); err != nil {
 		s.grabMu.Unlock()
-		return 0, errNZBLinkHeld
+		return 0, err
 	}
 	current, err := s.MusicRepo.GetAlbum(album.ID)
 	if err != nil {
@@ -76,6 +81,7 @@ func (s *Server) grabAlbum(artist music.Artist, album music.Album, releaseTitle,
 	}
 	queueID, err := s.QueueRepo.Enqueue(queue.Item{
 		AlbumID: album.ID, ReleaseTitle: releaseTitle, NZBURL: downloadURL, SizeBytes: sizeBytes, Protocol: queue.Protocol(protocol), Priority: kind.priority(),
+		Origin: s.grabOrigin(kind, by, ""),
 	})
 	if err != nil {
 		_ = s.MusicRepo.SetAlbumStatus(album.ID, restore)
@@ -148,7 +154,8 @@ func (s *Server) runMusicPipelineFrom(queueID, artistID, albumID int64, restore 
 		plain := plainerror.Message(stepErr)
 		_ = s.QueueRepo.SetStatus(queueID, queue.StatusFailed, plain)
 		noteDownloadFailure(queueID, label, fmt.Sprintf("/music/artist/%d", artistID), stepErr)
-		blocklisted := isBadRelease(stepErr) && s.blocklistAlbumRelease(albumID, releaseTitle, protocol, stepErr)
+		s.doctorNoteFailure(queueID, stepErr)
+		blocklisted := isBadRelease(stepErr) && s.blocklistAlbumRelease(queueID, albumID, releaseTitle, protocol, stepErr)
 		_ = s.MusicRepo.SetAlbumStatus(albumID, restore)
 		message := fmt.Sprintf("%s: %s", label, plain)
 		_ = s.QueueRepo.LogItemEvent(queue.ItemEvent{AlbumID: albumID, Kind: "failed", Level: queue.LevelError, Message: message})
@@ -176,7 +183,11 @@ func (s *Server) runMusicPipelineFrom(queueID, artistID, albumID int64, restore 
 		if err := s.QueueRepo.SetStatus(queueID, queue.StatusDownloading, ""); err != nil {
 			return fail(err)
 		}
-		dir, err = s.prepareDownload(ctx, queueID, downloadURL, protocol)
+		if protocol == indexers.ProtocolSoulseek {
+			dir, err = s.downloadSoulseek(ctx, queueID, downloadURL)
+		} else {
+			dir, err = s.prepareDownload(ctx, queueID, downloadURL, protocol)
+		}
 		if err != nil {
 			return fail(err)
 		}
@@ -221,8 +232,8 @@ func (s *Server) runMusicPipelineFrom(queueID, artistID, albumID int64, restore 
 
 // blocklistAlbumRelease blocklists a release that failed through its own
 // fault and records it in the album's log (and the activity feed).
-func (s *Server) blocklistAlbumRelease(albumID int64, releaseTitle string, protocol indexers.Protocol, cause error) bool {
-	if err := s.Blocklist.Add(blocklist.Entry{ReleaseTitle: releaseTitle, Protocol: string(protocol), Reason: cause.Error()}); err != nil {
+func (s *Server) blocklistAlbumRelease(queueID, albumID int64, releaseTitle string, protocol indexers.Protocol, cause error) bool {
+	if err := s.Blocklist.Add(blocklist.Entry{ReleaseTitle: releaseTitle, Protocol: string(protocol), Reason: cause.Error(), AlbumID: albumID, ReleaseID: s.queueReleaseID(queueID)}); err != nil {
 		slog.Warn("music: blocklist release", "release", releaseTitle, "err", err)
 		return false
 	}
@@ -239,7 +250,8 @@ type albumImport struct {
 	imported  int // tracks placed in the library
 	skipped   int // tracks whose file was already there (conflict policy)
 	unmatched int // audio files that fit no track
-	missing   int // tracks the release did not have
+	missing   int // wanted tracks the release did not have
+	unwanted  int // files of tracks that are not wanted, left out
 }
 
 func (a albumImport) summary() string {
@@ -253,6 +265,9 @@ func (a albumImport) summary() string {
 	if a.unmatched > 0 {
 		parts = append(parts, fmt.Sprintf("%s not imported", plural(a.unmatched, "extra file")))
 	}
+	if a.unwanted > 0 {
+		parts = append(parts, fmt.Sprintf("%s left out (not wanted)", plural(a.unwanted, "track")))
+	}
 	return strings.Join(parts, ", ") + " (" + string(a.tier) + ")"
 }
 
@@ -262,6 +277,11 @@ func (s *Server) ensureTracks(ctx context.Context, album music.Album) ([]music.T
 	tracks, err := s.MusicRepo.ListTracks(album.ID)
 	if err != nil || len(tracks) > 0 {
 		return tracks, err
+	}
+	if album.Manual() {
+		// Added by hand: MusicBrainz has no tracklist for it. The tracks are made
+		// from the files when they arrive (see tracksForManual).
+		return nil, nil
 	}
 	rel, err := s.MusicBrainz().CanonicalTracklist(ctx, album.MBID)
 	if err != nil {
@@ -277,6 +297,13 @@ func (s *Server) ensureTracks(ctx context.Context, album music.Album) ([]music.T
 	}
 	if err := s.MusicRepo.SetAlbumRelease(album.ID, rel.ID); err != nil {
 		return nil, err
+	}
+	// An album added for one song: now that the tracks are known, only that
+	// one is wanted (when no track has the song's name, every track stays wanted).
+	if wanted, err := s.MusicRepo.ApplyOnlySong(album.ID); err != nil {
+		slog.Warn("music: apply the wanted song", "album", album.Title, "err", err)
+	} else if wanted < len(fresh) {
+		s.albumEvent(album.ID, "tracks", queue.LevelInfo, fmt.Sprintf("Added for one song: %d of %d tracks are wanted, the rest are not imported.", wanted, len(fresh)))
 	}
 	return s.MusicRepo.ListTracks(album.ID)
 }
@@ -341,7 +368,7 @@ func (s *Server) importAlbumFiles(ctx context.Context, artist music.Artist, albu
 	}
 	root := s.musicRoot()
 	if root == "" {
-		return albumImport{}, fmt.Errorf("the music folder isn't set. Choose one in Settings > Library > Folders")
+		return albumImport{}, fmt.Errorf("the music folder isn't set. Choose one in Settings > Library and files > Folders")
 	}
 	// A busy MusicBrainz is waited out for a few minutes here (nobody is
 	// watching a page); if it is still busy the caller keeps the files and
@@ -350,15 +377,18 @@ func (s *Server) importAlbumFiles(ctx context.Context, artist music.Artist, albu
 	if err != nil {
 		return albumImport{}, err
 	}
-	if len(tracks) == 0 {
-		return albumImport{}, fmt.Errorf("the music database lists no tracks for %q", album.Title)
-	}
-
 	infos := make([]music.FileInfo, len(files))
 	for i, f := range files {
 		infos[i] = music.IdentifyFile(f, musicTagReader)
 	}
 	music.WithDurations(infos) // Usherr: a download's files must also be the tracks' length
+	if tracks, err = s.tracksForManual(album, tracks, infos); err != nil {
+		return albumImport{}, err
+	}
+	if len(tracks) == 0 {
+		return albumImport{}, fmt.Errorf("the music database lists no tracks for %q", album.Title)
+	}
+
 	slots := make([]music.TrackSlot, len(tracks))
 	multiDisc := false
 	for i, t := range tracks {
@@ -381,6 +411,12 @@ func (s *Server) importAlbumFiles(ctx context.Context, artist music.Artist, albu
 	if len(matches) == 0 {
 		return albumImport{}, badRelease(fmt.Errorf("none of the %d audio files could be matched to the %d tracks of %q", len(files), len(tracks), album.Title))
 	}
+	// Tracks that are not wanted (an album added for one song) keep their
+	// place on the tracklist but their files stay in the download folder.
+	matches, unwanted := keepWantedMatches(matches, tracks)
+	if len(matches) == 0 {
+		return albumImport{}, badRelease(fmt.Errorf("this release has no file for the wanted track of %q", album.Title))
+	}
 
 	// The quality is what the files' headers say; only when they cannot be
 	// read does the release name (then the file extension) decide.
@@ -396,10 +432,16 @@ func (s *Server) importAlbumFiles(ctx context.Context, artist music.Artist, albu
 		tier = music.TierForExtension(filepath.Ext(matched[0]))
 	}
 	clean := music.Sanitizer(s.musicSanitizer())
-	folder := music.AlbumPath(root, artist.Name, album.Title, album.Year(), clean)
+	// Another band of the same name, or a single of the album's name and year,
+	// would have the same folder; the second one gets a folder of its own.
+	var taken []music.Album
+	if all, err := s.MusicRepo.ListAllAlbums(); err == nil {
+		taken = all
+	}
+	folder := music.UniqueAlbumPath(root, artist, album, taken, clean)
 	policy, isBetter := s.musicConflictPolicy(album, tier)
 
-	res := albumImport{folder: folder, tier: tier, unmatched: len(unmatched), missing: len(tracks) - len(matches)}
+	res := albumImport{folder: folder, tier: tier, unmatched: len(unmatched), missing: wantedTracks(tracks) - len(matches), unwanted: unwanted}
 	for _, m := range matches {
 		if ctx.Err() != nil {
 			return albumImport{}, ctx.Err()
@@ -445,6 +487,29 @@ func (s *Server) importAlbumFiles(ctx context.Context, artist music.Artist, albu
 		return albumImport{}, err
 	}
 	return res, nil
+}
+
+// keepWantedMatches drops the matches of tracks that are not wanted and says
+// how many it dropped.
+func keepWantedMatches(matches []music.Match, tracks []music.Track) ([]music.Match, int) {
+	kept := matches[:0:0]
+	for _, m := range matches {
+		if tracks[m.Slot].Monitored {
+			kept = append(kept, m)
+		}
+	}
+	return kept, len(matches) - len(kept)
+}
+
+// wantedTracks counts the tracks that are wanted.
+func wantedTracks(tracks []music.Track) int {
+	n := 0
+	for _, t := range tracks {
+		if t.Monitored {
+			n++
+		}
+	}
+	return n
 }
 
 // musicConflictPolicy decides what happens when a track's file name is

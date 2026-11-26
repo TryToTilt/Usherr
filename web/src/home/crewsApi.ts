@@ -49,6 +49,7 @@ export interface ChatLine {
   who: string
   text: string
   card?: CrewFilm & { note?: string; to?: number; toWho?: string }
+  have?: Has // Usherr: for a film sent to you, whether it's here
   at: number
 }
 
@@ -165,7 +166,7 @@ export const crewsApi = {
   leave: (id: number) => call<{ ok: boolean; gone: boolean }>('POST', `/${id}/leave`),
   decline: (id: number) => call<{ ok: boolean }>('POST', `/${id}/decline`),
   chat: (id: number, text: string) => call<{ ok: boolean }>('POST', `/${id}/chat`, { text }),
-  send: (id: number, film: FilmIn, to: number, toWho: string) => call<{ ok: boolean }>('POST', `/${id}/send`, { ...film, to, toWho }),
+  send: (id: number, film: FilmIn, to: number, toWho: string, note?: string) => call<{ ok: boolean }>('POST', `/${id}/send`, { ...film, to, toWho, note }),
   addFilm: (id: number, film: FilmIn) => call<{ ok: boolean; sent: boolean }>('POST', `/${id}/list`, film),
   removeFilm: (id: number, tmdb: number) => call<{ ok: boolean }>('DELETE', `/${id}/list/${tmdb}`),
   openVote: (id: number, v: { films: number[]; closesMs: number; atMs: number; preshowMin: number; preshowTheme: number }) => call<{ ok: boolean; vid: string }>('POST', `/${id}/votes`, v),

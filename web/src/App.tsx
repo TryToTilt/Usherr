@@ -7,6 +7,7 @@ import { t } from './i18n'
 import { AuthProvider, useAuth } from './AuthContext'
 import { ModulesProvider } from './ModulesContext'
 import AppShell from './components/AppShell'
+import TwoPane from './components/TwoPane'
 import ErrorBoundary from './components/ErrorBoundary'
 import Dashboard from './pages/Dashboard'
 import { lobbyOn } from './neu/look' // Usherr: the new layout
@@ -16,6 +17,7 @@ import Login from './pages/Login'
 import MusicAlbumRedirect from './pages/MusicAlbumRedirect'
 import NotFound from './pages/NotFound'
 import SettingsLayout from './pages/settings/SettingsLayout'
+import SettingsOverview from './pages/settings/SettingsOverview'
 import { SETTINGS_REDIRECTS } from './settingsNav'
 
 // Mediarium Books (reader and player), an app of its own, loaded when opened.
@@ -273,19 +275,22 @@ function Gate() {
         <Route path="/discover/complete" element={<Complete />} />
         <Route path="/person/:id" element={<Person />} />
         <Route path="/discover/music" element={<MusicDiscoverAll />} />
-        <Route path="/library" element={<Library />} />
+        {/* The Library and the pages opened from it share one layout: on a tablet the list stays beside the open page. */}
+        <Route element={<TwoPane list={(pane) => <Library pane={pane} />} />}>
+          <Route path="/library" element={null} />
+          <Route path="/title/:tmdbId" element={<MovieDetail />} />
+          <Route path="/series/:id" element={<SeriesDetail />} />
+          <Route path="/book/:id" element={<BookDetail />} />
+          <Route path="/music/artist/:id" element={<MusicArtist />} />
+        </Route>
         <Route path="/import" element={<AdminOnly fallback="/library"><ImportLibrary /></AdminOnly>} />
-        <Route path="/music/artist/:id" element={<MusicArtist />} />
         <Route path="/music/playlists" element={<MusicPlaylists />} />
         <Route path="/music/playlists/:id" element={<MusicPlaylistPage />} />
         <Route path="/music/album/:id" element={<MusicAlbumRedirect />} />
         <Route path="/music/release/:mbid" element={<MusicRelease />} />
-        <Route path="/book/:id" element={<BookDetail />} />
         <Route path="/books/work/:key" element={<BookWork />} />
         <Route path="/music/import" element={<AdminOnly fallback="/library"><MusicImport /></AdminOnly>} />
         <Route path="/music/tidy" element={<AdminOnly fallback="/library"><MusicTidy /></AdminOnly>} />
-        <Route path="/title/:tmdbId" element={<MovieDetail />} />
-        <Route path="/series/:id" element={<SeriesDetail />} />
         <Route path="/show/:tmdbId" element={<ShowDetail />} />
         <Route path="/wanted" element={<Upcoming tab="wanted" />} />
         <Route path="/calendar" element={<Upcoming tab="calendar" />} />
@@ -327,7 +332,7 @@ function Gate() {
         <Route path="/help" element={<Guide />} />
         <Route path="/help/:topic" element={<Guide />} />
         <Route path="/settings" element={<SettingsLayout />}>
-          <Route index element={<Navigate to="general" replace />} />
+          <Route index element={<SettingsOverview />} />
           <Route path="modules" element={<AdminOnly><ModulesSettings /></AdminOnly>} />
           <Route path="manga" element={<AdminOnly><MangaSettings /></AdminOnly>} /> {/* Usherr */}
           <Route path="manga-account" element={<MangaDexAccountPage />} /> {/* Usherr: for every account */}

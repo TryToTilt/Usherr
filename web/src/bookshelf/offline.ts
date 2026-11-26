@@ -1,5 +1,5 @@
 import { BASE_PATH, withBase } from '../base'
-import { demoEnabled } from '../demo'
+import { demoEnabled } from '../demoFlag'
 import { t } from '../i18n'
 import { bookPaths, keptId, sharedPaths, toRemove, type KeptKind } from './offlineMath'
 

@@ -169,6 +169,14 @@ type Profile struct {
 	// limit). See SizeAllowed.
 	MaxSizeGB float64
 
+	// Two limits that are not part of the profile but of the install, set when
+	// the profiles are loaded (never saved): CapGB is the largest release
+	// Settings > Downloading allows for any profile (0 = none), and RoomBytes
+	// is how big a release can be and still leave the disk its reserve (0 =
+	// not known or not limited). See SizeAllowed.
+	CapGB     float64
+	RoomBytes int64
+
 	// Fallback lists other profiles (by id) that an automatic search tries,
 	// in this order, when nothing it found is acceptable to this profile.
 	// Only this profile's own list is used (a fallback's fallbacks are not
@@ -187,6 +195,11 @@ type Profile struct {
 	// release that doesn't say it is in a wanted language is not accepted
 	// either (see FitLanguageOnly). Off leaves the fallbacks in place.
 	LanguageOnly bool
+	// IgnoreExtraLanguages is the switch "Extra languages don't change the
+	// ranking", filled in with Language and not stored with the profile. When
+	// it is on, a release that has a wanted language ranks the same whether
+	// it names only that language or also others (see FitLanguageWith).
+	IgnoreExtraLanguages bool
 	// OriginalLanguage is the language the title being judged was made in (a
 	// name such as "Japanese"), filled in by whoever loads the profile for a
 	// decision about one film or show. Custom formats with an "Original"
@@ -212,6 +225,10 @@ type Profile struct {
 
 	// Extras (Usherr) are the editor's Advanced options (extras.go).
 	Extras
+	// ArrExtra is what the Radarr and Sonarr style API last wrote that has no
+	// field here (see internal/api/arr_recyclarr_profiles.go): kept so it can be read back. Empty for a
+	// profile made in Mediarium.
+	ArrExtra string
 }
 
 // Chain is the profile followed by its resolved fallbacks, in the order an

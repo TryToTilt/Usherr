@@ -19,6 +19,7 @@ import (
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/music"
+	"github.com/rdborg/mediarium/internal/other"
 	"github.com/rdborg/mediarium/internal/queue"
 )
 
@@ -243,7 +244,7 @@ func (s *Server) preparePipeline(item queue.Item) (func(), error) {
 		if season == 0 && len(episodes) == 0 {
 			return nil, errors.New("Couldn't tell which season this download is for.")
 		}
-		targets, err := s.tvGrabTargets(series.ID, season, episodes)
+		targets, err := s.tvGrabTargetsFor(series.ID, item.ReleaseTitle, season, episodes)
 		if err != nil {
 			return nil, errors.New("Those episodes are already in your library.")
 		}
@@ -294,6 +295,18 @@ func (s *Server) preparePipeline(item queue.Item) (func(), error) {
 				slog.Info("queue: book download ended", "queueId", item.ID, "err", err)
 			}
 		}, nil
+	case item.OtherID > 0:
+		it, err := s.OtherRepo.Get(item.OtherID)
+		if err != nil {
+			return nil, errors.New("That item isn't in your library any more.")
+		}
+		_ = s.OtherRepo.SetState(it.ID, other.StatusDownloading, "", 0, 0)
+		return func() {
+			if err := s.runOtherPipeline(item.ID, it, item.ReleaseTitle, item.NZBURL, protocol); err != nil {
+				s.stopFailedTorrent(item.ID)
+				slog.Info("queue: other download ended", "queueId", item.ID, "err", err)
+			}
+		}, nil
 	}
 	if run, ok, err := s.prepareVideoPipeline(item, protocol); ok { // videos hook (home fork)
 		return run, err
@@ -307,7 +320,7 @@ func (s *Server) preparePipeline(item queue.Item) (func(), error) {
 	if run, ok, err := s.prepareMangaPipeline(item, protocol); ok { // manga hook (Usherr)
 		return run, err
 	}
-	return nil, errors.New("This download isn't linked to a movie, show, album or book.")
+	return nil, errors.New("This download isn't linked to a movie, show, album, book or item.")
 }
 
 // stopFailedTorrent lets go of a built-in torrent whose download failed after
@@ -374,7 +387,7 @@ func (s *Server) releaseTitleClaims(item queue.Item) {
 		}
 		others := s.otherOpenDownloads(item.SeriesID, item.ID)
 		for _, ep := range eps {
-			if ep.Status != library.StatusDownloading || ep.Season != season || !coversEpisode(season, episodes, ep) {
+			if ep.Status != library.StatusDownloading || !releaseCoversEpisode(item.ReleaseTitle, season, episodes, ep) {
 				continue
 			}
 			if downloadCovers(others, ep) {
@@ -401,6 +414,15 @@ func (s *Server) releaseTitleClaims(item queue.Item) {
 			return
 		}
 		_ = s.BookRepo.SetState(b.ID, f, restoredBookStatus(b, f), "", "")
+	case item.OtherID > 0:
+		o, err := s.OtherRepo.Get(item.OtherID)
+		if err != nil || o.Status != other.StatusDownloading {
+			return
+		}
+		if busy, err := s.QueueRepo.HasActiveForOther(o.ID); err != nil || busy {
+			return
+		}
+		_ = s.OtherRepo.SetState(o.ID, restoredOtherStatus(o), "", 0, 0)
 	}
 }
 
@@ -457,7 +479,7 @@ func (s *Server) otherOpenDownloads(seriesID, except int64) []queue.Item {
 func downloadCovers(items []queue.Item, ep library.Episode) bool {
 	for _, it := range items {
 		season, episodes := resolveTVTarget(it.ReleaseTitle, it.Season, it.Episode)
-		if coversEpisode(season, episodes, ep) {
+		if releaseCoversEpisode(it.ReleaseTitle, season, episodes, ep) {
 			return true
 		}
 	}
@@ -689,7 +711,7 @@ func (s *Server) isUpgradeDownload(it queue.Item) bool {
 		season, episodes := resolveTVTarget(it.ReleaseTitle, it.Season, it.Episode)
 		found := false
 		for _, ep := range eps {
-			if !coversEpisode(season, episodes, ep) {
+			if !releaseCoversEpisode(it.ReleaseTitle, season, episodes, ep) {
 				continue
 			}
 			if !fileExists(ep.FilePath) {
@@ -938,6 +960,9 @@ type bulkQueueRequest struct {
 	IDs         []int64 `json:"ids"`
 	Action      string  `json:"action"`
 	DeleteFiles bool    `json:"deleteFiles"`
+	// Scope is for "blocklist": "item" blocks each release for its own title
+	// only, "all" (or nothing) everywhere.
+	Scope string `json:"scope"`
 }
 
 type bulkQueueFailure struct {
@@ -984,6 +1009,11 @@ func (s *Server) handleBulkQueue(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	resp := bulkQueueResponse{Failed: []bulkQueueFailure{}}
+	itemOnly, scopeOK := parseBlocklistScope(req.Scope)
+	if !scopeOK {
+		writeError(w, http.StatusBadRequest, `Choose the scope "item" or "all".`)
+		return
+	}
 	if req.Action == "retry" || req.Action == "blocklist" {
 		// Retry is a new grab, like Retry on one download, and blocklisting
 		// removes the download and looks again. Neither holds queueControlMu
@@ -995,7 +1025,7 @@ func (s *Server) handleBulkQueue(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if req.Action == "blocklist" {
-				err = s.blocklistQueueItem(item)
+				err = s.blocklistQueueItem(item, itemOnly)
 			} else {
 				_, err = s.retryQueueItem(item)
 			}

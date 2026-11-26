@@ -173,7 +173,7 @@ function MediaServerCard({ x }: { x: Extras }) {
         </>
       }
       needs={tx('a Jellyfin or Emby server, connected under {link}. Add the folder mapping there too if it sees your folders under other names.', {
-        link: <Link to="/settings/media-servers">{t('Settings > Connections > Media servers')}</Link>,
+        link: <Link to="/settings/media-servers">{t('Settings > Media servers and apps > Media servers')}</Link>,
       })}
     >
       {ok && (

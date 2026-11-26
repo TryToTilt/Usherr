@@ -12,6 +12,7 @@ import (
 
 	"github.com/rdborg/mediarium/internal/music"
 	"github.com/rdborg/mediarium/internal/musicbrainz"
+	"github.com/rdborg/mediarium/internal/origin"
 	"github.com/rdborg/mediarium/internal/settings"
 )
 
@@ -348,6 +349,12 @@ func (s *Server) handleArtistDiscography(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if artist.Manual() {
+		// Added by hand: there is no page on MusicBrainz to compare with.
+		f, own := s.artistMusicFilter(id)
+		writeJSON(w, http.StatusOK, musicDiscography{Filter: musicFilterPayload{Filter: f, UseLibrary: !own}, Hidden: []musicHiddenGroup{}, Library: []musicHiddenAlbum{}, Counts: map[string]int{}})
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	groups, err := s.MusicBrainz().ArtistReleaseGroups(ctx, artist.MBID, nil, true)
@@ -438,6 +445,7 @@ func (s *Server) handleAddArtistAlbum(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		MBID string `json:"mbid"`
+		Song string `json:"song"` // "Add only this song": just this track is wanted
 	}
 	if err := decodeJSON(r, &req); err != nil || !mbidPattern.MatchString(req.MBID) {
 		writeError(w, http.StatusBadRequest, "That release ID doesn't look right.")
@@ -452,6 +460,10 @@ func (s *Server) handleAddArtistAlbum(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if artist.Manual() {
+		writeError(w, http.StatusBadRequest, "This artist was added by hand, so there are no releases on the music database to add. Add the album by hand instead.")
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	groups, err := s.MusicBrainz().ArtistReleaseGroups(ctx, artist.MBID, nil, true)
@@ -464,7 +476,7 @@ func (s *Server) handleAddArtistAlbum(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		added, err := s.MusicRepo.AddAlbums(id, []music.Album{{
-			MBID: g.ID, Title: g.Title, Type: albumType(g.PrimaryType), ReleaseDate: g.FirstReleaseDate, Monitored: true,
+			MBID: g.ID, Title: g.Title, Type: albumType(g.PrimaryType), ReleaseDate: g.FirstReleaseDate, Monitored: true, Origin: userOrigin(r, origin.Manual),
 		}})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -474,8 +486,44 @@ func (s *Server) handleAddArtistAlbum(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusConflict, "That release is already in your library.")
 			return
 		}
+		s.wantOnlySong(added[0].ID, req.Song)
 		writeJSON(w, http.StatusCreated, toMusicAlbumPayload(added[0]))
 		return
 	}
-	writeError(w, http.StatusNotFound, "That release isn't one of this artist's on the music database.")
+	// Not one of the artist's own releases: a soundtrack or compilation they
+	// are on, found through one of its songs.
+	added, err := s.addAlbumByMBID(r.Context(), id, req.MBID, userOrigin(r, origin.Manual))
+	switch {
+	case errors.Is(err, errAlbumExists):
+		writeError(w, http.StatusConflict, err.Error())
+	case err != nil:
+		musicBrainzError(w, err, "That release isn't on the music database.")
+	default:
+		writeJSON(w, http.StatusCreated, toMusicAlbumPayload(added))
+	}
 }
+
+// addAlbumByMBID adds one release group to an artist, monitored, looked up by
+// its id: a soundtrack or compilation the artist is on but that isn't one of
+// their own albums. how is how it came into the library (with the person).
+func (s *Server) addAlbumByMBID(ctx context.Context, artistID int64, mbid string, how origin.Origin) (music.Album, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	g, err := s.MusicBrainz().GetReleaseGroup(ctx, mbid)
+	if err != nil {
+		return music.Album{}, err
+	}
+	added, err := s.MusicRepo.AddAlbums(artistID, []music.Album{{
+		MBID: g.ID, Title: g.Title, Type: albumType(g.PrimaryType), ReleaseDate: g.FirstReleaseDate, Monitored: true, Origin: how,
+	}})
+	if err != nil {
+		return music.Album{}, err
+	}
+	if len(added) == 0 {
+		return music.Album{}, errAlbumExists
+	}
+	return added[0], nil
+}
+
+// errAlbumExists: the release is already one of the artist's.
+var errAlbumExists = errors.New("That release is already in your library.")

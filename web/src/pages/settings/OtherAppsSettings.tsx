@@ -45,15 +45,42 @@ export default function OtherAppsSettings() {
 
   // The MCP address for AI assistants: off until an administrator switches it on.
   const [mcp, setMcp] = useState<boolean | null>(null)
+  const [mcpDownloads, setMcpDownloads] = useState(false)
   useEffect(() => {
-    api.mcpSettings().then((m) => setMcp(m.enabled)).catch(() => setMcp(false))
+    api.mcpSettings().then((m) => { setMcp(m.enabled); setMcpDownloads(m.downloads) }).catch(() => setMcp(false))
   }, [])
+
+  async function switchMcpDownloads(next: boolean) {
+    try {
+      const m = await api.putMcpDownloads(next)
+      setMcpDownloads(m.downloads)
+      toast.success(m.downloads ? t('AI assistants can now pick a release and start a download, after you confirm.') : t('AI assistants can no longer start downloads.'))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   async function switchMcp(next: boolean) {
     try {
       const m = await api.putMcpSettings(next)
       setMcp(m.enabled)
       toast.success(m.enabled ? t('AI assistants can connect now.') : t('AI assistants can no longer connect.'))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  // The SABnzbd and qBittorrent look-alike addresses for phone apps: off until an administrator switches them on.
+  const [dlApi, setDlApi] = useState<boolean | null>(null)
+  useEffect(() => {
+    api.downloaderApiSettings().then((m) => setDlApi(m.enabled)).catch(() => setDlApi(false))
+  }, [])
+
+  async function switchDlApi(next: boolean) {
+    try {
+      const m = await api.putDownloaderApiSettings(next)
+      setDlApi(m.enabled)
+      toast.success(m.enabled ? t('Phone apps can now see your downloads.') : t('Phone apps can no longer see your downloads.'))
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
     }
@@ -90,6 +117,51 @@ export default function OtherAppsSettings() {
       </section>
 
       <section className="card wide">
+        <h2>{t('Phone apps for downloads (nzb360 and others)')}</h2>
+        <p style={{ color: 'var(--text-dim)' }}>
+          {t("Apps such as nzb360 can show the speed, the time left and the list of your downloads, and pause, resume or remove them, when Mediarium answers like SABnzbd (Usenet) and qBittorrent (torrents). Add Mediarium in the app as that program, with the addresses below.")}
+        </p>
+        {dlApi === null ? (
+          <Loading height={60} />
+        ) : (
+          <>
+            <Switch
+              checked={dlApi}
+              onChange={(v) => void switchDlApi(v)}
+              label={t('Let phone apps see my downloads')}
+              showState
+              description={t("It only works with an administrator's API key. You can switch it off here at any time.")}
+            />
+            {dlApi && (
+              <dl className="other-app-fields">
+                <dt>{t('Usenet: add it as SABnzbd')}</dt>
+                <dd>
+                  <CopyBox text={`${origin}${BASE_PATH}/sabnzbd`} />
+                </dd>
+                <dt>{t('Torrents: add it as qBittorrent')}</dt>
+                <dd>
+                  <CopyBox text={`${origin}${BASE_PATH}/qbittorrent`} />
+                </dd>
+                <dt>{t('The key goes in')}</dt>
+                <dd>
+                  {t("SABnzbd: the API key box. qBittorrent: the password box (the username can be anything). Make the key in the box further down.")}
+                </dd>
+                <dt>{t('Good to know')}</dt>
+                <dd>
+                  {t("Adding a release from the app only works when its name matches a movie or show in your library. Priority, renaming and speed limits are not available.")}
+                </dd>
+              </dl>
+            )}
+            <p>
+              <a href={`${DOCS_URL}/download-apps.md`} target="_blank" rel="noreferrer">
+                {t('How to set up nzb360 and similar apps')}
+              </a>
+            </p>
+          </>
+        )}
+      </section>
+
+      <section className="card wide">
         <h2>{t('Let AI assistants connect (MCP)')}</h2>
         <p style={{ color: 'var(--text-dim)' }}>
           {t("Chat programs and voice assistants that support MCP can then ask about your library, and, once you say yes, change a few things. They sign in with an administrator's API key.")}
@@ -117,6 +189,15 @@ export default function OtherAppsSettings() {
                 </dd>
               </dl>
             )}
+            {mcp && (
+              <Switch
+                checked={mcpDownloads}
+                onChange={(v) => void switchMcpDownloads(v)}
+                label={t('Let assistants pick releases and start downloads')}
+                showState
+                description={t('Off to begin with. When on, an assistant can look through the releases of a title in your library and start one downloading, but only after you say yes in the chat. A read-only key can never do it. Adding a title and searching for it work without this switch.')}
+              />
+            )}
             {mcp && <McpAppsCard />}
             <p>
               <a href={`${DOCS_URL}/mcp.md`} target="_blank" rel="noreferrer">
@@ -130,7 +211,7 @@ export default function OtherAppsSettings() {
       <section className="card wide">
         <h2>{t('The API key')}</h2>
         <p style={{ color: 'var(--text-dim)' }}>
-          {t("The other app signs in with an API key of an administrator. Make one here, or under Accounts > API keys, and paste it into the app's API key field. It's shown only once.")}
+          {t("The other app signs in with an API key of an administrator. Make one here, or under Security > API keys, and paste it into the app's API key field. It's shown only once.")}
         </p>
         {key ? (
           <div className="newkey">

@@ -8,6 +8,7 @@ import { StreamingOn } from '../home/Recipes' // home fork
 import CommunityReviews from '../home/CommunityReviews' // Usherr: Community, reviews
 import { ScoresLine } from '../home/scores' // home fork
 import { useNavigate, useParams } from 'react-router-dom'
+import LoadFailed from '../components/LoadFailed'
 import AddDialog from '../components/AddDialog'
 import Icon from '../components/Icon'
 import TitleHero, { TitleFacts } from '../components/TitleHero'
@@ -22,9 +23,10 @@ import { useToast } from '../components/Toast' // Usherr Broadcast: Mark watched
 import SimilarShows from '../home/SimilarShows' // Usherr
 import { CastCard, PeopleLinks, SeasonsCard, titleLinks } from '../components/TitlePreview'
 import { crewWith } from '../people'
-import { api, can, isAdmin, type DiscoverMovie, type TVDetail } from '../api'
+import { api, can, isAdmin, isViewer, type DiscoverMovie, type RequestStatus, type TVDetail } from '../api'
 import { useAuth } from '../AuthContext'
 import ArtworkButton from '../home/ArtworkButton' // Usherr: Re-Posterr
+import { AskEpisodeDialog } from '../components/RequestDialogs'
 import { useDocumentTitle } from '../documentTitle'
 import { t } from '../i18n'
 import CatchUp from '../home/CatchUp' // Catch me up (home fork)
@@ -63,6 +65,15 @@ export default function ShowDetail() {
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { found: boolean; titleId?: number } | null) => d?.found && d.titleId && setSheet(d.titleId))
       .catch(() => undefined)
+  const [askingEpisode, setAskingEpisode] = useState(false)
+  // An account that has to ask can ask for one episode instead of the whole show.
+  const viewer = isViewer(me)
+  const [reqStatus, setReqStatus] = useState<RequestStatus | null>(null) // Usherr: `status` is the streams tag below
+  useEffect(() => {
+    if (viewer) return
+    api.requestStatus().then(setReqStatus).catch(() => setReqStatus(null))
+  }, [viewer])
+  const canAskEpisode = !!reqStatus?.asksToAdd && (show?.seasonList ?? []).length > 0
 
   useEffect(() => {
     api
@@ -74,7 +85,7 @@ export default function ShowDetail() {
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
   }, [id, navigate])
 
-  if (error) return <p className="error-text">{error}</p>
+  if (error) return <LoadFailed message={error} />
   if (!show) return <div className="skeleton" style={{ height: 380, borderRadius: 22 }} />
 
   const creators = crewWith(show.crew, 'Creator')
@@ -84,10 +95,11 @@ export default function ShowDetail() {
     show.seasons ? { label: t('Seasons'), value: String(show.seasons) } : null,
     show.episodes ? { label: t('Episodes'), value: String(show.episodes) } : null,
     show.networks?.length ? { label: t('Network'), value: show.networks.join(', ') } : null,
+    show.studios?.length ? { label: show.studios.length > 1 ? t('Studios') : t('Studio'), value: show.studios.slice(0, 3).join(', ') } : null,
     show.releaseStatus ? { label: t('Status'), value: showStatusLabel(undefined, show.releaseStatus) ?? show.releaseStatus } : null, // home fork: in words
   ].filter(Boolean) as { label: string; value: ReactNode }[]
 
-  const info = { ...show, kind: 'tv' as const, certification: show.contentRating ?? show.certification, facts, links: titleLinks('tv', show.tmdbId, show.imdbId, show.homepage) }
+  const info = { ...show, kind: 'tv' as const, certification: show.contentRating ?? show.certification, facts, links: titleLinks('tv', show.tmdbId, show.imdbId, show.homepage), tmdbId: show.tmdbId, imdbId: show.imdbId }
   const status = streamedHere && (
     <span className="state-tag st-streams" title={describeState('streams').hint}>
       <Icon name="play" size={13} /> {describeState('streams').label}
@@ -104,6 +116,11 @@ export default function ShowDetail() {
       <button className={`${streamedHere ? '' : 'primary '}btn-with-icon big`} data-walk="title-add" onClick={() => setAdding(true)}>
         <Icon name="plus" size={18} /> {!lobbyOn() && !broadcast ? t('Add to library') : can(me, 'addDirect') ? t('Add it') : t('Ask for it')}
       </button>
+      {canAskEpisode && (
+        <button className="btn-with-icon big" onClick={() => setAskingEpisode(true)}>
+          <Icon name="tv" size={18} /> {t('Ask for one episode')}
+        </button>
+      )}
       <StackButton item={{ kind: 'tv', tmdbId: show.tmdbId, title: show.title, year: show.year, posterUrl: show.posterUrl }} /> {/* Usherr */}
       <VoteButtons kind="tv" refId={show.tmdbId} meta={{ title: show.title, year: show.year, image: show.posterUrl }} /> {/* home fork */}
       <CatchUp tmdbId={show.tmdbId} /> {/* home fork */}
@@ -131,6 +148,7 @@ export default function ShowDetail() {
     ? []
     : [
         ...(streamedHere ? [{ key: 'ask', icon: 'plus' as const, label: ask, run: () => setAdding(true) }] : []),
+        ...(canAskEpisode ? [{ key: 'ask-episode', icon: 'tv' as const, label: t('Ask for one episode'), run: () => setAskingEpisode(true) }] : []), // upstream 4.1
         { key: 'watched', icon: 'check', label: t('Mark watched'), hint: t('In your diary'), run: () => markWatched('tv', show.tmdbId).then(() => toast.success(t('Marked watched.')), (e: Error) => toast.error(e.message)) },
         { key: 'rate', icon: 'star', label: t('Rate it'), node: <VoteButtons kind="tv" refId={show.tmdbId} meta={{ title: show.title, year: show.year, image: show.posterUrl }} /> },
         { key: 'catch-up', node: <CatchUp tmdbId={show.tmdbId} /> },
@@ -173,6 +191,7 @@ export default function ShowDetail() {
               <StreamedSheet id={sheet} tmdbId={show.tmdbId} title={show.title} onClose={() => setSheet(0)} />
             </Suspense>
           )}
+          {askingEpisode && <AskEpisodeDialog tmdbId={show.tmdbId} title={show.title} seasons={show.seasonList ?? []} onClose={() => setAskingEpisode(false)} />}
           {adding && (
             <AddDialog
               target={{ kind: 'tv', tmdbId: show.tmdbId, title: show.title, year: show.year, posterUrl: show.posterUrl, overview: show.overview }}

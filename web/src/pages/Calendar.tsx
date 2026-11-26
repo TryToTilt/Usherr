@@ -55,10 +55,12 @@ export default function Calendar() {
   const [entries, setEntries] = useState<CalendarEntry[] | null>(null)
   const [error, setError] = useState('')
   // The kind and the "not downloaded" tick live in the address, so Back returns to them.
-  const [ui, patchUi] = useUrlState({ show: 'all', missing: '', month: '' })
+  const [ui, patchUi] = useUrlState({ show: 'all', missing: '', month: '', film: '' })
   const show: Show = (['movie', 'theaters', 'episode', 'anime', 'ebook', 'audiobook', 'album', 'comic', 'sport'] as const).find((k) => k === ui.show) ?? (ui.show === 'book' ? 'ebook' : 'all')
   const setShow = (k: Show) => patchUi({ show: k })
   const missingOnly = ui.missing === '1'
+  // Films by the release they show for (discussion #170): every one, or only cinema or only digital releases.
+  const film: '' | 'cinema' | 'digital' = ui.film === 'cinema' || ui.film === 'digital' ? ui.film : ''
   const setMissingOnly = (v: boolean) => patchUi({ missing: v ? '1' : '' })
   const [feedOpen, setFeedOpen] = useState(false)
   const { q: searchQ, pick } = useCalendarSearch() // Usherr: what the top bar's search found
@@ -105,7 +107,10 @@ export default function Calendar() {
     ...(hasComics ? (['comic'] as const) : []),
     ...((entries ?? []).some((e) => e.kind === 'sport') ? (['sport'] as const) : []), // Usherr: wanted games
   ]
-  const shown = (entries ?? []).filter((e) => matches(e, show, anime) && (!missingOnly || e.status !== 'downloaded')).map((e) => (e.kind === 'episode' && anime.has(e.seriesId ?? 0) ? { ...e, anime: true } : e)) // Usherr: anime labelled as anime
+  const shown = (entries ?? [])
+    .filter((e) => matches(e, show, anime) && (!missingOnly || e.status !== 'downloaded') && (film === '' || e.kind !== 'movie' || e.release === 'both' || (e.release ?? 'cinema') === film))
+    .map((e) => (e.kind === 'episode' && anime.has(e.seriesId ?? 0) ? { ...e, anime: true } : e)) // Usherr: anime labelled as anime
+  const filmsShown = (show === 'all' || show === 'movie') && kinds.includes('movie')
   // Usherr: the search narrows the calendar to what the AI picked, or to the titles typed.
   const searching = pick !== null || searchQ.trim() !== ''
   const found = pick ? shown.filter((e) => pick.keys.has(entryKey(e))) : searchQ.trim() ? shown.filter((e) => textMatch(e, searchQ)) : shown
@@ -138,18 +143,34 @@ export default function Calendar() {
                 icon="more"
                 choices={[
                   { id: 'missing', label: missingOnly ? t('Show downloaded too') : t('Only what isn\u2019t downloaded yet') },
+                  // Usherr: upstream's films-by-release filter (#170) as menu picks
+                  ...(filmsShown
+                    ? [
+                        ...(film !== '' ? [{ id: 'film-', label: t('Every release') }] : []),
+                        ...(film !== 'cinema' ? [{ id: 'film-cinema', label: t('In cinemas') }] : []),
+                        ...(film !== 'digital' ? [{ id: 'film-digital', label: t('Digital release') }] : []),
+                      ]
+                    : []),
                   ...(!viewer ? [{ id: 'feed', label: t('Add to your calendar app') }] : []),
                 ]}
-                onPick={(id) => (id === 'missing' ? setMissingOnly(!missingOnly) : setFeedOpen((v) => !v))}
+                onPick={(id) => (id === 'missing' ? setMissingOnly(!missingOnly) : id.startsWith('film-') ? patchUi({ film: id.slice(5) }) : setFeedOpen((v) => !v))}
               />
               </>,
               slots.tabs,
             )}
-          {missingOnly && (
+          {(missingOnly || (film !== '' && filmsShown)) && (
             <div className="cbar-chips">
-              <button type="button" className="cbar-chip" onClick={() => setMissingOnly(false)}>
-                {t('Not downloaded yet')} <Icon name="x" size={12} />
-              </button>
+              {missingOnly && (
+                <button type="button" className="cbar-chip" onClick={() => setMissingOnly(false)}>
+                  {t('Not downloaded yet')} <Icon name="x" size={12} />
+                </button>
+              )}
+              {/* Usherr: upstream's films-by-release filter (#170), shown as a chip like the other filters */}
+              {film !== '' && filmsShown && (
+                <button type="button" className="cbar-chip" onClick={() => patchUi({ film: '' })}>
+                  {film === 'cinema' ? t('In cinemas') : t('Digital release')} <Icon name="x" size={12} />
+                </button>
+              )}
             </div>
           )}
           {pick?.answer && (

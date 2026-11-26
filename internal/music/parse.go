@@ -35,7 +35,7 @@ func (r Release) Tier() Tier { return Classify(r) }
 var (
 	reYear      = regexp.MustCompile(`\b(19\d{2}|20\d{2})\b`)
 	reYearRange = regexp.MustCompile(`\b(?:19|20)\d{2}\s*[-–~]\s*(?:19|20)\d{2}\b`)
-	reFormat    = regexp.MustCompile(`(?i)\b(flac|alac|mp3|aac|m4a)\b`)
+	reFormat    = regexp.MustCompile(`(?i)\b(flac|alac|mp3|aac|m4a|webflac)\b`)
 	reBitrateK  = regexp.MustCompile(`(?i)\b(320|256|224|192|160|128)\s?(?:k|kbps|kbit|kbits|kb|kbs)\b`)
 	reBitrate   = regexp.MustCompile(`\b(320|256|192)\b`)
 	reVBR       = regexp.MustCompile(`(?i)\b(v0|v1|v2)\b`)
@@ -50,7 +50,11 @@ var (
 	reGroup     = regexp.MustCompile(`^[A-Za-z0-9]+$`)
 	reCatalog   = regexp.MustCompile(`^\(?[A-Z]{2,}[ -]?\d{2,}[A-Z]?\)?$`)
 	reSpaces    = regexp.MustCompile(`\s+`)
-	reExt       = regexp.MustCompile(`(?i)\.(nzb|torrent)$`)
+	// reLeadingYear is a year, in brackets or not, that starts the text after an
+	// artist and is set off by a dash: "2013 - Album".
+	reLeadingYear = regexp.MustCompile(`^[(\[]?((?:19|20)\d{2})[)\]]?\s+-\s+`)
+	reBareRate    = regexp.MustCompile(`^(?:320|256|192)$`)
+	reExt         = regexp.MustCompile(`(?i)\.(nzb|torrent)$`)
 )
 
 // ParseRelease reads a music release title: the artist, the album, the
@@ -82,9 +86,16 @@ func ParseRelease(title string) Release {
 	case strings.Contains(title, " - "):
 		artist, rest, _ := strings.Cut(title, " - ")
 		r.Artist = cleanName(artist)
+		// "Artist - 2013 - Album": the year leads the album.
+		if m := reLeadingYear.FindStringSubmatch(rest); m != nil {
+			r.Year, _ = strconv.Atoi(m[1])
+			rest = rest[len(m[0]):]
+		}
 		r.Album = cutAlbum(rest)
-		r.Year = yearFrom(rest, r.Album)
-	case !strings.Contains(title, " ") && strings.Count(title, "-") >= 1:
+		if r.Year == 0 {
+			r.Year = yearFrom(rest, r.Album)
+		}
+	case !strings.Contains(title, " ") && strings.Count(title, "-") >= 1, spacedScene(title):
 		parseScene(title, &r)
 	default:
 		// No separator at all: all we can say is the album-ish text.
@@ -95,6 +106,95 @@ func ParseRelease(title string) Release {
 		r.Year = pureYear(lead)
 	}
 	return r
+}
+
+// ParseReleaseFor is ParseRelease for a search for a known artist. A scene
+// name is cut at its first dash, which is wrong for an artist with a hyphen
+// in the name: "AC-DC Back in Black-FLAC-2005" reads as the artist "AC".
+// When the artist read that way is not the one searched for, the other places
+// the artist could end (every dash or space before the first metadata field)
+// are tried, and the first that gives the searched-for artist is used.
+func ParseReleaseFor(title, artist string) Release {
+	r := ParseRelease(title)
+	if artist == "" || SameArtist(r.Artist, artist) {
+		return r
+	}
+	for _, alt := range sceneSplits(title) {
+		if SameArtist(alt[0], artist) {
+			r.Artist, r.Album = alt[0], alt[1]
+			return r
+		}
+	}
+	return r
+}
+
+// sceneSplits lists the (artist, album) pairs a scene name could be read as:
+// the artist ends at a dash or a space before the first metadata field, and
+// the album is the rest of that field (split at a space) or the next field
+// (split at a dash). It is empty for a title that is not a scene name.
+func sceneSplits(title string) [][2]string {
+	title = strings.TrimSpace(reExt.ReplaceAllString(strings.TrimSpace(title), ""))
+	if m := reLeading.FindStringSubmatch(title); m != nil && isMeta(m[1]) {
+		title = strings.TrimSpace(title[len(m[0]):])
+	}
+	if strings.Contains(title, " - ") || !(!strings.Contains(title, " ") && strings.Count(title, "-") >= 1 || spacedScene(title)) {
+		return nil
+	}
+	var parts []string
+	for _, p := range strings.Split(title, "-") {
+		p = strings.TrimSpace(strings.NewReplacer("_", " ", ".", " ").Replace(p))
+		if p != "" {
+			parts = append(parts, p)
+		}
+	}
+	// The album is never the first metadata-looking field ("1989" is an
+	// album), so the head reaches at least to the second field.
+	end := len(parts)
+	for i := 2; i < len(parts); i++ {
+		if isMeta(parts[i]) || pureYear(parts[i]) != 0 {
+			end = i
+			break
+		}
+	}
+	var out [][2]string
+	add := func(artist, album string) {
+		if artist, album = cleanName(artist), cutAlbum(album); artist != "" && album != "" {
+			out = append(out, [2]string{artist, album})
+		}
+	}
+	for k := 0; k < end; k++ {
+		before := strings.Join(parts[:k], "-")
+		if before != "" {
+			before += "-"
+		}
+		for j, c := range parts[k] {
+			if c == ' ' {
+				add(before+parts[k][:j], parts[k][j+1:])
+			}
+		}
+		if k+1 < end {
+			add(before+parts[k], parts[k+1])
+		}
+	}
+	return out
+}
+
+// spacedScene reports whether a title with spaces in it is still a scene name:
+// dashes with no space beside them are the only separators between the fields
+// ("Artist-Album Name-16BIT-44-KHZ-WEB-FLAC-2024-GRP"), and at least one field
+// after the album is release metadata. A name like "Blink-182 Enema of the
+// State 1999 FLAC" has no such fields, so it is not cut at its hyphen.
+func spacedScene(title string) bool {
+	if strings.Contains(title, " - ") || strings.Count(title, "-") < 2 {
+		return false
+	}
+	fields := strings.Split(title, "-")
+	for _, f := range fields[2:] {
+		if f = strings.TrimSpace(f); f != "" && isMeta(f) {
+			return true
+		}
+	}
+	return false
 }
 
 // parseScene reads "Artist-Album-TAG-TAG-YEAR-GROUP": underscores or dots
@@ -116,6 +216,15 @@ func parseScene(title string, r *Release) {
 		return
 	}
 	r.Album = cutAlbum(parts[1])
+	// A bare "320" between dashes is the bitrate of an MP3 release.
+	for _, p := range parts[2:] {
+		if reBareRate.MatchString(p) && r.Bitrate == "" && (r.Format == "" || r.Format == FormatMP3 || r.Format == FormatAAC) {
+			r.Bitrate = p
+			if r.Format == "" {
+				r.Format = FormatMP3
+			}
+		}
+	}
 	for _, p := range parts[2:] {
 		if y := pureYear(p); y != 0 {
 			r.Year = y
@@ -146,7 +255,7 @@ func readQuality(tokens string, r *Release) {
 		formats[strings.ToUpper(m)] = true
 	}
 	switch {
-	case formats["FLAC"]:
+	case formats["FLAC"] || formats["WEBFLAC"]:
 		r.Format = FormatFLAC
 	case formats["ALAC"]:
 		r.Format = FormatALAC

@@ -8,7 +8,9 @@ import { RowsByPick } from '../home/shelfKit' // home fork
 import { CompleteTeaser } from '../home/Complete' // home fork
 import { buildShelves, rowsByOptions, type RowsBy } from '../home/shelfGroups' // home fork
 import { ActiveChips, CompactBar, FiltersButton, KindPicker, type ActiveFilter } from '../components/CompactBar' // Usherr
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { paneDefaultTab } from '../twoPane'
+import { useOpenFromList } from '../useTwoPane'
 import { api, can, isAdmin, type Book, type BookFormat, type BulkResult, type BulkTitle, type CollectionListItem, type MediaSummary, type Movie, type MusicArtist, type QualityProfile, type QueueItem, type Series, type SourcePref } from '../api'
 import { useAuth } from '../AuthContext'
 import { playTitle } from '../home/Player' // play hook (home fork)
@@ -20,6 +22,7 @@ import { useModules, type MediaKind } from '../ModulesContext'
 import { activeLibraryTab, libraryTabs } from '../libraryTabs'
 import { broadcastKinds } from '../onemenu/kinds' // Usherr Broadcast
 import { broadcastOn } from '../onemenu/broadcast' // Usherr Broadcast
+import OtherLibrary from '../components/OtherLibrary'
 import MusicLibrary from './MusicLibrary'
 import BookLibrary from './BookLibrary'
 import ActionMenu from '../components/ActionMenu'
@@ -65,6 +68,7 @@ const SORTS: Sort[] = ['added', 'title', 'released', 'size', 'status', 'profile'
 interface Item {
   key: string
   kind: Kind
+  anime?: boolean // a show of the anime type (its own tab with the anime library on)
   id: number
   tmdbId: number
   title: string
@@ -82,6 +86,7 @@ interface Item {
   live?: QueueItem
   genres: string[]
   tags: string[]
+  rootPath?: string // the library folder chosen for it (left out = the main one)
   gettingDetails: boolean // an import is still filling in this title's details
   copies: number // second copies kept in another quality
   released: string // "2024-03-01", or the year alone when that is all there is
@@ -159,7 +164,7 @@ function fromMovie(m: Movie, queue: QueueItem[]): Item {
   return {
     key: `movie-${m.id}`, kind: 'movie', id: m.id, tmdbId: m.tmdbId, title: m.title, year: m.year, posterUrl: m.posterUrl,
     monitored: m.monitored !== false, profileId: m.profileId ?? 0, status: m.status, quality: m.quality, have: m.status === 'downloaded' ? 1 : 0, total: 1, filePath: m.filePath,
-    state: detailsState(m) ?? movieState(m, queue), live: progressFor(queue, (q) => q.movieId === m.id && !q.seriesId), genres: m.genres ?? [], tags: m.tags ?? [],
+    state: detailsState(m) ?? movieState(m, queue), live: progressFor(queue, (q) => q.movieId === m.id && !q.seriesId), genres: m.genres ?? [], tags: m.tags ?? [], rootPath: m.rootPath,
     gettingDetails: !!m.detailsState,
     ended: false,
     copies: m.copies ?? 0,
@@ -174,9 +179,9 @@ function fromMovie(m: Movie, queue: QueueItem[]): Item {
 function fromSeries(s: Series, queue: QueueItem[]): Item {
   const status: Item['status'] = s.episodeCount > 0 && s.downloadedCount === s.episodeCount ? 'downloaded' : s.downloadedCount > 0 ? 'partial' : 'missing'
   return {
-    key: `tv-${s.id}`, kind: 'tv', id: s.id, tmdbId: s.tmdbId, title: s.title, tag: s.nameTag, year: s.year, posterUrl: s.posterUrl,
+    key: `tv-${s.id}`, kind: 'tv', anime: s.seriesType === 'anime', id: s.id, tmdbId: s.tmdbId, title: s.title, tag: s.nameTag, year: s.year, posterUrl: s.posterUrl,
     monitored: s.monitored, profileId: s.profileId ?? 0, status, have: s.downloadedCount, total: s.episodeCount,
-    state: detailsState(s) ?? seriesState(s, queue), live: progressFor(queue, (q) => q.seriesId === s.id), genres: s.genres ?? [], tags: s.tags ?? [],
+    state: detailsState(s) ?? seriesState(s, queue), live: progressFor(queue, (q) => q.seriesId === s.id), genres: s.genres ?? [], tags: s.tags ?? [], rootPath: s.rootPath,
     gettingDetails: !!s.detailsState,
     copies: s.copies ?? 0,
     released: s.firstAirDate || (s.year ? String(s.year) : ''),
@@ -211,18 +216,22 @@ const FILTERS: Record<Kind, { id: string; label: string; test: (i: Item) => bool
 // most a click away on every item (search for a release, monitor, open,
 // remove) and a select mode for doing them to many at once.
 // A Library tab: a kind of media, or one of the two book formats.
-// home fork: Anime, Comics and NSFW 18+ live in the Library too.
-type Tab = MediaKind | BookFormat | 'anime' | 'comics' | 'manga' | 'nsfw'
+// home fork: Anime, Comics and NSFW 18+ live in the Library too (and upstream's Other).
+type Tab = MediaKind | BookFormat | 'anime' | 'comics' | 'manga' | 'nsfw' | 'other'
 // Each tab wears its kind's colour, as everywhere else.
-const TAB_COLOR: Record<Tab, string> = { movie: 'var(--c-movie)', tv: 'var(--c-tv)', anime: 'var(--c-tv)', music: 'var(--c-music)', ebook: 'var(--c-book)', audiobook: 'var(--c-audiobook)', manga: 'var(--c-manga)', comics: 'var(--c-comics)', nsfw: 'var(--c-nsfw)' }
+const TAB_COLOR: Record<Tab, string> = { movie: 'var(--c-movie)', tv: 'var(--c-tv)', anime: 'var(--c-tv)', music: 'var(--c-music)', ebook: 'var(--c-book)', audiobook: 'var(--c-audiobook)', manga: 'var(--c-manga)', comics: 'var(--c-comics)', nsfw: 'var(--c-nsfw)', other: 'var(--c-other)' }
 
-const TAB_LABEL: Record<Tab, string> = { movie: t('Movies'), tv: t('TV'), anime: t('Anime'), music: t('Music'), ebook: t('Ebooks'), audiobook: t('Audiobooks'), comics: t('Comics'), manga: t('Manga'), nsfw: t('NSFW 18+') }
-const TAB_GLYPH: Record<Tab, GlyphKind> = { movie: 'movie', tv: 'tv', anime: 'tv', music: 'music', ebook: 'book', audiobook: 'audiobook', comics: 'comic', manga: 'manga', nsfw: 'movie' }
+const TAB_LABEL: Record<Tab, string> = { movie: t('Movies'), tv: t('TV'), anime: t('Anime'), music: t('Music'), ebook: t('Ebooks'), audiobook: t('Audiobooks'), comics: t('Comics'), manga: t('Manga'), nsfw: t('NSFW 18+'), other: t('Other') }
+const TAB_GLYPH: Record<Tab, GlyphKind> = { movie: 'movie', tv: 'tv', anime: 'tv', music: 'music', ebook: 'book', audiobook: 'audiobook', comics: 'comic', manga: 'manga', nsfw: 'movie', other: 'other' }
 
-export default function Library() {
+// `pane` is true while the Library is the left side of the tablet layout (see TwoPane): the posters
+// come as a narrow column and the page keeps its tab from the title that is open beside it.
+export default function Library({ pane = false }: { pane?: boolean }) {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const confirm = useConfirm()
   const navigate = useNavigate()
+  const openFromList = useOpenFromList()
+  const loc = useLocation()
   const toast = useToast()
   // Removing titles, changing their quality profile and importing a library
   // are for administrators.
@@ -235,7 +244,7 @@ export default function Library() {
   const comicsOn = useComicsOn(admin) // library hook (home fork)
   const nsfwOn = useNsfwOn(admin) // library hook (home fork)
   // The tab and the filters live in the address, so Back from a title brings the list back as it was.
-  const [ui, patchUi] = useUrlState({ kind: 'movie', st: 'all', q: '', genre: '', tag: '', decade: '', collection: '', profile: '', ...NO_FILE_FILTERS })
+  const [ui, patchUi] = useUrlState({ kind: pane ? paneDefaultTab(loc.pathname) : 'movie', st: 'all', q: '', genre: '', tag: '', decade: '', collection: '', profile: '', folder: '', ...NO_FILE_FILTERS })
   const { on } = useModules()
   const musicOn = on('music')
   const booksOn = on('ebooks') || on('audiobooks')
@@ -246,9 +255,13 @@ export default function Library() {
   // The Library opens on the first tab (Movies) unless the address asks for another;
   // a kind that is switched off cannot be shown, so the first that is on opens instead.
   const active: Tab = activeLibraryTab(kinds, ui.kind)
-  const kind: Kind = active === 'tv' || active === 'anime' ? 'tv' : 'movie'
+  // The anime tab is the TV view, for the anime shows (the TV tab then shows the others).
+  // Usherr: anime is read from the shows (animeIds below); upstream's anime library switch adds its anime-type shows.
+  const animeOn = on('anime') && on('tv')
+  const onAnime = active === 'anime'
+  const kind: Kind = active === 'tv' || onAnime ? 'tv' : 'movie'
   const onMovies = active === 'movie'
-  const onTV = active === 'tv' || active === 'anime'
+  const onTV = active === 'tv' || onAnime
   const [bookList, setBookList] = useState<Book[] | null>(null)
   const [queueNow, setQueueNow] = useState<QueueItem[]>([])
   const [artists, setArtists] = useState<MusicArtist[] | null>(null)
@@ -274,7 +287,7 @@ export default function Library() {
       .catch(() => undefined)
   }, [canPlay])
   // How many movies and shows there are, for the tab whose list is not loaded.
-  const [titleCounts, setTitleCounts] = useState<{ movies: number; shows: number } | null>(null)
+  const [titleCounts, setTitleCounts] = useState<{ movies: number; shows: number; anime?: number } | null>(null)
   const [profiles, setProfiles] = useState<QualityProfile[]>([])
   const [defaultProfile, setDefaultProfile] = useState(0)
   const [defaultTvProfile, setDefaultTvProfile] = useState(0)
@@ -314,6 +327,8 @@ export default function Library() {
   const decade = ui.decade
   const setDecade = (v: string) => patchUi({ decade: v })
   const profileFilter = ui.profile
+  const folderFilter = ui.folder
+  const setFolderFilter = (v: string) => patchUi({ folder: v })
   const setProfileFilter = (v: string) => patchUi({ profile: v })
   const collection = ui.collection
   // What the files hold: video codec, HDR, resolution, audio and subtitle languages (read from the files' headers).
@@ -357,7 +372,7 @@ export default function Library() {
         seen.current.shows = [q, s]
         setShows(same(s.map((x) => fromSeries(x, q))))
       }).catch(failed)
-    api.libraryCounts().then((c) => setTitleCounts((prev) => (prev && prev.movies === c.movies && prev.shows === c.shows ? prev : c))).catch(() => undefined)
+    api.libraryCounts().then((c) => setTitleCounts((prev) => (prev && prev.movies === c.movies && prev.shows === c.shows && prev.anime === c.anime ? prev : c))).catch(() => undefined)
     // Only the shown tab's list is read each time. The artists and books are also read once (below) for the numbers
     // on their tabs, so a Movies tab does not ask for them every few seconds.
     const tick = libraryTick(active)
@@ -394,7 +409,12 @@ export default function Library() {
     if (admin) api.libraryFolders().then(setLibraryFolders).catch(() => undefined)
   }, [admin])
   const folderChoices = kind === 'movie' ? libraryFolders.movies : libraryFolders.tv
+  // The filter only exists with more than one folder; a folder in the address that nothing can match is ignored.
+  const folderOn = folderChoices.length > 1
 
+  // Usherr: a show is anime when the fork's anime list has it, or (upstream 4.1) when
+  // the anime library is switched on and its episode numbering is Anime.
+  const isAnime = useCallback((s: Item) => animeIds.has(s.id) || (animeOn && !!s.anime), [animeIds, animeOn])
   // home fork: one library in layers. A title on disk shows once (marked if
   // it also streams); a streamed title with nothing on disk joins it.
   const items = useMemo(() => {
@@ -409,14 +429,14 @@ export default function Library() {
     }
     if (!shows) return null
     const anime = active === 'anime'
-    const animeTmdb = new Set(shows.filter((s) => animeIds.has(s.id)).map((s) => s.tmdbId))
+    const animeTmdb = new Set(shows.filter(isAnime).map((s) => s.tmdbId))
     const inLibrary = new Set(shows.map((s) => s.tmdbId))
     const streams = new Set(streamed.filter((t) => t.kind === 'series').map((t) => t.tmdbId))
     return [
-      ...shows.filter((s) => animeIds.has(s.id) === anime).map((s) => (streams.has(s.tmdbId) ? { ...s, streams: true } : s)),
+      ...shows.filter((s) => isAnime(s) === anime).map((s) => (streams.has(s.tmdbId) ? { ...s, streams: true } : s)),
       ...streamed.filter((t) => t.kind === 'series' && !inLibrary.has(t.tmdbId) && (!!t.anime || animeTmdb.has(t.tmdbId)) === anime).map(fromStreamed),
     ]
-  }, [kind, movies, shows, streamed, animeIds, active])
+  }, [kind, movies, shows, streamed, isAnime, active])
   // home fork: "For you" puts what fits your taste first: what you haven't
   // seen by its match, then what you have, a thumbs down last.
   const voteOf = useVotes().get
@@ -436,6 +456,7 @@ export default function Library() {
         (!tag || i.tags.some((t) => t.toLowerCase() === tag.toLowerCase())) &&
         (!decade || (i.year >= Number(decade) && i.year < Number(decade) + 10)) &&
         matchesProfile(i, profileFilter, defaultProfile, defaultTvProfile) &&
+        (!folderOn || !folderFilter || (i.rootPath || folderChoices[0] || '') === folderFilter) &&
         (!inCollection || inCollection.has(i.id)) &&
         matchesFileFilters(i.media, fileFilters),
     )
@@ -456,13 +477,13 @@ export default function Library() {
     }
     if (reverse) list.reverse()
     return list
-  }, [items, kind, filter, text, sort, reverse, genre, tag, decade, profileFilter, profiles, defaultProfile, defaultTvProfile, collection, collections, voteOf, taste, fileFilters])
+  }, [items, kind, filter, text, sort, reverse, genre, tag, decade, profileFilter, folderFilter, folderOn, folderChoices, profiles, defaultProfile, defaultTvProfile, collection, collections, voteOf, taste, fileFilters])
   // Everything that narrows the list (sorting does not), and the way back.
-  const filtersActive =text.trim() !== '' || filter !== 'all' || genre !== '' || tag !== '' || decade !== '' || profileFilter !== '' || (kind === 'movie' && collection !== '') || fileFiltersActive(fileFilters)
+  const filtersActive =text.trim() !== '' || filter !== 'all' || genre !== '' || tag !== '' || decade !== '' || profileFilter !== '' || (folderOn && folderFilter !== '') || (kind === 'movie' && collection !== '') || fileFiltersActive(fileFilters)
   // What the files of this tab take on disk, for the line at the end of the chips.
   const totalText = useMemo(() => libraryTotalText(sumBytes(items ?? []), sumBytes(shown ?? []), filtersActive, kind), [items, shown, filtersActive, kind])
   function clearFilters() {
-    patchUi({ q: '', st: 'all', genre: '', tag: '', decade: '', collection: '', profile: '', ...NO_FILE_FILTERS })
+    patchUi({ q: '', st: 'all', genre: '', tag: '', decade: '', collection: '', profile: '', folder: '', ...NO_FILE_FILTERS })
   }
   // Usherr: the filters that are on, each a chip with an x.
   const activeFilters: ActiveFilter[] = [
@@ -472,6 +493,7 @@ export default function Library() {
     ...(genre ? [{ key: 'genre', label: genre, clear: () => setGenre('') }] : []),
     ...(decade ? [{ key: 'decade', label: t('{decade}s', { decade }), clear: () => setDecade('') }] : []),
     ...(profileFilter ? [{ key: 'profile', label: profiles.find((p) => String(p.id) === profileFilter)?.name ?? t('Quality profile'), clear: () => setProfileFilter('') }] : []),
+    ...(folderOn && folderFilter ? [{ key: 'folder', label: folderFilter, clear: () => setFolderFilter('') }] : []), // Usherr: upstream's In folder filter as a chip
     ...(kind === 'movie' && collection ? [{ key: 'collection', label: collections.find((c) => String(c.id) === collection)?.name ?? t('Collection'), clear: () => setCollection('') }] : []),
     // The file filters (Mediarium 3.3.0), each a chip too.
     ...(ui.vc ? [{ key: 'vc', label: ui.vc, clear: () => patchUi({ vc: '' }) }] : []),
@@ -504,6 +526,15 @@ export default function Library() {
   const genreOptions = useMemo(() => [...new Set((items ?? []).flatMap((i) => i.genres))].sort(), [items])
   const tagOptions = useMemo(() => [...new Set((items ?? []).flatMap((i) => i.tags))].sort((a, b) => a.localeCompare(b)), [items])
   const profileOptions = useMemo(() => profileFilterOptions(items ?? [], sortProfiles(profiles), defaultProfile, defaultTvProfile), [items, profiles, defaultProfile, defaultTvProfile])
+  // How many titles are in each library folder (the main one holds every title with no folder of its own).
+  const folderCounts = useMemo(() => {
+    const out = new Map<string, number>()
+    for (const i of items ?? []) {
+      const f = i.rootPath || folderChoices[0] || ''
+      out.set(f, (out.get(f) ?? 0) + 1)
+    }
+    return out
+  }, [items, folderChoices])
   const decadeOptions = useMemo(() => [...new Set((items ?? []).filter((i) => i.year).map((i) => Math.floor(i.year / 10) * 10))].sort((a, b) => b - a), [items])
 
   function chooseKind(k: Tab) {
@@ -511,7 +542,7 @@ export default function Library() {
     if (k === 'comics') return navigate('/comics')
     if (k === 'manga') return navigate('/manga') // Usherr
     if (k === 'nsfw') return navigate('/nsfw')
-    patchUi({ kind: k, st: 'all' })
+    patchUi({ kind: k, st: 'all', folder: '' })
     setSelected(new Set())
   }
   function chooseView(v: View) {
@@ -522,7 +553,7 @@ export default function Library() {
 
   // A streamed title opens its playback sheet (home fork).
   // Usherr: a streamed title opens its own page like any other (it says Streams there), not the Streamed list.
-  const openPath = (i: Item) => (i.kind === 'movie' ? `/title/${i.tmdbId}` : i.streamedId ? `/show/${i.tmdbId}` : `/series/${i.id}`)
+  const openPath = (i: Item) => openFromList(i.kind === 'movie' ? `/title/${i.tmdbId}` : i.streamedId ? `/show/${i.tmdbId}` : `/series/${i.id}`)
 
   async function run(fn: () => Promise<unknown>, done: string) {
     setBusy(true)
@@ -810,7 +841,7 @@ export default function Library() {
   const layerCounts = useMemo(() => {
     const movieTmdb = new Set((movies ?? []).map((m) => m.tmdbId))
     const showTmdb = new Set((shows ?? []).map((s) => s.tmdbId))
-    const animeShows = (shows ?? []).filter((s) => animeIds.has(s.id)).length
+    const animeShows = (shows ?? []).filter(isAnime).length
     let sm = 0
     let stv = 0
     let san = 0
@@ -823,13 +854,13 @@ export default function Library() {
       }
     }
     return { sm, stv, san, animeShows }
-  }, [movies, shows, streamed, animeIds])
+  }, [movies, shows, streamed, isAnime])
   // Only the open tab's list is loaded (3.1.3); the other tabs' numbers come from the server's counts.
   const counts: Record<Tab, number | undefined> = {
     movie: active === 'movie' && movies ? movies.length + layerCounts.sm : titleCounts?.movies,
     tv: onTV && shows ? shows.length - layerCounts.animeShows + layerCounts.stv : titleCounts ? titleCounts.shows - animeIds.size : undefined,
     anime: onTV && shows ? layerCounts.animeShows + layerCounts.san : animeIds.size,
-    music: artists?.length, ebook: bookCount('ebook'), audiobook: bookCount('audiobook'), comics: undefined, manga: undefined, nsfw: undefined,
+    music: artists?.length, ebook: bookCount('ebook'), audiobook: bookCount('audiobook'), comics: undefined, manga: undefined, nsfw: undefined, other: undefined,
   }
   // Usherr: the kinds as one drop-down (CompactBar.tsx); music and books show it in their own toolbars too.
   const kindSwitch = <KindPicker options={broadcastKinds(kinds.map((k) => ({ key: k as string, label: TAB_LABEL[k], glyph: TAB_GLYPH[k], color: TAB_COLOR[k], count: counts[k] })))} value={active} onChange={(k) => chooseKind(k as Tab)} /> // Usherr Broadcast: one order, one set of names
@@ -874,6 +905,7 @@ export default function Library() {
   const allShelves = forYouShelf ? [forYouShelf, ...shelves] : shelves
 
   // Usherr: search and AI are in the top bar
+  if (active === 'other') return <OtherLibrary switcher={kindSwitch} admin={admin} />
   if (active === 'music') return <><MusicLibrary artists={artists} error={error} switcher={kindSwitch} admin={admin} reload={load} /></>
   if (active === 'ebook' || active === 'audiobook') return <><BookLibrary format={active} books={bookList} queue={queueNow} error={error} switcher={kindSwitch} reload={load} admin={admin} /></>
 
@@ -954,7 +986,7 @@ export default function Library() {
         }
         panel={
           <>
-            <input type="search" className="cbar-find" placeholder={kind === 'movie' ? t('Find in your movies…') : t('Find in your shows…')} value={text} onChange={(e) => setText(e.target.value)} aria-label={t('Find in your library')} />
+            <input type="search" className="cbar-find" placeholder={kind === 'movie' ? t('Find in your movies…') : onAnime ? t('Find in your anime…') : t('Find in your shows…')} value={text} onChange={(e) => setText(e.target.value)} aria-label={t('Find in your library')} />
             <Dropdown
               icon="grid"
               label={t('Status')}
@@ -979,6 +1011,9 @@ export default function Library() {
             <Dropdown icon="calendar" label={t('Year')} value={decade} onChange={setDecade} options={[{ value: '', label: t('Any year') }, ...decadeOptions.map((d) => ({ value: String(d), label: t('{decade}s', { decade: String(d) }) }))]} />
             {profileOptions.length > 0 && (
               <Dropdown icon="sliders" label={t('Quality profile')} value={profileFilter} onChange={setProfileFilter} options={[{ value: '', label: t('All profiles') }, ...profileOptions.map((p) => ({ value: String(p.id), label: `${p.name} (${p.count})` }))]} />
+            )}
+            {folderOn && (
+              <Dropdown icon="folder" label={t('In folder')} value={folderFilter} onChange={setFolderFilter} options={[{ value: '', label: t('All folders') }, ...folderChoices.map((f) => ({ value: f, label: `${f} (${folderCounts.get(f) ?? 0})` }))]} />
             )}
             {/* What the files hold (Mediarium 3.3.0): codec, HDR, size, sound and subtitle languages */}
             {fileOptions.videoCodecs.length > 0 && (
@@ -1153,7 +1188,7 @@ export default function Library() {
           <Icon name={kind === 'movie' ? 'film' : 'tv'} size={44} />
           {total === 0 ? (
             <>
-              <p>{kind === 'movie' ? t('Your movie library is empty.') : t('Your TV library is empty.')}</p>
+              <p>{kind === 'movie' ? t('Your movie library is empty.') : onAnime ? t("No anime yet. An anime show you add lands here, and so does a show whose episode numbering you set to Anime.") : t('Your TV library is empty.')}</p>
               <div className="row-actions">
                 <button className="primary btn-with-icon" onClick={() => navigate('/search')}>
                   <Icon name="search" size={16} /> {kind === 'movie' ? t('Search to add a movie') : t('Search to add a show')}
@@ -1176,12 +1211,12 @@ export default function Library() {
         </div>
         {total === 0 && <StarterPicks key={`picks-${kind}`} kind={kind} onAdded={load} />}
         </>
-      ) : view === 'shelves' ? (
+      ) : view === 'shelves' && !pane ? (
         <div style={{ ['--shelf-w' as string]: `${posterSize}px` } as CSSProperties}>
           <Shelves key={`shelves-${active}-${rowsBy}`} memory={active} shelves={allShelves} render={cardFor} itemKey={(i) => i.key} empty={rowsBy === 'mood' ? <p className="hint">{t('Moods are still being worked out for your library. They appear here as they’re ready.')}</p> : undefined} />
           {view === 'shelves' && active === 'movie' && <CompleteTeaser />} {/* Usherr: after the shelves, not before the posters */}
         </div>
-      ) : view === 'grid' ? (
+      ) : view === 'grid' || view === 'shelves' || pane ? ( // Usherr: the tablet pane is always a poster column
         <WindowedGrid
           key={`grid-${active}`}
           style={{ '--poster-min': `${posterSize}px` } as CSSProperties}

@@ -24,6 +24,31 @@ var ErrGoogleBooksKey = errors.New("google books rejected the api key")
 
 var errGoogleBooksDown = errors.New("google books didn't answer")
 
+// ErrGoogleBooksQuota means Google Books has used up the requests it allows
+// (without a key they are shared by everyone who has none), or asked for fewer.
+// It is nothing wrong with the key: it passes, and trying later works.
+var ErrGoogleBooksQuota = errors.New("google books has reached its request limit, try again later")
+
+// googleRefusal turns Google's refusals into errors. A 403 is a refused key
+// when Google says so, but the same status carries "rate limit exceeded" and
+// "daily limit exceeded"; 429 is plainly too many requests. nil when the
+// status is not a refusal.
+func googleRefusal(status int, body []byte) error {
+	if status == http.StatusTooManyRequests {
+		return ErrGoogleBooksQuota
+	}
+	if status != http.StatusBadRequest && status != http.StatusForbidden {
+		return nil
+	}
+	low := strings.ToLower(string(body[:min(len(body), 4096)]))
+	for _, reason := range []string{"ratelimitexceeded", "dailylimitexceeded", "quotaexceeded", "resource_exhausted", "rate limit exceeded", "quota"} {
+		if strings.Contains(low, reason) {
+			return ErrGoogleBooksQuota
+		}
+	}
+	return ErrGoogleBooksKey
+}
+
 // GoogleHit is one volume as Google returned it. CoverURL is the picture
 // Google hosts; search copies it onto this server before the page sees it.
 type GoogleHit struct {
@@ -188,8 +213,8 @@ func (g *GoogleBooks) Book(ctx context.Context, id string) (WorkInfo, error) {
 	if status == http.StatusNotFound {
 		return WorkInfo{}, ErrNotFound
 	}
-	if status == http.StatusBadRequest || status == http.StatusForbidden {
-		return WorkInfo{}, ErrGoogleBooksKey
+	if err := googleRefusal(status, body); err != nil {
+		return WorkInfo{}, err
 	}
 	if status != http.StatusOK {
 		return WorkInfo{}, errGoogleBooksDown
@@ -202,11 +227,16 @@ func (g *GoogleBooks) Book(ctx context.Context, id string) (WorkInfo, error) {
 	if !ok || hit.ID != id {
 		return WorkInfo{}, ErrNotFound
 	}
+	// A volume page can carry the blurb only as the search extract. The list
+	// often omits both, so the work page asks for the volume when it has none.
+	if hit.Description == "" && v.SearchInfo != nil {
+		hit.Description = plainDescription(v.SearchInfo.TextSnippet)
+	}
 	f, ok := hit.Found()
 	if !ok {
 		return WorkInfo{}, ErrNotFound
 	}
-	return WorkInfo{Found: f, Description: plainDescription(v.VolumeInfo.Description), Subjects: []string{}}, nil
+	return WorkInfo{Found: f, Description: hit.Description, Subjects: []string{}}, nil
 }
 
 // ImageURL is the picture address Google Books has for a volume, or ErrNotFound.
@@ -265,15 +295,15 @@ func MergeGoogle(openLib, goog []Found) []Found {
 
 // Check asks Google whether the key is accepted.
 func (g *GoogleBooks) Check(ctx context.Context) error {
-	status, _, err := g.fetch(ctx, "/volumes", url.Values{
+	status, body, err := g.fetch(ctx, "/volumes", url.Values{
 		"q":          {"isbn:9780140328721"},
 		"maxResults": {"1"},
 	})
 	if err != nil {
 		return err
 	}
-	if status == http.StatusBadRequest || status == http.StatusForbidden {
-		return ErrGoogleBooksKey
+	if err := googleRefusal(status, body); err != nil {
+		return err
 	}
 	if status != http.StatusOK {
 		return errGoogleBooksDown
@@ -301,8 +331,8 @@ func (g *GoogleBooks) Search(ctx context.Context, q, lang string, limit int) ([]
 	if err != nil {
 		return nil, err
 	}
-	if status == http.StatusBadRequest || status == http.StatusForbidden {
-		return nil, ErrGoogleBooksKey
+	if err := googleRefusal(status, body); err != nil {
+		return nil, err
 	}
 	if status != http.StatusOK {
 		return nil, errGoogleBooksDown
@@ -355,8 +385,9 @@ func (g *GoogleBooks) fetch(ctx context.Context, path string, query url.Values) 
 }
 
 type googleVolume struct {
-	ID         string           `json:"id"`
-	VolumeInfo googleVolumeInfo `json:"volumeInfo"`
+	ID         string            `json:"id"`
+	VolumeInfo googleVolumeInfo  `json:"volumeInfo"`
+	SearchInfo *googleSearchInfo `json:"searchInfo"`
 }
 
 type googleVolumeInfo struct {
@@ -383,6 +414,12 @@ type googleImageLinks struct {
 type googleIdentifier struct {
 	Type       string `json:"type"`
 	Identifier string `json:"identifier"`
+}
+
+// googleSearchInfo is the short extract Google sometimes sends beside the
+// volume, when volumeInfo.description itself is empty.
+type googleSearchInfo struct {
+	TextSnippet string `json:"textSnippet"`
 }
 
 func (v googleVolume) hit() (GoogleHit, bool) {
@@ -454,11 +491,9 @@ func googleCover(links *googleImageLinks) string {
 		if parsed.Scheme == "http" && (host == "books.google.com" || strings.HasSuffix(host, ".google.com") || strings.HasSuffix(host, ".googleusercontent.com")) {
 			parsed.Scheme = "https"
 		}
-		if parsed.Query().Get("zoom") == "1" {
-			q := parsed.Query()
-			q.Set("zoom", "3")
-			parsed.RawQuery = q.Encode()
-		}
+		// Leave zoom as Google sent it. zoom=1 is the thumbnail that exists for
+		// almost every book. Asking for zoom=3 when Google has no larger scan
+		// returns a blank "image not available" picture, which we would then keep.
 		out := strings.ReplaceAll(parsed.String(), "&edge=curl", "")
 		out = strings.ReplaceAll(out, "?edge=curl&", "?")
 		out = strings.ReplaceAll(out, "?edge=curl", "")

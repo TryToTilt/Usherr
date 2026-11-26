@@ -83,7 +83,7 @@ export default function Manga() {
     return (
       <div className="page-pad mg-page">
         <h1>{t('Manga')}</h1>
-        <p className="mg-hint">{admin ? t('Manga is switched off. Switch it on in Settings > Media types.') : t('Manga isn’t switched on.')}</p>
+        <p className="mg-hint">{admin ? t('Manga is switched off. Switch it on in Settings > Basics > Media types.') : t('Manga isn’t switched on.')}</p>
         {admin && (
           <div>
             <Link className="btn-sm" to="/settings/modules">

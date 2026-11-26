@@ -10,12 +10,30 @@
 package parser
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 )
+
+// SeasonSpan says which seasons a pack of several seasons or a whole series
+// holds: from the first season to the last, where to is 0 when the name says
+// "complete" without naming the seasons. ok is false for anything else (an
+// episode, a single season, a name that says nothing of the kind).
+func (r Release) SeasonSpan() (from, to int, ok bool) {
+	if len(r.Episodes) > 0 || r.AirDate != "" {
+		return 0, 0, false
+	}
+	switch {
+	case r.SeasonTo > r.Season:
+		return r.Season, r.SeasonTo, true
+	case r.Complete && r.Season == 0 && !r.Special:
+		return 1, 0, true
+	}
+	return 0, 0, false
+}
 
 // parseCalls counts calls to Parse, so a test can show that a run parses each
 // release once.
@@ -33,9 +51,12 @@ type Release struct {
 	// YearLate is set when Year stands after the season or episode marker
 	// ("Show.S01E05.2015.WEB-DL"). That is as likely an air year as the show's
 	// own, so a check against the show's year should not rely on it.
-	YearLate   bool
-	Season     int   // 0 = not a TV release
-	SeasonTo   int   // last season of a pack of several (S01-S03 gives 3), else 0
+	YearLate bool
+	Season   int // 0 = not a TV release
+	SeasonTo int // last season of a pack of several (S01-S03 gives 3), else 0
+	// Complete is set when the name says it holds a whole series ("Complete.Series",
+	// "Complete.Collection", "All.Seasons"), with or without the seasons listed.
+	Complete   bool
 	Episode    int   // 0 = season pack / not episode-specific
 	Episodes   []int // populated for multi-episode releases (e.g. E01E02)
 	Resolution string
@@ -89,13 +110,13 @@ var (
 		{regexp.MustCompile(`(?i)\brepack\b`), func(r *Release, _ []string) { r.Repack = true }},
 		{regexp.MustCompile(`(?i)\b3D\b`), func(r *Release, _ []string) { r.Is3D = true }},
 
-		{regexp.MustCompile(`(?i)\b(HDR10\+)(?:[^A-Za-z0-9]|$)`), func(r *Release, m []string) { r.HDR = "HDR10+" }},
+		{regexp.MustCompile(`(?i)\b(HDR10\+|HDR10Plus)(?:[^A-Za-z0-9]|$)`), func(r *Release, m []string) { r.HDR = "HDR10+" }},
 		{regexp.MustCompile(`(?i)\b(HDR10|HDR)\b`), func(r *Release, m []string) {
 			if r.HDR != "HDR10+" {
 				r.HDR = "HDR10"
 			}
 		}},
-		{regexp.MustCompile(`(?i)\b(DV|Dolby[. ]?Vision)\b`), func(r *Release, m []string) { r.HDR = "Dolby Vision" }},
+		{regexp.MustCompile(`(?i)\b(DV|DoVi|Dolby[. ]?Vision)\b`), func(r *Release, m []string) { r.HDR = "Dolby Vision" }},
 
 		{regexp.MustCompile(`(?i)\b(Extended|Director'?s[. ]?Cut|Unrated|IMAX|Theatrical|Remastered|Criterion)\b`), func(r *Release, m []string) { r.Edition = normalizeSpace(m[1]) }},
 
@@ -111,13 +132,29 @@ var (
 			}
 			r.Resolution = res
 		}},
+		// The size of the picture written out ("1920x1080"), when no "1080p" came.
+		{pixelSizeRe, func(r *Release, m []string) {
+			if r.Resolution != "" {
+				return
+			}
+			switch m[1] {
+			case "2160":
+				r.Resolution = "2160p"
+			case "1080":
+				r.Resolution = "1080p"
+			case "720":
+				r.Resolution = "720p"
+			default:
+				r.Resolution = "480p"
+			}
+		}},
 
 		// An HDRip is a re-encode of something that is not a clean web or disc
 		// copy, usually a TV capture. It comes first so a name that also says
 		// WEB-DL or BluRay is read by those, which follow.
 		{regexp.MustCompile(`(?i)\b(HD-?Rip)\b`), func(r *Release, m []string) { r.Source = normalizeSource(m[1]) }},
-		{regexp.MustCompile(`(?i)\b(WEB-?DL|WEBRip|WEB)\b`), func(r *Release, m []string) { r.Source = normalizeSource(m[1]) }},
-		{regexp.MustCompile(`(?i)\b(BluRay|BDRip|BRRip)\b`), func(r *Release, m []string) { r.Source = normalizeSource(m[1]) }},
+		{regexp.MustCompile(`(?i)\b(WEB[. -]?DL|WEB[. -]?Rip|WEB)\b`), func(r *Release, m []string) { r.Source = normalizeSource(m[1]) }},
+		{regexp.MustCompile(`(?i)\b(Blu[. -]?Ray|BDRip|BRRip)\b`), func(r *Release, m []string) { r.Source = normalizeSource(m[1]) }},
 		{regexp.MustCompile(`(?i)\b(HDTV|PDTV|SDTV)\b`), func(r *Release, m []string) { r.Source = normalizeSource(m[1]) }},
 		{regexp.MustCompile(`(?i)\b(DVDRip|DVDR|DVD)\b`), func(r *Release, m []string) { r.Source = normalizeSource(m[1]) }},
 		// Pre-release copies (recorded in a cinema, or screener discs). They
@@ -130,9 +167,9 @@ var (
 		// above) because a filename can contain both words separately
 		// ("...BluRay.REMUX...") — Remux is the more specific quality tier
 		// and should win when both are present.
-		{regexp.MustCompile(`(?i)\bRemux\b`), func(r *Release, _ []string) { r.Source = "Remux" }},
+		{regexp.MustCompile(`(?i)\b(?:BD[. -]?)?Remux\b`), func(r *Release, _ []string) { r.Source = "Remux" }},
 
-		{regexp.MustCompile(`(?i)\b(x264|x265|h[. ]?264|h[. ]?265|hevc|avc|xvid|divx)\b`), func(r *Release, m []string) { r.Codec = normalizeCodec(m[1]) }},
+		{regexp.MustCompile(`(?i)\b(x264|x265|h[. ]?264|h[. ]?265|hevc|avc|xvid|divx|av1)\b`), func(r *Release, m []string) { r.Codec = normalizeCodec(m[1]) }},
 
 		{regexp.MustCompile(`(?i)\b(TrueHD|Atmos|DTS-?HD|DTS|DDP?5\.1|DD5\.1|AC3|EAC3|AAC2?\.0|AAC|FLAC|MP3)\b`), func(r *Release, m []string) { r.AudioCodec = normalizeAudio(m[1]) }},
 
@@ -166,26 +203,55 @@ var (
 				}
 			}
 		}},
+		// "Season 5 Episode 14" written out, in the languages names come in.
+		{seasonEpisodeWordRe, func(r *Release, m []string) {
+			r.Season = atoi(m[1])
+			r.Special = r.Season == 0
+			r.Episode = atoi(m[2])
+			r.Episodes = []int{r.Episode}
+		}},
 		// Season pack: S01, Season 1 (spaces are already dots by now), or
 		// several seasons: S01-S03, S01-03, Season 1-3. A name that already
 		// gave an episode keeps that episode's season.
 		{seasonWordRe, assignSeasonPack},
+		// "Complete.Series", "The.Complete.Collection", "All.Seasons": a whole show.
+		{completeRe, func(r *Release, _ []string) { r.Complete = true }},
 		{seasonPackRe, assignSeasonPack},
 		// Airdate style: 2021.05.14 or 2021-05-14
 		{airDateRe, func(r *Release, m []string) {
-			if r.Season == 0 && !r.Special {
+			if r.Season == 0 && !r.Special && realDate(atoi(m[1]), atoi(m[2]), atoi(m[3])) {
 				r.AirDate = m[1] + "-" + m[2] + "-" + m[3]
+			}
+		}},
+		// The same with the year last ("15.03.2024", "03.15.2024"). It counts only
+		// when one of the two numbers cannot be a month, so day and month are certain.
+		{airDateYearLastRe, func(r *Release, m []string) {
+			a, b, y := atoi(m[1]), atoi(m[2]), atoi(m[3])
+			day, month := a, b
+			if a <= 12 && b > 12 {
+				day, month = b, a
+			}
+			if r.AirDate == "" && r.Season == 0 && !r.Special && (a > 12) != (b > 12) && realDate(y, month, day) {
+				r.AirDate = fmt.Sprintf("%04d-%02d-%02d", y, month, day)
 			}
 		}},
 	}
 
 	// The season and episode markers, described where tokens uses them. A
 	// title can come after one of these ("Season.2.Show.1080p").
-	titleWordBeforeYear = regexp.MustCompile(`(?i)^web\.(?:19|20)\d{2}(?:[.\-)\]]|$)`)
-	seasonEpisodeRe     = regexp.MustCompile(`(?i)[Ss]((?:19|20)\d{2}|\d{1,2})[._-]?([Ee]\d{1,3}(?:\.?[Ee]\d{1,3})*(?:-(?:[Ss]\d{1,2})?[Ee]?\d{1,3}\b)?)`)
+	titleWordBeforeYear = regexp.MustCompile(`(?i)^web\.[(\[]?(?:19|20)\d{2}(?:[.\-)\]]|$)`)
+	seasonEpisodeRe     = regexp.MustCompile(`(?i)[Ss]((?:19|20)\d{2}|\d{1,2})[._-]?([Ee]\d{1,4}(?:\.?[Ee]\d{1,4})*(?:-(?:[Ss]\d{1,2})?[Ee]?\d{1,4}\b)?)`)
 	crossEpisodeRe      = regexp.MustCompile(`(?i)\b(\d{1,2})x(\d{2,3})(?:-(?:(\d{1,2})x)?(\d{2,3}))?\b`)
-	seasonWordRe        = regexp.MustCompile(`(?i)\bSeason[. ]?(\d{1,2})(?:-(\d{1,2}))?\b`)
-	seasonPackRe        = regexp.MustCompile(`(?i)\bS(\d{1,2})(?:-S?(\d{1,2}))?\b`)
+	seasonWordRe        = regexp.MustCompile(`(?i)\b(?:Seasons?|Staffel|Saison|Seizoen|Temporada|Stagione)[. ]?(\d{1,2})(?:(?:-|\.to\.|\.thru\.)(\d{1,2}))?\b`)
+	completeRe          = regexp.MustCompile(`(?i)\b(?:the\.)?(?:complete\.(?:tv\.)?(?:series|collection|show|box\.?set|seasons)|all\.seasons|complete(?:\.seasons?)?\.s?\d{1,2}-s?\d{1,2})\b`)
+	// seasonEpisodeWordRe is "Season 5 Episode 14", also as "Staffel 5 Folge 14".
+	seasonEpisodeWordRe = regexp.MustCompile(`(?i)\b(?:Seasons?|Staffel|Saison|Seizoen|Temporada|Stagione)[. ]?(\d{1,2})[. _-]+(?:Episodes?|Episodio|Folge|Aflevering|Ep)[. ]?(\d{1,3})\b`)
+	pixelSizeRe         = regexp.MustCompile(`(?i)\b(?:3840|1920|1280|1024|854|720|640)x(2160|1080|720|576|480)\b`)
+	// airDateYearLastRe is a date with the year at the end.
+	airDateYearLastRe = regexp.MustCompile(`\b(\d{2})[.-](\d{2})[.-]((?:19|20)\d{2})\b`)
+	// batchBracketRe is the range an anime batch puts in brackets: "(01-12)".
+	batchBracketRe = regexp.MustCompile(`\.?[(\[](\d{1,4})-(\d{1,4})[)\]]`)
+	seasonPackRe   = regexp.MustCompile(`(?i)\bS(\d{1,2})(?:-S?(\d{1,2})|[\s.]+S(\d{1,2}))?\b`)
 
 	// junkSuffixRe is what posting tools add after the group ("-GRP-postbot",
 	// "-GRP-Obfuscated"); trailingTagRe a site's tag after it ("-GRP[rarbg]").
@@ -204,7 +270,7 @@ var (
 	plainWordRe = regexp.MustCompile(`^[A-Za-z]+$`)
 	// The year must stand alone: "1920x1080" and "12019" hold no year.
 	yearPattern  = regexp.MustCompile(`\b` + yearRe + `\b`)
-	episodeTagRe = regexp.MustCompile(`(?i)[Ee](\d{1,3})`)
+	episodeTagRe = regexp.MustCompile(`(?i)[Ee](\d{1,4})`)
 	// Anime: a leading "[Group]", then "Title - 1085" (or a batch "- 01-12"),
 	// or "Title.E1085" without a season.
 	leadingGroupRe = regexp.MustCompile(`^\[([^\]]{1,40})\][.\s_]*`)
@@ -212,7 +278,7 @@ var (
 	// seasonDashRe is the anime way of naming a later season's episode:
 	// "Show S2 - 05" (spaces are dots by then).
 	seasonDashRe   = regexp.MustCompile(`(?i)\bS(\d{1,2})\.-\.(\d{1,3})(?:v\d)?(?:-(\d{1,3})(?:v\d)?)?(?:\.|\[|\(|$)`)
-	absoluteERe    = regexp.MustCompile(`(?i)\.E(\d{2,4})(?:v\d)?(?:\.|\[|\(|$)`)
+	absoluteERe    = regexp.MustCompile(`(?i)\.(?:E|Ep\.?|Episode\.?)(\d{2,4})(?:v\d)?(?:\.|\[|\(|$)`)
 	leadingDigitRe = regexp.MustCompile(`^(\d{1,3})`)
 )
 
@@ -303,21 +369,24 @@ func endsWithTags(rest string) bool {
 }
 
 // assignSeasonPack reads a season pack marker: m[1] is the season, m[2] the
-// last season of a range, if any.
+// last season of a range, if any (written in one of three ways, so m has more groups).
 func assignSeasonPack(r *Release, m []string) {
 	if len(r.Episodes) > 0 {
 		return
 	}
 	r.Season = atoi(m[1])
 	r.Special = r.Special || r.Season == 0
-	if to := atoi(m[2]); to > r.Season {
-		r.SeasonTo = to
+	for _, g := range m[2:] { // "S01-S03", "S01 S03" and "S01.S03" all name a span
+		if to := atoi(g); to > r.Season {
+			r.SeasonTo = to
+			break
+		}
 	}
 }
 
 // isSeasonMarker reports whether a token regex is a season or episode marker.
 func isSeasonMarker(re *regexp.Regexp) bool {
-	return re == seasonEpisodeRe || re == crossEpisodeRe || re == seasonWordRe || re == seasonPackRe
+	return re == seasonEpisodeRe || re == seasonEpisodeWordRe || re == crossEpisodeRe || re == seasonWordRe || re == seasonPackRe
 }
 
 // parseEpisodeRun expands a captured episode-tag run (e.g. "E01E02E03",
@@ -341,7 +410,7 @@ func parseEpisodeRun(s string) []int {
 		} else {
 			return []int{start}
 		}
-		if end < start {
+		if end < start || end-start >= 1000 {
 			return []int{start}
 		}
 		out := make([]int, 0, end-start+1)
@@ -490,10 +559,21 @@ func Parse(name string) Release {
 					titleEnd = loc[0]
 				}
 			}
-		} else if loc := absoluteERe.FindStringSubmatchIndex(working); loc != nil && loc[0] > 0 {
+		} else if loc := absoluteERe.FindStringSubmatchIndex(working); loc != nil && loc[0] > 0 && !yearLike(working[loc[2]:loc[3]]) {
 			r.Absolute = []int{atoi(working[loc[2]:loc[3]])}
 			if loc[0] < titleEnd {
 				titleEnd = loc[0]
+			}
+		} else if loc := batchBracketRe.FindStringSubmatchIndex(working); loc != nil && loc[0] > 0 {
+			// "Show (01-12)": a batch of episodes, unless it is a span of years.
+			first, last := atoi(working[loc[2]:loc[3]]), atoi(working[loc[4]:loc[5]])
+			if first > 0 && first < 1900 && last >= first && last-first <= 2000 {
+				for e := first; e <= last; e++ {
+					r.Absolute = append(r.Absolute, e)
+				}
+				if loc[0] < titleEnd {
+					titleEnd = loc[0]
+				}
 			}
 		}
 	}
@@ -618,8 +698,10 @@ func IsPreRelease(source string) bool {
 	return false
 }
 
+var sourceSeparators = strings.NewReplacer("-", "", ".", "", " ", "")
+
 func normalizeSource(s string) string {
-	switch strings.ToLower(strings.ReplaceAll(s, "-", "")) {
+	switch strings.ToLower(sourceSeparators.Replace(s)) {
 	case "webdl":
 		return "WEB-DL"
 	case "webrip":
@@ -663,6 +745,8 @@ func normalizeCodec(s string) string {
 		return "XviD"
 	case "divx":
 		return "DivX"
+	case "av1":
+		return "AV1"
 	default:
 		return s
 	}
@@ -682,6 +766,12 @@ func normalizeAudio(s string) string {
 	}
 }
 
+// yearLike reports whether digits are four long and read as a year.
+func yearLike(digits string) bool {
+	n := atoi(digits)
+	return len(digits) == 4 && n >= 1900 && n <= 2099
+}
+
 func atoi(s string) int {
 	n, _ := strconv.Atoi(s)
 	return n
@@ -689,14 +779,43 @@ func atoi(s string) int {
 
 // halfEpisode reports whether the number a match ended on goes on with a
 // decimal part: "- 12.5" is a recap between episodes 12 and 13, not 12.
+//
+// Only a short number counts as a decimal part: in "Show.-.366.720p" the dot
+// belongs to the name, and "720p" is the resolution.
 func halfEpisode(working string, end int) bool {
-	return end > 0 && end < len(working) && working[end-1] == '.' && working[end] >= '0' && working[end] <= '9'
+	if end <= 0 || end >= len(working) || working[end-1] != '.' || working[end] < '0' || working[end] > '9' {
+		return false
+	}
+	i := end
+	for i < len(working) && working[i] >= '0' && working[i] <= '9' {
+		i++
+	}
+	if i-end > 2 {
+		return false
+	}
+	if i < len(working) {
+		c := working[i] | 0x20
+		return !(c >= 'a' && c <= 'z')
+	}
+	return true
+}
+
+// realDate reports whether year, month and day make a date that exists.
+func realDate(year, month, day int) bool {
+	if month < 1 || month > 12 || day < 1 || day > 31 {
+		return false
+	}
+	t := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+	return t.Day() == day
 }
 
 // dailyTitle is the text between the air date and the first tag after it
 // (or the release group at the end), with any "Part N" read out of it.
 func dailyTitle(working string, tagStarts []int) (string, int) {
 	loc := airDateRe.FindStringIndex(working)
+	if loc == nil {
+		loc = airDateYearLastRe.FindStringIndex(working)
+	}
 	if loc == nil {
 		return "", 0
 	}

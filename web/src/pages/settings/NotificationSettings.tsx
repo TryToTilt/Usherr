@@ -269,7 +269,7 @@ function MethodForm({
                 />
               )}
               <FieldError v={v} name={f.name} />
-              {f.help && <small className="field-help">{f.help}</small>}
+              {f.help && <small className="field-help">{st(f.help) /* Usherr: the app's name */}</small>}
             </label>
           )
         })}
@@ -579,7 +579,7 @@ function Watch() {
   )
 }
 
-// Settings > Connections > Notifications: the ones you have set up on top, and
+// Settings > Media servers and apps > Notifications: the ones you have set up on top, and
 // below them a list of every method to choose from with the form for it.
 export default function NotificationSettings() {
   const toast = useToast()

@@ -23,8 +23,10 @@ import (
 	"github.com/rdborg/mediarium/internal/delay"
 	"github.com/rdborg/mediarium/internal/download"
 	"github.com/rdborg/mediarium/internal/ereader"
+	"github.com/rdborg/mediarium/internal/imgproxy"
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/library"
+	"github.com/rdborg/mediarium/internal/librarysearch"
 	"github.com/rdborg/mediarium/internal/mediaservers"
 	"github.com/rdborg/mediarium/internal/metadata"
 	"github.com/rdborg/mediarium/internal/migrate"
@@ -32,6 +34,7 @@ import (
 	"github.com/rdborg/mediarium/internal/music"
 	"github.com/rdborg/mediarium/internal/musicbrainz"
 	"github.com/rdborg/mediarium/internal/notify"
+	"github.com/rdborg/mediarium/internal/other"
 	"github.com/rdborg/mediarium/internal/problems"
 	"github.com/rdborg/mediarium/internal/quality"
 	"github.com/rdborg/mediarium/internal/queue"
@@ -39,6 +42,7 @@ import (
 	"github.com/rdborg/mediarium/internal/settings"
 	"github.com/rdborg/mediarium/internal/simkl"
 	"github.com/rdborg/mediarium/internal/subtitles"
+	"github.com/rdborg/mediarium/internal/thetvdb"
 	"github.com/rdborg/mediarium/internal/torrentopts"
 	"github.com/rdborg/mediarium/internal/trakt"
 	"github.com/rdborg/mediarium/internal/tvmaze"
@@ -90,10 +94,13 @@ type Server struct {
 	Announce          *announce.Manager // runs them
 	MusicRepo         *music.Repo       // artists, albums, tracks (the music module, music*.go)
 	BookRepo          *books.Repo       // ebooks and audiobooks (books_api.go)
+	OtherRepo         *other.Repo       // the Other media type (other.go)
 	EReader           *ereader.Repo     // e-reader password and Kobo sync address (ereader_*.go)
 	ereader           ereaderRuntime    // limits and store address for the e-reader routes (ereader_auth.go)
 	kosyncRT          kosyncRuntime     // Usherr: the look over the library for KOSync (kosync_api.go)
 	OpenLibrary       *books.Client
+	Artwork           *imgproxy.Proxy // resizes and keeps posters and backdrops (artwork_proxy.go)
+	artworkOnce       sync.Once
 	Requests          *requests.Repo
 	Audnexus          *books.Audnexus
 	bookImport        bookImports    // the "import books already on disk" job (books_import.go)
@@ -141,6 +148,20 @@ type Server struct {
 	trashMu sync.Mutex
 	trash   *trashSource // the TRaSH Guides import, made when first used
 
+	// The TheTVDB client for the saved key (tvdb_fill.go); tvdbKey is the key
+	// it was made for, tvdbTestBase another address (tests).
+	// Scores from OMDb (outside_scores.go).
+	scoresOnce sync.Once
+	scoreState *scoreState
+
+	tvdbMu       sync.Mutex
+	tvdb         *thetvdb.Client
+	tvdbKey      string
+	tvdbTestBase string
+
+	trafficPrunedOn string
+	catNames        categoryNames // indexers' category names, for the language of book releases (book_language.go) // the day the Usenet server traffic was last pruned (indexer_health.go)
+
 	mbMu  sync.RWMutex
 	mb    *musicbrainz.Client // one client, so its one-request-per-second limit is shared
 	music musicState          // music hunt position and library scan jobs (music*.go)
@@ -186,6 +207,7 @@ type Server struct {
 	pipelines    pipelineRegistry  // running download pipelines, so removing a title can cancel its downloads
 	dispatch     *queue.Dispatcher // the download line: starts the next waiting download when a place is free (dispatch.go)
 	bulk         bulkState         // whether a batch search from the Library page is running (handlers_bulk.go)
+	events       eventHub          // the open live streams of the browsers (events.go)
 	lists        importListState   // the import lists being read (import_lists.go)
 	portal       portalState       // messages to the people who asked (request_portal.go)
 	arrFillState                   // reading missing TVDB ids for the Sonarr-style API (arr_series.go)
@@ -199,7 +221,14 @@ type Server struct {
 	Monitor *monitor.Monitor // connectivity monitor (Usenet servers, indexers)
 
 	restoreMu sync.Mutex // one restore upload at a time
-	exitFn    func()     // what to do once a restore is staged (see SetExitFunc)
+
+	configMu sync.Mutex   // one settings file applied at a time (config_restore.go)
+	selfAPI  http.Handler // the signed-in routes, which the settings file is applied through (set by Routes)
+
+	doctorOnce  sync.Once
+	doctorState *downloadDoctor                 // downloads that failed for a local reason, waiting to be tried again
+	doctorRetry func(queue.Item) (int64, error) // tests: what a retry does instead of retryQueueItem
+	exitFn      func()                          // what to do once a restore is staged (see SetExitFunc)
 	// restartInPlace is set when the app exits to start again (RestartWanted).
 	restartInPlace atomic.Bool
 	restartDelay   time.Duration // zero means defaultRestartDelay
@@ -208,7 +237,10 @@ type Server struct {
 	metaJob metaFilesJob // writing NFO and artwork files for the whole library (metadata_files.go)
 
 	mcp   mcpState   // AI assistants connecting over MCP (mcp.go)
+	dlapi dlapiState // the SABnzbd and qBittorrent look-alike addresses for phone apps (compat_downloaders.go)
 	oauth oauthState // their OAuth sign-in (mcp_oauth.go)
+
+	archiver archiverState // the Channel archiver: the one check that may run (archiver.go)
 
 	upd updateRuntime // the new-version notice, pushed and downloaded updates, and the self-restart marker (update_*.go, watchdog.go)
 }
@@ -274,6 +306,11 @@ func New(db *sql.DB, cfg config.Config, box *crypto.Box, defaultTMDBAPIKey, vers
 		Usage:        tracker,
 	}
 	s.QueueRepo.SetBox(box) // download addresses carry indexer keys: kept encrypted
+	if rebuilt, err := librarysearch.Ensure(context.Background(), db); err != nil {
+		slog.Warn("library search: could not fill the search index; the search uses the tables meanwhile", "err", err)
+	} else if rebuilt {
+		slog.Info("library search: the search index was empty and has been filled again")
+	}
 	s.startProblems()
 	s.applyDebugLogging()
 	s.Definitions = indexers.NewDefinitionStore(filepath.Join(cfg.ConfigDir, "indexer-definitions"))
@@ -312,6 +349,7 @@ func New(db *sql.DB, cfg config.Config, box *crypto.Box, defaultTMDBAPIKey, vers
 	}
 	s.MusicRepo = music.NewRepo(db)
 	s.BookRepo = books.NewRepo(db)
+	s.OtherRepo = other.NewRepo(db)
 	if box != nil {
 		s.EReader = ereader.NewRepo(db, box)
 	} else {
@@ -326,7 +364,7 @@ func New(db *sql.DB, cfg config.Config, box *crypto.Box, defaultTMDBAPIKey, vers
 		return nil, fmt.Errorf("init music profiles: %w", err)
 	}
 	s.AnnounceRepo = announce.NewRepo(db, box)
-	s.Announce = announce.NewManager(s.AnnounceRepo, ircDecider{s}, slog.Default())
+	s.Announce = announce.NewManager(s.AnnounceRepo, ircDecider{s: s}, slog.Default())
 	s.torrents.noPortMapping = !s.torrentPortMapping()
 	s.torrents.allowLocal = s.torrentAllowLocal()
 	s.torrents.discover = s.vpnUDPDiscovery()
@@ -335,6 +373,9 @@ func New(db *sql.DB, cfg config.Config, box *crypto.Box, defaultTMDBAPIKey, vers
 	s.dispatch = s.newDispatcher()
 	s.applyFilePerms()   // the saved file and folder modes for new library files
 	s.recoverAtStartup() // downloads that were running come back paused; stuck titles are put right
+	if err := s.Settings.Set(settings.KeyLastVersion, version, false); err != nil {
+		slog.Warn("settings: couldn't note the version that is starting", "err", err)
+	}
 	return s, nil
 }
 
@@ -448,6 +489,7 @@ func (s *Server) Routes() http.Handler {
 	// The MCP address for AI assistants signs in with an API key of its own (mcp.go).
 	routes := s.protectedRoutes()
 	s.mcp.table = routes
+	s.selfAPI = routes
 	public.HandleFunc("/api/mcp", s.handleMCP)
 	public.Handle("/api/", s.signedIn(routes))
 
@@ -464,6 +506,8 @@ func (s *Server) Routes() http.Handler {
 	root.Handle("/mcp/", s.busyGuard(noStore(http.HandlerFunc(handleMCPOther))))
 	// Radarr, Sonarr and Lidarr-style endpoints for other apps (arr.go).
 	s.arrRoutes(root)
+	// SABnzbd and qBittorrent-style endpoints for phone apps such as nzb360 (compat_sabnzbd.go, compat_qbittorrent.go).
+	s.downloaderAPIRoutes(root)
 	// E-readers: the OPDS catalogue and Kobo sync sign in their own way (ereader_auth.go).
 	s.opdsRoutes(root)
 	s.koboRoutes(root)
@@ -492,7 +536,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	t.permsOf = s.Auth.PermissionsOf
 	member := t.group(accessMember)
 	admin := t.group(accessAdmin)
-	// What a basic account needs for a route (Settings > Accounts).
+	// What a basic account needs for a route (Settings > People and access > All accounts).
 	releases := member.Need(auth.PermReleases)
 	manage := member.Need(auth.PermManage)
 	play := member.Need(auth.PermPlay)
@@ -504,6 +548,8 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("GET /api/auth/me", s.handleMe)
 	member.HandleFunc("PUT /api/auth/profile", s.handleUpdateUserProfile)
 	member.HandleFunc("POST /api/auth/change-password", s.handleChangePassword)
+	member.HandleFunc("GET /api/auth/discover-services", s.handleGetDiscoverServices)
+	member.HandleFunc("PUT /api/auth/discover-services", s.handlePutDiscoverServices)
 	member.HandleFunc("GET /api/auth/sessions", s.handleListSessions)
 	member.HandleFunc("DELETE /api/auth/sessions", s.handleEndOtherSessions)
 	member.HandleFunc("GET /api/auth/api-keys", s.handleListAPIKeys)
@@ -543,14 +589,21 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("POST /api/feedback", s.handleSendFeedback)
 	member.HandleFunc("DELETE /api/calendar/feed", s.handleRemoveCalendarFeed)
 	member.HandleFunc("GET /api/wanted", revalidated(s.handleWanted))
+	admin.HandleFunc("GET /api/wanted/review", s.handleWantedReview)
+	admin.HandleFunc("POST /api/wanted/review/keep", s.handleWantedKeep)
 	member.HandleFunc("GET /api/activity", revalidated(s.handleListActivity))
 	member.HandleFunc("GET /api/modules", s.handleModules)
 	member.HandleFunc("GET /api/watched", s.handleWatched)
 	member.HandleFunc("GET /api/leaving-soon", s.handleLeavingSoon)           // Usherr: clean-up rules
 	member.HandleFunc("POST /api/leaving-soon/keep", s.handleLeavingSoonKeep) // Usherr: "Keep it", when allowed
+	member.HandleFunc("GET /api/events", s.handleEvents)
+	member.HandleFunc("GET /api/library/suggest", s.handleLibrarySuggest)
+	member.HandleFunc("GET /api/lifecycle/shelf", s.handleLifecycleShelf)
+	member.HandleFunc("POST /api/lifecycle/keep", s.handleLifecycleKeep)
 	member.HandleFunc("GET /api/requests", s.handleListRequests)
 	member.HandleFunc("DELETE /api/requests/{id}", s.handleDeleteRequest)
 	member.HandleFunc("GET /api/requests/status", s.handleRequestStatus)
+	member.HandleFunc("POST /api/requests/removal", s.handleCreateRemovalRequest)
 	member.HandleFunc("GET /api/issues", s.handleListIssues)
 	member.HandleFunc("POST /api/issues", s.handleCreateIssue)
 	member.HandleFunc("GET /api/auth/request-notices", s.handleGetRequestNotices)
@@ -864,6 +917,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("GET /api/tmdb/movies/{tmdbId}/similar", s.handleTMDBSimilarMovies)
 	member.HandleFunc("GET /api/tmdb/tv/{tmdbId}", s.handleTMDBTVDetail)
 	member.HandleFunc("GET /api/tmdb/tv/{tmdbId}/similar", s.handleTMDBSimilarShows) // Usherr: More like this on a show's page
+	member.HandleFunc("GET /api/scores/{kind}/{tmdbId}", s.handleTitleScores)
 	member.HandleFunc("GET /api/tmdb/people/{personId}", s.handleTMDBPerson)
 	releases.HandleFunc("GET /api/search", s.handleSearch)
 	releases.HandleFunc("POST /api/search/grab", s.handleSearchGrab)
@@ -884,6 +938,8 @@ func (s *Server) protectedRoutes() *routeTable {
 	manage.HandleFunc("PUT /api/series/{id}/tags", s.handleSetSeriesTags)
 	manage.HandleFunc("PUT /api/movies/{id}/monitored", s.handleSetMovieMonitored)
 	manage.HandleFunc("PUT /api/movies/{id}/folder", s.handleSetMovieFolder)
+	manage.HandleFunc("PUT /api/movies/{id}/release-group", s.handleSetMovieReleaseGroup)
+	manage.HandleFunc("PUT /api/episodes/{id}/release-group", s.handleSetEpisodeReleaseGroup)
 	manage.HandleFunc("PUT /api/series/{id}/folder", s.handleSetSeriesFolder)
 	member.HandleFunc("GET /api/library/folders", s.handleLibraryFolders)
 	member.HandleFunc("GET /api/library/counts", s.handleLibraryCounts)
@@ -897,10 +953,12 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("POST /api/series/{id}/refresh", s.handleRefreshSeries)
 	releases.HandleFunc("GET /api/series/{id}/search", s.handleSeriesSearch)
 	manage.HandleFunc("POST /api/series/{id}/search-now", s.handleSeriesSearchNow)
+	manage.HandleFunc("POST /api/series/{id}/search-complete", s.handleSeriesSearchComplete)
 	releases.HandleFunc("POST /api/series/{id}/grab", s.handleGrabSeries)
 	manage.HandleFunc("PUT /api/series/{id}/monitored", s.handleSetSeriesMonitored)
 	manage.HandleFunc("POST /api/series/{id}/monitor-mode", s.handleSetSeriesMonitorMode)
 	manage.HandleFunc("PUT /api/series/{id}/type", s.handleSetSeriesType)
+	manage.HandleFunc("PUT /api/series/{id}/episode-order", s.handleSetEpisodeOrder)
 	member.HandleFunc("GET /api/series/{id}/numbering", s.handleSeriesNumbering)
 	member.HandleFunc("GET /api/series/{id}/numbering/custom", s.handleGetCustomNumbering)
 	manage.HandleFunc("PUT /api/series/{id}/numbering/custom", s.handlePutCustomNumbering)
@@ -911,10 +969,13 @@ func (s *Server) protectedRoutes() *routeTable {
 	// Books: ebooks and audiobooks (404 while both are off).
 	member.HandleFunc("GET /api/books", revalidated(s.handleListBooks))
 	member.HandleFunc("POST /api/books", s.handleAddBook) // home fork: ebooks and audiobooks are checked apart, in the handler
+	member.Need(auth.PermBooks).HandleFunc("POST /api/books/manual", s.handleAddBookManual)
 	member.HandleFunc("GET /api/books/search", s.handleBookSearch)
 	member.HandleFunc("GET /api/books/search/google", s.handleSearchGoogleBooks)
 	member.Need(auth.PermBooks).HandleFunc("POST /api/books/search/google", s.handleAdoptGoogleBook)
 	member.HandleFunc("GET /api/book-covers/{file}", s.handleBookCover)
+	// Artwork (posters, backdrops, pictures of people), resized and kept here so the browser never calls the picture host.
+	member.HandleFunc("GET /api/img/{kind}/{size}/{file}", s.handleArtwork)
 	member.HandleFunc("GET /api/books/discover", s.handleBookDiscover)
 	member.HandleFunc("GET /api/books/subjects", s.handleBookSubjects)
 	member.HandleFunc("GET /api/books/{id}/links", s.handleBookLinks)
@@ -958,6 +1019,14 @@ func (s *Server) protectedRoutes() *routeTable {
 	releases.HandleFunc("GET /api/books/{id}/releases", s.handleBookReleases)
 	releases.HandleFunc("POST /api/books/{id}/grab", s.handleGrabBook)
 
+	// Other: items made by name, never looked up anywhere (409 while the module is off).
+	member.HandleFunc("GET /api/other", s.handleListOther)
+	member.HandleFunc("GET /api/other/{id}", s.handleGetOther)
+	admin.HandleFunc("POST /api/other", s.handleAddOther)
+	admin.HandleFunc("PUT /api/other/{id}", s.handleRenameOther)
+	admin.HandleFunc("DELETE /api/other/{id}", s.handleDeleteOther)
+	admin.HandleFunc("POST /api/other/{id}/import", s.handleImportOther)
+
 	// Music: the same for artists and albums (404 while the music module is off).
 	member.HandleFunc("GET /api/music/profiles", s.handleMusicProfiles)
 	member.HandleFunc("GET /api/music/tiers", s.handleMusicTiers)
@@ -968,16 +1037,19 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("GET /api/music/covers/release-group/{mbid}", s.handleReleaseGroupCover)
 	member.HandleFunc("GET /api/music/artists", revalidated(s.handleListArtists))
 	member.Need(auth.PermMusic).HandleFunc("POST /api/music/artists", s.handleAddArtist)
+	member.Need(auth.PermMusic).HandleFunc("POST /api/music/manual", s.handleAddMusicManual)
 	member.HandleFunc("GET /api/music/artists/{id}", s.handleGetArtist)
 	member.HandleFunc("GET /api/music/artists/{id}/discography", s.handleArtistDiscography)
 	member.HandleFunc("GET /api/music/filters", s.handleGetMusicFilters)
 	manage.HandleFunc("POST /api/music/artists/{id}/albums", s.handleAddArtistAlbum)
+	manage.HandleFunc("POST /api/music/albums/{id}/cover", s.handleUploadAlbumCover)
 	member.HandleFunc("GET /api/music/albums/{id}", s.handleGetAlbum)
 	member.HandleFunc("GET /api/music/albums/{id}/files", s.handleAlbumFiles)
 	member.HandleFunc("GET /api/music/albums/{id}/cover", s.handleAlbumCover)
 	play.HandleFunc("GET /api/music/tracks/{id}/play", s.handlePlayTrack)
 	member.HandleFunc("GET /api/music/artists/{id}/cover", s.handleArtistCover)
 	manage.HandleFunc("PUT /api/music/albums/{id}/monitored", s.handleSetAlbumMonitored)
+	manage.HandleFunc("PUT /api/music/tracks/{id}/monitored", s.handleSetTrackMonitored)
 	releases.HandleFunc("POST /api/music/albums/{id}/search", s.handleAlbumSearch)
 	manage.HandleFunc("POST /api/music/albums/{id}/search-now", s.handleAlbumSearchNow)
 	releases.HandleFunc("POST /api/music/albums/{id}/grab", s.handleAlbumGrab)
@@ -1018,6 +1090,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	member.HandleFunc("POST /api/plex-watchlist/check", s.handleCheckWatchlist)
 	member.HandleFunc("GET /api/plex-watchlist/items", s.handleWatchlistItems)
 	member.Need(auth.PermRetry).HandleFunc("POST /api/queue/{id}/retry", s.handleRetryQueueItem)
+	admin.HandleFunc("POST /api/queue/{id}/keep-short", s.handleKeepShortQueueItem)
 
 	// Subtitles for titles in the library.
 	member.HandleFunc("GET /api/subtitles/wanted", s.handleSubtitlesWanted)
@@ -1106,6 +1179,8 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/movies/{id}/locate-file", s.handleLocateMovieFile)
 	admin.HandleFunc("POST /api/movies/{id}/locate-folder", s.handleLocateMovieFolder)
 	admin.HandleFunc("POST /api/episodes/{id}/locate-file", s.handleLocateEpisodeFile)
+	admin.HandleFunc("POST /api/movies/{id}/unlink-file", s.handleUnlinkMovieFile)
+	admin.HandleFunc("POST /api/episodes/{id}/unlink-file", s.handleUnlinkEpisodeFile)
 	admin.HandleFunc("POST /api/series/{id}/change-folder", s.handleChangeSeriesFolder)
 	admin.HandleFunc("DELETE /api/movies/{id}/file", s.handleDeleteMovieFile)
 	admin.HandleFunc("POST /api/library/incomplete/redo", s.handleRedoIncomplete)
@@ -1186,6 +1261,7 @@ func (s *Server) protectedRoutes() *routeTable {
 
 	// Quality profiles (changing them).
 	admin.HandleFunc("POST /api/quality-profiles", s.handleCreateProfile)
+	admin.HandleFunc("POST /api/quality-profiles/simulate", s.handleSimulateProfile)
 	admin.HandleFunc("PUT /api/quality-profiles/{id}", s.handleUpdateProfile)
 	admin.HandleFunc("DELETE /api/quality-profiles/{id}", s.handleDeleteProfile)
 	member.HandleFunc("POST /api/quality-profiles/try", s.handleTryProfile) // Usherr: the editor's release tester
@@ -1232,6 +1308,8 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/queue/pause-all", s.handlePauseAllQueue)
 	admin.HandleFunc("POST /api/queue/resume-all", s.handleResumeAllQueue)
 	admin.HandleFunc("GET /api/blocklist", s.handleListBlocklist)
+	admin.HandleFunc("PUT /api/blocklist/{id}/scope", s.handleSetBlocklistScope)
+	admin.HandleFunc("POST /api/blocklist/{id}/keep", s.handleKeepBlocklistEntry)
 	admin.HandleFunc("DELETE /api/blocklist/{id}", s.handleRemoveBlocklistEntry)
 	admin.HandleFunc("DELETE /api/blocklist", s.handleClearBlocklist)
 
@@ -1291,6 +1369,11 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("GET /api/metrics", s.handleMetrics)
 	admin.HandleFunc("GET /api/system/info", s.handleSystemInfo)
 	admin.HandleFunc("GET /api/system/backup", s.handleBackup)
+	admin.HandleFunc("GET /api/system/config-file", s.handleConfigFileExport)
+	admin.HandleFunc("POST /api/system/config-file/check", s.handleConfigFileCheck)
+	admin.HandleFunc("POST /api/system/config-file/apply", s.handleConfigFileApply)
+	admin.HandleFunc("GET /api/system/config-file/start", s.handleGetConfigFileStart)
+	admin.HandleFunc("PUT /api/system/config-file/start", s.handlePutConfigFileStart)
 	admin.HandleFunc("POST /api/system/restore", s.handleRestore)
 	admin.HandleFunc("GET /api/system/stats", s.handleSystemStats)
 	admin.HandleFunc("POST /api/stats/reset", s.handleResetStats)
@@ -1310,10 +1393,14 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("POST /api/system/update/check", s.handleUpdateCheck)
 	admin.HandleFunc("GET /api/system/update/install", s.handleInstallStatus)
 	admin.HandleFunc("POST /api/system/update/install", s.handleInstallUpdate)
+	admin.HandleFunc("GET /api/system/update/rollback", s.handleGetRollback)
+	admin.HandleFunc("POST /api/system/update/rollback", s.handleRollback)
 	admin.HandleFunc("GET /api/system/options", s.handleGetOptions)
 	admin.HandleFunc("PUT /api/system/options", s.handlePutOptions)
 	admin.HandleFunc("GET /api/system/mcp", s.handleGetMCP)
 	admin.HandleFunc("PUT /api/system/mcp", s.handlePutMCP)
+	admin.HandleFunc("GET /api/system/downloader-api", s.handleGetDownloaderAPI)
+	admin.HandleFunc("PUT /api/system/downloader-api", s.handlePutDownloaderAPI)
 	admin.HandleFunc("GET /api/system/mcp/apps", s.handleListMCPApps)
 	admin.HandleFunc("DELETE /api/system/mcp/apps/{id}", s.handleRevokeMCPApp)
 	admin.HandleFunc("POST /api/system/mcp/clients", s.handleCreateMCPClient)
@@ -1354,6 +1441,7 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("PUT /api/import-lists/{id}/enabled", s.handleSetImportListEnabled)
 	admin.HandleFunc("POST /api/import-lists/{id}/run", s.handleRunImportList)
 	admin.HandleFunc("POST /api/import-lists/{id}/forget", s.handleForgetImportList)
+	admin.HandleFunc("GET /api/import-lists/{id}/history", s.handleListHistory)
 	admin.HandleFunc("POST /api/import-lists/plex/{userId}/run", s.handleRunPlexWatchlist)
 	admin.HandleFunc("GET /api/watched/settings", s.handleGetWatchedSettings)
 	admin.HandleFunc("PUT /api/watched/settings", s.handlePutWatchedSettings)
@@ -1372,6 +1460,29 @@ func (s *Server) protectedRoutes() *routeTable {
 	admin.HandleFunc("DELETE /api/cleanup/exemptions/{unit}", s.handleDeleteCleanupExemption)
 	admin.HandleFunc("GET /api/settings/hardcover", s.handleGetHardcover)
 	admin.HandleFunc("PUT /api/settings/hardcover", s.handlePutHardcover)
+	admin.HandleFunc("GET /api/settings/prowlarr", s.handleGetProwlarr)
+	admin.HandleFunc("PUT /api/settings/prowlarr", s.handlePutProwlarr)
+	admin.HandleFunc("POST /api/settings/prowlarr/sync", s.handleSyncProwlarr)
+	admin.HandleFunc("GET /api/lifecycle", s.handleGetLifecycle)
+	admin.HandleFunc("PUT /api/lifecycle", s.handlePutLifecycle)
+	admin.HandleFunc("POST /api/lifecycle/dry-run", s.handleLifecycleDryRun)
+	admin.HandleFunc("POST /api/lifecycle/unkeep", s.handleLifecycleUnkeep)
+	admin.HandleFunc("GET /api/archiver", s.handleGetArchiver)
+	admin.HandleFunc("PUT /api/archiver", s.handlePutArchiver)
+	admin.HandleFunc("POST /api/archiver/test", s.handleArchiverTest)
+	admin.HandleFunc("POST /api/archiver/sources", s.handleAddArchiverSource)
+	admin.HandleFunc("DELETE /api/archiver/sources/{id}", s.handleDeleteArchiverSource)
+	admin.HandleFunc("POST /api/archiver/sources/{id}/check", s.handleArchiverCheckNow)
+	admin.HandleFunc("GET /api/feature-offers", s.handleGetFeatureOffers)
+	admin.HandleFunc("PUT /api/feature-offers", s.handlePutFeatureOffer)
+	admin.HandleFunc("GET /api/settings/anime", s.handleGetAnimeSettings)
+	admin.HandleFunc("PUT /api/settings/anime", s.handlePutAnimeSettings)
+	admin.HandleFunc("GET /api/settings/thetvdb", s.handleGetTVDB)
+	admin.HandleFunc("GET /api/settings/omdb", s.handleGetOMDb)
+	admin.HandleFunc("GET /api/settings/soulseek", s.handleGetSoulseek)
+	admin.HandleFunc("PUT /api/settings/soulseek", s.handlePutSoulseek)
+	admin.HandleFunc("PUT /api/settings/omdb", s.handlePutOMDb)
+	admin.HandleFunc("PUT /api/settings/thetvdb", s.handlePutTVDB)
 	admin.HandleFunc("GET /api/settings/google-books", s.handleGetGoogleBooks)
 	admin.HandleFunc("PUT /api/settings/google-books", s.handlePutGoogleBooks)
 	admin.HandleFunc("GET /api/settings/simkl", s.handleGetSimkl)

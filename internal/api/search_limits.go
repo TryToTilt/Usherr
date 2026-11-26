@@ -27,10 +27,12 @@ func (s *Server) setupSearchExtras() {
 	s.delays = delay.NewStore(s.db, nil)
 	setPreferredProtocol(s.delayConfig().PreferredProtocol)
 	s.loadMinSizeCheck()
+	s.loadHoldUnreleased()
 	s.setCachedPolicy()
 	tr := s.IndexerRepo.Tracker()
-	s.QueueRepo.SetOnEnqueue(func(it queue.Item) { tr.NoteGrab(it.NZBURL) })
+	s.QueueRepo.SetOnEnqueue(func(it queue.Item) { tr.NoteGrab(it.NZBURL, it.SizeBytes) })
 	s.QueueRepo.SetIndexerOf(s.indexerOfRelease)
+	s.QueueRepo.SetGUIDOf(tr.GUIDOf)
 }
 
 // ---- size limits ----
@@ -78,10 +80,20 @@ func (s *Server) sizeRejections(table quality.SizeLimits, minutes float64, profi
 	var out []string
 	tier := quality.Classify(parser.Parse(title))
 	if !builtinSizeOK(tier, size, episodes, minutes) {
-		out = append(out, fmt.Sprintf("smaller than a real %s release is likely to be (you can turn this check off in Settings > Library > Quality)", tier))
+		out = append(out, fmt.Sprintf("smaller than a real %s release is likely to be (you can turn this check off in Settings > Finding releases > Quality)", tier))
 	}
-	if !profile.SizeAllowed(size) {
+	if !profile.OwnSizeAllowed(size) {
 		out = append(out, fmt.Sprintf("larger than the %q profile's limit of %s GB", profile.Name, trimFloat(profile.MaxSizeGB)))
+	}
+	if !profile.CapAllowed(size) {
+		out = append(out, fmt.Sprintf("larger than the %s GB you allow for a release (Settings > Downloading > Download rules)", trimFloat(profile.CapGB)))
+	}
+	if !profile.RoomAllowed(size) {
+		if gb := s.minFreeGB(); gb > 0 {
+			out = append(out, fmt.Sprintf("it would leave the download disk with less than the %d GB you keep free (Settings > Downloading > Download rules)", gb))
+		} else {
+			out = append(out, "it is more than the download disk has room for")
+		}
 	}
 	if reason := table.Check(tier, size, minutes, episodes); reason != "" {
 		out = append(out, reason)
@@ -483,5 +495,6 @@ func (s *Server) searchRoutes(admin routeGroup, member routeGroup) {
 	admin.HandleFunc("GET /api/quality/size-limits/trash/{list}", s.handleTrashSizes)
 	admin.HandleFunc("POST /api/indexers/{id}/resume", s.handleResumeIndexer)
 	admin.HandleFunc("GET /api/stats/indexers", s.handleIndexerStats)
+	admin.HandleFunc("GET /api/stats/usenet-months", s.handleUsenetMonths)
 	member.HandleFunc("GET /api/search/waiting", s.handleSearchWaiting)
 }

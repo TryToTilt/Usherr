@@ -110,19 +110,19 @@ func listErrorText(err error) string {
 	var se *metadata.StatusError
 	switch {
 	case errors.Is(err, metadata.ErrNoAPIKey):
-		return "Add your TMDB API key first (Settings > Info, lists and subtitles > Movie and show info)."
+		return "Add your TMDB API key first (Settings > Library and files > Movie and show info)."
 	case errors.Is(err, metadata.ErrInvalidKey):
 		return "TMDB rejected the API key. Check it in Settings."
 	case errors.Is(err, trakt.ErrNoClientID):
-		return "Add your Trakt client ID first (Settings > Info, lists and subtitles > Import lists)."
+		return "Add your Trakt client ID first (Settings > Library and files > Import lists)."
 	case errors.Is(err, trakt.ErrInvalidClientID):
 		return "Trakt rejected the client ID. Check it in Settings."
 	case errors.Is(err, simkl.ErrNoClientID):
-		return "Add your Simkl client ID first (Settings > Info, lists and subtitles > Import lists)."
+		return "Add your Simkl client ID first (Settings > Library and files > Import lists)."
 	case errors.Is(err, simkl.ErrInvalidClientID):
 		return "Simkl rejected the client ID. Check it in Settings."
 	case errors.Is(err, simkl.ErrNotConnected):
-		return "Connect your Simkl account first (Settings > Info, lists and subtitles > Import lists)."
+		return "Connect your Simkl account first (Settings > Library and files > Import lists)."
 	case errors.Is(err, simkl.ErrUnauthorized):
 		return "Simkl no longer accepts the saved sign-in. Connect your Simkl account again."
 	case errors.Is(err, errSimklTokenUnreadable):
@@ -268,6 +268,13 @@ func (s *Server) fetchListItems(ctx context.Context, l importList) ([]importlist
 			}
 		}
 		return out, nil
+
+	case listRSS:
+		entries, err := s.readFeedEntries(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+		return feedListItems(entries, l.Media), nil
 
 	case listMDBList:
 		user, name, err := importlists.ParseMDBListAddress(cfg.URL)
@@ -416,6 +423,24 @@ func (s *Server) recordSeen(listID int64, ref, kind string, tmdbID int, title st
 	}
 }
 
+// logListAdded keeps a line in the list's history for a title it added (see
+// handleListHistory). It is kept when the list is told to start over.
+func (s *Server) logListAdded(listID int64, kind string, tmdbID int, title string, year int, libraryID int64) {
+	if libraryID > 0 { // the library's own name for it, when the list gave none
+		if kind == "tv" {
+			if sr, err := s.MovieRepo.GetSeries(libraryID); err == nil {
+				title, year = sr.Title, sr.Year
+			}
+		} else if m, err := s.MovieRepo.Get(libraryID); err == nil {
+			title, year = m.Title, m.Year
+		}
+	}
+	_, err := s.db.Exec(`INSERT INTO import_list_log (list_id, kind, tmdb_id, title, year) VALUES (?, ?, ?, ?, ?)`, listID, kind, tmdbID, title, year)
+	if err != nil {
+		slog.Warn("import list: couldn't keep the history line", "list", listID, "err", err)
+	}
+}
+
 // listRunResult counts what one read of a list did.
 type listRunResult struct {
 	found, added, inLibrary, excluded, filtered, noMatch, earlier int
@@ -425,6 +450,10 @@ type listRunResult struct {
 	// searchMovies and searchSeries are the library ids of what this read added
 	// to a list that is set to search for what it adds.
 	searchMovies, searchSeries []int64
+	// feed is what an RSS feed list read, for the downloads it may start;
+	// grabbed is how many of its releases went to the download line.
+	feed    []importlists.FeedEntry
+	grabbed int
 }
 
 func (r listRunResult) skipped() int {
@@ -462,6 +491,9 @@ func (r listRunResult) message() string {
 	if r.off > 0 {
 		parts = append(parts, fmt.Sprintf("%d were left out because that kind of media is switched off.", r.off))
 	}
+	if r.grabbed > 0 {
+		parts = append(parts, fmt.Sprintf("Downloading %s from the feed.", plural(r.grabbed, "release")))
+	}
 	if r.failed > 0 {
 		msg := fmt.Sprintf("%d couldn't be added and will be tried again.", r.failed)
 		if r.firstFailure != "" {
@@ -483,7 +515,10 @@ func (s *Server) runImportList(ctx context.Context, id int64) {
 	}
 	var res listRunResult
 	err = s.processImportList(ctx, l, &res)
-	s.searchListAdditions(res)
+	s.searchListAdditions(l, res)
+	if err == nil && l.Source == listRSS && l.Config.Grab {
+		res.grabbed = s.grabFromFeed(ctx, l, res.feed)
+	}
 	status, msg := "ok", res.message()
 	if err != nil {
 		status, msg = "error", listErrorText(err)
@@ -507,7 +542,16 @@ func (s *Server) processImportList(ctx context.Context, l importList, res *listR
 	if !s.TMDB().HasAPIKey() {
 		return metadata.ErrNoAPIKey
 	}
-	items, err := s.fetchListItems(ctx, l)
+	var items []importlists.Item
+	var err error
+	if l.Source == listRSS {
+		// The feed is read once: for its titles, and for its releases after.
+		if res.feed, err = s.readFeedEntries(ctx, l.Config); err == nil {
+			items = feedListItems(res.feed, l.Media)
+		}
+	} else {
+		items, err = s.fetchListItems(ctx, l)
+	}
 	if err != nil {
 		return err
 	}
@@ -617,6 +661,7 @@ func (s *Server) processImportList(ctx context.Context, l importList, res *listR
 		switch outcome {
 		case "added":
 			s.recordSeen(l.ID, ref, kind, tmdbID, it.Title, year, rating, "added")
+			s.logListAdded(l.ID, kind, tmdbID, it.Title, year, libraryID)
 			res.added++
 			if l.SearchNow && l.Monitored && libraryID > 0 {
 				if kind == "tv" {
@@ -774,7 +819,7 @@ func (s *Server) titleDetails(ctx context.Context, kind string, tmdbID int, rati
 // automatic downloads, waits for the delay profile, skips a movie that is not
 // out yet and leaves indexers that are paused alone. Whatever it does not get
 // to is found by the next scheduled search.
-func (s *Server) searchListAdditions(res listRunResult) {
+func (s *Server) searchListAdditions(l importList, res listRunResult) {
 	if len(res.searchMovies) == 0 && len(res.searchSeries) == 0 {
 		return
 	}
@@ -793,13 +838,14 @@ func (s *Server) searchListAdditions(res listRunResult) {
 			return
 		}
 		blocked := s.searchSkipKeys()
+		by := l.origin()
 		for _, id := range res.searchMovies {
 			if !s.autoGrabRoom() {
 				holdBack("import-list")
 				return
 			}
 			if m, err := s.MovieRepo.Get(id); err == nil && s.moviesEnabled() {
-				s.huntMovie(ctx, m, instances, profiles, blocked, false)
+				s.huntMovie(withGrabBy(ctx, by), m, instances, profiles, blocked, false)
 			}
 		}
 		for _, id := range res.searchSeries {
@@ -808,7 +854,7 @@ func (s *Server) searchListAdditions(res listRunResult) {
 				return
 			}
 			if s.tvEnabled() {
-				s.autoGrabTV(s.targetedTVSearcher(ctx, instances, maxTVSearchesPerHunt, false), "import-list", profiles, tvScope{seriesID: id})
+				s.autoGrabTV(s.targetedTVSearcher(ctx, instances, maxTVSearchesPerHunt, false), "import-list", profiles, tvScope{seriesID: id, by: by})
 			}
 		}
 	})
@@ -845,7 +891,7 @@ func (s *Server) addListTitle(ctx context.Context, l importList, user *auth.User
 		payload = map[string]any{"tmdbId": tmdbID, "profileId": l.ProfileID, "monitored": l.Monitored, "searchNow": searchNow, "rootPath": l.MovieRoot}
 	}
 	body, _ := json.Marshal(payload)
-	inner := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body)).WithContext(auth.WithUser(ctx, user))
+	inner := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body)).WithContext(withOrigin(auth.WithUser(ctx, user), l.origin()))
 	inner.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler(rec, inner)

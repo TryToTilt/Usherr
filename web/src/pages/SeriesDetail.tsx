@@ -7,6 +7,7 @@ import CommunityReviews from '../home/CommunityReviews' // Usherr: Community, re
 import { ScoresLine } from '../home/scores' // home fork
 import { SkipGuide, WhatsItLike } from '../home/AIGuides' // home fork
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import LoadFailed from '../components/LoadFailed'
 import Icon from '../components/Icon'
 import InfoTip from '../components/InfoTip'
 import ProfilePicker from '../components/ProfilePicker'
@@ -14,7 +15,9 @@ import TitleTags from '../components/Tags'
 import WatchedLine from '../components/WatchedLine'
 import NumberingCard from '../components/NumberingCard'
 import SeriesTypePicker from '../components/SeriesTypePicker'
+import EpisodeOrderPicker from '../components/EpisodeOrderPicker'
 import FileChips from '../components/FileChips'
+import ReleaseGroupEdit from '../components/ReleaseGroupEdit'
 import ShortFile from '../components/ShortFile'
 import { redoAnswerText } from '../shortFile'
 import Switch from '../components/Switch'
@@ -32,6 +35,7 @@ import TitleLayout from '../home/TitleLayout' // Usherr
 import SimilarShows from '../home/SimilarShows' // Usherr
 import WatchLinks from '../components/WatchLinks'
 import FolderLine from '../components/FolderLine'
+import { originText } from '../origin'
 import LocateDialog from '../components/LocateDialog'
 import TitleEvents from '../components/TitleEvents'
 import { useToast } from '../components/Toast'
@@ -53,6 +57,7 @@ import { useModules } from '../ModulesContext'
 import { api, can, isAdmin, isViewer, type Episode, type SearchResult, type DiscoverMovie, type SeriesDetail as SeriesDetailData, type TVDetail } from '../api'
 import { formatBytes, qualityText, withNameTag } from '../format'
 import { showStatusLabel } from '../home/showStatus' // home fork: also Canceled, from TMDB's own words
+import { offersCompleteSearch } from '../completeSeries'
 import { rescanMessage } from '../rescanMessage'
 import { CastCard, PeopleLinks, titleLinks } from '../components/TitlePreview'
 import { crewWith } from '../people'
@@ -61,6 +66,7 @@ import { useConfirm } from '../components/ConfirmProvider'
 import { removeOption } from '../diskUsage'
 import CustomSearch from '../components/CustomSearch'
 import ReleaseNotice from '../components/ReleaseNotice'
+import type { Filtered } from '../components/SearchesUsed'
 import type { Unanswered } from '../releaseHint'
 import type { Searched } from '../searched'
 import { useDocumentTitle } from '../documentTitle'
@@ -76,6 +82,8 @@ import { episodeFilesToReplace, replaceQuestion } from '../replaceFile'
 interface SearchTarget {
   season: number
   episode?: number
+  // The list of packs that hold several seasons or the whole series.
+  complete?: boolean
   label: string
 }
 
@@ -126,10 +134,11 @@ function SeriesPage() {
   const [loadError, setLoadError] = useState('')
   const [target, setTarget] = useState<SearchTarget | null>(null)
   const [results, setResults] = useState<SearchResult[] | null>(null)
-  const [answered, setAnswered] = useState<{ sources: number; unanswered: Unanswered[]; warnings?: string[]; searched?: Searched[] }>({ sources: 0, unanswered: [] })
+  const [answered, setAnswered] = useState<{ sources: number; unanswered: Unanswered[]; warnings?: string[]; searched?: Searched[]; filtered?: Filtered[] }>({ sources: 0, unanswered: [] })
   const [searching, setSearching] = useState(false)
   const [grabbing, setGrabbing] = useState<string | null>(null)
   const [searchingNow, setSearchingNow] = useState(false)
+  const [searchingComplete, setSearchingComplete] = useState(false)
   const [subsOpen, setSubsOpen] = useState<number | null>(null)
   // Which seasons are open (unset: only the one that needs attention), and the
   // "Missing episodes only" switch.
@@ -194,9 +203,9 @@ function SeriesPage() {
     setError('')
     setMessage('')
     try {
-      const a = await api.seriesSearch(seriesId, st.season, st.episode, q)
+      const a = await api.seriesSearch(seriesId, st.season, st.episode, q, st.complete)
       if (mine !== searchId.current) return
-      setAnswered({ sources: a.sources, unanswered: a.unanswered, warnings: a.warnings, searched: a.searched })
+      setAnswered({ sources: a.sources, unanswered: a.unanswered, warnings: a.warnings, searched: a.searched, filtered: a.filtered })
       setResults(a.results)
     } catch (e) {
       if (mine === searchId.current) setError(e instanceof Error ? e.message : String(e))
@@ -324,6 +333,21 @@ function SeriesPage() {
     }
   }
 
+  async function searchComplete() {
+    setSearchingComplete(true)
+    setError('')
+    setMessage('')
+    try {
+      const res = await api.searchCompleteSeries(seriesId)
+      setMessage(res.message)
+      if (res.grabbed > 0) setTimeout(load, 500)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSearchingComplete(false)
+    }
+  }
+
   const [refreshing, setRefreshing] = useState(false)
   const [rescanning, setRescanning] = useState(false)
   const [changingFolder, setChangingFolder] = useState(false)
@@ -376,6 +400,24 @@ function SeriesPage() {
     }
   }
 
+  // Let an episode go of its file without deleting it, so the file can be linked to another episode.
+  async function unlinkFile(e: Episode) {
+    const label = `S${String(e.season).padStart(2, '0')}E${String(e.episode).padStart(2, '0')}`
+    const answer = await confirm({
+      title: t('Unlink the file of {name}?', { name: label }),
+      body: <p>{t('The file stays where it is on your disk. This episode shows as missing again, and the file can be linked to a different episode. If {title} is monitored, Mediarium will look for a new release.', { title: series?.title ?? '' })}</p>,
+      confirmLabel: t('Unlink'),
+    })
+    if (!answer) return
+    try {
+      await api.unlinkEpisodeFile(e.id)
+      toast.success(t('Unlinked. The file is still on your disk.'))
+      load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   // An episode file far shorter than the episode should be: delete it and look for another release.
   async function redoShortFile(e: Episode) {
     const label = `S${String(e.season).padStart(2, '0')}E${String(e.episode).padStart(2, '0')}`
@@ -423,7 +465,7 @@ function SeriesPage() {
     }
   }
 
-  if (!series) return loadError ? <p className="error-text">{loadError}</p> : <p>{t('Loading…')}</p>
+  if (!series) return loadError ? <LoadFailed message={loadError} /> : <p>{t('Loading…')}</p>
 
   const creators = crewWith(tv?.crew, 'Creator')
   const today = localDate(new Date())
@@ -477,6 +519,8 @@ function SeriesPage() {
     overview: tv?.overview || series.overview,
     certification: tv?.contentRating,
     links: titleLinks('tv', series.tmdbId, tv?.imdbId, tv?.homepage),
+    tmdbId: series.tmdbId,
+    imdbId: tv?.imdbId,
     facts: [
       ...(creators.length ? [{ label: creators.length > 1 ? t('Creators') : t('Creator'), value: <PeopleLinks people={creators} /> }] : []),
       // home fork: in words from TMDB too, so a canceled show says Canceled
@@ -485,6 +529,7 @@ function SeriesPage() {
       ...(diskBytes > 0 && !memberView ? [{ label: t('Size on disk'), value: formatBytes(diskBytes) }] : []),
       ...(nextText ? [{ label: t('Next episode'), value: nextText }] : []),
       ...(tv?.networks?.length ? [{ label: t('Network'), value: tv.networks.join(', ') }] : []),
+      ...(tv?.studios?.length ? [{ label: tv.studios.length > 1 ? t('Studios') : t('Studio'), value: tv.studios.slice(0, 3).join(', ') }] : []),
     ],
   }
   const status = !memberView && (
@@ -501,7 +546,7 @@ function SeriesPage() {
           <Icon name="play" size={18} /> {t('Resume {code}', { code: epCode(resume.episode.season, resume.episode.episode) })}
         </button>
       )}
-      {series.downloadedCount > 0 && <WatchLinks tmdbId={series.tmdbId} kind="tv" />}
+      {series.downloadedCount > 0 && <WatchLinks tmdbId={series.tmdbId} kind="tv" />} {/* upstream 4.1: the main button */}
       <StackButton item={{ kind: 'tv', tmdbId: series.tmdbId, title: series.title, year: series.year, posterUrl: series.posterUrl }} /> {/* Usherr */}
       <VoteButtons kind="tv" refId={series.tmdbId} meta={{ title: series.title, year: series.year, image: series.posterUrl }} /> {/* home fork */}
       <CatchUp tmdbId={series.tmdbId} /> {/* home fork */}
@@ -514,6 +559,11 @@ function SeriesPage() {
       )}
     </>
   )
+
+  // Usherr: upstream 4.1's whole-series searches, for Manage and the More sheet.
+  const completeOffered = canManage && offersCompleteSearch(series.showStatus, seasons.filter(([s]) => s > 0).length)
+  const wholeSeriesPick = canReleases && seasons.filter(([s]) => s > 0).length > 1
+  const pickWholeSeries = () => runSearch({ season: seasons.find(([s]) => s > 0)?.[0] ?? 1, complete: true, label: t('Complete series (packs)') })
 
   // Usherr Broadcast: one main button (Play the episode you're part way
   // through, or the first one), then Stack, Trailer and More; the rest is in
@@ -541,6 +591,9 @@ function SeriesPage() {
         { key: 'smh', icon: 'sparkles', label: t('Show me how'), hint: t('From here'), run: openSmhMenu },
         ...(!admin ? [{ key: 'report', icon: 'warning' as const, label: t('Something wrong with it?'), hint: t('Tell an admin'), run: () => openReport('problem') }] : []),
         ...(canManage ? [{ key: 'better', admin: true, icon: 'search' as const, label: t('Find missing episodes'), run: () => void searchNow() }] : []),
+        // Usherr Broadcast: upstream 4.1's whole-series searches
+        ...(completeOffered ? [{ key: 'complete', admin: true, icon: 'search' as const, label: t('Search for the complete series'), run: () => void searchComplete() }] : []),
+        ...(wholeSeriesPick ? [{ key: 'complete-pick', admin: true, icon: 'list' as const, label: t('Choose a release for the whole series'), run: () => { setEpTools(true); pickWholeSeries() } }] : []),
         ...(admin ? [{ key: 'art', admin: true, icon: 'image' as const, label: t('Change the artwork'), node: <ArtworkButton kind="tv" tmdbId={series.tmdbId} title={series.title} /> }] : []),
         ...(hasManage ? [{ key: 'manage', walk: 'title-manage', admin: true, icon: 'sliders' as const, label: t('Manage files'), hint: t('Episodes, quality, folder, remove'), run: () => setManageOpen(true) }] : []),
       ]
@@ -555,6 +608,18 @@ function SeriesPage() {
           </button>
         )}
         {canManage && <InfoTip text={t('Searches your indexers right now for the episodes that are still missing, even if the show is not monitored. To search one season or one episode, use Episode tools on the episode list.')} />}
+        {completeOffered && (
+          <button className="btn-with-icon" onClick={searchComplete} disabled={searchingComplete || searchingNow}>
+            <Icon name="search" size={16} /> {searchingComplete ? t('Searching…') : t('Search for the complete series')}
+          </button>
+        )}
+        {completeOffered && <InfoTip text={t('Looks for a season pack of every monitored season that has missing episodes. When a season has no pack of its own, it looks for one pack of the whole series (such as Complete Series or S01-S09) that covers them all and fits your quality profile.')} />}
+        {wholeSeriesPick && (
+          <button className="btn-with-icon" onClick={() => { setEpTools(true); pickWholeSeries() }}>
+            <Icon name="list" size={16} /> {t('Choose a release for the whole series')}
+          </button>
+        )}
+        {wholeSeriesPick && <InfoTip text={t('Lists the packs that hold several seasons or the whole show (Complete Series, S01-S09), so you can pick one yourself.')} />}
         {!viewer && (
           <button className="btn-with-icon" onClick={refresh} disabled={refreshing}>
             <Icon name="refresh" size={16} /> {refreshing ? t('Refreshing…') : t('Refresh episodes')}
@@ -580,6 +645,9 @@ function SeriesPage() {
         </ProfilePicker>
         {canManage && <MonitorModePicker id={seriesId} onDone={load} />}
         {canManage && <SeriesTypePicker id={seriesId} value={series.seriesType ?? 'standard'} onChange={(type) => setSeries((cur) => (cur ? { ...cur, seriesType: type } : cur))} />}
+        {canManage && series.seriesType !== 'anime' && !series.copyOf && (
+          <EpisodeOrderPicker id={seriesId} value={series.episodeOrder ?? 'tmdb'} hasKey={series.thetvdbKey === true} onChanged={(order) => { setSeries((cur) => (cur ? { ...cur, episodeOrder: order } : cur)); load() }} />
+        )}
       </div>
       {admin && series.folderPath && (
         <FolderLine path={series.folderPath} kind="series">
@@ -588,6 +656,7 @@ function SeriesPage() {
           </button>
         </FolderLine>
       )}
+      {admin && originText(series.origin) && <p className="added-by">{originText(series.origin)}</p>}
       {canManage && <NumberingCard id={seriesId} seriesType={series.seriesType ?? 'standard'} seasons={seasons.map(([s]) => s).filter((s) => s > 0)} monitored={series.monitored} onRescanned={load} />}
       {!series.copyOf && <CopiesCard kind="series" id={series.id} admin={admin} />}
       <section className="card" data-walk="title-log" style={{ margin: '16px 0' }}>
@@ -692,7 +761,7 @@ function SeriesPage() {
             <h2>{t('Releases for {target}', { target: target.label })}</h2>
             <CustomSearch key={target.label} busy={searching} onSearch={(q) => runSearch(target, q)} />
             {searching && <p>{t('Looking for releases…')}</p>}
-            {results !== null && <ReleaseNotice sources={answered.sources} unanswered={answered.unanswered} warnings={answered.warnings} searched={answered.searched} results={results.length} />}
+            {results !== null && <ReleaseNotice sources={answered.sources} unanswered={answered.unanswered} warnings={answered.warnings} searched={answered.searched} filtered={answered.filtered} results={results.length} />}
             {!searching && (results === null || results.length === 0) && (
               <button className="btn-sm" onClick={() => setTarget(null)}>
                 {t('Close')}
@@ -734,7 +803,7 @@ function SeriesPage() {
                   <span className="hint">{t("Specials aren't looked for until you tick them. Each one is searched on its own, by S00E number and by its title.")}</span>
                 ) : (
                   <>
-                    {canReleases && <button onClick={() => runSearch({ season, label: t('Season {n} (packs)', { n: season }) })}>{t('Search season')}</button>}
+                    {canReleases && <button onClick={() => runSearch({ season, label: t('Season {n} (packs)', { n: season }) })}>{t('Choose a release')}</button>}
                     {canReleases && <InfoTip text={t('Lists the releases found for this whole season, season packs included, so you can pick one yourself.')} />}
                     {canManage && allEps.some(isMissing) && (
                       <button onClick={() => searchNow({ season })} disabled={searchingNow}>
@@ -799,6 +868,17 @@ function SeriesPage() {
                           {e.airDate && <span className="ep-air-under">{e.airDate}</span>}
                           {tools && e.status === 'downloaded' && <FileChips info={e.fileInfo} className="compact" />}
                           {tools && e.status === 'downloaded' && <ShortFile compact note={e.shortFile} onRedo={admin ? () => void redoShortFile(e) : undefined} />}
+                          {tools && e.status === 'downloaded' && e.filePath && canManage && (
+                            <ReleaseGroupEdit
+                              compact
+                              group={e.releaseGroup ?? ''}
+                              save={async (g) => {
+                                const r = await api.setEpisodeReleaseGroup(e.id, g)
+                                toast.success(r.renamed ? t('Saved. The file was renamed.') : t('Saved.'))
+                                load()
+                              }}
+                            />
+                          )}
                         </td>
                         <td className="ep-air" style={{ color: 'var(--text-dim)' }}>{e.airDate || '—'}</td>
                         <td className={`ep-state${e.status === 'downloaded' ? ' ep-state-done' : ''}`}>
@@ -832,11 +912,14 @@ function SeriesPage() {
                               disabled={unaired && e.status === 'missing'}
                               onClick={() => runSearch({ season, episode: e.episode, label: season === 0 ? t('Special: {title}', { title: e.title || `S00E${String(e.episode).padStart(2, '0')}` }) : `S${String(season).padStart(2, '0')}E${String(e.episode).padStart(2, '0')}` })}
                             >
-                              {t('Search')}
+                              {t('Choose a release')}
                             </button>
                           )}{' '}
                           {tools && admin && e.status === 'downloaded' && e.filePath && (
                             <>
+                              <button className="btn-sm" onClick={() => void unlinkFile(e)} title={t('Detach this episode from its file and keep the file on your disk')}>
+                                {t('Unlink file')}
+                              </button>{' '}
                               <button className="danger-ghost" onClick={() => void deleteFiles({ episode: e })} title={t('Delete this episode’s file and keep the show')}>
                                 {t('Delete file')}
                               </button>{' '}

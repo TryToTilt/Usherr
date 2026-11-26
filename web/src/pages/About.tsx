@@ -44,6 +44,8 @@ const CREDIT_CELLS: { wide?: boolean; groups: CreditGroup[] }[] = [
           { name: 'Simkl', href: 'https://simkl.com/', used: t('List import'), desc: t('Reading your own Simkl lists, once you connect your Simkl account.') },
           { name: 'MDBList', href: 'https://mdblist.com/', used: t('List import'), desc: t('Reading your MDBList lists, with your own MDBList key.') },
           { name: 'TheXEM', href: 'https://thexem.info/', used: t('Scene numbering'), desc: t('Which episode a release means when it counts the show differently from TMDB.') },
+          { name: 'OMDb', href: 'https://www.omdbapi.com/', used: t('IMDb, Rotten Tomatoes and Metacritic scores'), desc: t('The scores on film and show pages and Discover cards, only when you add your own OMDb key.') },
+          { name: 'TheTVDB', href: 'https://thetvdb.com/', used: t('Missing seasons and episodes'), desc: t('Seasons and episodes a show is missing on TMDB, only when you add your own TheTVDB key. Metadata provided by TheTVDB.') },
           { name: 'TVmaze', href: 'https://www.tvmaze.com/', used: t('Air times'), desc: t('The time each episode airs, so the calendar can show it in your time zone. Data from TVmaze, licensed CC BY-SA 4.0.') },
           { name: 'AniList', href: 'https://anilist.co/', used: t('Anime names'), desc: t('The other names of an anime, used to find releases.') },
           { name: 'Fribb/anime-lists', href: 'https://github.com/Fribb/anime-lists', used: t('Anime numbering'), desc: t('Which TMDB season and episode each anime entry matches, built from the Anime-Lists project.') },
@@ -252,11 +254,15 @@ export default function About() {
             {helpers().map((h) => (
               <li key={h.name} className="helper-card">
                 <div className="credit-top">
-                  <a href={h.href} target="_blank" rel="noreferrer">
-                    {h.where === 'Reddit' ? 'u/' : '@'}
-                    {h.name}
-                  </a>
-                  <span className="badge">{h.where}</span>
+                  {h.href ? (
+                    <a href={h.href} target="_blank" rel="noreferrer">
+                      {h.where === 'Reddit' ? 'u/' : '@'}
+                      {h.name}
+                    </a>
+                  ) : (
+                    <span>{h.name}</span>
+                  )}
+                  <span className="badge">{h.where === 'In-app report' ? t('In-app report') : h.where}</span>
                 </div>
                 <ul>
                   {h.ideas.map((idea) => (

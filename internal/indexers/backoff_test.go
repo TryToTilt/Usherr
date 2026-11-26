@@ -68,6 +68,8 @@ func TestParseRetryAfter(t *testing.T) {
 		{"seconds", "120", 2 * time.Minute},
 		{"seconds with spaces", " 30 ", 30 * time.Second},
 		{"negative", "-5", 0},
+		{"too many seconds to hold in a duration", "9000000000000", indexers.MaxBackoff},
+		{"a number too big to read", "99999999999999999999", 0},
 		{"garbage", "soon", 0},
 		{"a date in the future", now.Add(90 * time.Second).UTC().Format(http.TimeFormat), 90 * time.Second},
 		{"a date in the past", now.Add(-time.Hour).UTC().Format(http.TimeFormat), 0},
@@ -270,6 +272,11 @@ func TestSearchAllSkipsPausedIndexerAndRetriesAfterPause(t *testing.T) {
 	}
 	if s := stats[0]; s.Queries != 4 || s.Failures != 3 || s.Results != 1 {
 		t.Fatalf("stats = %+v, want 4 queries, 3 failures, 1 result", s)
+	}
+	// A grab of that release counts with its size (#167).
+	tr.NoteGrab(o.Results[0].DownloadURL, 5<<30)
+	if stats, _ = tr.Stats(clock.t.AddDate(0, 0, -1)); stats[0].Grabs != 1 || stats[0].GrabBytes != 5<<30 {
+		t.Fatalf("stats after a grab = %+v, want 1 grab of 5 GiB", stats[0])
 	}
 }
 

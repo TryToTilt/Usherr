@@ -5,8 +5,8 @@ import { t } from './i18n.ts'
 
 export interface Helper {
   name: string
-  where: 'Reddit' | 'GitHub'
-  href: string
+  where: 'Reddit' | 'GitHub' | 'In-app report'
+  href: string // '' for someone who wrote from inside the app, with no profile to link
   ideas: string[]
 }
 
@@ -40,22 +40,24 @@ export function helpers(): Helper[] {
     { name: 'TryToTilt', where: 'GitHub', href: github('TryToTilt'), ideas: [t('Repairing Usenet releases that come with only PAR2 recovery volumes'), t('A speed schedule, a weekly summary and a page-turn animation in the reader, ideas from their fork')] },
     { name: 'DerGlordon', where: 'Reddit', href: reddit('DerGlordon'), ideas: [t('A custom format condition for the original language of a film or show')] },
     { name: 'bevinduplessis', where: 'GitHub', href: github('bevinduplessis'), ideas: [t("Finding that a SABnzbd job saved as a single file wasn't removed after import")] },
-    { name: 'xrandallx1', where: 'GitHub', href: github('xrandallx1'), ideas: [t('Silo as a media server'), t('IPTorrents as a built-in site'), t("Removing a SABnzbd job's files after import")] },
+    { name: 'xrandallx1', where: 'GitHub', href: github('xrandallx1'), ideas: [t('Silo as a media server'), t('IPTorrents as a built-in site'), t("Removing a SABnzbd job's files after import"), t("Silo's current API")] },
     { name: 'DFlexy', where: 'GitHub', href: github('DFlexy'), ideas: [t('Mediarium in Brazilian Portuguese'), t('Adding your own indexer definition files'), t('Waiting longer for slow Prowlarr feeds'), t('The import explanations in your language')] },
     { name: 'FACM-PF', where: 'GitHub', href: github('FACM-PF'), ideas: [t('Mediarium in European Portuguese')] },
     { name: 'PauloJf', where: 'GitHub', href: github('PauloJf'), ideas: [t('The WireGuard preshared key and pasting a whole config'), t('qBittorrent-compatible download clients'), t('Sorting and filtering the release lists, trailers in a pop-up, subtitles in the player and more detail on downloads'), t('Kobo sync and an OPDS catalogue for books')] },
     { name: 'joshpennington', where: 'Reddit', href: reddit('joshpennington'), ideas: [t('More than one folder per kind of media')] },
-    { name: 'blind0wl', where: 'GitHub', href: github('blind0wl'), ideas: [t('A Download clients tab with what the clients are doing'), t('Choosing when to give up on a stalled torrent')] },
+    { name: 'blind0wl', where: 'GitHub', href: github('blind0wl'), ideas: [t('A Download clients tab with what the clients are doing'), t('Choosing when to give up on a stalled torrent'), t('Torrent links from Prowlarr that redirect to a magnet link, written as a pull request')] },
     { name: '12nick12', where: 'GitHub', href: github('12nick12'), ideas: [t('Password-protected downloads'), t('Sending a download to the front of the line, picking several downloads at once and starting newer releases first')] },
     { name: 'jdamner', where: 'GitHub', href: github('jdamner'), ideas: [t('Keeping settings in one file for git or a script')] },
     { name: 'anguyen1776', where: 'GitHub', href: github('anguyen1776'), ideas: [t('Different quality profiles for movies and TV, and finding missing episodes one season at a time')] },
     { name: 'varnakube', where: 'GitHub', href: github('varnakube'), ideas: [t('Picking a book by hand when it is not found during an import'), t("Setting a book's cover by hand")] },
-    { name: 'SanketBaraiya', where: 'GitHub', href: github('SanketBaraiya'), ideas: [t('Importing anime that is numbered by TheTVDB seasons, such as One Piece'), t('Knaben as a built-in site')] },
-    { name: 'nexus4004', where: 'GitHub', href: github('nexus4004'), ideas: [t("Showing the folder where a title's files go"), t('Pointing a title at a file or folder you renamed'), t('Subtitles in Croatian and Serbian'), t('Rescanning a movie that has no file'), t('Library entries in the left menu'), t('The busy message as a small notice in the corner'), t('Preferring a season pack once a season has ended'), t('Importing your Simkl lists'), t('The total speed and what is left in each download client'), t('The service a subtitle came from, shown in Activity'), t('Usenet releases posted without file names'), t("Finding that the calendar's More list was hard to read on greyed days")] },
+    { name: 'SanketBaraiya', where: 'GitHub', href: github('SanketBaraiya'), ideas: [t('Importing anime that is numbered by TheTVDB seasons, such as One Piece'), t('Knaben as a built-in site'), t('Music search by album and song, and Soulseek through slskd'), t('One music search for artists, albums and songs, and adding just one song'), t('Music and channel downloads through yt-dlp'), t('Searching for a pack of the complete series of a show that has ended'), t('Showing the built-in downloaders to phone apps such as nzb360 as SABnzbd and qBittorrent'), t('Indexers that follow a site when it moves to a new address'), t('Unlinking a file from an episode or movie')] },
+    { name: 'nexus4004', where: 'GitHub', href: github('nexus4004'), ideas: [t("Showing the folder where a title's files go"), t('Pointing a title at a file or folder you renamed'), t('Subtitles in Croatian and Serbian'), t('Filtering the Library by the folder a title is kept in'), t('Rescanning a movie that has no file'), t('Library entries in the left menu'), t('The busy message as a small notice in the corner'), t('Preferring a season pack once a season has ended'), t('Importing your Simkl lists'), t('The total speed and what is left in each download client'), t('The service a subtitle came from, shown in Activity'), t('Usenet releases posted without file names'), t('How much each Usenet provider and indexer delivered'), t("Finding that the calendar's More list was hard to read on greyed days"), t('A history for each import list')] },
+    { name: 'cknickl', where: 'GitHub', href: github('cknickl'), ideas: [t("Recognising an archive that was saved under a video's name")] },
+    { name: 'rdehuyss', where: 'GitHub', href: github('rdehuyss'), ideas: [t('Letting an assistant pick releases and start downloads through MCP')] },
     { name: 'Jisevind', where: 'GitHub', href: github('Jisevind'), ideas: [t('Keeping the original file names')] },
     { name: 'franciscojnneto', where: 'GitHub', href: github('franciscojnneto'), ideas: [t('Pages for cast and crew')] },
     { name: 'Bayharbourbutcher1', where: 'GitHub', href: github('Bayharbourbutcher1'), ideas: [t('Sending the seeding rules to an outside torrent client')] },
-    { name: 'mirisbowring', where: 'GitHub', href: github('mirisbowring'), ideas: [t('Replacing a movie with a smaller version'), t('Searching under another title of a movie or show, such as the German one'), t('Extra categories'), t('The category shown under each book release'), t('Episode by episode meaning one episode at a time'), t('Searching titles with umlauts in both spellings'), t('A search box in Choose a release for your own words'), t('Notices on phones covering the buttons')] },
+    { name: 'mirisbowring', where: 'GitHub', href: github('mirisbowring'), ideas: [t('Replacing a movie with a smaller version'), t('Searching under another title of a movie or show, such as the German one'), t('Extra categories'), t('The category shown under each book release'), t('Episode by episode meaning one episode at a time'), t('Searching titles with umlauts in both spellings'), t('A search box in Choose a release for your own words'), t('Notices on phones covering the buttons'), t('RSS feeds as import lists, with downloads from them'), t('Filling in shows from TheTVDB when TMDB is missing seasons'), t('Showing where each title and download came from'), t('Blocking a release for one title only'), t('Picking a range of downloads with Shift')] },
     { name: 'spamoom', where: 'GitHub', href: github('spamoom'), ideas: [t('Sending indexer traffic through the VPN, with the code to do it')] },
     { name: 'acortespr06', where: 'GitHub', href: github('acortespr06'), ideas: [t('Transmission as a download client')] },
     { name: 'MrBanditt', where: 'GitHub', href: github('MrBanditt'), ideas: [t('Ended and continuing shows, file sizes for episodes and seasons, an age column in the release list, a TMDB link on title pages and sorting titles without “The”')] },
@@ -68,10 +70,22 @@ export function helpers(): Helper[] {
       ideas: [t('Toloka.to as a built-in site'), t('Prowlarr feed addresses that end in /api'), t('Sites that write dates in their own way'), t('Torrent sites from Prowlarr added as Usenet'), t('Titles and descriptions in your language')],
     },
     { name: 'Marty-SK', where: 'GitHub', href: github('Marty-SK'), ideas: [t('Seeing whether the VPN really passes traffic, with a Test button')] },
-    { name: 'memnos', where: 'GitHub', href: github('memnos'), ideas: [t('Naming new movie and show folders and files in the info language, written as a pull request'), t('Sending UDP trackers and DHT through the built-in VPN, written as a pull request'), t('Hardcover covers in book search, written as a pull request'), t('Showing library titles and posters in the info language, written as a pull request'), t('Asking Google Books for a missing book cover or description, written as a pull request')] },
-    { name: 'blind0wl', where: 'GitHub', href: github('blind0wl'), ideas: [t('Torrent links from Prowlarr that redirect to a magnet link, written as a pull request')] },
+    { name: 'memnos', where: 'GitHub', href: github('memnos'), ideas: [t('Naming new movie and show folders and files in the info language, written as a pull request'), t('Sending UDP trackers and DHT through the built-in VPN, written as a pull request'), t('Hardcover covers in book search, written as a pull request'), t('Showing library titles and posters in the info language, written as a pull request'), t('Asking Google Books for a missing book cover or description, written as a pull request'), t('Keeping a Google Books cover and description that were dropped, written as a pull request')] },
     { name: 'Joshuancsu', where: 'Reddit', href: reddit('Joshuancsu'), ideas: [t('Saying why a torrent was given up')] },
+    { name: 'jasonmackie76', where: 'GitHub', href: github('jasonmackie76'), ideas: [t("Choosing where each indexer's torrents go")] },
     { name: 'okuegow', where: 'GitHub', href: github('okuegow'), ideas: [t('An album folder linked to a single with the same name')] },
     { name: 'KpiclhU', where: 'GitHub', href: github('KpiclhU'), ideas: [t('Decypharr not signing in again, with the fix')] },
+    { name: 'nikoxp', where: 'GitHub', href: github('nikoxp'), ideas: [t('A Chinese translation of the app')] },
+    { name: 'MHMDGSD', where: 'Reddit', href: reddit('MHMDGSD'), ideas: [t('Marking freeleech torrents in the release list, with a Freeleech only filter'), t('A link from each release to its page on the tracker'), t('Choosing once whether adding a title monitors it and starts a search')] },
+    { name: 'wivaku', where: 'GitHub', href: github('wivaku'), ideas: [t('Hiding what you already stream on Discover')] },
+    { name: 'Speedymr01', where: 'GitHub', href: github('Speedymr01'), ideas: [t('Sorting the downloads on the Activity page'), t('A box of what finished since you last looked'), t('Sorting the downloads by the number of peers')] },
+    { name: 'maemohim', where: 'GitHub', href: github('maemohim'), ideas: [t('Persian subtitles')] },
+    { name: 'samuelhalff', where: 'GitHub', href: github('samuelhalff'), ideas: [t('A crash when an assistant searches for a show'), t('A crash when a VPN is deactivated')] },
+    { name: 'PotentCricket', where: 'GitHub', href: github('PotentCricket'), ideas: [t('Deleting a file from cleanup apps such as Maintainerr')] },
+    { name: 'Yshuro', where: 'GitHub', href: github('Yshuro'), ideas: [t('A fix for the crash when an assistant searches for a show, written as a pull request')] },
+    { name: 'balkie31', where: 'GitHub', href: github('balkie31'), ideas: [t('The Arrmatey app opening the show list')] },
+    { name: 'JCQuintas', where: 'GitHub', href: github('JCQuintas'), ideas: [t("A clear Watch button on a title's page"), t('Manual searches that keep what the fast indexers found when one is slow')] },
+    { name: 'Salih800', where: 'GitHub', href: github('Salih800'), ideas: [t('Renaming existing files from the release they came from'), t('Naming files from the details read from the file'), t('Reading a season pack named S01 S05 as five seasons')] },
+    { name: 'Marco', where: 'In-app report', href: '', ideas: [t('Filing books in a folder per series, under the author')] },
   ]
 }

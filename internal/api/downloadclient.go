@@ -439,7 +439,7 @@ func (s *Server) downloadClientError(label string, err error) error {
 // Mediarium sees it: a path inside remote gets local in its place. Without a
 // mapping (or for a path outside remote) the path is used as it is.
 func mapClientPath(p, remote, local string) string {
-	p = strings.TrimSpace(p)
+	p, remote, local = strings.TrimSpace(p), strings.TrimSpace(remote), strings.TrimSpace(local)
 	if p == "" || remote == "" || local == "" {
 		return filepath.Clean(filepath.FromSlash(p))
 	}
@@ -452,7 +452,9 @@ func mapClientPath(p, remote, local string) string {
 		prefix, rest = q[:len(r)], q[len(r):]
 	}
 	same := prefix == r || (windows && strings.EqualFold(prefix, r))
-	if !same || (rest != "" && rest[0] != '/') {
+	// A path that climbs out of the folder ("..") is not mapped: it would end up
+	// outside the local folder.
+	if !same || (rest != "" && rest[0] != '/') || slices.Contains(strings.Split(rest, "/"), "..") {
 		return filepath.Clean(filepath.FromSlash(p))
 	}
 	return filepath.Join(local, filepath.FromSlash(rest))
@@ -821,8 +823,9 @@ func (req downloadClientRequest) check() string {
 	)
 }
 
-// PUT /api/download-client: save the download client. Saving one turns the
-// debrid service off: torrent releases go to one place only.
+// PUT /api/download-client: save the download client. A debrid service can
+// stay set up beside it: each torrent indexer picks where its torrents go
+// (torrent_route.go, #166).
 func (s *Server) handlePutDownloadClient(w http.ResponseWriter, r *http.Request) {
 	var req downloadClientRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -870,12 +873,6 @@ func (s *Server) handlePutDownloadClient(w http.ResponseWriter, r *http.Request)
 		save = append(save, kv{settings.KeyDownloadClientPassword, "", true})
 	}
 	save = append(save, kv{settings.KeyDownloadClientKind, req.Kind, false})
-	if req.Kind != "" {
-		if service, _ := s.debridConfig(); service != "" {
-			save = append(save, kv{settings.KeyDebridService, "", false}, kv{settings.KeyDebridAPIKey, "", true})
-			slog.Info("debrid service turned off: torrent releases now go to the download client")
-		}
-	}
 	for _, e := range save {
 		if err := s.Settings.Set(e.key, e.value, e.encrypt); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())

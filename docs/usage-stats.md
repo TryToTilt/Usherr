@@ -6,7 +6,7 @@ Mediarium can send one small, anonymous message a day, so the project knows how 
 
 - The first time an administrator opens Mediarium (a new install, or an install that has just been updated), a window asks: **Yes, share anonymous numbers**, **No thanks**, or **Ask me later**. Nothing is chosen for you. **Ask me later** only closes the window until the next time the app is opened.
 - The window shows the exact message that would be sent, with the links to the code.
-- You can change your answer at any time under **Settings > General > Anonymous usage numbers**. Switching it off forgets the random ID. **Reset my ID** makes a new one, used from the next day's message on (it never sends a second message the same day).
+- You can change your answer at any time under **Settings > Basics > General > Anonymous usage numbers**. Switching it off forgets the random ID. **Reset my ID** makes a new one, used from the next day's message on (it never sends a second message the same day).
 - Accounts that are not administrators are not asked, and do not see the numbers.
 - **Never ask, never send:** set the environment variable `MEDIARIUM_DISABLE_STATS=1` on the container. The window is not shown and nothing is sent, whatever was answered before. It is listed in [reference/environment.md](https://github.com/rdborg/Mediarium/blob/main/docs/reference/environment.md).
 
@@ -17,7 +17,7 @@ One message a day, at most. It is this and nothing else (the code is [`internal/
 | Field | What it holds |
 |---|---|
 | `id` | A random 32-character number made on this install when you say Yes. It is not made from anything about you or the machine. It lets one install count once. |
-| `version` | The Mediarium version, such as `3.0.0`. |
+| `version` | The Mediarium version, such as `4.0.3`. |
 | `arch`, `docker` | `amd64`, `arm64` or `other`, and whether it runs in a container. |
 | `cores`, `memory` | Bands, such as `3-4` cores and `4-8 GB` of memory, never exact figures. |
 | `age` | How long the install has existed, as a band such as `1-3 months`. |

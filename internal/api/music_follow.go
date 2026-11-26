@@ -11,6 +11,7 @@ import (
 
 	"github.com/rdborg/mediarium/internal/music"
 	"github.com/rdborg/mediarium/internal/musicbrainz"
+	"github.com/rdborg/mediarium/internal/origin"
 )
 
 // musicRefreshInterval is how often followed artists are checked for new
@@ -134,6 +135,9 @@ func (s *Server) refreshMusicArtists(ctx context.Context) {
 // refreshMusicArtist is refreshMusicArtists for one artist; it returns the
 // albums it added.
 func (s *Server) refreshMusicArtist(ctx context.Context, artist music.Artist) ([]music.Album, error) {
+	if artist.Manual() {
+		return nil, nil // added by hand: MusicBrainz knows nothing of it, and nothing is changed
+	}
 	groups, err := s.MusicBrainz().ArtistReleaseGroups(ctx, artist.MBID, nil, true)
 	if err != nil {
 		return nil, err
@@ -166,6 +170,7 @@ func (s *Server) refreshMusicArtist(ctx context.Context, artist music.Artist) ([
 	for _, g := range pass {
 		fresh = append(fresh, music.Album{
 			MBID: g.ID, Title: g.Title, Type: albumType(g.PrimaryType), ReleaseDate: g.FirstReleaseDate, Monitored: artist.MonitorNew,
+			Origin: origin.Origin{Kind: origin.Auto, Name: origin.JobFollow},
 		})
 	}
 	added, err := s.MusicRepo.AddAlbums(artist.ID, fresh)

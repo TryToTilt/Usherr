@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/netguard"
@@ -33,6 +34,10 @@ type Client struct {
 	// network address. One is used only when the server answering there is
 	// the same one, asked without its token.
 	NearbyPlex []string
+
+	// siloAPI remembers which API generation (1 or 2) each Silo address
+	// answered on, keyed by its base URL.
+	siloAPI sync.Map
 }
 
 // maxAnswerBytes is the most read of a media server's answer (a library
@@ -160,6 +165,12 @@ func (c *Client) exchange(req *http.Request, s Server, base string, out any) err
 	data, err := io.ReadAll(io.LimitReader(resp.Body, limit))
 	if err != nil {
 		return fmt.Errorf("read %s response: %w", s.Kind.Label(), err)
+	}
+	// A login page of a proxy, or a default web server page, is not an answer
+	// of the server. Read as XML it would come out as an empty one, and the
+	// address would pass its test with no libraries in it.
+	if head := strings.ToLower(string(bytes.TrimSpace(data[:min(len(data), 512)]))); strings.HasPrefix(head, "<!doctype html") || strings.HasPrefix(head, "<html") || strings.Contains(head, "<html") {
+		return fmt.Errorf("%w: a web page", errUnrecognised)
 	}
 	if strings.Contains(resp.Header.Get("Content-Type"), "xml") || bytes.HasPrefix(bytes.TrimSpace(data), []byte("<")) {
 		if err := xml.Unmarshal(data, out); err != nil {
@@ -335,7 +346,7 @@ func (c *Client) RefreshFolders(ctx context.Context, s Server, kind MediaKind, f
 		}
 		return c.bookRefresh(ctx, s, folders)
 	}
-	if kind == MediaBook {
+	if kind == MediaBook || kind == MediaOther {
 		// Plex, Jellyfin and Emby scan a book folder only when one of their
 		// libraries holds it; a whole-library scan for a book is not worth it.
 		folders = c.foldersInLibraries(ctx, s, folders)

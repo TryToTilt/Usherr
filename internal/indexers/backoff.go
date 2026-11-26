@@ -56,6 +56,11 @@ func ParseRetryAfter(v string, now time.Time) time.Duration {
 		if secs < 0 {
 			return 0
 		}
+		// A silly number must not overflow the duration (and wrap to a short
+		// or negative wait): nothing is waited for longer than MaxBackoff.
+		if secs > int(MaxBackoff/time.Second) {
+			return MaxBackoff
+		}
 		return time.Duration(secs) * time.Second
 	}
 	if t, err := http.ParseTime(v); err == nil {
@@ -166,6 +171,7 @@ type sourceKey struct {
 
 type sourceNote struct {
 	id     int64
+	guid   string // the id the indexer gave the release ("" when none)
 	expiry time.Time
 }
 

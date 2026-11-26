@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/rdborg/mediarium/internal/origin"
 )
 
 // Status is where an album stands, the same lifecycle as movies and
@@ -41,6 +43,10 @@ type Artist struct {
 	ProfileID      int64 // 0 = the default profile
 	AddedAt        string
 	AddedBy        int64 // account that added it; 0 = unknown
+	// Origin is how the artist came into the library: by a person, a request, a
+	// library folder scan... (only Kind and Name are kept; the person is
+	// AddedBy). The zero value is an artist from before this was recorded.
+	Origin origin.Origin
 }
 
 // ArtistSummary is an artist with counts of its albums.
@@ -65,6 +71,11 @@ type Album struct {
 	Status      Status
 	Quality     string // a Tier once downloaded
 	Path        string // the album's folder once imported
+	// Origin is how the album came into the library: with its artist, added by
+	// a person, found by following the artist... Kind, Name and UserID (the
+	// account that added it) are kept. Zero for an album from before this was
+	// recorded; AddArtist gives the artist's origin to albums that have none.
+	Origin origin.Origin
 }
 
 // Year is the album's release year, 0 if unknown.
@@ -88,6 +99,10 @@ type Track struct {
 	Title    string
 	LengthMs int
 	FilePath string // "" until imported
+	// Monitored is whether the track is wanted. Every track is, unless the
+	// album was added for one song only (#143): then the others are not
+	// imported and do not count as missing.
+	Monitored bool
 }
 
 // Repo stores artists, albums, tracks and music profiles.
@@ -105,12 +120,18 @@ func nullID(id int64) any {
 	return id
 }
 
-const artistColumns = `id, mbid, name, sort_name, disambiguation, monitored, monitor_new, COALESCE(profile_id, 0), added_at, COALESCE(added_by, 0)`
+const artistColumns = `id, mbid, name, sort_name, disambiguation, monitored, monitor_new, COALESCE(profile_id, 0), added_at, COALESCE(added_by, 0), origin_kind, origin_name`
 
 func scanArtist(row interface{ Scan(...any) error }) (Artist, error) {
 	var a Artist
-	err := row.Scan(&a.ID, &a.MBID, &a.Name, &a.SortName, &a.Disambiguation, &a.Monitored, &a.MonitorNew, &a.ProfileID, &a.AddedAt, &a.AddedBy)
+	err := row.Scan(&a.ID, &a.MBID, &a.Name, &a.SortName, &a.Disambiguation, &a.Monitored, &a.MonitorNew, &a.ProfileID, &a.AddedAt, &a.AddedBy, &a.Origin.Kind, &a.Origin.Name)
 	return a, err
+}
+
+// albumOrigin is what is stored for an album: its own origin, cleaned.
+func albumOrigin(al Album) (kind, name string, by int64) {
+	o := al.Origin.Clean()
+	return o.Kind, o.Name, o.UserID
 }
 
 // AddArtist adds an artist with its albums in one step. Albums get their
@@ -129,8 +150,9 @@ func (r *Repo) AddArtist(a Artist, albums []Album) (Artist, []Album, error) {
 	if exists > 0 {
 		return Artist{}, nil, ErrArtistExists
 	}
-	res, err := tx.Exec(`INSERT INTO artists (mbid, name, sort_name, disambiguation, monitored, monitor_new, profile_id, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		a.MBID, a.Name, a.SortName, a.Disambiguation, a.Monitored, a.MonitorNew, nullID(a.ProfileID), nullID(a.AddedBy))
+	how := a.Origin.Clean()
+	res, err := tx.Exec(`INSERT INTO artists (mbid, name, sort_name, disambiguation, monitored, monitor_new, profile_id, added_by, origin_kind, origin_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		a.MBID, a.Name, a.SortName, a.Disambiguation, a.Monitored, a.MonitorNew, nullID(a.ProfileID), nullID(a.AddedBy), how.Kind, how.Name)
 	if err != nil {
 		return Artist{}, nil, fmt.Errorf("insert artist %s: %w", a.Name, err)
 	}
@@ -146,9 +168,14 @@ func (r *Repo) AddArtist(a Artist, albums []Album) (Artist, []Album, error) {
 		if al.Type == "" {
 			al.Type = TypeAlbum
 		}
-		res, err := tx.Exec(`INSERT INTO albums (artist_id, mbid, release_mbid, title, type, release_date, monitored, status, quality, path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		if !al.Origin.Known() {
+			// Added with the artist: it came the same way.
+			al.Origin = origin.Origin{Kind: how.Kind, Name: how.Name, UserID: a.AddedBy}
+		}
+		kind, name, by := albumOrigin(al)
+		res, err := tx.Exec(`INSERT INTO albums (artist_id, mbid, release_mbid, title, type, release_date, monitored, status, quality, path, origin_kind, origin_name, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (artist_id, mbid) DO NOTHING`,
-			al.ArtistID, al.MBID, al.ReleaseMBID, al.Title, al.Type, al.ReleaseDate, al.Monitored, string(al.Status), al.Quality, al.Path)
+			al.ArtistID, al.MBID, al.ReleaseMBID, al.Title, al.Type, al.ReleaseDate, al.Monitored, string(al.Status), al.Quality, al.Path, kind, name, by)
 		if err != nil {
 			return Artist{}, nil, fmt.Errorf("insert album %s: %w", al.Title, err)
 		}
@@ -194,7 +221,7 @@ func (r *Repo) GetArtistByMBID(mbid string) (Artist, bool, error) {
 
 // ListArtists lists every artist with album counts, by sort name.
 func (r *Repo) ListArtists() ([]ArtistSummary, error) {
-	rows, err := r.db.Query(`SELECT a.id, a.mbid, a.name, a.sort_name, a.disambiguation, a.monitored, a.monitor_new, COALESCE(a.profile_id, 0), a.added_at, COALESCE(a.added_by, 0),
+	rows, err := r.db.Query(`SELECT a.id, a.mbid, a.name, a.sort_name, a.disambiguation, a.monitored, a.monitor_new, COALESCE(a.profile_id, 0), a.added_at, COALESCE(a.added_by, 0), a.origin_kind, a.origin_name,
 		(SELECT COUNT(*) FROM albums WHERE artist_id = a.id),
 		(SELECT COUNT(*) FROM albums WHERE artist_id = a.id AND monitored = 1),
 		(SELECT COUNT(*) FROM albums WHERE artist_id = a.id AND status = 'downloaded')
@@ -207,7 +234,7 @@ func (r *Repo) ListArtists() ([]ArtistSummary, error) {
 	for rows.Next() {
 		var s ArtistSummary
 		a := &s.Artist
-		if err := rows.Scan(&a.ID, &a.MBID, &a.Name, &a.SortName, &a.Disambiguation, &a.Monitored, &a.MonitorNew, &a.ProfileID, &a.AddedAt, &a.AddedBy,
+		if err := rows.Scan(&a.ID, &a.MBID, &a.Name, &a.SortName, &a.Disambiguation, &a.Monitored, &a.MonitorNew, &a.ProfileID, &a.AddedAt, &a.AddedBy, &a.Origin.Kind, &a.Origin.Name,
 			&s.Albums, &s.Monitored, &s.Downloaded); err != nil {
 			return nil, fmt.Errorf("scan artist: %w", err)
 		}
@@ -248,12 +275,12 @@ func (r *Repo) DeleteArtist(id int64) error {
 	return nil
 }
 
-const albumColumns = `id, artist_id, mbid, release_mbid, title, type, release_date, monitored, status, quality, path`
+const albumColumns = `id, artist_id, mbid, release_mbid, title, type, release_date, monitored, status, quality, path, origin_kind, origin_name, added_by`
 
 func scanAlbum(row interface{ Scan(...any) error }) (Album, error) {
 	var a Album
 	var status string
-	err := row.Scan(&a.ID, &a.ArtistID, &a.MBID, &a.ReleaseMBID, &a.Title, &a.Type, &a.ReleaseDate, &a.Monitored, &status, &a.Quality, &a.Path)
+	err := row.Scan(&a.ID, &a.ArtistID, &a.MBID, &a.ReleaseMBID, &a.Title, &a.Type, &a.ReleaseDate, &a.Monitored, &status, &a.Quality, &a.Path, &a.Origin.Kind, &a.Origin.Name, &a.Origin.UserID)
 	a.Status = Status(status)
 	return a, err
 }
@@ -416,7 +443,7 @@ func (r *Repo) ReplaceTracks(albumID int64, tracks []Track) error {
 
 // ListTracks lists an album's tracks in order.
 func (r *Repo) ListTracks(albumID int64) ([]Track, error) {
-	rows, err := r.db.Query(`SELECT id, album_id, disc, position, title, length_ms, file_path FROM tracks WHERE album_id = ? ORDER BY disc, position`, albumID)
+	rows, err := r.db.Query(`SELECT id, album_id, disc, position, title, length_ms, file_path, monitored FROM tracks WHERE album_id = ? ORDER BY disc, position`, albumID)
 	if err != nil {
 		return nil, fmt.Errorf("list tracks of album %d: %w", albumID, err)
 	}
@@ -424,7 +451,7 @@ func (r *Repo) ListTracks(albumID int64) ([]Track, error) {
 	out := []Track{}
 	for rows.Next() {
 		var t Track
-		if err := rows.Scan(&t.ID, &t.AlbumID, &t.Disc, &t.Position, &t.Title, &t.LengthMs, &t.FilePath); err != nil {
+		if err := rows.Scan(&t.ID, &t.AlbumID, &t.Disc, &t.Position, &t.Title, &t.LengthMs, &t.FilePath, &t.Monitored); err != nil {
 			return nil, fmt.Errorf("scan track: %w", err)
 		}
 		out = append(out, t)
@@ -435,8 +462,8 @@ func (r *Repo) ListTracks(albumID int64) ([]Track, error) {
 // GetTrack returns one track, or sql.ErrNoRows when there is none.
 func (r *Repo) GetTrack(id int64) (Track, error) {
 	var t Track
-	err := r.db.QueryRow(`SELECT id, album_id, disc, position, title, length_ms, file_path FROM tracks WHERE id = ?`, id).
-		Scan(&t.ID, &t.AlbumID, &t.Disc, &t.Position, &t.Title, &t.LengthMs, &t.FilePath)
+	err := r.db.QueryRow(`SELECT id, album_id, disc, position, title, length_ms, file_path, monitored FROM tracks WHERE id = ?`, id).
+		Scan(&t.ID, &t.AlbumID, &t.Disc, &t.Position, &t.Title, &t.LengthMs, &t.FilePath, &t.Monitored)
 	if err != nil {
 		return Track{}, err
 	}
@@ -469,6 +496,98 @@ func (r *Repo) SetTrackFile(trackID int64, path string) error {
 		return fmt.Errorf("set file of track %d: %w", trackID, err)
 	}
 	return nil
+}
+
+// SetTrackMonitored switches one track between wanted and not wanted.
+func (r *Repo) SetTrackMonitored(trackID int64, monitored bool) error {
+	res, err := r.db.Exec(`UPDATE tracks SET monitored = ? WHERE id = ?`, monitored, trackID)
+	if err != nil {
+		return fmt.Errorf("set monitoring of track %d: %w", trackID, err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("set monitoring of track %d: %w", trackID, sql.ErrNoRows)
+	}
+	return nil
+}
+
+// SetOnlySong records that an album was added for one song: its title as
+// picked in the search ("" clears it, every track wanted again).
+func (r *Repo) SetOnlySong(albumID int64, song string) error {
+	return r.execAlbum("set the wanted song of", albumID, `UPDATE albums SET only_song = ? WHERE id = ?`, strings.TrimSpace(song), albumID)
+}
+
+// OnlySong is the song an album was added for, "" when the whole album is wanted.
+func (r *Repo) OnlySong(albumID int64) (string, error) {
+	var song string
+	err := r.db.QueryRow(`SELECT only_song FROM albums WHERE id = ?`, albumID).Scan(&song)
+	if err != nil {
+		return "", fmt.Errorf("read the wanted song of album %d: %w", albumID, err)
+	}
+	return song, nil
+}
+
+// ApplyOnlySong marks the tracks of an album once its tracklist is known: the
+// ones named like the album's wanted song stay monitored, the others are not
+// wanted. It does nothing (everything stays wanted) when no song was picked
+// or none of the tracks has that name, and reports how many tracks are
+// wanted afterwards.
+func (r *Repo) ApplyOnlySong(albumID int64) (wanted int, err error) {
+	song, err := r.OnlySong(albumID)
+	if err != nil {
+		return 0, err
+	}
+	tracks, err := r.ListTracks(albumID)
+	if err != nil {
+		return 0, err
+	}
+	if song == "" {
+		return len(tracks), nil
+	}
+	hit := MatchingTracks(tracks, song)
+	if len(hit) == 0 {
+		return len(tracks), nil
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return 0, fmt.Errorf("apply the wanted song of album %d: %w", albumID, err)
+	}
+	defer tx.Rollback()
+	for _, t := range tracks {
+		if _, err := tx.Exec(`UPDATE tracks SET monitored = ? WHERE id = ?`, hit[t.ID], t.ID); err != nil {
+			return 0, fmt.Errorf("apply the wanted song of album %d: %w", albumID, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("apply the wanted song of album %d: %w", albumID, err)
+	}
+	return len(hit), nil
+}
+
+// MatchingTracks returns the ids of the tracks whose title is the given song
+// (case, accents, punctuation and a bracketed "(Remastered)" or "(feat. ...)"
+// do not matter). When the song's title is on more than one track (the same
+// song twice on a deluxe album), all of them match.
+func MatchingTracks(tracks []Track, song string) map[int64]bool {
+	want := songKey(song)
+	out := map[int64]bool{}
+	if want == "" {
+		return out
+	}
+	for _, t := range tracks {
+		if songKey(t.Title) == want {
+			out[t.ID] = true
+		}
+	}
+	return out
+}
+
+// songKey is a song title reduced for comparing: no bracketed parts, no
+// accents, case or punctuation. A title that is only brackets is kept whole.
+func songKey(s string) string {
+	if k := NormalizeName(reBrackets.ReplaceAllString(s, " ")); k != "" {
+		return k
+	}
+	return NormalizeName(s)
 }
 
 // ---- Profiles ----

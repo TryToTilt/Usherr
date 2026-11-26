@@ -12,7 +12,12 @@ import LookChoice from '../../neu/LookChoice' // Usherr Neu
 import MenuHideChoice from '../../components/MenuHideChoice' // Usherr: how soon the menu slides away
 import FilmLayoutChoice from '../../home/FilmLayoutChoice' // Usherr: the film page's layout
 import ThemeToggle from '../../components/ThemeToggle'
-import { PushCard } from '../../components/UpdateCards'
+import Switch from '../../components/Switch'
+import FoldSettings from '../../components/FoldSettings'
+import { savedBlack, savedTextSize, setBlack, setTextSize, type TextSize } from '../../look'
+import { PushCard } from '../../components/UpdateCards' // home fork: UpdatesCard lives on System
+import RollbackCard from '../../components/RollbackCard'
+import InstallCard from '../../components/InstallCard'
 import { broadcastOn } from '../../onemenu/broadcast' // Usherr Broadcast
 import { MenuModeChoice } from '../../onemenu/OneMenu' // Usherr Broadcast: the one menu's mode
 import YourSettings from '../../broadcast/YourSettings' // Usherr Broadcast: the rows a remote changes
@@ -65,12 +70,65 @@ function LookCard() {
         <ThemeToggle />
         <span style={{ color: 'var(--text-dim)' }}>{t('Switches Mediarium between its dark and light look. It is kept in this browser.')}</span>
       </div>
+      <LookExtras />
       <PaletteChoice />
       <BaseChoice />
       <LookChoice />
       {broadcastOn() && <MenuModeChoice />} {/* Usherr Broadcast */}
       <MenuHideChoice />
     </fieldset>
+  )
+}
+
+// Usherr Broadcast: the black background and text size, for when LookCard is not shown.
+function ScreenCard() {
+  return (
+    <fieldset className="group">
+      <legend>
+        <Icon name="sun" size={14} /> {t('Screen')}
+      </legend>
+      <LookExtras />
+    </fieldset>
+  )
+}
+
+// The foldable and dual-screen layout (fold.ts).
+function FoldCard() {
+  return <FoldSettings />
+}
+
+// Pure black for OLED screens and a bigger text size (V4 B7), kept in this browser like the theme.
+function LookExtras() {
+  const [black, setBlackState] = useState(savedBlack)
+  const [size, setSize] = useState<TextSize>(savedTextSize)
+  return (
+    <div className="grid-form" style={{ marginTop: 12 }}>
+      <Switch
+        checked={black}
+        onChange={(on) => {
+          setBlack(on)
+          setBlackState(on)
+        }}
+        label={t('Pure black background')}
+        description={t('For phones and screens with OLED panels: the dark look with a black background. It has no effect in the light look.')}
+        showState
+      />
+      <label className="inline-field">
+        {t('Text size')}
+        <select
+          value={size}
+          onChange={(e) => {
+            const v = e.target.value as TextSize
+            setTextSize(v)
+            setSize(v)
+          }}
+        >
+          <option value="normal">{t('Normal')}</option>
+          <option value="large">{t('Large')}</option>
+          <option value="larger">{t('Larger')}</option>
+        </select>
+      </label>
+    </div>
   )
 }
 
@@ -119,7 +177,7 @@ function LegalCard() {
   )
 }
 
-// Settings > General: what is about the app as a whole. Everyone sees the
+// Settings > Basics > General: what is about the app as a whole. Everyone sees the
 // language and the look; the address of the server, updates and the legal
 // notice are for administrators.
 // Usherr Broadcast: General is split there. `part="you"` (the page, under You >
@@ -135,10 +193,14 @@ export default function GeneralSettings({ part }: { part?: 'you' | 'server' } = 
       {mine && broadcastOn() && <YourSettings />} {/* Usherr Broadcast: language, look and the menu as rows */}
       {mine && !broadcastOn() && <LanguageCard />}
       {mine && !broadcastOn() && <LookCard />}
+      {mine && broadcastOn() && <ScreenCard />} {/* Usherr Broadcast: black and text size, which YourSettings lacks */}
+      {mine && <FoldCard />}
       {mine && <FilmLayoutChoice />} {/* Usherr */}
       {mine && <NewsStyleCard />} {/* Usherr */}
       {mine && <TimeZoneCard admin={isAdmin(user)} />}
+      {mine && <InstallCard />}
       {admin && !broadcastOn() && <PublicAddress />}
+      {admin && <RollbackCard />}
       {admin && (
         <details className="how-details span-all">
           <summary>{t('Advanced: updates pushed through the API')}</summary>

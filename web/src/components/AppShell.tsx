@@ -10,7 +10,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } fr
 import { scrollToTop } from '../scrollTop'
 import { api, isAdmin, type AppLink, type WatchLink } from '../api'
 import { useAuth } from '../AuthContext'
-import { demoEnabled } from '../demo'
+import { demoEnabled } from '../demoFlag'
 import { titleFor, useSpecificTitle } from '../documentTitle'
 import { sectionFor, type SectionKey } from '../sections'
 import { inPage, pageParts, pageTitle, settingsGroupsFor } from '../settingsNav'
@@ -21,7 +21,9 @@ import { libraryEntries, type LibraryTab } from '../libraryTabs'
 import { useComicsOn, useNsfwOn, useSportsOn } from '../home/libraryKinds' // home fork
 import { afterClick, afterKey, type NavGroup, type OpenGroup } from '../navGroups'
 import BackToTop from './BackToTop'
+import BottomNav from './BottomNav'
 import BrandMark from './BrandMark'
+import CommandPalette from './CommandPalette'
 import PageLoading from './PageLoading'
 import FeedbackNudge from './FeedbackNudge'
 import ImportBanner from './ImportBanner'
@@ -42,6 +44,7 @@ import { CalendarHeaderSearch } from '../home/CalendarSearch' // Usherr
 import ThemeToggle from './ThemeToggle'
 import UsageStatsPrompt from './UsageStats'
 import WhatsNew from './WhatsNew'
+import UpdateNotice from './UpdateNotice'
 import { t, tc } from '../i18n'
 import { useGuideShortcut } from '../guide/shortcut.ts'
 import AmbientBackdrop from './AmbientBackdrop'
@@ -54,6 +57,7 @@ import { MENU_MODE_EVENT, menuMode } from '../onemenu/menuMode' // Usherr Broadc
 import { YOUR_SETTINGS } from '../onemenu/broadcastNav' // Usherr Broadcast
 import { REMOTE_EVENT, type RemoteDetail } from '../remote/remote' // Usherr Broadcast: Left at the edge opens the menu
 import PosterOptions from '../broadcast/PosterOptions' // Usherr Broadcast: a poster's Options key is its title's More sheet
+import { watch as watchSheetBack } from '../sheetBack'
 
 const NAV: { to: string; label: string; icon: IconName; sec: SectionKey; end?: boolean }[] = [
   { to: '/', label: t('Dashboard'), icon: 'grid', sec: 'dashboard', end: true },
@@ -66,18 +70,19 @@ const NAV: { to: string; label: string; icon: IconName; sec: SectionKey; end?: b
   { to: '/tv', label: t('Live TV'), icon: 'tv', sec: 'live' }, // Mediarium TV (home fork): the one kind of media outside the Library
   { to: '/marquee/manage', label: t('Marquee'), icon: 'monitor', sec: 'live' }, // Usherr: the lobby display (administrators)
   { to: '/queue', label: t('Activity'), icon: 'activity', sec: 'activity' },
-  { to: '/settings/media', label: t('Settings'), icon: 'sliders', sec: 'settings' },
+  { to: '/settings', label: t('Settings'), icon: 'sliders', sec: 'settings' },
 ]
 
 // The lines under "Library" in the left menu: what each one is called, the glyph
 // it wears and its colour (the same as the Library's tabs).
-const LIBRARY_LINE: Record<LibraryTab, { label: string; glyph: 'movie' | 'tv' | 'music' | 'book' | 'audiobook' | 'comic' | 'manga'; color: string }> = {
+const LIBRARY_LINE: Record<LibraryTab, { label: string; glyph: 'movie' | 'tv' | 'music' | 'book' | 'audiobook' | 'comic' | 'manga' | 'other'; color: string }> = { // comic, manga: Usherr
   movie: { label: t('Movies'), glyph: 'movie', color: 'var(--c-movie)' },
   tv: { label: t('TV shows'), glyph: 'tv', color: 'var(--c-tv)' },
+  anime: { label: t('Anime'), glyph: 'tv', color: 'var(--c-anime)' },
   music: { label: t('Music'), glyph: 'music', color: 'var(--c-music)' },
   ebook: { label: t('Ebooks'), glyph: 'book', color: 'var(--c-book)' },
   audiobook: { label: t('Audiobooks'), glyph: 'audiobook', color: 'var(--c-audiobook)' },
-  anime: { label: t('Anime'), glyph: 'tv', color: 'var(--c-tv)' }, // Usherr
+  other: { label: t('Other'), glyph: 'other', color: 'var(--c-other)' },
   comics: { label: t('Comics'), glyph: 'comic', color: 'var(--c-comics)' }, // Usherr
   manga: { label: t('Manga'), glyph: 'manga', color: 'var(--c-manga)' }, // Usherr
   nsfw: { label: t('NSFW 18+'), glyph: 'movie', color: 'var(--c-nsfw)' }, // Usherr
@@ -136,6 +141,29 @@ export default function AppShell() {
       <TourGate /> {/* home fork: the first-visit tour */}
       <SmhGate /> {/* Usherr: Show Me How's menu and coach card */}
     </MusicPlayerProvider>
+  )
+}
+
+// The page you are on, named beside a closed group in the side menu. It is shown only when the whole
+// name fits in the room the row has left; a cut-off name ("Ordn...") says nothing, and the page name
+// is in the top bar anyway. The room differs per language, so it is measured, not counted.
+function NavHere({ text }: { text: string }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [fits, setFits] = useState(true)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = () => setFits(el.scrollWidth <= el.clientWidth + 1)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const watch = new ResizeObserver(measure)
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [text])
+  return (
+    <span ref={ref} className="nav-here" title={text} aria-hidden={!fits || undefined} style={fits ? undefined : { visibility: 'hidden' }}>
+      {text}
+    </span>
   )
 }
 
@@ -221,7 +249,8 @@ function Shell() {
   // Members only have their own profile and About under Settings.
   const settingsGroups = settingsGroupsFor(admin, user?.role === 'viewer')
   const sportsOn = useSportsOn(admin) // Usherr
-  const nav = NAV.filter((n) => (admin || n.to !== '/marquee/manage') && (sportsOn || n.to !== '/sports')).map((n) => (n.sec === 'settings' ? { ...n, to: settingsGroups[0].pages[0].to } : n)) // Usherr: the Marquee is for administrators
+  // Usherr: the Marquee is for administrators. Settings opens upstream's overview; Broadcast keeps opening its first page (it has its own groups).
+  const nav = NAV.filter((n) => (admin || n.to !== '/marquee/manage') && (sportsOn || n.to !== '/sports')).map((n) => (n.sec === 'settings' && broadcastOn() ? { ...n, to: settingsGroups[0].pages[0].to } : n))
   const { on: moduleOn } = useModules()
   const ebooksOn = moduleOn('ebooks')
   const audiobooksOn = moduleOn('audiobooks')
@@ -253,7 +282,7 @@ function Shell() {
     return () => mq.removeEventListener('change', read)
   }, [])
   const pinned = broadcast && mode === 'open' && wide // Usherr Broadcast: always open
-  const errorDot = <span className="nav-dot" role="img" aria-label={t('New errors')} title={t('New errors. See Settings, System, Logs and errors.')} />
+  const errorDot = <span className="nav-dot" role="img" aria-label={t('New errors')} title={t('New errors. See Settings > System > Logs and errors.')} />
 
   // Close the mobile drawer whenever the page changes (a Library line only changes the address's query).
   // Usherr: on a wider screen it stays open while you go from page to page.
@@ -449,6 +478,7 @@ function Shell() {
     </span>
   )
   useGuideShortcut()
+  useEffect(watchSheetBack, []) // on a phone, Back closes an open pop-up
   const specificTitle = useSpecificTitle()
   useEffect(() => {
     document.title = titleFor(specificTitle || heading)
@@ -471,7 +501,9 @@ function Shell() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setMenuOpen(false)
-        menuButton.current?.focus({ preventScroll: true })
+        // On a phone the header's menu button is hidden; More in the bottom bar is the one that opened it.
+        const toggle = menuButton.current?.getClientRects().length ? menuButton.current : document.querySelector<HTMLElement>('.bottom-nav button[aria-controls="main-menu"]')
+        toggle?.focus({ preventScroll: true })
         return
       }
       if (e.key !== 'Tab') return
@@ -574,7 +606,7 @@ function Shell() {
             const current = g.pages.some((p) => inPage(location.pathname, p.to))
             if (g.pages.length === 1) {
               return (
-                <NavLink key={g.key} to={g.pages[0].to} style={{ ['--sc' as string]: g.color }} className={() => (current ? 'active' : '')}>
+                <NavLink key={g.key} to={g.pages[0].to} title={g.pages[0].blurb} style={{ ['--sc' as string]: g.color }} className={() => (current ? 'active' : '')}>
                   <span className="nav-ico">
                     <Icon name={g.icon} size={15} />
                   </span>
@@ -599,6 +631,7 @@ function Shell() {
               <div key={g.key} className={`sn-group${open ? ' open' : ''}`} style={{ ['--sc' as string]: g.color }}>
                 <NavLink
                   to={g.pages[0].to}
+                  title={g.blurb}
                   role="button"
                   aria-expanded={open}
                   aria-controls={`sn-pages-${g.key}`}
@@ -627,7 +660,7 @@ function Shell() {
                 {open && (
                   <div className="sn-pages" id={`sn-pages-${g.key}`}>
                     {g.pages.map((p) => (
-                      <NavLink key={p.to} to={p.to} title={p.label} style={{ ['--sc' as string]: g.color }} className={() => (inPage(location.pathname, p.to) ? 'sn-page active' : 'sn-page')}>
+                      <NavLink key={p.to} to={p.to} title={p.blurb} aria-label={p.label} style={{ ['--sc' as string]: g.color }} className={() => (inPage(location.pathname, p.to) ? 'sn-page active' : 'sn-page')}>
                         <span className="sn-ico">
                           <Icon name={p.icon} size={13} />
                         </span>
@@ -743,7 +776,7 @@ function Shell() {
             </span>
             <span className="nav-label">{n.label}</span>
             {n.to === '/queue' && active > 0 && <span className="nav-count">{active}</span>}
-            {group && !isOpen && here[group] && <span className="nav-here">{here[group]}</span>}
+            {group && !isOpen && here[group] && <NavHere text={here[group]} />}
             {group && (
               <span className="nav-chev" style={{ transform: isOpen ? 'rotate(90deg)' : 'none' }}>
                 <Icon name="open" size={12} />
@@ -855,7 +888,10 @@ function Shell() {
         {!demoEnabled() && <WhatsNew version={version} onDone={onNotesDone} />}
         {!demoEnabled() && admin && USAGE_STATS && notesDone && <UsageStatsPrompt />}
         <FeedbackNudge />
+        <UpdateNotice />
         <ReportHost />
+        <CommandPalette />
+        {!broadcast && !lobby && <BottomNav active={active} menuOpen={menuOpen} onMenu={() => setMenuOpen((o) => !o)} />} {/* Usherr: Broadcast and the new layout have their own phone bar (below) */}
       </div>
       {broadcast ? <OneTabs needs={needs} /> : lobby && <LobbyTabs admin={admin} needs={needs} />} {/* Usherr Broadcast: the phone's bar */}
     </div>

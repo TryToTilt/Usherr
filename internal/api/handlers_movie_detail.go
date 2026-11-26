@@ -6,6 +6,7 @@ import (
 
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/metadata"
+	"github.com/rdborg/mediarium/internal/parser"
 	"github.com/rdborg/mediarium/internal/queue"
 )
 
@@ -56,9 +57,12 @@ type movieDetailPayload struct {
 	// BackdropURL is a wide still for the top of the title page.
 	BackdropURL string `json:"backdropUrl,omitempty"`
 	LibraryID   int64  `json:"libraryId,omitempty"` // 0 if not yet added to the library
-	Status      string `json:"status,omitempty"`    // library state: missing/downloading/downloaded
-	Quality     string `json:"quality,omitempty"`
-	FilePath    string `json:"filePath,omitempty"`
+	// Origin is how it came into the library, for administrators; left out when
+	// it was added before that was recorded.
+	Origin   *originView `json:"origin,omitempty"`
+	Status   string      `json:"status,omitempty"` // library state: missing/downloading/downloaded
+	Quality  string      `json:"quality,omitempty"`
+	FilePath string      `json:"filePath,omitempty"`
 	// FolderPath is the full folder of the movie's files in the library (as
 	// Mediarium sees it), or where they go when it has none.
 	FolderPath string `json:"folderPath,omitempty"`
@@ -67,6 +71,9 @@ type movieDetailPayload struct {
 	FileInfo *fileInfoPayload `json:"fileInfo,omitempty"`
 	// ShortFile is set when the file is far shorter than the movie should be.
 	ShortFile *shortFileNote `json:"shortFile,omitempty"`
+	// ReleaseGroup is the group named in the release the file came from (or in
+	// the file's own name); only given to people who can change it.
+	ReleaseGroup string `json:"releaseGroup,omitempty"`
 
 	// From TMDB. ReleaseStatus is TMDB's own status ("Released", "In
 	// Production"...), kept apart from Status above, the library state.
@@ -85,7 +92,8 @@ type movieDetailPayload struct {
 	Homepage      string                     `json:"homepage,omitempty"`
 	IMDBID        string                     `json:"imdbId,omitempty"`
 	Directors     []string                   `json:"directors"`
-	Crew          []crewPayload              `json:"crew"` // directors and writers, with ids
+	Studios       []string                   `json:"studios"` // the production companies
+	Crew          []crewPayload              `json:"crew"`    // directors and writers, with ids
 	Cast          []castPayload              `json:"cast"`
 	Trailers      []metadata.Trailer         `json:"trailers"`
 	// Collection is the series of films this one is part of, when it is.
@@ -102,7 +110,7 @@ func (s *Server) handleTMDBMovieDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.TMDB().HasAPIKey() {
-		writeError(w, http.StatusPreconditionFailed, "Add your TMDB API key first (Settings > Info, lists and subtitles > Movie and show info).")
+		writeError(w, http.StatusPreconditionFailed, "Add your TMDB API key first (Settings > Library and files > Movie and show info).")
 		return
 	}
 
@@ -119,9 +127,9 @@ func (s *Server) handleTMDBMovieDetail(w http.ResponseWriter, r *http.Request) {
 		VoteCount: tmdbMovie.VoteCount, Runtime: tmdbMovie.Runtime, Tagline: tmdbMovie.Tagline,
 		Certification: tmdbMovie.Certification(), ReleaseDate: tmdbMovie.ReleaseDate, ReleaseDates: tmdbMovie.ReleaseDatesFor(s.releaseRegion()), ReleaseStatus: tmdbMovie.Status,
 		Language: tmdbMovie.OriginalLanguage, Homepage: tmdbMovie.Homepage, IMDBID: tmdbMovie.IMDBID,
-		Directors: tmdbMovie.Directors(),
-		Crew:      crewPayloads(tmdbMovie.DirectorCrew(), tmdbMovie.WriterCrew()),
-		Cast:      castPayloads(tmdbMovie.Cast(detailCastCount)), Trailers: tmdbMovie.Trailers(),
+		Directors: tmdbMovie.Directors(), Studios: tmdbMovie.Studios(),
+		Crew: crewPayloads(tmdbMovie.DirectorCrew(), tmdbMovie.WriterCrew()),
+		Cast: castPayloads(tmdbMovie.Cast(detailCastCount)), Trailers: tmdbMovie.Trailers(),
 		Collection: collectionRefOf(tmdbMovie.BelongsToCollection),
 	}
 
@@ -136,9 +144,13 @@ func (s *Server) handleTMDBMovieDetail(w http.ResponseWriter, r *http.Request) {
 		if libMovie.Status == library.StatusDownloaded {
 			payload.FileInfo = s.movieFileInfo(libMovie.FilePath)
 			payload.ShortFile = s.shortFileOf(libMovie.FilePath)
+			if s.mayManage(r) {
+				payload.ReleaseGroup = parser.Parse(renameRelease(libMovie.ReleaseTitle, libMovie.FilePath)).Group
+			}
 		}
 		if isAdminRequest(r) { // only administrators see where the files lie
 			payload.FolderPath = s.movieFolderFor(libMovie)
+			payload.Origin = originOut(libMovie.Origin, s.accountNames()(libMovie.AddedBy))
 		}
 	}
 
@@ -209,6 +221,7 @@ type tvDetailPayload struct {
 	Seasons       int                `json:"seasons"`
 	Episodes      int                `json:"episodes"`
 	Networks      []string           `json:"networks"`
+	Studios       []string           `json:"studios"` // the production companies
 	ContentRating string             `json:"contentRating,omitempty"`
 	Genres        []string           `json:"genres"`
 	Rating        float64            `json:"rating"`
@@ -259,7 +272,7 @@ func (s *Server) handleTMDBTVDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.TMDB().HasAPIKey() {
-		writeError(w, http.StatusPreconditionFailed, "Add your TMDB API key first (Settings > Info, lists and subtitles > Movie and show info).")
+		writeError(w, http.StatusPreconditionFailed, "Add your TMDB API key first (Settings > Library and files > Movie and show info).")
 		return
 	}
 	show, err := s.displayTMDB().GetShowFull(r.Context(), tmdbID)
@@ -270,7 +283,7 @@ func (s *Server) handleTMDBTVDetail(w http.ResponseWriter, r *http.Request) {
 	payload := tvDetailPayload{
 		TMDBID: show.TMDBID, Title: show.Name, Year: show.Year(), Overview: show.Overview,
 		PosterURL: metadata.PosterURL(show.PosterPath), BackdropURL: metadata.BackdropURL(show.BackdropPath), FirstAirDate: show.FirstAirDate,
-		Seasons: show.SeasonCount(), Episodes: show.NumberOfEpisodes, Networks: show.NetworkNames(),
+		Seasons: show.SeasonCount(), Episodes: show.NumberOfEpisodes, Networks: show.NetworkNames(), Studios: show.Studios(),
 		ContentRating: show.ContentRating(), Genres: s.displayTMDB().ShowGenres(r.Context(), show.Show),
 		Rating: metadata.RoundRating(show.VoteAverage), VoteCount: show.VoteCount,
 		ReleaseStatus: show.Status, Tagline: show.Tagline, Language: show.OriginalLanguage, Homepage: show.Homepage,

@@ -3,7 +3,7 @@
 //
 // No React in this file, so it can be tested on its own.
 
-export type LibraryTab = 'movie' | 'tv' | 'music' | 'ebook' | 'audiobook' | 'anime' | 'comics' | 'manga' | 'nsfw' // Usherr: anime, comics, manga, NSFW
+export type LibraryTab = 'movie' | 'tv' | 'music' | 'ebook' | 'audiobook' | 'anime' | 'comics' | 'manga' | 'nsfw' | 'other' // Usherr: anime, comics, manga, NSFW
 
 // Usherr: the kinds this fork adds. Anime sits next to TV; Comics and NSFW 18+
 // come last and have pages of their own.
@@ -13,24 +13,27 @@ export interface HomeTabs {
 }
 
 // The switches in Settings, Media types, that decide which tabs exist.
-export type LibraryModule = 'movies' | 'tv' | 'music' | 'ebooks' | 'audiobooks' | 'manga'
+export type LibraryModule = 'movies' | 'tv' | 'anime' | 'music' | 'ebooks' | 'audiobooks' | 'manga' | 'other' // manga: Usherr
 
-const ALL_TABS: readonly LibraryTab[] = ['movie', 'tv', 'music', 'ebook', 'audiobook', 'anime', 'comics', 'manga', 'nsfw']
+const ALL_TABS: readonly LibraryTab[] = ['movie', 'tv', 'anime', 'music', 'ebook', 'audiobook', 'comics', 'manga', 'nsfw', 'other']
 
 export function isLibraryTab(v: string | null | undefined): v is LibraryTab {
   return !!v && (ALL_TABS as readonly string[]).includes(v)
 }
 
 // The tabs that are switched on: movies, TV and music (whichever are on), then
-// ebooks and audiobooks. Never empty.
+// ebooks and audiobooks (Usherr: then comics, manga and NSFW 18+), then Other. Never empty.
 export function libraryTabs(on: (key: LibraryModule) => boolean, home?: HomeTabs): LibraryTab[] {
   const video: LibraryTab[] = []
   if (on('movies')) video.push('movie')
-  if (on('tv')) video.push(...(home ? (['tv', 'anime'] as const) : (['tv'] as const)))
+  if (on('tv')) video.push('tv')
+  // The anime library is part of TV: its own tab, right after TV.
+  // Usherr: in this fork anime is read from the shows, so it is always there with TV.
+  if (on('tv') && (home || on('anime'))) video.push('anime')
   if (on('music')) video.push('music')
   // With nothing on at all, the Library still opens on Movies.
   const videoKinds: LibraryTab[] = video.length > 0 ? video : ['movie']
-  const booksOn = on('ebooks') || on('audiobooks') || on('manga')
+  const booksOn = on('ebooks') || on('audiobooks') || on('manga') || on('other')
   return [
     ...(on('movies') || on('tv') || on('music') || !booksOn ? videoKinds : []),
     ...(on('ebooks') ? (['ebook'] as const) : []),
@@ -38,6 +41,7 @@ export function libraryTabs(on: (key: LibraryModule) => boolean, home?: HomeTabs
     ...(home?.comics ? (['comics'] as const) : []),
     ...(on('manga') ? (['manga'] as const) : []),
     ...(home?.nsfw ? (['nsfw'] as const) : []),
+    ...(on('other') ? (['other'] as const) : []),
   ]
 }
 

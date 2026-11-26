@@ -28,9 +28,17 @@ test('first run: setup wizard to the dashboard', async ({ page }) => {
   // Usherr: the menu stays closed until it's opened, so the app is known by its menu button.
   const nav = page.locator('.menu-button[aria-controls="main-menu"]:not(.menu-close)')
   const next = page.getByRole('button', { name: /^(Continue anyway|Skip for now|Continue|Finish|Go to the dashboard|Open (?:Mediarium|Usherr)|Start using (?:Mediarium|Usherr))/ }).first()
+  // The Quality & naming step has a switch to keep looking for better versions,
+  // on for a new install.
+  let sawBetterSwitch = false
+  const better = page.getByRole('switch', { name: 'Keep looking for better versions' })
   for (let step = 0; step < 15; step++) {
     await Promise.race([nav.waitFor({ timeout: 15_000 }), next.waitFor({ timeout: 15_000 })]).catch(() => undefined)
     if (await nav.isVisible()) break
+    if (await better.isVisible()) {
+      sawBetterSwitch = true
+      await expect(better).toBeChecked()
+    }
     // A question on top (such as "Continue without an indexer?") comes first.
     const dialog = page.locator('[role="dialog"], [role="alertdialog"]').first()
     if (await dialog.isVisible()) await dialog.getByRole('button', { name: /^(Continue anyway|Skip|Continue)/ }).first().click()
@@ -38,6 +46,9 @@ test('first run: setup wizard to the dashboard', async ({ page }) => {
     await page.waitForTimeout(800)
   }
   await expect(nav).toBeVisible()
+  expect(sawBetterSwitch, 'the Quality & naming step shows the "Keep looking for better versions" switch').toBe(true)
+  const profiles = await page.request.get('/api/quality-profiles')
+  expect((await profiles.json()).addKeepBetter).toBe(true)
 
   // Usherr never sends usage numbers, so a new install doesn't ask about them.
   await expect(page.getByRole('dialog', { name: /anonymous numbers/ })).toHaveCount(0)

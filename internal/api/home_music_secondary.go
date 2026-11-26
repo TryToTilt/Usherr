@@ -18,6 +18,7 @@ import (
 
 	"github.com/rdborg/mediarium/internal/music"
 	"github.com/rdborg/mediarium/internal/musicbrainz"
+	"github.com/rdborg/mediarium/internal/origin"
 )
 
 // scanSecondary caches, per artist in a scan, the release groups with a
@@ -139,7 +140,7 @@ func (s *Server) matchOtherArtist(ctx context.Context, sa *scanArtist, titles []
 		g := groups[j]
 		artist, ok, err := s.MusicRepo.GetArtistByMBID(alt.ID)
 		if err == nil && !ok {
-			artist, _, err = s.addArtistFromMusicBrainz(ctx, alt.ID, monitorNone, 0, userID)
+			artist, _, err = s.addArtistFromMusicBrainz(ctx, alt.ID, monitorNone, 0, userID, origin.Origin{}) // Usherr: no origin recorded for a secondary artist
 			if err == nil {
 				_ = s.MusicRepo.SetArtistMonitored(artist.ID, true)
 				artist.Monitored = true

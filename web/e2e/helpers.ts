@@ -28,6 +28,11 @@ export const narrow = (page: Page) => (page.viewportSize()?.width ?? 1280) <= 90
 // The menu's own button (the menu's close button shares its class).
 export const menuButton = (page: Page) => page.locator('.menu-button[aria-controls="main-menu"]:not(.menu-close)')
 
+// Usherr: upstream's name for the button that opens the menu. Upstream uses More
+// in its bottom bar on a phone; Usherr's looks keep the menu button on every
+// screen (Broadcast and the new layout have their own phone bar), so it is the same.
+export const menuToggle = menuButton
+
 // Opens the menu. Usherr: it's closed until opened on every screen, and on a
 // wide one it slides away once the mouse leaves it, so the mouse rests on it.
 export async function openNav(page: Page) {

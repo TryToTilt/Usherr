@@ -227,7 +227,7 @@ func (s *Server) searchMovieTitles(ctx context.Context, instances []indexers.Ins
 	if enough == nil {
 		ctx = indexers.AsManual(ctx) // a person asked for this search
 	}
-	outcomes := indexers.SearchAll(ctx, instances, indexerQuery(m.Title), movieCategory)
+	outcomes := indexers.SearchAll(s.withMovieIDs(ctx, m), instances, indexerQuery(m.Title), movieCategory)
 	// A popular title ("Dune", "Halloween") can have more releases than a
 	// search reads, and the right film's may never be among them: then the
 	// title is searched again with its year.
@@ -294,13 +294,16 @@ func matchingAltTitle(parsedTitle string, alts []string) string {
 	if len(keys) == 0 {
 		return ""
 	}
+	// Apostrophes and dots count as spaces in a key, and a release name may
+	// leave them out ("Oceans.Eleven" for "Ocean's Eleven"), so compare the keys
+	// without their spaces.
 	for _, alt := range alts {
 		for _, w := range metadata.TitleKeys(alt) {
 			if !altKeyLongEnough(w) {
 				continue
 			}
 			for _, r := range keys {
-				if r == w {
+				if r == w || strings.ReplaceAll(r, " ", "") == strings.ReplaceAll(w, " ", "") {
 					return alt
 				}
 			}

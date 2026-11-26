@@ -78,7 +78,7 @@ const (
 )
 
 const (
-	defaultGraceDays = 14
+	cleanupGraceDays = 14
 	maxRuleSets      = 50
 )
 
@@ -170,7 +170,7 @@ func (rs *cleanupRuleSet) fill() {
 		rs.Action = actDeleteUnmonitor
 	}
 	if rs.GraceDays < 0 {
-		rs.GraceDays = defaultGraceDays
+		rs.GraceDays = cleanupGraceDays
 	}
 	if rs.Conditions == nil {
 		rs.Conditions = []ruleCondition{}
@@ -1269,7 +1269,7 @@ func (s *Server) handleSaveCleanupRuleSet(w http.ResponseWriter, r *http.Request
 			return
 		}
 		if rs.GraceDays == 0 {
-			rs.GraceDays = defaultGraceDays
+			rs.GraceDays = cleanupGraceDays
 		}
 	}
 	rs.Name = strings.TrimSpace(rs.Name)
@@ -1427,7 +1427,7 @@ func (s *Server) exemptTarget(kind string, id int64) (unit, title string, err er
 	return "", "", errors.New("That title couldn't be found.")
 }
 
-func (s *Server) keepTitle(r *http.Request, kind string, id int64) (exemptEntry, error) {
+func (s *Server) cleanupKeepTitle(r *http.Request, kind string, id int64) (exemptEntry, error) {
 	unit, title, err := s.exemptTarget(kind, id)
 	if err != nil {
 		return exemptEntry{}, err
@@ -1471,7 +1471,7 @@ func (s *Server) handleAddCleanupExemption(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "That request couldn't be read.")
 		return
 	}
-	e, err := s.keepTitle(r, req.Kind, req.ID)
+	e, err := s.cleanupKeepTitle(r, req.Kind, req.ID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -1545,7 +1545,7 @@ func (s *Server) handleLeavingSoonKeep(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "That title isn't leaving soon.")
 		return
 	}
-	e, err := s.keepTitle(r, req.Kind, req.ID)
+	e, err := s.cleanupKeepTitle(r, req.Kind, req.ID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

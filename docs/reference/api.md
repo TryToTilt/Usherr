@@ -25,6 +25,17 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/apps` | any account | lists the add-ons: every one for an administrator (who edits them), the enabled ones for everybody else. |
 | PUT | `/api/apps` | admin | replaces the whole list (administrators). |
 
+## archiver
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/archiver` | admin | GET /api/archiver: the settings, the followed sources and the last videos. |
+| PUT | `/api/archiver` | admin | PUT /api/archiver saves the settings. |
+| POST | `/api/archiver/sources` | admin | POST /api/archiver/sources follows a channel or a playlist. |
+| DELETE | `/api/archiver/sources/{id}` | admin | DELETE /api/archiver/sources/{id} stops following a source. |
+| POST | `/api/archiver/sources/{id}/check` | admin | POST /api/archiver/sources/{id}/check checks one source now, in the background, and tries the videos that failed again. |
+| POST | `/api/archiver/test` | admin | POST /api/archiver/test runs "yt-dlp --version" on the file at the given path (or the saved one) and answers with the version. |
+
 ## auth
 
 | Method | Path | Access | What it does |
@@ -33,6 +44,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/auth/api-keys` | any account | makes a new API key and returns the key itself this one time. |
 | DELETE | `/api/auth/api-keys/{id}` | any account |  |
 | POST | `/api/auth/change-password` | any account |  |
+| GET | `/api/auth/discover-services` | any account | answers GET /api/auth/discover-services. |
+| PUT | `/api/auth/discover-services` | any account | answers PUT /api/auth/discover-services {"services": ["netflix"], "on": true}. |
 | GET | `/api/auth/ereader` | any account | GET /api/auth/ereader |
 | POST | `/api/auth/ereader/devices` | any account | POST /api/auth/ereader/devices: saves an address to send books to. |
 | DELETE | `/api/auth/ereader/devices/{id}` | any account | DELETE /api/auth/ereader/devices/{id} |
@@ -111,6 +124,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | DELETE | `/api/blocklist` | admin |  |
 | GET | `/api/blocklist` | admin | lists the blocklist, newest first. |
 | DELETE | `/api/blocklist/{id}` | admin |  |
+| POST | `/api/blocklist/{id}/keep` | admin | is "Keep anyway" on a release that was turned away because its file was far shorter than the movie or episode: the choice is remembered, the entry is dropped... |
+| PUT | `/api/blocklist/{id}/scope` | admin | switches an entry between "all" (every title) and "item" (only the title it was made for). |
 
 ## book-authors
 
@@ -153,6 +168,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/books/import` | admin | starts reading the books folders (administrators). |
 | POST | `/api/books/import/match` | admin | attaches a book picked by hand to one of the files the last import did not find (administrators, like the import itself). |
 | POST | `/api/books/import/retry` | admin | looks again only at the books the last import did not find (or could not save), without reading the folders again: for the ones Open Library or Audnexus did ... |
+| POST | `/api/books/manual` | any account | is POST /api/books/manual: a book, an audiobook or both, typed in by hand. |
 | GET | `/api/books/progress` | any account | GET /api/books/progress: where the person is in every book. |
 | GET | `/api/books/search` | any account | looks books up on Open Library, and on Hardcover when a token is saved. |
 | GET | `/api/books/search/google` | any account | lists Google Books results in Google's order, in the movie and show info language. |
@@ -331,7 +347,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 
 | Method | Path | Access | What it does |
 |---|---|---|---|
-| POST | `/api/downloads/manual` | admin | adds an NZB, a torrent or a magnet link to the download line for a chosen movie or episode. |
+| POST | `/api/downloads/manual` | admin | adds an NZB, a torrent or a magnet link to the download line for a chosen movie, episode, album or book. |
 | GET | `/api/downloads/status` | admin | summarises the two built-in downloaders for the Downloads settings page: Usenet is ready once at least one server is enabled; the torrent client is always re... |
 | GET | `/api/downloads/stream-pause` | admin | shows the switch and what the last check found. |
 | PUT | `/api/downloads/stream-pause` | admin | turns the switch on or off. |
@@ -345,9 +361,17 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | DELETE | `/api/episodes/{id}/file` | admin | deletes one episode's file. |
 | POST | `/api/episodes/{id}/locate-file` | admin | points one episode at a video file a person picked in the library folders (in the show's own folder or elsewhere). |
 | PUT | `/api/episodes/{id}/monitored` | any account |  |
+| PUT | `/api/episodes/{id}/release-group` | any account | is PUT /api/episodes/{id}/release-group. |
 | GET | `/api/episodes/{id}/subtitles` | any account |  |
 | POST | `/api/episodes/{id}/subtitles/download` | any account |  |
 | GET | `/api/episodes/{id}/subtitles/status` | any account |  |
+| POST | `/api/episodes/{id}/unlink-file` | admin | detaches an episode from its file without deleting it. |
+
+## events
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/events` | any account | serves the live stream: "hello" first, then an event for each change, and a comment line every few seconds while it is quiet. |
 
 ## exclusions
 
@@ -356,6 +380,13 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/exclusions` | any account |  |
 | POST | `/api/exclusions` | any account |  |
 | DELETE | `/api/exclusions/{kind}/{tmdbId}` | any account |  |
+
+## feature-offers
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/feature-offers` | admin | answers what was chosen for each offer: "never", or "later:<version>" for not now. |
+| PUT | `/api/feature-offers` | admin | remembers the answer to one offer. |
 
 ## feedback
 
@@ -732,6 +763,12 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/home/you/share` | any account | PUT /api/home/you/share {"share": true\|false}: share your taste with the household, or stop. |
 | GET | `/api/home/you/votes` | any account | GET /api/home/you/votes: everything you've voted on, newest first, each with where it opens. |
 
+## img
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/img/{kind}/{size}/{file}` | any account | serves a poster, backdrop or picture of a person from a known picture host, at one of a fixed set of sizes and in the best format the browser accepts. |
+
 ## import-lists
 
 | Method | Path | Access | What it does |
@@ -744,6 +781,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/import-lists/{id}` | admin | PUT /api/import-lists/{id} |
 | PUT | `/api/import-lists/{id}/enabled` | admin | PUT /api/import-lists/{id}/enabled {"enabled": true}: the switch on the list. |
 | POST | `/api/import-lists/{id}/forget` | admin | POST /api/import-lists/{id}/forget: the list starts over, treating every title on it as new. |
+| GET | `/api/import-lists/{id}/history` | admin | GET /api/import-lists/{id}/history |
 | POST | `/api/import-lists/{id}/run` | admin | POST /api/import-lists/{id}/run: read the list now. |
 
 ## indexer-definitions
@@ -833,6 +871,18 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/library/owned` | any account |  |
 | POST | `/api/library/scan` | admin | starts a scan of an existing folder. |
 | GET | `/api/library/scan/{id}` | admin |  |
+| GET | `/api/library/suggest` | any account | searches the library as a person types (GET /api/library/suggest?q=star+w&limit=8): the movies, shows, books, artists and albums whose name has a word that s... |
+
+## lifecycle
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/lifecycle` | admin | GET /api/lifecycle |
+| PUT | `/api/lifecycle` | admin | PUT /api/lifecycle with the rules. |
+| POST | `/api/lifecycle/dry-run` | admin | POST /api/lifecycle/dry-run: what the saved rules would put on the shelf now. |
+| POST | `/api/lifecycle/keep` | any account | POST /api/lifecycle/keep {"kind": "movie" \| "episode", "id": 3}: the title on the shelf stays. |
+| GET | `/api/lifecycle/shelf` | any account | GET /api/lifecycle/shelf: the titles on the Leaving soon shelf, the ones due first at the top. |
+| POST | `/api/lifecycle/unkeep` | admin | POST /api/lifecycle/unkeep {"kind": "movie" \| "series", "id": 3}: the rules may take the title again. |
 
 ## link
 
@@ -1007,6 +1057,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/movies/{id}/monitored` | any account |  |
 | PUT | `/api/movies/{id}/no-upgrade` | admin | and handleSetSeriesNoUpgrade switch the search for better versions off for one title (or back on). |
 | PUT | `/api/movies/{id}/profile` | admin |  |
+| PUT | `/api/movies/{id}/release-group` | any account | is PUT /api/movies/{id}/release-group. |
 | POST | `/api/movies/{id}/replace-smaller` | any account | starts the replacement for one movie. |
 | POST | `/api/movies/{id}/rescan` | admin | looks at a movie's file again, for the Rescan files button. |
 | GET | `/api/movies/{id}/search` | any account | is the interactive search for one library movie: every matching release across the indexers, with the reasons automation would skip it. |
@@ -1017,6 +1068,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/movies/{id}/subtitles/download` | any account |  |
 | GET | `/api/movies/{id}/subtitles/status` | any account |  |
 | PUT | `/api/movies/{id}/tags` | any account | PUT /api/movies/{id}/tags and /api/series/{id}/tags: replace a title's tags. |
+| POST | `/api/movies/{id}/unlink-file` | admin | detaches a movie from its file without deleting it. |
 
 ## music
 
@@ -1024,6 +1076,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 |---|---|---|---|
 | GET | `/api/music/albums/{id}` | any account | returns one album with its tracklist and which tracks have a file. |
 | GET | `/api/music/albums/{id}/cover` | any account | serves an album's cover image (any account): the cover file in the album's folder, else the front cover from the Cover Art Archive, fetched once and kept. |
+| POST | `/api/music/albums/{id}/cover` | any account | is POST /api/music/albums/{id}/cover (multipart, field "file"): the picture for an album added by hand. |
 | GET | `/api/music/albums/{id}/events` | any account | lists an album's own activity log, newest first (at most 200 events): searches and why nothing was taken, grabs, download steps, imports and failures. |
 | DELETE | `/api/music/albums/{id}/files` | admin | deletes one file from an album's folder (administrators): ?path= is the file's path in the listing, relative to the album's folder. |
 | GET | `/api/music/albums/{id}/files` | any account | lists the files in an album's folder on disk (any account): tracks carry their track id, and cover art, logs and cue sheets are listed too. |
@@ -1068,6 +1121,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/music/listenbrainz` | any account | PUT /api/music/listenbrainz {token?, enabled?} |
 | POST | `/api/music/listenbrainz/listen` | signed in | POST /api/music/listenbrainz/listen {trackId, listenedAt}: a play that has counted. |
 | POST | `/api/music/listenbrainz/playing` | signed in | POST /api/music/listenbrainz/playing {trackId} |
+| POST | `/api/music/manual` | any account | is POST /api/music/manual: an album typed in by hand. |
 | GET | `/api/music/player-settings` | any account | GET /api/music/player-settings |
 | PUT | `/api/music/player-settings` | admin | PUT /api/music/player-settings {lyricsOnline?, lyricsSaveLrc?, transcode?, transcodeMaxKbps?, transcodeFormat?, transcodeCacheMB?} |
 | GET | `/api/music/playlist-files` | admin | GET /api/music/playlist-files: the settings and what the last import found. |
@@ -1106,6 +1160,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/music/tiers` | any account | lists the music quality tiers, worst to best, for building a profile. |
 | GET | `/api/music/tracks/{id}/gain` | signed in | GET /api/music/tracks/{id}/gain: the ReplayGain tags of a track's file, null for the ones it doesn't have. |
 | GET | `/api/music/tracks/{id}/lyrics` | signed in | GET /api/music/tracks/{id}/lyrics |
+| PUT | `/api/music/tracks/{id}/monitored` | any account | switches one track of an album between wanted and not wanted, with a body of {"monitored": true} or {"monitored": false}. |
 | GET | `/api/music/tracks/{id}/play` | any account | GET /api/music/tracks/{id}/play: one downloaded track, for the built-in player. |
 | GET | `/api/music/wanted` | any account |  |
 
@@ -1186,6 +1241,17 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/onboarding/admin` | **public** | is onboarding wizard step 1. |
 | GET | `/api/onboarding/status` | **public** | tells the frontend whether to show the first-run wizard or the normal app shell. |
 
+## other
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/other` | any account | lists the Other library. |
+| POST | `/api/other` | admin | makes an item from a name. |
+| DELETE | `/api/other/{id}` | admin |  |
+| GET | `/api/other/{id}` | any account |  |
+| PUT | `/api/other/{id}` | admin |  |
+| POST | `/api/other/{id}/import` | admin | moves files that are already on the server (a file, or a folder of them) into an item's folder. |
+
 ## play
 
 | Method | Path | Access | What it does |
@@ -1238,6 +1304,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 |---|---|---|---|
 | GET | `/api/quality-profiles` | any account |  |
 | POST | `/api/quality-profiles` | admin |  |
+| POST | `/api/quality-profiles/simulate` | admin | answers "Try this profile". |
 | POST | `/api/quality-profiles/try` | any account |  |
 | DELETE | `/api/quality-profiles/{id}` | admin |  |
 | PUT | `/api/quality-profiles/{id}` | admin |  |
@@ -1255,6 +1322,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | DELETE | `/api/queue/{id}` | admin | removes a finished, failed, stopped, paused or parked entry from the list. |
 | POST | `/api/queue/{id}/blocklist` | admin | marks a release as bad and tries another: it blocklists the failed release, removes the entry and starts a fresh search for the same movie or show. |
 | POST | `/api/queue/{id}/front` | admin | sends a waiting download to the front of the line. |
+| POST | `/api/queue/{id}/keep-short` | admin | is "Keep anyway" on a download that failed because its file was far shorter than the movie or episode (a dub that is half as long, say). |
 | POST | `/api/queue/{id}/pause` | admin | pauses one download. |
 | POST | `/api/queue/{id}/resolve-conflict` | admin | settles a download that is waiting because a file already exists (the "ask me" setting): a person decides, per item, whether the new file replaces the one al... |
 | POST | `/api/queue/{id}/resume` | admin | starts a paused download again. |
@@ -1283,12 +1351,19 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | Method | Path | Access | What it does |
 |---|---|---|---|
 | GET | `/api/requests` | any account | GET /api/requests: an administrator sees every request, anyone else their own. |
+| POST | `/api/requests/removal` | any account | POST /api/requests/removal {"kind": "movie"\|"tv", "itemId": 12, "reason": "..."}: a member asks for a title in the library to be removed. |
 | GET | `/api/requests/settings` | admin | GET /api/requests/settings |
 | PUT | `/api/requests/settings` | admin | PUT /api/requests/settings: any of the options, and quotas {"<account id>": n}. |
 | GET | `/api/requests/status` | any account | GET /api/requests/status: what the request pages need to know about the caller: requests left, whether 4K can be asked for, whether reports are on. |
 | DELETE | `/api/requests/{id}` | any account | DELETE /api/requests/{id}: someone takes back their own waiting request; an administrator can remove any. |
 | POST | `/api/requests/{id}/approve` | admin | POST /api/requests/{id}/approve: add the title as the person asked. |
 | POST | `/api/requests/{id}/decline` | admin | POST /api/requests/{id}/decline {"note": "..."} |
+
+## scores
+
+| Method | Path | Access | What it does |
+|---|---|---|---|
+| GET | `/api/scores/{kind}/{tmdbId}` | any account | answers a title page: GET /api/scores/{kind}/{tmdbId}?imdb=tt... |
 
 ## scripts
 
@@ -1320,6 +1395,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/series/{id}/copies` | any account | GET /api/series/{id}/copies |
 | POST | `/api/series/{id}/copies` | admin | POST /api/series/{id}/copies {"profileId": 4} adds a second copy of a show, with the same episodes monitored, and starts looking for them. |
 | GET | `/api/series/{id}/disk-usage` | admin |  |
+| PUT | `/api/series/{id}/episode-order` | any account | PUT /api/series/{id}/episode-order {"order": "tmdb" \| "tvdb"}  Which list the show's regular seasons follow (#184). |
 | GET | `/api/series/{id}/events` | any account | lists a show's own activity log (all its episodes), newest first (at most 200 events). |
 | GET | `/api/series/{id}/files` | any account | lists the files in a show's folder on disk, season folders included; episode files carry their episode id. |
 | PUT | `/api/series/{id}/folder` | any account | is the same for a show. |
@@ -1335,6 +1411,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | POST | `/api/series/{id}/refresh` | any account | re-fetches a show's episode list from TMDB — new seasons appear and air dates get announced or moved over a show's life. |
 | POST | `/api/series/{id}/rescan` | admin | looks at every downloaded file of a show again. |
 | GET | `/api/series/{id}/search` | any account | is the interactive search for one season or one episode of a library show: queries every indexer, then keeps only releases that are actually for this show an... |
+| POST | `/api/series/{id}/search-complete` | any account | is the "Search for the complete series" button of a show: it looks for season packs of the seasons with gaps and, failing that, for a pack of the whole series. |
 | POST | `/api/series/{id}/search-now` | any account | searches for everything wanted in a series (or one season, or one episode) right now, even if unmonitored. |
 | PUT | `/api/series/{id}/season-pack` | admin | saves a show's own choice about season packs. |
 | DELETE | `/api/series/{id}/seasons/{season}/files` | admin | deletes the files of every downloaded episode of a season. |
@@ -1361,6 +1438,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 |---|---|---|---|
 | GET | `/api/settings` | admin | never echoes the TMDB key back (credentials never logged/exposed in plaintext beyond what's needed); HasTMDBAPIKey tells the UI whether one is already config... |
 | PUT | `/api/settings` | admin | applies a partial update — only non-empty fields are written, so the frontend can PUT just the field(s) a given wizard step/settings form changed. |
+| GET | `/api/settings/anime` | admin | answers the anime library's folder, file names and default quality profile. |
+| PUT | `/api/settings/anime` | admin | saves the anime library's folder, file names and default quality profile. |
 | GET | `/api/settings/file-permissions` | admin | is GET /api/settings/file-permissions. |
 | PUT | `/api/settings/file-permissions` | admin | is PUT /api/settings/file-permissions. |
 | GET | `/api/settings/filesystem-check` | admin |  |
@@ -1375,12 +1454,21 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/settings/metadata-files` | admin |  |
 | GET | `/api/settings/naming-preview` | admin | shows a naming preset or custom format applied to a fixed sample release (kind=movie, the default, or kind=tv), so the page can display the exact file name w... |
 | GET | `/api/settings/naming-tokens` | admin | lists the tokens a custom format can use and the ready-made formats to start from, for the builder in Settings. |
+| GET | `/api/settings/omdb` | admin |  |
+| PUT | `/api/settings/omdb` | admin | saves a key after checking it with OMDb, or removes it. |
+| GET | `/api/settings/prowlarr` | admin | says whether a Prowlarr is linked and what the last sync did. |
+| PUT | `/api/settings/prowlarr` | admin | saves the link to a running Prowlarr (its address and API key, checked first) and the switch that keeps it in step; it syncs at once. |
+| POST | `/api/settings/prowlarr/sync` | admin | reads the linked Prowlarr now. |
 | DELETE | `/api/settings/simkl` | admin | DELETE /api/settings/simkl: forget the connected account. |
 | GET | `/api/settings/simkl` | admin | GET /api/settings/simkl |
 | POST | `/api/settings/simkl/pin` | admin | POST /api/settings/simkl/pin: start connecting an account. |
 | GET | `/api/settings/simkl/pin/{code}` | admin | GET /api/settings/simkl/pin/{code}: has the code been entered yet? |
 | POST | `/api/settings/simkl/test` | admin | POST /api/settings/simkl/test: ask Simkl who the connected account is. |
+| GET | `/api/settings/soulseek` | admin |  |
+| PUT | `/api/settings/soulseek` | admin | saves slskd's address, key and folder after checking that slskd answers with the key and that the folder is there; remove takes it all away. |
 | POST | `/api/settings/test-service` | admin | checks a key for an outside service without saving it, so the setup wizard and Settings can say whether it works before the person moves on. |
+| GET | `/api/settings/thetvdb` | admin | says whether a TheTVDB key is saved and whether shows are filled in from it. |
+| PUT | `/api/settings/thetvdb` | admin | saves a TheTVDB key (checked with TheTVDB first, kept encrypted) and the switch for filling in shows from it. |
 
 ## stats
 
@@ -1390,6 +1478,7 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/stats/indexers` | admin | gives each indexer's searches, failures, releases found and grabs over the last 30 days. |
 | GET | `/api/stats/library` | any account |  |
 | POST | `/api/stats/reset` | admin | answers POST /api/stats/reset: the download totals on the Statistics page and the dashboard start again from zero. |
+| GET | `/api/stats/usenet-months` | admin | gives each Usenet server's traffic month by month, newest month first, for the last `months` months (default 12, at most 24), so a yearly plan can be judged ... |
 
 ## stream
 
@@ -1464,7 +1553,14 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/system/backups/{name}` | admin | sends one saved backup. |
 | GET | `/api/system/cleanup` | admin | lists what clean-up would remove from the downloads working folder right now (never the library), with the space it frees, when it last ran and whether it ru... |
 | POST | `/api/system/cleanup` | admin | runs the clean-up now and reports what it removed and how much history it pruned. |
+| GET | `/api/system/config-file` | admin |  |
+| POST | `/api/system/config-file/apply` | admin | POST /api/system/config-file/apply?replace=1&hash=...: the file is the body. |
+| POST | `/api/system/config-file/check` | admin | POST /api/system/config-file/check?replace=1: the file is the body. |
+| GET | `/api/system/config-file/start` | admin |  |
+| PUT | `/api/system/config-file/start` | admin | PUT /api/system/config-file/start {"enabled": true}. |
 | GET | `/api/system/diagnostics` | admin | returns what a person needs to send with a support request: version and platform, how the database is doing, the setup warnings and the recent log. |
+| GET | `/api/system/downloader-api` | admin | says whether the SABnzbd and qBittorrent look-alike addresses are on. |
+| PUT | `/api/system/downloader-api` | admin | switches both addresses on or off. |
 | GET | `/api/system/info` | admin | returns facts the backup page shows. |
 | GET | `/api/system/mcp` | admin |  |
 | PUT | `/api/system/mcp` | admin | switches the MCP address on or off. |
@@ -1490,6 +1586,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | GET | `/api/system/update/install` | admin | reports how "Update now" is going. |
 | POST | `/api/system/update/install` | admin | starts "Update now". |
 | GET | `/api/system/update/latest` | admin | returns what is known about the newest release. |
+| GET | `/api/system/update/rollback` | admin |  |
+| POST | `/api/system/update/rollback` | admin | puts a copy back (on the next start, like a restore: the database in use now is moved aside, not deleted) and, when asked, the previous program, then restarts. |
 
 ## tag-rules
 
@@ -1673,6 +1771,8 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | Method | Path | Access | What it does |
 |---|---|---|---|
 | GET | `/api/wanted` | any account |  |
+| GET | `/api/wanted/review` | admin | answers GET /api/wanted/review?days=365: what is still missing that came out more than days ago, the oldest first, without the titles kept until later. |
+| POST | `/api/wanted/review/keep` | admin | answers POST /api/wanted/review/keep: the titles leave the review for a year (they stay wanted and monitored). |
 
 ## watch
 
@@ -1697,4 +1797,4 @@ Every route the server exposes. Routes marked **public** need no sign-in; all ot
 | PUT | `/api/watched/settings` | admin | PUT /api/watched/settings {"sync": true, "cleanup": {...}} |
 | POST | `/api/watched/sync` | admin | POST /api/watched/sync: read what's been watched now. |
 
-1242 routes.
+1307 routes.

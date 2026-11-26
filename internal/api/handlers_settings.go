@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rdborg/mediarium/internal/books"
 	"github.com/rdborg/mediarium/internal/download"
 	"github.com/rdborg/mediarium/internal/metadata"
 	"github.com/rdborg/mediarium/internal/organizer"
@@ -160,6 +161,10 @@ type settingsPayload struct {
 	// TrailerBackground plays the trailer behind movie and show pages for every
 	// account (a browser can still switch it off for itself).
 	TrailerBackground *bool `json:"trailerBackground,omitempty"`
+	// ArtworkProxy loads posters, backdrops and pictures of people through this
+	// server (on by default); off lets each browser fetch them from the picture
+	// host itself.
+	ArtworkProxy *bool `json:"artworkProxy,omitempty"`
 	// TrailerSound starts that trailer with its sound on (a browser that does
 	// not allow it keeps it muted, and each browser can choose for itself).
 	TrailerSound      *bool `json:"trailerSound,omitempty"`
@@ -167,6 +172,16 @@ type settingsPayload struct {
 	// SeasonPacks looks for a season pack once a season has ended (off unless
 	// switched on; a show can say otherwise for itself).
 	SeasonPacks *bool `json:"seasonPacks,omitempty"`
+	// AddMonitored and AddSearchNow are the starting state of "Monitor" and
+	// "Start searching now" in the add dialog (both on unless switched off).
+	AddMonitored *bool `json:"addMonitored,omitempty"`
+	AddSearchNow *bool `json:"addSearchNow,omitempty"`
+	// AddKeepBetter is whether a title added without a choice of its own keeps
+	// being searched for better versions (off unless switched on).
+	AddKeepBetter *bool `json:"addKeepBetter,omitempty"`
+	// HoldUnreleased makes automatic searches wait for a movie's release and for
+	// an episode to air (on unless switched off; hold_unreleased.go).
+	HoldUnreleased *bool `json:"holdUnreleased,omitempty"`
 	// FoldersInInfoLanguage names new movie and show folders and files with the
 	// title in the info language (off unless switched on).
 	FoldersInInfoLanguage *bool `json:"foldersInInfoLanguage,omitempty"`
@@ -205,6 +220,10 @@ type settingsPayload struct {
 	// those languages. Off (the default) also accepts, behind them, releases
 	// with no language tag and releases tagged English only.
 	QualityLanguageOnly *bool `json:"qualityLanguageOnly,omitempty"`
+	// QualityLanguageIgnoreExtra ranks a release that has a wanted language
+	// the same whether or not it carries other languages too. Off (the
+	// default) keeps the usual order for multi-language releases.
+	QualityLanguageIgnoreExtra *bool `json:"qualityLanguageIgnoreExtra,omitempty"`
 
 	// The language titles, plots, genres and posters are shown in, as a TMDB
 	// tag like "de-DE" (English by default), and the choices. New movie and
@@ -284,6 +303,10 @@ type settingsPayload struct {
 	// plain limit above applies.
 	SpeedSchedule *[]speedRule `json:"speedSchedule,omitempty"`
 	MinFreeGB     *int         `json:"minFreeGB,omitempty"`
+	// MaxReleaseGB is the largest release taken for any title, in GB (0 = no
+	// limit). A bigger release is skipped by searches, and the list of an
+	// interactive search says why.
+	MaxReleaseGB *int `json:"maxReleaseGB,omitempty"`
 	// TorrentStallHours: hours a torrent may get no data before it is given up on (0 = never, absent = the default of each client).
 	TorrentStallHours *int `json:"torrentStallHours,omitempty"`
 	// DownloadHours is when new downloads may start ("1-7", "" = any time).
@@ -331,10 +354,15 @@ type settingsPayload struct {
 	// Ebooks and audiobooks library folders.
 	EbooksPath     string `json:"ebooksPath,omitempty"`
 	AudiobooksPath string `json:"audiobooksPath,omitempty"`
+	// OtherPath is the Other library folder.
+	OtherPath string `json:"otherPath,omitempty"`
+	// BooksFolderLayout is how new books are filed: "author_title" (the
+	// default) or "author_series". A pointer so an omitted field leaves it alone.
+	BooksFolderLayout *string `json:"booksFolderLayout,omitempty"`
 
 	// ContainerFolders is what the container itself maps: the folders named
-	// by MOVIES_DIR, TV_DIR, DOWNLOADS_DIR, MUSIC_DIR, EBOOKS_DIR and
-	// AUDIOBOOKS_DIR (or their defaults). Read-only. The setup wizard starts
+	// by MOVIES_DIR, TV_DIR, DOWNLOADS_DIR, MUSIC_DIR, EBOOKS_DIR,
+	// AUDIOBOOKS_DIR and OTHER_DIR (or their defaults). Read-only. The setup wizard starts
 	// from these, and shows a note when a saved folder differs from them.
 	ContainerFolders *containerFolders `json:"containerFolders,omitempty"`
 }
@@ -347,6 +375,7 @@ type containerFolders struct {
 	Music      string `json:"music"`
 	Ebooks     string `json:"ebooks"`
 	Audiobooks string `json:"audiobooks"`
+	Other      string `json:"other"`
 }
 
 func (s *Server) containerFolders() *containerFolders {
@@ -357,6 +386,7 @@ func (s *Server) containerFolders() *containerFolders {
 		Music:      s.cfg.MusicDir,
 		Ebooks:     s.cfg.EbooksDir,
 		Audiobooks: s.cfg.AudiobooksDir,
+		Other:      s.cfg.OtherDir,
 	}
 }
 
@@ -391,13 +421,17 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	osEnabled, subdlEnabled, addonsEnabled := sources.OpenSubtitles.Switch, sources.SubDL.Switch, sources.Addons.Switch
 	unmonitorDownloaded, unmonitorFinished := s.unmonitorDownloaded(), s.unmonitorFinished()
 	seasonPacks := s.seasonPackDefault()
+	addMonitored, addSearchNow, addKeepBetter := s.addMonitoredDefault(), s.addSearchNowDefault(), s.addKeepBetterDefault()
+	holdUnreleased := holdUnreleasedOn()
 	foldersInInfoLanguage := s.settingOn(settings.KeyFoldersInInfoLanguage, false)
 	tvmazeAirTimes := s.tvmazeOn()
 	qualityLanguageOnly := s.languageOnly()
+	qualityLanguageIgnoreExtra := s.languageIgnoreExtra()
 	showAdvanced := s.showAdvanced()
 	trashFormatsAuto := s.trashAutoUpdate()
 	trashFormatsEveryDays := s.trashEveryDays()
 	trailerBackground := s.trailerBackground()
+	artworkProxy := s.artworkProxy()
 	trailerSound := s.trailerSound()
 	subtitlesOn := s.subtitlesEnabled()
 	osUser, _ := s.Settings.Get(settings.KeyOpenSubtitlesUsername)
@@ -421,6 +455,7 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	trashDays := s.trashDays()
 	backupAuto, backupKeep := s.backupAutoEnabled(), s.backupKeep()
 	speedMB, minFree := s.speedLimitMB(), s.minFreeGB()
+	maxRelease := s.maxReleaseGB()
 	stallHours := s.stallHours()
 	speedHours, quiet := "", ""
 	if from, to, ok := s.quietHours(); ok {
@@ -440,6 +475,7 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	defaultTVProfile := s.defaultTVProfileID()
 	musicEnabled := s.musicEnabled()
+	bookLayout := s.booksLayout()
 	downloadsAtOnce := s.downloadsAtOnce()
 	newestFirst := s.newestFirstOn()
 	resumeInterrupted := s.resumeInterruptedOn()
@@ -447,120 +483,129 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	retention, rejectExe, skipDupes, precheck := s.retentionDays(), s.rejectExecutables(), s.skipDuplicates(), s.precheckEnabled()
 
 	writeJSON(w, http.StatusOK, settingsPayload{
-		MoviesPath:               moviesPath,
-		TVPath:                   s.tvRoot(),
-		MoviesExtraPaths:         ptr(nonNil(s.extraFolders(settings.KeyMoviesExtraPaths, moviesPath))),
-		TVExtraPaths:             ptr(nonNil(s.extraFolders(settings.KeyTVExtraPaths, s.tvRoot()))),
-		MoviesNewFolder:          ptr(s.newTitleRule(settings.KeyMoviesNewFolder, s.movieFolders())),
-		TVNewFolder:              ptr(s.newTitleRule(settings.KeyTVNewFolder, s.tvFolders())),
-		MovieCopiesPath:          ptr(s.movieCopiesRoot()),
-		TVCopiesPath:             ptr(s.tvCopiesRoot()),
-		DownloadsPath:            downloadsPath,
-		DownloadsTempPath:        ptr(s.tempBase()),
-		NamingPreset:             namingPreset,
-		MovieNameFormat:          movieFormat,
-		EpisodeNameFormat:        episodeFormat,
-		MovieFolderFormat:        movieFolderFormat,
-		SeriesFolderFormat:       seriesFolderFormat,
-		KeepOriginalNames:        &keepOriginalNames,
-		CheckDuration:            &checkDuration,
-		HasTMDBAPIKey:            s.TMDB().HasAPIKey(),
-		OnboardingDone:           onboardingDone,
-		TorrentListenPort:        torrentPort,
-		TorrentSeedRatioLimit:    &torrentRatio,
-		TorrentSeedTimeLimitH:    &torrentTime,
-		AutomationEnabled:        &automationEnabled,
-		TorrentEnabled:           &torrentEnabled,
-		MonitorIntervalMinutes:   &monitorMinutes,
-		HuntIntervalHours:        &huntHours,
-		ReleaseCheckMinutes:      &releaseMinutes,
-		LegalAcknowledgedAt:      legalAt,
-		DefaultProfileID:         s.defaultProfileID(),
-		DefaultTVProfileID:       &defaultTVProfile,
-		DefaultSources:           s.defaultSources(),
-		SubtitleLanguages:        s.subtitleLanguages(),
-		SubtitleProfiles:         s.subtitleProfiles(),
-		SubtitleAutoDownload:     &subtitleAuto,
-		SubtitleUpgrade:          &subtitleUpgrade,
-		NotifyTrashSyncAlways:    &trashSyncAlways,
-		SubtitlesEnabled:         &subtitlesOn,
-		HasOpenSubtitlesAPIKey:   s.Subtitles().HasAPIKey(),
-		HasSubDLAPIKey:           s.SubDL().HasAPIKey(),
-		HasSubtitleAddons:        sources.Addons.Ready,
-		OpenSubtitlesEnabled:     &osEnabled,
-		SubDLEnabled:             &subdlEnabled,
-		SubtitleAddonsEnabled:    &addonsEnabled,
-		SubtitleSources:          s.subtitleSourceStatuses(),
-		SubtitleCountEmbedded:    &countEmbedded,
-		SubtitleWizdom:           &subtitleWizdom,
-		NumberingLookup:          &numberingLookup,
-		UnmonitorDownloaded:      &unmonitorDownloaded,
-		ShowAdvanced:             &showAdvanced,
-		TrashFormatsAuto:         &trashFormatsAuto,
-		TrashFormatsEveryDays:    &trashFormatsEveryDays,
-		TrailerBackground:        &trailerBackground,
-		TrailerSound:             &trailerSound,
-		UnmonitorFinished:        &unmonitorFinished,
-		SeasonPacks:              &seasonPacks,
-		FoldersInInfoLanguage:    &foldersInInfoLanguage,
-		TVmazeAirTimes:           &tvmazeAirTimes,
-		HasOpenSubtitlesAccount:  s.Subtitles().HasCredentials(),
-		OpenSubtitlesAccountName: osUser,
-		TMDBKeyBuiltIn:           s.builtin.TMDB != "",
-		OpenSubtitlesKeyBuiltIn:  s.builtin.OpenSubtitles != "",
-		TraktClientIDBuiltIn:     s.builtin.TraktClientID != "",
-		SimklClientIDBuiltIn:     s.builtin.SimklClientID != "",
-		SimklUsingOwnKey:         s.usingOwnKey(settings.KeySimklClientID),
-		TMDBUsingOwnKey:          s.usingOwnKey(settings.KeyTMDBAPIKey),
-		OpenSubtitlesUsingOwnKey: s.usingOwnKey(settings.KeyOpenSubtitlesAPIKey),
-		TraktUsingOwnKey:         s.usingOwnKey(settings.KeyTraktClientID),
-		IllegalCharMode:          illegalCharMode,
-		IllegalCharReplacement:   illegalCharReplacement,
-		QualityLanguage:          s.preferredLanguage(),
-		QualityLanguageOnly:      &qualityLanguageOnly,
-		InfoLanguage:             s.infoLanguage(),
-		InfoLanguages:            metadata.InfoLanguages,
-		ReleaseCountry:           ptr(s.releaseCountrySetting()),
-		ReleaseCountries:         metadata.ReleaseCountries,
-		ReleaseCountryEffective:  s.releaseRegion(),
-		RequireVPNForTorrents:    &requireVPNForTorrents,
-		RouteIndexersThroughVPN:  &routeIndexersThroughVPN,
-		DiscoverThroughTunnel:    &discoverThroughTunnel,
-		VPNNoticeAcknowledged:    &vpnNoticeAcknowledged,
-		ImportConflictPolicy:     importConflictPolicy,
-		HasTraktClientID:         s.Trakt().HasClientID(),
-		HasSimklClientID:         s.Simkl().HasClientID(),
-		FlareSolverrURL:          &flareSolverr,
-		PublicURL:                &publicURL,
-		FlareSolverrBundled:      s.cfg.BundledFlareSolverr,
-		CleanupAuto:              &cleanupAuto,
-		HistoryRetentionDays:     &retentionDays,
-		TrashDays:                &trashDays,
-		BackupAuto:               &backupAuto,
-		BackupKeep:               &backupKeep,
-		SpeedLimitMB:             &speedMB,
-		SpeedLimitHours:          &speedHours,
-		SpeedSchedule:            &speedSchedule,
-		DownloadHours:            &dlHours,
-		MinFreeGB:                &minFree,
-		TorrentStallHours:        &stallHours,
-		NotifyQuietHours:         &quiet,
-		DigestDay:                &digestDay,
-		DigestHour:               &digestHour,
-		DownloadsAtOnce:          &downloadsAtOnce,
-		NewestFirst:              &newestFirst,
-		ResumeInterrupted:        &resumeInterrupted,
-		UsenetRetentionDays:      &retention,
-		RejectExecutables:        &rejectExe,
-		SkipDuplicates:           &skipDupes,
-		UsenetPrecheck:           &precheck,
-		UnsafeExtensions:         download.UnsafeExtensions,
-		MusicEnabled:             &musicEnabled,
-		MusicPath:                s.musicRoot(),
-		MusicDefaultProfileID:    s.musicDefaultProfileIDNow(),
-		EbooksPath:               s.ebooksRoot(),
-		AudiobooksPath:           s.audiobooksRoot(),
-		ContainerFolders:         s.containerFolders(),
+		MoviesPath:                 moviesPath,
+		TVPath:                     s.tvRoot(),
+		MoviesExtraPaths:           ptr(nonNil(s.extraFolders(settings.KeyMoviesExtraPaths, moviesPath))),
+		TVExtraPaths:               ptr(nonNil(s.extraFolders(settings.KeyTVExtraPaths, s.tvRoot()))),
+		MoviesNewFolder:            ptr(s.newTitleRule(settings.KeyMoviesNewFolder, s.movieFolders())),
+		TVNewFolder:                ptr(s.newTitleRule(settings.KeyTVNewFolder, s.tvFolders())),
+		MovieCopiesPath:            ptr(s.movieCopiesRoot()),
+		TVCopiesPath:               ptr(s.tvCopiesRoot()),
+		DownloadsPath:              downloadsPath,
+		DownloadsTempPath:          ptr(s.tempBase()),
+		NamingPreset:               namingPreset,
+		MovieNameFormat:            movieFormat,
+		EpisodeNameFormat:          episodeFormat,
+		MovieFolderFormat:          movieFolderFormat,
+		SeriesFolderFormat:         seriesFolderFormat,
+		KeepOriginalNames:          &keepOriginalNames,
+		CheckDuration:              &checkDuration,
+		HasTMDBAPIKey:              s.TMDB().HasAPIKey(),
+		OnboardingDone:             onboardingDone,
+		TorrentListenPort:          torrentPort,
+		TorrentSeedRatioLimit:      &torrentRatio,
+		TorrentSeedTimeLimitH:      &torrentTime,
+		AutomationEnabled:          &automationEnabled,
+		TorrentEnabled:             &torrentEnabled,
+		MonitorIntervalMinutes:     &monitorMinutes,
+		HuntIntervalHours:          &huntHours,
+		ReleaseCheckMinutes:        &releaseMinutes,
+		LegalAcknowledgedAt:        legalAt,
+		DefaultProfileID:           s.defaultProfileID(),
+		DefaultTVProfileID:         &defaultTVProfile,
+		DefaultSources:             s.defaultSources(),
+		SubtitleLanguages:          s.subtitleLanguages(),
+		SubtitleProfiles:           s.subtitleProfiles(),
+		SubtitleAutoDownload:       &subtitleAuto,
+		SubtitleUpgrade:            &subtitleUpgrade,
+		NotifyTrashSyncAlways:      &trashSyncAlways,
+		SubtitlesEnabled:           &subtitlesOn,
+		HasOpenSubtitlesAPIKey:     s.Subtitles().HasAPIKey(),
+		HasSubDLAPIKey:             s.SubDL().HasAPIKey(),
+		HasSubtitleAddons:          sources.Addons.Ready,
+		OpenSubtitlesEnabled:       &osEnabled,
+		SubDLEnabled:               &subdlEnabled,
+		SubtitleAddonsEnabled:      &addonsEnabled,
+		SubtitleSources:            s.subtitleSourceStatuses(),
+		SubtitleCountEmbedded:      &countEmbedded,
+		SubtitleWizdom:             &subtitleWizdom,
+		NumberingLookup:            &numberingLookup,
+		UnmonitorDownloaded:        &unmonitorDownloaded,
+		ShowAdvanced:               &showAdvanced,
+		TrashFormatsAuto:           &trashFormatsAuto,
+		TrashFormatsEveryDays:      &trashFormatsEveryDays,
+		TrailerBackground:          &trailerBackground,
+		ArtworkProxy:               &artworkProxy,
+		TrailerSound:               &trailerSound,
+		UnmonitorFinished:          &unmonitorFinished,
+		SeasonPacks:                &seasonPacks,
+		AddMonitored:               &addMonitored,
+		AddSearchNow:               &addSearchNow,
+		AddKeepBetter:              &addKeepBetter,
+		HoldUnreleased:             &holdUnreleased,
+		FoldersInInfoLanguage:      &foldersInInfoLanguage,
+		TVmazeAirTimes:             &tvmazeAirTimes,
+		HasOpenSubtitlesAccount:    s.Subtitles().HasCredentials(),
+		OpenSubtitlesAccountName:   osUser,
+		TMDBKeyBuiltIn:             s.builtin.TMDB != "",
+		OpenSubtitlesKeyBuiltIn:    s.builtin.OpenSubtitles != "",
+		TraktClientIDBuiltIn:       s.builtin.TraktClientID != "",
+		SimklClientIDBuiltIn:       s.builtin.SimklClientID != "",
+		SimklUsingOwnKey:           s.usingOwnKey(settings.KeySimklClientID),
+		TMDBUsingOwnKey:            s.usingOwnKey(settings.KeyTMDBAPIKey),
+		OpenSubtitlesUsingOwnKey:   s.usingOwnKey(settings.KeyOpenSubtitlesAPIKey),
+		TraktUsingOwnKey:           s.usingOwnKey(settings.KeyTraktClientID),
+		IllegalCharMode:            illegalCharMode,
+		IllegalCharReplacement:     illegalCharReplacement,
+		QualityLanguage:            s.preferredLanguage(),
+		QualityLanguageOnly:        &qualityLanguageOnly,
+		QualityLanguageIgnoreExtra: &qualityLanguageIgnoreExtra,
+		InfoLanguage:               s.infoLanguage(),
+		InfoLanguages:              metadata.InfoLanguages,
+		ReleaseCountry:             ptr(s.releaseCountrySetting()),
+		ReleaseCountries:           metadata.ReleaseCountries,
+		ReleaseCountryEffective:    s.releaseRegion(),
+		RequireVPNForTorrents:      &requireVPNForTorrents,
+		RouteIndexersThroughVPN:    &routeIndexersThroughVPN,
+		DiscoverThroughTunnel:      &discoverThroughTunnel,
+		VPNNoticeAcknowledged:      &vpnNoticeAcknowledged,
+		ImportConflictPolicy:       importConflictPolicy,
+		HasTraktClientID:           s.Trakt().HasClientID(),
+		HasSimklClientID:           s.Simkl().HasClientID(),
+		FlareSolverrURL:            &flareSolverr,
+		PublicURL:                  &publicURL,
+		FlareSolverrBundled:        s.cfg.BundledFlareSolverr,
+		CleanupAuto:                &cleanupAuto,
+		HistoryRetentionDays:       &retentionDays,
+		TrashDays:                  &trashDays,
+		BackupAuto:                 &backupAuto,
+		BackupKeep:                 &backupKeep,
+		SpeedLimitMB:               &speedMB,
+		SpeedLimitHours:            &speedHours,
+		SpeedSchedule:              &speedSchedule,
+		DownloadHours:              &dlHours,
+		MinFreeGB:                  &minFree,
+		MaxReleaseGB:               &maxRelease,
+		TorrentStallHours:          &stallHours,
+		NotifyQuietHours:           &quiet,
+		DigestDay:                  &digestDay,
+		DigestHour:                 &digestHour,
+		DownloadsAtOnce:            &downloadsAtOnce,
+		NewestFirst:                &newestFirst,
+		ResumeInterrupted:          &resumeInterrupted,
+		UsenetRetentionDays:        &retention,
+		RejectExecutables:          &rejectExe,
+		SkipDuplicates:             &skipDupes,
+		UsenetPrecheck:             &precheck,
+		UnsafeExtensions:           download.UnsafeExtensions,
+		MusicEnabled:               &musicEnabled,
+		MusicPath:                  s.musicRoot(),
+		MusicDefaultProfileID:      s.musicDefaultProfileIDNow(),
+		EbooksPath:                 s.ebooksRoot(),
+		AudiobooksPath:             s.audiobooksRoot(),
+		OtherPath:                  s.otherRoot(),
+		BooksFolderLayout:          &bookLayout,
+		ContainerFolders:           s.containerFolders(),
 	})
 }
 
@@ -718,7 +763,7 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	var chosenRoots []string
 	for _, f := range []struct{ key, value string }{
 		{settings.KeyMoviesPath, req.MoviesPath}, {settings.KeyTVPath, req.TVPath}, {settings.KeyMusicPath, req.MusicPath},
-		{settings.KeyEbooksPath, req.EbooksPath}, {settings.KeyAudiobooksPath, req.AudiobooksPath},
+		{settings.KeyEbooksPath, req.EbooksPath}, {settings.KeyAudiobooksPath, req.AudiobooksPath}, {settings.KeyOtherPath, req.OtherPath},
 	} {
 		if f.value != "" && s.changed(f.key, f.value) {
 			chosenRoots = append(chosenRoots, f.value)
@@ -785,6 +830,7 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		{settings.KeyMusicPath, req.MusicPath},
 		{settings.KeyEbooksPath, req.EbooksPath},
 		{settings.KeyAudiobooksPath, req.AudiobooksPath},
+		{settings.KeyOtherPath, req.OtherPath},
 	}
 	for _, set := range sets {
 		if set.value == "" {
@@ -926,6 +972,12 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if req.ArtworkProxy != nil {
+		if err := setBool(tx, settings.KeyArtworkProxy, *req.ArtworkProxy); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
 	if req.TrailerBackground != nil {
 		if err := setBool(tx, settings.KeyTrailerBackground, *req.TrailerBackground); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -960,6 +1012,12 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if req.QualityLanguageIgnoreExtra != nil {
+		if err := setBool(tx, settings.KeyQualityLanguageIgnoreExtra, *req.QualityLanguageIgnoreExtra); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
 	if req.UnmonitorDownloaded != nil {
 		if err := setBool(tx, settings.KeyUnmonitorDownloaded, *req.UnmonitorDownloaded); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -981,6 +1039,33 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 
 	if req.FoldersInInfoLanguage != nil {
 		if err := setBool(tx, settings.KeyFoldersInInfoLanguage, *req.FoldersInInfoLanguage); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+
+	if req.HoldUnreleased != nil {
+		if err := setBool(tx, settings.KeyHoldUnreleased, *req.HoldUnreleased); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		setHoldUnreleased(*req.HoldUnreleased)
+	}
+
+	if req.AddMonitored != nil {
+		if err := setBool(tx, settings.KeyAddMonitored, *req.AddMonitored); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	if req.AddSearchNow != nil {
+		if err := setBool(tx, settings.KeyAddSearchNow, *req.AddSearchNow); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	if req.AddKeepBetter != nil {
+		if err := setBool(tx, settings.KeyAddKeepBetter, *req.AddKeepBetter); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -1257,6 +1342,12 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		tx.then(func() { s.dispatch.Kick() })
 	}
+	if req.MaxReleaseGB != nil {
+		if err := tx.Set(settings.KeyMaxReleaseGB, strconv.Itoa(*req.MaxReleaseGB), false); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
 	if req.BackupAuto != nil {
 		v := "1"
 		if !*req.BackupAuto {
@@ -1304,6 +1395,17 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 			v = f.off
 		}
 		if err := tx.Set(f.key, v, false); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	if req.BooksFolderLayout != nil {
+		layout := strings.TrimSpace(*req.BooksFolderLayout)
+		if layout != books.LayoutAuthorTitle && layout != books.LayoutAuthorSeries {
+			writeError(w, http.StatusBadRequest, "The book folder layout must be author_title or author_series.")
+			return
+		}
+		if err := tx.Set(settings.KeyBooksFolderLayout, layout, false); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -1393,12 +1495,12 @@ type namingPreviewPayload struct {
 var (
 	namingMovieSample = organizer.NamingContext{
 		MovieTitle: "Example Movie", Year: 2024, Quality: "1080p", Source: "BluRay",
-		Codec: "x265", AudioCodec: "DTS", HDR: "HDR10", Edition: "Extended", ReleaseGroup: "GROUP", TMDBID: 12345,
+		Codec: "x265", AudioCodec: "DTS", AudioChannels: "5.1", HDR: "HDR10", Edition: "Extended", ReleaseGroup: "GROUP", TMDBID: 12345,
 		OriginalTitle: "Example.Movie.2024.Extended.1080p.BluRay.DTS.x265-GROUP", OriginalFilename: "Example.Movie.2024.Extended.1080p.BluRay.DTS.x265-GROUP",
 	}
 	namingEpisodeSample = organizer.NamingContext{
 		SeriesTitle: "Example Show", Year: 2023, Season: 1, Episode: 2, EpisodeTitle: "The Second One", AirDate: "2023-03-14",
-		Quality: "1080p", Source: "WEB-DL", Codec: "x264", AudioCodec: "AAC", ReleaseGroup: "GROUP", TMDBID: 67890,
+		Quality: "1080p", Source: "WEB-DL", Codec: "x264", AudioCodec: "AAC", AudioChannels: "2.0", ReleaseGroup: "GROUP", TMDBID: 67890,
 		OriginalTitle: "Example.Show.S01.1080p.WEB-DL.AAC.x264-GROUP", OriginalFilename: "Example.Show.S01E02.1080p.WEB-DL.AAC.x264-GROUP",
 	}
 )

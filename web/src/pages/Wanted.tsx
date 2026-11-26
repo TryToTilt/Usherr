@@ -3,6 +3,7 @@ import { ActiveChips, CompactBar, FiltersButton, type ActiveFilter } from '../co
 import Dropdown from '../components/Dropdown' // Usherr
 import { Link } from 'react-router-dom'
 import { useUrlState } from '../useUrlState'
+import WantedReview from '../components/WantedReview'
 import { api, can, isAdmin, type Book, type BookFormat, type Movie, type MusicWanted, type Series, type SubtitleQuota, type SubtitleWanted, type WaitingRelease, type WantedItem, type WantedPage, type WantedRow } from '../api'
 import { mergeRefreshed } from '../wantedPage'
 import { releaseLabel, localDate } from '../bookSeries'
@@ -84,7 +85,7 @@ export default function Wanted() {
   const [movies, setMovies] = useState<Movie[]>([])
   const [series, setSeries] = useState<Series[]>([])
   const [sweeping, setSweeping] = useState(false)
-  // Releases held back by the delay profile (Settings > Languages and automation).
+  // Releases held back by the delay profile (Settings > Finding releases > Automatic searching).
   const [waiting, setWaiting] = useState<WaitingRelease[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
@@ -442,7 +443,7 @@ export default function Wanted() {
   )
   const total = (k: Kind) => (counts[k] === undefined ? undefined : counts[k]! + (k === 'subtitles' ? 0 : (musicCounts[k] ?? 0)) + (k === 'missing' ? missingBooks.length : 0))
   const tab = (k: Kind, label: string) => (
-    <button aria-pressed={kind === k} className={kind === k ? 'active' : ''} onClick={() => setKind(k)}>
+    <button aria-pressed={kind === k && ui.tab !== 'review'} className={kind === k && ui.tab !== 'review' ? 'active' : ''} onClick={() => setKind(k)}>
       {label} {total(k) !== undefined && <small>({total(k)})</small>}
     </button>
   )
@@ -468,6 +469,42 @@ export default function Wanted() {
   ]
   const hasList = kind !== 'subtitles' && unfiltered > 0
 
+  // Wanted for a long time (#168): a review of what is still missing long after it came out. Administrators only.
+  const reviewing = admin && ui.tab === 'review'
+  // Usherr: the tabs live in the slim CompactBar row, Long wanted (upstream #168) beside them.
+  const tabs = (
+    <div className="seg">
+      {tab('missing', t('Missing'))}
+      {tab('cutoff', t('Upgrades'))}
+      {subtitlesOn && tab('subtitles', t('Subtitles'))}
+      {admin && (
+        <button aria-pressed={reviewing} className={reviewing ? 'active' : ''} onClick={() => patchUi({ tab: 'review' })}>
+          {t('Long wanted')}
+        </button>
+      )}
+    </div>
+  )
+  const header = (
+    <CompactBar
+      open={false}
+      row={
+        <>
+          {tabs}
+          <span className="spacer" />
+          <HelpLink topic="activity#the-wanted-page" text={t('Missing: monitored titles that have no file yet. Upgrades: titles you have that are below the quality you asked for. Subtitles: downloaded titles that lack a subtitle in your languages.')} />
+        </>
+      }
+    />
+  )
+  if (reviewing) {
+    return (
+      <div>
+        {header}
+        <WantedReview />
+      </div>
+    )
+  }
+
   return (
     <div>
       {/* Usherr: one slim row, pinned under the top bar (CompactBar.tsx) */}
@@ -475,11 +512,7 @@ export default function Wanted() {
         open={filtersOpen && hasList}
         row={
           <>
-            <div className="seg">
-              {tab('missing', t('Missing'))}
-              {tab('cutoff', t('Upgrades'))}
-              {subtitlesOn && tab('subtitles', t('Subtitles'))}
-            </div>
+            {tabs}
             {hasList && <FiltersButton open={filtersOpen} onToggle={() => setFiltersOpen((o) => !o)} count={activeFilters.length} />}
             <span className="spacer" />
             {hasList && rowTotal > 0 && canSearch && (

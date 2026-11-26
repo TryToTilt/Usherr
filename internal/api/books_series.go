@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rdborg/mediarium/internal/books"
+	"github.com/rdborg/mediarium/internal/origin"
 	"github.com/rdborg/mediarium/internal/settings"
 )
 
@@ -193,6 +194,9 @@ func (s *Server) handleBookSeries(w http.ResponseWriter, r *http.Request) {
 // rememberSeries stores a library book's series, place and release date when
 // they changed.
 func (s *Server) rememberSeries(b books.Book, series *books.Series, position string) {
+	if b.Manual() {
+		return // added by hand: nothing from a catalogue is written over it
+	}
 	if position != "" && (b.SeriesName != series.Name || b.SeriesPosition != position) {
 		_ = s.BookRepo.SetSeries(b.ID, series.Name, position)
 	}
@@ -245,7 +249,7 @@ func (s *Server) handleFollowSeries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if (req.Ebook && !s.ebooksEnabled()) || (req.Audiobook && !s.audiobooksEnabled()) {
-		writeError(w, http.StatusConflict, "That format is switched off. Switch it on in Settings > Media types.")
+		writeError(w, http.StatusConflict, "That format is switched off. Switch it on in Settings > Basics > Media types.")
 		return
 	}
 	f := books.FollowedSeries{Source: source, Key: key, Name: strings.TrimSpace(req.Name), WantEbook: req.Ebook, WantAudiobook: req.Audiobook}
@@ -297,6 +301,9 @@ func (s *Server) addSeriesBooks(ctx context.Context, f books.FollowedSeries, by 
 		}
 		found := books.Found{Key: e.Key, Title: e.Title, Author: e.Author}
 		if have := findBook(library, found); have != nil {
+			if have.Manual() {
+				continue // added by hand: its details stay as they were typed
+			}
 			if have.SeriesName == "" {
 				_ = s.BookRepo.SetSeries(have.ID, series.Name, e.Position)
 			}
@@ -308,7 +315,7 @@ func (s *Server) addSeriesBooks(ctx context.Context, f books.FollowedSeries, by 
 		}
 		b, err := s.BookRepo.Add(books.Book{OLKey: e.Key, Title: e.Title, Author: e.Author, AuthorKey: e.AuthorKey, Year: e.Year, CoverID: e.CoverID,
 			WantEbook: f.WantEbook && s.ebooksEnabled(), WantAudiobook: f.WantAudiobook && s.audiobooksEnabled(), AddedBy: by,
-			SeriesName: series.Name, SeriesPosition: e.Position, ReleaseDate: e.ReleaseDate})
+			SeriesName: series.Name, SeriesPosition: e.Position, ReleaseDate: e.ReleaseDate, Origin: origin.Origin{Kind: origin.Auto, Name: origin.JobFollow}})
 		if errors.Is(err, books.ErrExists) || (err == nil && !b.WantEbook && !b.WantAudiobook) {
 			continue
 		}
@@ -325,7 +332,7 @@ func (s *Server) addSeriesBooks(ctx context.Context, f books.FollowedSeries, by 
 		for _, bf := range []books.Format{books.Ebook, books.Audiobook} {
 			if b.Wants(bf) {
 				bf := bf
-				s.background(func() { s.searchBook(b.ID, bf, false) })
+				s.background(func() { s.searchBook(b.ID, bf, false, origin.Origin{}) })
 			}
 		}
 	}
@@ -366,7 +373,7 @@ func (s *Server) huntSeries(ctx context.Context) {
 	}
 }
 
-// ---- The Hardcover token (Settings > Info, lists and subtitles)
+// ---- The Hardcover token (Settings > Library and files)
 
 type hardcoverTokenState struct {
 	Set      bool   `json:"set"`
@@ -437,7 +444,7 @@ func (s *Server) audibleDetails(ctx context.Context, asin, title, author string)
 // lookUpAudioDetailsLater fetches the narrator, running time (and, when
 // missing, the series) of a book's audiobook in the background, once per book.
 func (s *Server) lookUpAudioDetailsLater(b books.Book) {
-	if b.AudioCheckedAt != "" || !s.audiobooksEnabled() || (!b.WantAudiobook && b.AudioStatus != books.StatusDownloaded) {
+	if b.Manual() || b.AudioCheckedAt != "" || !s.audiobooksEnabled() || (!b.WantAudiobook && b.AudioStatus != books.StatusDownloaded) {
 		return
 	}
 	if _, busy := audioLookups.LoadOrStore(b.ID, true); busy {

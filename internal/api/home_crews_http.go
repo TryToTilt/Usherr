@@ -379,6 +379,7 @@ type crewChatOut struct {
 	Who   string     `json:"who"`
 	Text  string     `json:"text"`
 	Card  *crew.Card `json:"card,omitempty"`
+	Have  string     `json:"have,omitempty"` // Usherr: a film sent to this house: yes, getting or no here
 	At    int64      `json:"at"`
 }
 
@@ -467,6 +468,16 @@ func (s *Server) handleCrew(w http.ResponseWriter, r *http.Request) {
 			chat = append(chat, m)
 		}
 		rows.Close()
+	}
+	// Usherr: say whether a film sent to this house is here, so it can be got.
+	haveOf := map[int]string{}
+	for i := range chat {
+		if cd := chat[i].Card; cd != nil && cd.To == c.MyHid && chat[i].H != c.MyHid && cd.TMDB > 0 {
+			if _, ok := haveOf[cd.TMDB]; !ok {
+				haveOf[cd.TMDB] = s.crewHave(ctx, cd.TMDB)
+			}
+			chat[i].Have = haveOf[cd.TMDB]
+		}
 	}
 	me := s.crewPersonName(ctx, uid)
 	list := []crewEntryOut{}

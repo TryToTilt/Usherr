@@ -13,6 +13,7 @@ import (
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/metadata"
+	"github.com/rdborg/mediarium/internal/origin"
 	"github.com/rdborg/mediarium/internal/parser"
 	"github.com/rdborg/mediarium/internal/quality"
 	"github.com/rdborg/mediarium/internal/trakt"
@@ -35,7 +36,14 @@ type searchResultPayload struct {
 	Group       string `json:"group,omitempty"`
 	Seeders     int    `json:"seeders,omitempty"`
 	Peers       int    `json:"peers,omitempty"`
-	InfoHash    string `json:"infoHash,omitempty"` // torrents, when the indexer reports it
+	// Discount is the percent of the download the tracker does not count
+	// against the user's ratio: 100 is freeleech. Left out when there is none.
+	Discount int    `json:"discount,omitempty"`
+	InfoHash string `json:"infoHash,omitempty"` // torrents, when the indexer reports it
+	// InfoURL is the release's page on its indexer, for the link in the list.
+	// Only a plain http or https page that carries no key or login (see
+	// indexers.SafeInfoURL); left out when there is none.
+	InfoURL string `json:"infoUrl,omitempty"`
 	// Cached is true when the debrid service in use already has this torrent,
 	// so it starts at once. Left out when it has not or it is not known
 	// (debrid_cache.go).
@@ -71,6 +79,9 @@ type searchResultPayload struct {
 	MinScore     int             `json:"minScore,omitempty"`
 	UpgradeUntil int             `json:"upgradeUntil,omitempty"`
 	Reasons      []releaseReason `json:"reasons,omitempty"`
+	// Checks lists what was checked on the release against the profile, each as
+	// a pass or the reason it failed (release_explain.go), for "Why this release?".
+	Checks []releaseCheck `json:"checks,omitempty"`
 	// Terms are the profile's preferred terms the release matched, each with
 	// its score; they add to the score next to the custom formats.
 	Terms []preferredHit `json:"terms,omitempty"`
@@ -118,7 +129,9 @@ func (s *Server) toSearchResultPayload(res indexers.Result) searchResultPayload 
 		Group:       release.Group,
 		Seeders:     res.Seeders,
 		Peers:       res.Peers,
+		Discount:    res.Discount,
 		InfoHash:    res.InfoHash,
+		InfoURL:     indexers.SafeInfoURL(res.InfoURL, res.DownloadURL),
 		Cached:      res.Cached,
 		hash:        releaseHash(res),
 		Season:      release.Season,
@@ -130,19 +143,7 @@ func (s *Server) toSearchResultPayload(res indexers.Result) searchResultPayload 
 	if belowMinSeeders(res) {
 		payload.BelowMinSeeders, payload.MinSeeders = true, res.MinSeeders
 	}
-	fit := quality.FitLanguageOnly(release, s.preferredLanguage(), s.languageOnly())
-	payload.Language = fit.Label
-	if fit.Label == "" && fit.Rank < 3 {
-		payload.Language = "Not stated"
-	}
-	switch {
-	case !fit.Accepted:
-		payload.LanguageFit = "other"
-	case fit.Rank < 3:
-		payload.LanguageFit = "mixed"
-	case fit.Label != "":
-		payload.LanguageFit = "ok"
-	}
+	payload.setLanguage(quality.FitLanguageWith(release, s.preferredLanguage(), s.languageOnly(), s.languageIgnoreExtra()))
 	// A Usenet post older than the retention is shown with the reason; the
 	// automatic searches leave it out.
 	if why := s.retentionRejection(res); why != "" {
@@ -177,7 +178,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	out := make([]searchResultPayload, len(merged))
 	for i, res := range merged {
 		out[i] = s.toSearchResultPayload(res)
-		out[i].Blocklisted = blocked[blocklist.Key(res.Title)]
+		out[i].Blocklisted = releaseBlocked(blocked, res, blocklist.Scope{})
 	}
 	s.markCachedPayloads(r.Context(), out)
 	writeJSON(w, http.StatusOK, out)
@@ -199,6 +200,9 @@ type moviePayload struct {
 	Genres    []string `json:"genres"`  // TMDB genre names; empty until fetched
 	Tags      []string `json:"tags"`    // the person's own tags ("Kids", "4K")
 	AddedBy   *userRef `json:"addedBy"` // null when unknown
+	// Origin is how the movie came into the library (a person, a list, a library
+	// scan...); left out for one added before that was recorded.
+	Origin *originView `json:"origin,omitempty"`
 	// For sorting the Library: the release date ("2024-03-01", "" when
 	// unknown) and the size of the file on disk (0 when there is none).
 	ReleaseDate string `json:"releaseDate,omitempty"`
@@ -239,7 +243,7 @@ func toMoviePayload(m library.Movie, who func(int64) *userRef) moviePayload {
 	return moviePayload{
 		ID: m.ID, TMDBID: m.TMDBID, Title: m.Title, Year: m.Year, Overview: m.Overview,
 		PosterURL: metadata.PosterURL(m.PosterPath), Status: string(m.Status), Quality: m.Quality, FilePath: m.FilePath, ProfileID: m.ProfileID, Monitored: m.Monitored, Sources: m.SourcePref,
-		Genres: genres, Tags: []string{}, AddedBy: who(m.AddedBy),
+		Genres: genres, Tags: []string{}, AddedBy: who(m.AddedBy), Origin: originOut(m.Origin, who(m.AddedBy)),
 		NoUpgrade: m.NoUpgrade, DetailsState: m.DetailsState, DetailsNote: m.DetailsNote, ReleaseDate: m.ReleaseDate,
 		CopyOf: m.CopyOf, RootPath: m.RootPath,
 	}
@@ -264,6 +268,7 @@ func (s *Server) handleListMovies(w http.ResponseWriter, r *http.Request) {
 	short := s.incompleteNow().movies
 	for i, m := range list {
 		out[i] = toMoviePayload(m, who)
+		out[i].Origin = adminOrigin(r, out[i].Origin)
 		out[i].Title, out[i].PosterURL = s.shownFace("movie", m.TMDBID, m.Title, m.PosterPath)
 		out[i].Overview = s.shownOverview("movie", m.TMDBID, m.Overview)
 		if e, ok := short[m.ID]; ok && e.Path == m.FilePath {
@@ -303,6 +308,7 @@ func (s *Server) handleGetMovie(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := toMoviePayload(m, s.accountNames())
+	out.Origin = adminOrigin(r, out.Origin)
 	out.Title, out.PosterURL = s.shownFace("movie", m.TMDBID, m.Title, m.PosterPath)
 	out.Overview = s.shownOverview("movie", m.TMDBID, m.Overview)
 	out.FilePath = fileLabel(r, m.FilePath)
@@ -413,11 +419,13 @@ type addMovieRequest struct {
 	Sources   string `json:"sources"`   // "", usenet, torrent or both
 	SearchNow bool   `json:"searchNow"` // look for a release straight away
 	// NoUpgrade leaves the movie alone once it is downloaded, so it is not
-	// swapped for a better version later. On when left out: better versions
-	// are something the person asks for.
+	// swapped for a better version later. When left out it follows "Keep
+	// looking for better versions" under Settings > Finding releases > Automatic
+	// searching, which is off unless switched on: better versions are
+	// something the person asks for.
 	NoUpgrade *bool `json:"noUpgrade"`
 	// RootPath is the movie folder to keep it in; left out = where new movies
-	// go (Settings > Library > Folders).
+	// go (Settings > Library and files > Folders).
 	RootPath string `json:"rootPath"`
 }
 
@@ -437,8 +445,11 @@ func (s *Server) handleAddMovie(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Pick a movie from the search results to add.")
 		return
 	}
+	if !s.mayAskForAge(w, r, "movie", req.TMDBID) {
+		return
+	}
 	if !s.TMDB().HasAPIKey() {
-		writeError(w, http.StatusPreconditionFailed, "Add your TMDB API key first (Settings > Info, lists and subtitles > Movie and show info).")
+		writeError(w, http.StatusPreconditionFailed, "Add your TMDB API key first (Settings > Library and files > Movie and show info).")
 		return
 	}
 	if !validSourcePref(req.Sources) {
@@ -467,12 +478,13 @@ func (s *Server) handleAddMovie(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, problem)
 		return
 	}
+	rootPath = s.animeMovieFolderFor(*tmdbMovie, rootPath)
 	userID, byline := requester(r)
 	created, err := s.MovieRepo.Add(library.Movie{
 		TMDBID: tmdbMovie.TMDBID, Title: tmdbMovie.Title, Year: tmdbMovie.Year(),
 		Overview: tmdbMovie.Overview, PosterPath: tmdbMovie.PosterPath, Monitored: monitored, ReleaseDate: tmdbMovie.ReleaseDate,
-		NoUpgrade: boolOr(req.NoUpgrade, true), AddedBy: userID, Genres: s.TMDB().MovieGenres(r.Context(), *tmdbMovie),
-		RootPath: rootPath,
+		NoUpgrade: boolOr(req.NoUpgrade, s.noUpgradeByDefault()), AddedBy: userID, Genres: s.TMDB().MovieGenres(r.Context(), *tmdbMovie),
+		RootPath: rootPath, Origin: addOrigin(r),
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -492,9 +504,11 @@ func (s *Server) handleAddMovie(w http.ResponseWriter, r *http.Request) {
 	_ = s.QueueRepo.LogActivity(created.ID, "added", created.Title+" added to library"+byline)
 	go s.rememberDisplayFace("movie", created.TMDBID, created.Title, created.PosterPath, created.Overview)
 	if req.SearchNow {
-		go s.searchMovieInBackground(created.ID)
+		by := userOrigin(r, origin.Search)
+		go s.searchMovieInBackgroundBy(created.ID, by)
 	}
 	added := toMoviePayload(created, s.accountNames())
+	added.Origin = adminOrigin(r, added.Origin)
 	added.RootPath = folderShown(r, s.movieFolders(), created.RootPath)
 	writeJSON(w, http.StatusCreated, added)
 }
@@ -502,6 +516,12 @@ func (s *Server) handleAddMovie(w http.ResponseWriter, r *http.Request) {
 // searchMovieInBackground runs the automatic search for a just-added movie,
 // ignoring the monitored flag (the person asked for it explicitly).
 func (s *Server) searchMovieInBackground(movieID int64) {
+	s.searchMovieInBackgroundBy(movieID, origin.Origin{})
+}
+
+// searchMovieInBackgroundBy is searchMovieInBackground for a search someone
+// asked for: its downloads are attributed to by.
+func (s *Server) searchMovieInBackgroundBy(movieID int64, by origin.Origin) {
 	m, err := s.MovieRepo.Get(movieID)
 	if err != nil {
 		return
@@ -518,7 +538,7 @@ func (s *Server) searchMovieInBackground(movieID int64) {
 		s.noteHomeHold(m, note) // still only in cinemas: the "Search now" button looks anyway
 		return
 	}
-	s.huntMovie(context.Background(), m, instances, profiles, s.searchSkipKeys(), true)
+	s.huntMovie(withGrabBy(context.Background(), by), m, instances, profiles, s.searchSkipKeys(), true)
 }
 
 // discoverPayload mirrors moviePayload's shape but for titles not yet in
@@ -539,6 +559,9 @@ type discoverPayload struct {
 	// NameTag tells a search result from another of the same name in the
 	// results ("US", "UK" or the year); left out when no other has its name.
 	NameTag string `json:"nameTag,omitempty"`
+	// Scores are the IMDb, Rotten Tomatoes and Metacritic scores kept for it,
+	// with an OMDb key saved (outside_scores.go).
+	Scores *scoreView `json:"scores,omitempty"`
 }
 
 // isoDate passes a TMDB "YYYY-MM-DD" date through, or "" for anything else
@@ -553,20 +576,20 @@ func isoDate(d string) string {
 // movieDiscover builds the list item for a TMDB movie, resolving its genre
 // names (a cached lookup, see metadata.Client.GenreNames).
 func (s *Server) movieDiscover(ctx context.Context, m metadata.Movie) discoverPayload {
-	return discoverPayload{
+	return s.withScores(discoverPayload{
 		TMDBID: m.TMDBID, MediaType: "movie", Title: m.Title, Year: m.Year(), ReleaseDate: isoDate(m.ReleaseDate),
 		Overview: m.Overview, PosterURL: metadata.PosterURL(m.PosterPath), Genres: s.displayTMDB().MovieGenres(ctx, m),
 		Rating: metadata.RoundRating(m.VoteAverage), VoteCount: m.VoteCount,
-	}
+	})
 }
 
 // showDiscover is movieDiscover's TV counterpart.
 func (s *Server) showDiscover(ctx context.Context, sh metadata.Show) discoverPayload {
-	return discoverPayload{
+	return s.withScores(discoverPayload{
 		TMDBID: sh.TMDBID, MediaType: "tv", Title: sh.Name, Year: sh.Year(), ReleaseDate: isoDate(sh.FirstAirDate),
 		Overview: sh.Overview, PosterURL: metadata.PosterURL(sh.PosterPath), Genres: s.displayTMDB().ShowGenres(ctx, sh),
 		Rating: metadata.RoundRating(sh.VoteAverage), VoteCount: sh.VoteCount,
-	}
+	})
 }
 
 func (s *Server) handleTrending(w http.ResponseWriter, r *http.Request) {
@@ -644,7 +667,7 @@ func (s *Server) handleImportList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.Trakt().HasClientID() {
-		writeError(w, http.StatusPreconditionFailed, "Add your Trakt client ID first (Settings > Info, lists and subtitles > Import lists).")
+		writeError(w, http.StatusPreconditionFailed, "Add your Trakt client ID first (Settings > Library and files > Import lists).")
 		return
 	}
 	user, listID, err := trakt.ParseListURL(listURL)
@@ -673,4 +696,21 @@ func (s *Server) handleImportList(w http.ResponseWriter, r *http.Request) {
 		out = append(out, s.movieDiscover(r.Context(), *m))
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// setLanguage fills in Language and LanguageFit from how the release suits
+// the wanted languages.
+func (p *searchResultPayload) setLanguage(fit quality.LanguageFit) {
+	p.Language, p.LanguageFit = fit.Label, ""
+	if fit.Label == "" && fit.Rank < 3 {
+		p.Language = "Not stated"
+	}
+	switch {
+	case !fit.Accepted:
+		p.LanguageFit = "other"
+	case fit.Rank < 3:
+		p.LanguageFit = "mixed"
+	case fit.Label != "":
+		p.LanguageFit = "ok"
+	}
 }

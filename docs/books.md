@@ -1,36 +1,41 @@
 # Ebooks and audiobooks
 
-Mediarium can look after books too: as an ebook, an audiobook or both. Each format is its own switch under **Settings > Media types**, and both are off on a new install.
+Mediarium can look after books too: as an ebook, an audiobook or both. Each format is its own switch under **Settings > Basics > Media types**, and both are off on a new install.
 
 ## Switching them on
 
-1. Open **Settings > Media types** and switch on **Ebooks**, **Audiobooks** or both.
-2. Open **Settings > Library > Folders** and check the **Ebooks folder** and **Audiobooks folder**. They start from `EBOOKS_DIR` and `AUDIOBOOKS_DIR` (`/ebooks` and `/audiobooks` by default). The folder has to be mapped into the container; see [modules.md](./modules.md#adding-music-ebooks-or-audiobooks-later).
+1. Open **Settings > Basics > Media types** and switch on **Ebooks**, **Audiobooks** or both.
+2. Open **Settings > Library and files > Folders** and check the **Ebooks folder** and **Audiobooks folder**. They start from `EBOOKS_DIR` and `AUDIOBOOKS_DIR` (`/ebooks` and `/audiobooks` by default). The folder has to be mapped into the container; see [modules.md](./modules.md#adding-music-ebooks-or-audiobooks-later).
 3. Make sure at least one of your indexers carries books. Ebooks are searched in the Newznab categories 7000 and 7020, audiobooks in 3030.
 
 You can also pick them in the first-run wizard, on the **What do you want to manage?** step.
 
 ## Adding a book
 
-Open **Library**, then the **Ebooks** or **Audiobooks** tab, and press **Add**. Type a title or an author's name. The results come from [Open Library](https://openlibrary.org), with their covers. When a Hardcover token is saved (Settings > Info, lists and subtitles), the same search also asks [Hardcover](https://hardcover.app) and uses its cover for a book Open Library has no picture of. A book only Hardcover knows is listed too, and can be added, after the Open Library results. That one saved token is what every account's search uses. Google Books is asked after those two, with no API key, and only for a few seconds. It fills in a missing cover or description, and a book neither of the others lists is added with Google's title, author, year, description and cover. A key on that same settings page is optional, for when you reach Google's limit. If Open Library can't read what you typed (it answers 422 to text such as an unclosed bracket or quote, or a lone colon), Mediarium searches again with just the words, and if that is refused too the search box says "Open Library couldn't read that search" instead of showing an empty list. Press **Add** on the right one.
+Open **Library**, then the **Ebooks** or **Audiobooks** tab, and press **Add**. Type a title or an author's name. The results come from [Open Library](https://openlibrary.org), with their covers. When a Hardcover token is saved (Settings > Library and files), the same search also asks [Hardcover](https://hardcover.app) and uses its cover for a book Open Library has no picture of. A book only Hardcover knows is listed too, and can be added, after the Open Library results. That one saved token is what every account's search uses. Google Books is asked after those two, with no API key, and only for a few seconds. It fills in a missing cover or description, and a book neither of the others lists is added with Google's title, author, year, description and cover. A key on that same settings page is optional, for when you reach Google's limit. If Open Library can't read what you typed (it answers 422 to text such as an unclosed bracket or quote, or a lone colon), Mediarium searches again with just the words, and if that is refused too the search box says "Open Library couldn't read that search" instead of showing an empty list. Press **Add** on the right one.
 
 - From the Ebooks tab the book is added as an ebook, from the Audiobooks tab as an audiobook. When the other format is switched on too, tick **Get the audiobook too** (or **Get the ebook too**) to want both.
 - Mediarium starts looking for it straight away. After that, the automatic search tries again on its usual schedule for every book still missing.
 - A book that is already in your library shows **In your library** instead of **Add**.
 
+### Adding a book by hand
+
+When none of the book databases has a book, or they keep finding the wrong one, press **Can't find it? Add it by hand** under the results on the Books tab of Search (it needs the permission to add titles yourself). Choose **Book or audiobook**, type the title, and optionally the author, the year, a description, an ISBN or an ID of your own, and a cover picture (only offered to people who may change covers, the **Search now and monitoring** permission), then tick **Ebook**, **Audiobook** or both. It is added to the library, searched for, downloaded and imported like any other book.
+
+A book added by hand is never looked up again. Mediarium does not compare it with Open Library, Hardcover, Google Books, a series or Audnexus afterwards, so the title, author, year, description and cover stay as you typed them. Its page leaves out the Open Library link and the series list. The same title and author as a book already in the library, or the same ID, is refused. For scripts: `POST /api/books/manual` with `{title, author?, year?, description?, externalId?, ebook, audiobook, searchNow?}` answers the new book; its `olKey` is `manual:` followed by your ID (or a random one). A cover goes up afterwards with `POST /api/books/{id}/cover`.
+
 ## Importing the books you already have
 
 Administrators see an **Import** button on the Ebooks and Audiobooks tabs. Press **Start import** and Mediarium reads that folder, looks each book up on Open Library, and adds what it recognises to your library as downloaded, **where it is**. Nothing is moved, renamed or changed. For an audiobook that Open Library does not have, Mediarium asks Audible (through Audnexus) before giving up, and adds the book with the narrator, length, series and release date Audible has. Such a book has no "More about this book" link, because there is no Open Library page for it.
 
-- It understands the usual layouts: `Author/Title/book.epub` (Mediarium, Calibre), `Author/Title.epub`, `Author - Title.epub`, and for audiobooks `Author/Title/` or `Author/Series/Title/` with the audio files inside. `CD 1` or `Disc 2` folders count as part of the book above them. A year like `(2021)`, Calibre's `(123)` and notes like `[Unabridged]` are ignored, and so are series numbers like `1 - `.
-- Audiobook folders can say more, the way Audiobookshelf reads them: `Author/Series/Vol 2 - Title {Narrator} [B0015T963C]` gives the series and its number (`Book 2`, `Vol. 2`, `2. Title`), the narrator and the Audible ASIN. Beside the audio it reads `metadata.json`, an `.opf` file, `desc.txt` (the description) and `reader.txt` (the narrator, first line), and tags in the first audio file (composer or narrator, ASIN, series, year). What it finds only fills in what a book doesn't have: anything already set stays, and running the import again fills in the empty parts of books you already have. Files are only read, never changed. A book with an ASIN is looked up on Audible by that number.
-- Titles are compared the forgiving way: accents and apostrophes don't matter (`L'Etranger` finds *L’étranger*), a number counts the same as the number written out (`George Orwell - 1984.epub` finds *Nineteen Eighty-Four*), and a name with the title first (`1984 - George Orwell.epub`) is tried that way round too. The author always has to match.
+- It understands the usual layouts: `Author/Title/book.epub` (Mediarium, Calibre), `Author/Title.epub`, `Author - Title.epub`, `Author/Series/01. Title (Year).epub` (the series layout below), and for audiobooks `Author/Title/` or `Author/Series/Title/` with the audio files inside. An ebook in a series folder is read as that series' book when its name starts with its number (`01. `) or has a year in brackets while the folder has none; the series and the number are added to the book. `CD 1` or `Disc 2` folders count as part of the book above them. A year like `(2021)`, Calibre's `(123)` and notes like `[Unabridged]` are ignored, and so are series numbers like `1 - `.
+- Audiobook folders can say more, the way Audiobookshelf reads them: `Author/Series/Vol 2 - Title {Narrator} [B0015T963C]` gives the series and its number (`Book 2`, `Vol. 2`, `2. Title`), the narrator and the Audible ASIN. Beside the audio it reads `metadata.json`, an `.opf` file, `desc.txt` (the description) and `reader.txt` (the narrator, first line), and tags in the first audio file (composer or narrator, ASIN, series, year). What it finds only fills in what a book doesn't have: anything already set stays, and running the import again fills in the empty parts of books you already have. Files are only read, never changed. A book with an ASIN is looked up on Audible by that number.- Titles are compared the forgiving way: accents and apostrophes don't matter (`L'Etranger` finds *L’étranger*), a number counts the same as the number written out (`George Orwell - 1984.epub` finds *Nineteen Eighty-Four*), and a name with the title first (`1984 - George Orwell.epub`) is tried that way round too. The author always has to match.
 - An ebook folder with the same book in several formats counts once, with the best format.
 - When it's done you see how many were added, already there and not found. The list shows the ones not found, with the path on disk and how the name was read, so you can rename the folder and run it again. **Show all** lists everything.
 - Running it again is safe: books already in the library are skipped.
 - The ebook and audiobook imports keep their own results. Importing audiobooks doesn't clear the list of ebooks that weren't found, so **Find it myself** is still there for them. Only one import runs at a time.
 - **Run the ... not found again** looks only at the books the last import did not find (or could not save), without reading the folders again. It is for when Open Library or Audible did not answer the first time (the message says so). If you renamed a folder to fix a name, use **Import again** instead, so the folders are read again. Scripts: `POST /api/books/import/retry`.
-- **Find it myself** (next to each book that was not found) opens a small search with a **Title** box and an **Author** box, filled in with what was read from the name on disk. Books by that author are listed first. Change either box, pick the right book from the results (cover, title, author, year) and it is attached to that file, the same as an automatic match. Tick **Rename the file to match** to also move the file (or the audiobook's folder) to where Mediarium puts a book it downloads, `Author/Title (Year)`. It is off by default, nothing is overwritten, and if the new place is taken the book is added and the file stays where it is. Only administrators can do this. Scripts: `POST /api/books/import/match`.
+- **Find it myself** (next to each book that was not found) opens a small search with a **Title** box and an **Author** box, filled in with what was read from the name on disk. Books by that author are listed first. Change either box, pick the right book from the results (cover, title, author, year) and it is attached to that file, the same as an automatic match. Tick **Rename the file to match** to also move the file (or the audiobook's folder) to where Mediarium puts a book it downloads, `Author/Title (Year)`, or the series layout if you chose it. It is off by default, nothing is overwritten, and if the new place is taken the book is added and the file stays where it is. Only administrators can do this. Scripts: `POST /api/books/import/match`.
 - It pauses briefly between lookups to go easy on Open Library, so a big folder takes a few minutes. You can leave the page; it carries on.
 
 ## Finding books on Discover
@@ -55,6 +60,7 @@ Each book has a page with its cover, author, year and description, and a panel f
 - **Where it stands**: downloaded (with the file type and where the file is), downloading, or waiting for a release.
 - **Want the ebook / Want the audiobook**: switch a format off to stop looking for it, or on to start.
 - **Search now** looks for that format straight away and downloads the best release it finds.
+- **Add a download by hand** (administrators) gives that format an NZB, a torrent or a magnet link you already have, for a release you got somewhere else. It is checked and imported like any other download, see [Add a download by hand](activity.md#add-a-download-by-hand).
 - **Choose a release** lists what your indexers have for the book, best first, so you can pick one yourself. Under each release is the category number the indexer filed it in (for example 7020 or a German books category), so you can tell apart releases that look alike.
 - **Edit details** corrects a book that was matched wrongly. See below.
 - **Send to e-reader** emails the ebook to your Kindle or another e-reader. See [Sending a book by email](#sending-a-book-by-email).
@@ -101,7 +107,7 @@ Books with a release date show up on **Upcoming > Calendar** with their cover in
 
 Only whole books count: a novella in between (book 2.5), box sets and collections are left out, but you can still add them by hand. Switching **Follow this series** off keeps the books you have.
 
-**Where series come from.** Out of the box, from Open Library. It knows most big series, but not all of them, and rarely knows a book before it is out. For more series and release dates, and for covers Open Library doesn't have, connect **Hardcover** under **Settings > Info, lists and subtitles**: make a free account at [hardcover.app](https://hardcover.app), copy your token from Settings, Hardcover API, and paste it there. Mediarium checks it before saving and keeps it encrypted. A Hardcover token belongs to your own account and can't be shared, which is why none comes built in. The one token saved there is used for every account's series lookups and book searches. If Hardcover doesn't know a book, is slow, or is down, Open Library is used instead.
+**Where series come from.** Out of the box, from Open Library. It knows most big series, but not all of them, and rarely knows a book before it is out. For more series and release dates, and for covers Open Library doesn't have, connect **Hardcover** under **Settings > Library and files**: make a free account at [hardcover.app](https://hardcover.app), copy your token from Settings, Hardcover API, and paste it there. Mediarium checks it before saving and keeps it encrypted. A Hardcover token belongs to your own account and can't be shared, which is why none comes built in. The one token saved there is used for every account's series lookups and book searches. If Hardcover doesn't know a book, is slow, or is down, Open Library is used instead.
 
 ## Audiobook details
 
@@ -130,6 +136,16 @@ Among the matches, the file type decides:
 
 A release that doesn't say its type comes after those that do. When two are equal, the indexer priority and then Usenet over torrents decide. Releases you blocklisted are skipped.
 
+### The language of a book
+
+The **languages you want** (Settings > Finding releases > Quality, the same setting films and shows use) count for books too. Book release names rarely say their language, so Mediarium also looks at the category the indexer filed the release under: many indexers keep one per language, such as `7120` called "EBook (DE)" next to the usual `7020`. A category whose name says a language ("(DE)", "Deutsch", "French", "GER", or a capital code between dashes or slashes such as "Books - DE / Ebook") makes the release that language; the standard book categories say nothing. Add such a category under **Extra categories** on the indexer's card so it is searched at all (see [indexers.md](./indexers.md#extra-categories)).
+
+- A release in a wanted language goes first in **Choose a release**, and the list shows each one's language.
+- A release clearly in another language is never taken by Mediarium itself; you can still pick it by hand.
+- A release whose name and category say nothing counts as English, as it does for films. With **Only take releases in these languages** on, it is then only taken when English is one of your languages.
+
+To read the category names, Mediarium asks each Newznab or Torznab indexer for its list of categories once a day, and only when a book release comes from a category that isn't a standard one. That one request counts against the indexer's daily limit (#128, mirisbowring).
+
 ## Where the files go
 
 Books are filed by author:
@@ -139,7 +155,20 @@ Books are filed by author:
 <Audiobooks folder>/<Author>/<Title (Year)>/<the audiobook's own files>
 ```
 
-An ebook download keeps only the best ebook file in it. An audiobook keeps all of its audio files with their own names, so the chapters stay in order. When a book comes in several folders with the same file names (`CD1/Track 01.mp3` and `CD2/Track 01.mp3`), the folder name goes in front of the file name (`CD1 - Track 01.mp3`), so no part replaces another. A download with no ebook (or no audio) in it is marked as a bad release, blocklisted, and the next best one is tried.
+Two different works of the same title, author and year (two catalogue entries for one name) don't share a folder: the second one gets its Open Library key after the name, `Title (Year) [OL123W]`. An ebook download keeps only the best ebook file in it. An audiobook keeps all of its audio files with their own names, so the chapters stay in order. When a book comes in several folders with the same file names (`CD1/Track 01.mp3` and `CD2/Track 01.mp3`), the folder name goes in front of the file name (`CD1 - Track 01.mp3`), so no part replaces another. A download with no ebook (or no audio) in it is marked as a bad release, blocklisted, and the next best one is tried.
+
+### Filing books by series
+
+If you keep series together, switch the layout under **Settings > Library and files**, in **How new books are filed**: **Author, then series, then book**. New books then go here:
+
+```
+<Ebooks folder>/<Author>/<Series>/01. Title (Year).epub
+<Ebooks folder>/<Author>/Title (Year).epub                   (a book that is not in a series)
+<Audiobooks folder>/<Author>/<Series>/<Title (Year)>/<the audiobook's own files>
+<Audiobooks folder>/<Author>/<Title (Year)>/<the audiobook's own files>   (no series)
+```
+
+The series and the number come from the book's series (see [Series](#series)). The number has two digits. A place that isn't a whole book (a novella at 2.5) or a book with no number gets no number in front. The default stays **Author, then book**, the layout above, so nothing changes until you choose. Books you already have are never moved when you change it; only books added or downloaded afterwards use the new layout, and the library import reads both. The same name rule applies: two different works that end up on the same file get their Open Library key after the name. Setting key: `books.folder_layout` (`author_title` or `author_series`).
 
 Downloading a better ebook later (an EPUB after a PDF) replaces the file. A worse one doesn't.
 
@@ -179,7 +208,7 @@ Downloading a better ebook later (an EPUB after a PDF) replaces the file. A wors
 
 ### Other apps
 
-You can also read and listen in an app made for it, and connect it under **Settings > Connections > Media servers**:
+You can also read and listen in an app made for it, and connect it under **Settings > Media servers and apps > Media servers**:
 
 - **Audiobookshelf** for audiobooks (and ebooks), with apps for iPhone and Android that remember where you got to.
 - **Kavita** for ebooks and comics, read in the browser on any device.
@@ -190,7 +219,7 @@ Once connected, a new book shows up there right after it's downloaded, and the b
 
 Your ebooks can also go to an e-reader. There are two ways, and both are off until you turn them on from your own profile page (**Profile > Read on an e-reader**). Each account has its own, and each only lets the e-reader read books: it can't add, change or delete anything.
 
-Both need **Ebooks** switched on under **Settings > Media types**, and an account that is allowed to read books (the **Play** permission under **Settings > Account & Access**; administrators always are). Books reach an e-reader whichever way they got into the library: downloaded by Mediarium, imported from a folder, or put there by another tool such as Shelfmark.
+Both need **Ebooks** switched on under **Settings > Basics > Media types**, and an account that is allowed to read books (the **Play** permission under **Settings > People and access**; administrators always are). Books reach an e-reader whichever way they got into the library: downloaded by Mediarium, imported from a folder, or put there by another tool such as Shelfmark.
 
 ### Reading apps: the OPDS catalogue
 
@@ -330,6 +359,7 @@ The dashboard has an **Ebooks** and an **Audiobooks** card with how many books y
 - `GET /api/books/{id}/tracks` gives each audio file's `chapters` (`title`, `start` in seconds) when the file (an M4B or M4A) carries two or more chapter marks, read from its QuickTime chapter track or Nero chapter list.
 - `GET /api/books/{id}/read?as=epub` answers a Kindle book (MOBI, AZW, AZW3) as an EPUB copy, made once and cached; `422` with a reason when it can't be converted (DRM, an unusual compression). Without `as=epub`, or with `download=1`, the original file is sent.
 - A book's `narrators`, `runtimeMin` and `asin` (its Audible id) are part of `GET /api/books` once looked up.
+- `GET /api/books/{id}` has `origin` for administrators: how the book came into the library (`kind` `manual`, `request`, `import` for a library folder scan, or `auto` with `name` `follow` for a new book of a followed author or series), with the person in `user`. It is left out for books added before this was kept. See [Who added a title](library.md#who-added-a-title).
 - `GET /api/calendar` lists books with a release date in the window as `kind: "book"` entries with a `bookId`, while ebooks or audiobooks are on.
 
 | Method | Path | What it does |

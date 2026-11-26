@@ -10,6 +10,7 @@ import { StreamingOn } from '../home/Recipes' // home fork
 import { ScoresLine } from '../home/scores' // home fork
 import { InTheatersPanel } from '../home/InTheaters' // Usherr
 import { useNavigate, useParams } from 'react-router-dom'
+import LoadFailed from '../components/LoadFailed'
 import AddDialog from '../components/AddDialog'
 import Icon from '../components/Icon'
 import InfoTip from '../components/InfoTip'
@@ -38,16 +39,19 @@ import { BroadcastTitleActions, markWatched, MoreSheet, PrimaryButton, useTitleM
 import { openShowtimeBooking } from '../home/ShowtimePill' // Usherr Broadcast: Book a showtime, from More
 import { openSmhMenu } from '../smh/engine' // Usherr Broadcast: Show me how, from More
 import { openReport } from '../report' // Usherr Broadcast
+import SendToFriend from '../home/SendToFriend' // Usherr: Send to a friend, with a note
 import TitleLayout from '../home/TitleLayout' // Usherr: Cinema, Side by side, Streaming
 import { CastCard, PeopleLinks, titleLinks } from '../components/TitlePreview'
 import { crewWith } from '../people'
 import WatchLinks from '../components/WatchLinks'
 import FolderLine from '../components/FolderLine'
+import { originText } from '../origin'
 import LocateDialog from '../components/LocateDialog'
 import TitleEvents from '../components/TitleEvents'
 import SearchStatus from '../components/SearchStatus'
 import { describeState } from '../components/state'
 import { useToast } from '../components/Toast'
+import ReleaseGroupEdit from '../components/ReleaseGroupEdit'
 import { useTorrentsSwitch } from '../useTorrentsSwitch'
 import { useAuth } from '../AuthContext'
 import { playTitle } from '../home/Player' // play hook (home fork)
@@ -96,6 +100,7 @@ function MoviePage() {
   // section (a tab, a fold or a panel, by layout).
   const { resolved: layout, show } = useFilmPage()
   const [manageOpen, setManageOpen] = useState(false)
+  const [sending, setSending] = useState(false) // Usherr: Send to a friend
   // Usherr Broadcast: the More sheet (the Options key opens it too).
   const broadcast = broadcastOn()
   const moreSheet = useTitleMore(broadcast)
@@ -113,7 +118,7 @@ function MoviePage() {
   useEffect(() => {
     if (hasResults) releasesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [hasResults])
-  const [answered, setAnswered] = useState<{ sources: number; unanswered: Unanswered[]; warnings?: string[]; searched?: Searched[]; ignoredSamples?: string[] }>({ sources: 0, unanswered: [] })
+  const [answered, setAnswered] = useState<{ sources: number; unanswered: Unanswered[]; warnings?: string[]; searched?: Searched[]; ignoredSamples?: string[]; filtered?: { reason: string; count: number }[] }>({ sources: 0, unanswered: [] })
   const [searching, setSearching] = useState(false)
   const [searchingNow, setSearchingNow] = useState(false)
   const [grabbing, setGrabbing] = useState<string | null>(null)
@@ -146,6 +151,24 @@ function MoviePage() {
     if (!answer) return
     try {
       await api.deleteMovieFile(movie.libraryId)
+      reload()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  // Let the movie go of its file without deleting it, so the file can be linked to another movie.
+  async function unlinkFile() {
+    if (!movie?.libraryId) return
+    const answer = await confirm({
+      title: t('Unlink the file of {name}?', { name: movie.title }),
+      body: <p>{t('The file stays where it is on your disk. This movie shows as missing again, and the file can be linked to a different movie. If it is monitored, Mediarium will look for a new release.')}</p>,
+      confirmLabel: t('Unlink'),
+    })
+    if (!answer) return
+    try {
+      await api.unlinkMovieFile(movie.libraryId)
+      toast.success(t('Unlinked. The file is still on your disk.'))
       reload()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
@@ -258,7 +281,7 @@ function MoviePage() {
     if (q === undefined) setResults(null)
     try {
       const a = await api.movieSearch(libraryId, q)
-      setAnswered({ sources: a.sources, unanswered: a.unanswered, warnings: a.warnings, searched: a.searched, ignoredSamples: a.ignoredSamples })
+      setAnswered({ sources: a.sources, unanswered: a.unanswered, warnings: a.warnings, searched: a.searched, ignoredSamples: a.ignoredSamples, filtered: a.filtered })
       setResults(a.results)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
@@ -346,7 +369,7 @@ function MoviePage() {
     }
   }
 
-  if (error && !movie) return <p className="error-text">{error}</p>
+  if (error && !movie) return <LoadFailed message={error} />
   if (!movie) return <div className="skeleton" style={{ height: 380, borderRadius: 22 }} />
 
   const inLibrary = !!movie.libraryId
@@ -367,11 +390,14 @@ function MoviePage() {
     facts: [
       ...(directors.length ? [{ label: directors.length > 1 ? t('Directors') : t('Director'), value: <PeopleLinks people={directors} /> }] : []),
       ...(writers.length ? [{ label: writers.length > 1 ? t('Writers') : t('Writer'), value: <PeopleLinks people={writers} /> }] : []),
+      ...(movie?.studios?.length ? [{ label: movie.studios.length > 1 ? t('Studios') : t('Studio'), value: movie.studios.slice(0, 3).join(', ') }] : []),
       ...releaseFacts(movie.releaseDates, movie.releaseDate),
       ...(movie.releaseStatus ? [{ label: t('Status'), value: movie.releaseStatus }] : []),
       ...(inLibrary && !memberView && movie.filePath && diskBytes > 0 ? [{ label: t('Size on disk'), value: formatBytes(diskBytes) }] : []),
     ],
     links: titleLinks('movie', movie.tmdbId, movie.imdbId, movie.homepage),
+    tmdbId: movie.tmdbId,
+    imdbId: movie.imdbId,
   }
   const statusTag = state && (
     <span className={`state-tag st-${state.key}`} title={state.hint}>
@@ -390,6 +416,7 @@ function MoviePage() {
   // The everyday actions: play, plan, keep, rate.
   const everyday = (
     <>
+      {movie.status === 'downloaded' && <WatchLinks tmdbId={movie.tmdbId} kind="movie" />} {/* Usherr: upstream 4.1 makes it the main button */}
       {inLibrary ? (
         <>
           {canPlayIt && (
@@ -422,7 +449,6 @@ function MoviePage() {
           <Icon name="sliders" size={16} /> {t('Manage')}
         </button>
       )}
-      {movie.status === 'downloaded' && <WatchLinks tmdbId={movie.tmdbId} kind="movie" />}
     </>
   )
 
@@ -449,6 +475,7 @@ function MoviePage() {
     : [
         { key: 'showtime', icon: 'clock', label: t('Book a showtime'), run: () => openShowtimeBooking({ ...filmItem, runtime: movie.runtime }) },
         { key: 'friend', icon: 'user', label: t('Watch with a friend'), hint: t('Movie night'), run: () => navigate('/showtime') },
+        { key: 'send', icon: 'share', label: t('Send to a friend'), hint: t('With a note'), run: () => setSending(true) }, // Usherr
         ...(!inLibrary && can(me, 'play') ? [{ key: 'stream', node: <StreamButton target={{ kind: 'movie', tmdbId: movie.tmdbId, title: movie.title }} onKeep={() => setAdding(true)} /> }] : []),
         { key: 'watched', icon: 'check', label: t('Mark watched'), hint: t('In your diary'), run: () => markWatched('movie', movie.tmdbId).then(() => toast.success(t('Marked watched.')), (e: Error) => toast.error(e.message)) },
         { key: 'rate', icon: 'star', label: t('Rate it'), node: <VoteButtons kind="movie" refId={movie.tmdbId} meta={{ title: movie.title, year: movie.year, image: movie.posterUrl }} /> },
@@ -504,6 +531,11 @@ function MoviePage() {
           </button>
         )}
         {inLibrary && admin && movie.status === 'downloaded' && movie.filePath && (
+          <button className="btn-with-icon" onClick={() => void unlinkFile()} title={t('Detach this movie from its file and keep the file on your disk')}>
+            <Icon name="folder" size={16} /> {t('Unlink file')}
+          </button>
+        )}
+        {inLibrary && admin && movie.status === 'downloaded' && movie.filePath && (
           <button className="btn-with-icon danger-ghost" onClick={() => void deleteFile()} title={t('Delete the file and keep the movie')}>
             <Icon name="trash" size={16} /> {t('Delete file')}
           </button>
@@ -525,6 +557,16 @@ function MoviePage() {
         </div>
       )}
       {inLibrary && movie.status === 'downloaded' && <FileChips info={movie.fileInfo} />}
+      {inLibrary && movie.status === 'downloaded' && movie.filePath && movie.libraryId && can(me, 'manage') && (
+        <ReleaseGroupEdit
+          group={movie.releaseGroup ?? ''}
+          save={async (g) => {
+            const r = await api.setMovieReleaseGroup(movie.libraryId!, g)
+            toast.success(r.renamed ? t('Saved. The file was renamed.') : t('Saved.'))
+            reload()
+          }}
+        />
+      )}
       {inLibrary && movie.status === 'downloaded' && <ShortFile note={movie.shortFile} onRedo={admin ? () => void redoShortFile() : undefined} />}
       {inLibrary && admin && movie.folderPath && (
         <FolderLine path={movie.folderPath} kind="movie">
@@ -535,11 +577,12 @@ function MoviePage() {
           )}
         </FolderLine>
       )}
+      {inLibrary && admin && originText(movie.origin) && <p className="added-by">{originText(movie.origin)}</p>}
       {results !== null && (
         <section ref={releasesRef} className="card" style={{ margin: '16px 0', scrollMarginTop: 80 }}>
           <h2>{t('Releases')}</h2>
           <CustomSearch busy={searching} onSearch={(q) => chooseRelease(q)} />
-          <ReleaseNotice sources={answered.sources} unanswered={answered.unanswered} warnings={answered.warnings} searched={answered.searched} ignoredSamples={answered.ignoredSamples} results={results.length} />
+          <ReleaseNotice sources={answered.sources} unanswered={answered.unanswered} warnings={answered.warnings} searched={answered.searched} ignoredSamples={answered.ignoredSamples} filtered={answered.filtered} results={results.length} />
           {results.length === 0 && (
             <button className="btn-sm" onClick={() => setResults(null)}>
               {t('Close')}
@@ -609,7 +652,7 @@ function MoviePage() {
           </div>
           <div className="poster-grid">
             {similar.map((m) => (
-              <PosterCard key={m.tmdbId} to={`/title/${m.tmdbId}`} poster={m.posterUrl} title={m.title} meta={m.year || undefined} genres={m.genres} rating={m.rating} kind="movie" />
+              <PosterCard key={m.tmdbId} to={`/title/${m.tmdbId}`} poster={m.posterUrl} title={m.title} meta={m.year || undefined} genres={m.genres} rating={m.rating} scores={m.scores} kind="movie" />
             ))}
           </div>
         </section>
@@ -619,6 +662,7 @@ function MoviePage() {
   const dialogs = (
     <>
       {moreSheet.open && <MoreSheet eyebrow={movie.title} rows={moreRows} onClose={() => moreSheet.setOpen(false)} />} {/* Usherr Broadcast */}
+      {sending && <SendToFriend film={filmItem} onClose={() => setSending(false)} />} {/* Usherr: Send to a friend */}
       {locating && movie.libraryId && <LocateDialog kind="movie" id={movie.libraryId} start={movie.folderPath} onClose={() => setLocating(false)} onDone={reload} />}
       {adding && (
         <AddDialog

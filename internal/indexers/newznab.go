@@ -26,6 +26,8 @@ import (
 type Result struct {
 	Title       string
 	IndexerName string
+	GUID        string   // the id the indexer gave the release, when it said one
+	IndexerID   int64    // the indexer's id here; set by the engine, not this client
 	Protocol    Protocol // usenet or torrent — set by the engine, not this client
 	DownloadURL string   // .nzb URL, or a magnet URI / .torrent URL for torrent results
 	InfoURL     string
@@ -38,10 +40,18 @@ type Result struct {
 	SeedersKnown bool
 	Peers        int    // torrent-only (Torznab attr), 0 for usenet results
 	InfoHash     string // torrent-only, when the indexer reports it
-	Priority     int    // the indexer's priority (1 to 50, lower is preferred); set by the engine
+	// Discount is how much of the download the tracker does not count against
+	// the user's ratio, in percent: 100 is freeleech, 50 is half price, 0 is no
+	// discount or not said. It comes from the download volume factor the
+	// indexer reports (Torznab attribute or Cardigann field).
+	Discount int
+	Priority int // the indexer's priority (1 to 50, lower is preferred); set by the engine
 	// MinSeeders is the minimum the indexer was given for torrents (0 = off);
 	// set by the engine on torrent results only.
 	MinSeeders int
+	// TorrentRoute is where the indexer sends its torrents (see Instance);
+	// set by the engine on torrent results only.
+	TorrentRoute string
 	// Cached is set by the search code (never by an indexer) when the debrid
 	// service in use already has this torrent. False means "not cached or not
 	// known".
@@ -145,9 +155,15 @@ func (c *NewznabClient) Search(ctx context.Context, query string, categories []i
 		maxPages = newznabMaxPagesManual // a person looking at the list wants all of it
 	}
 	var all []Result
+	// An indexer (or Prowlarr in front of it) that ignores the offset sends the
+	// first page again for every page asked, and a release posted while the
+	// pages are read moves the next page back by one: both bring a release
+	// twice. Each is kept once, and a page with nothing new ends the reading.
+	seen := map[string]bool{}
+	offset := 0 // releases the indexer sent so far, repeats included
 	for page := 0; ; page++ {
 		if page > 0 {
-			q.Set("offset", strconv.Itoa(len(all)))
+			q.Set("offset", strconv.Itoa(offset))
 		}
 		body, err := c.get(ctx, q)
 		if err != nil {
@@ -164,8 +180,10 @@ func (c *NewznabClient) Search(ctx context.Context, query string, categories []i
 			}
 			return nil, err
 		}
-		all = append(all, results...)
-		if len(results) == 0 || total <= len(all) || page+1 >= maxPages {
+		offset += len(results)
+		fresh := dedupeResults(seen, results)
+		all = append(all, fresh...)
+		if len(results) == 0 || len(fresh) == 0 || total <= len(all) || page+1 >= maxPages {
 			return all, nil
 		}
 		c.ExtraRequests++
@@ -311,7 +329,14 @@ func (c *NewznabClient) get(ctx context.Context, q url.Values) ([]byte, error) {
 		return nil, NewStatusError(resp.StatusCode, resp.Header,
 			fmt.Sprintf("newznab request to %s: unexpected status %d: %s", c.Name, resp.StatusCode, c.mask(truncate(string(body), 200))), time.Now())
 	}
-	return body, nil
+	clean, err := cleanFeed(body)
+	if errors.Is(err, errEmptyReply) {
+		return nil, fmt.Errorf("%s answered with nothing at all (an empty page). It may be down, or a proxy in front of it dropped the answer", c.Name)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("newznab request to %s: %s", c.Name, c.mask(err.Error()))
+	}
+	return clean, nil
 }
 
 // UserAgent is what Mediarium calls itself when it asks an indexer for a
@@ -372,7 +397,12 @@ func parseNewznabFeed(body []byte, indexerName, apiKey string) ([]Result, error)
 func parseNewznabPage(body []byte, indexerName, apiKey string) ([]Result, int, error) {
 	var feed newznabRSS
 	var err error
-	if feed.Channel, err = decodeNewznabFeed(body); err != nil {
+	if feed.Channel, err = decodeNewznabFeed(body); err != nil && len(feed.Channel.Items) > 0 && isCutOff(err) {
+		// The reply stopped part way (a dropped connection, a proxy time-out):
+		// the releases that arrived whole are still worth having.
+		err = nil
+	}
+	if err != nil {
 		// Newznab reports bad credentials and the like as a bare <error> root
 		// element instead of an RSS feed; surface its description.
 		var apiErr struct {
@@ -380,8 +410,17 @@ func parseNewznabPage(body []byte, indexerName, apiKey string) ([]Result, int, e
 			Code        string   `xml:"code,attr"`
 			Description string   `xml:"description,attr"`
 		}
-		if xml.Unmarshal(body, &apiErr) == nil && apiErr.Description != "" {
+		if xml.Unmarshal(body, &apiErr) == nil && (apiErr.Description != "" || apiErr.Code != "") {
+			if apiErr.Description == "" {
+				apiErr.Description = "the indexer gave no reason"
+			}
 			return nil, 0, fmt.Errorf("newznab error from %s: %s (code %s)", indexerName, maskSecret(truncate(apiErr.Description, 300), apiKey), truncate(apiErr.Code, 20))
+		}
+		if !looksLikeWebPage(body) && !bytes.HasPrefix(bytes.TrimSpace(body), []byte("<")) {
+			// Not XML at all: a JSON error, or a line of text from a proxy or a
+			// rate limiter. What it says is the most useful thing to show.
+			say := strings.Join(strings.Fields(string(body[:min(len(body), 300)])), " ")
+			return nil, 0, fmt.Errorf("%s did not answer with a feed. It said: %s", indexerName, maskSecret(truncate(say, 200), apiKey))
 		}
 		if looksLikeWebPage(body) {
 			return nil, 0, fmt.Errorf("%s answered with a web page, not an indexer feed. Check the address: it must be the indexer's API address, not the site's home page. For an indexer in Prowlarr, open it in Prowlarr and copy its Torznab or Newznab feed address (it looks like http://192.168.1.10:9696/5/api), and use Prowlarr's API key. Or copy all your Prowlarr indexers at once under Settings > System > Move from other apps", indexerName)
@@ -401,6 +440,11 @@ func parseNewznabPage(body []byte, indexerName, apiKey string) ([]Result, int, e
 	return results, feed.Channel.Total, nil
 }
 
+// isCutOff says whether the reader stopped because the reply ended early.
+func isCutOff(err error) bool {
+	return errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) || strings.Contains(err.Error(), "unexpected EOF")
+}
+
 // maxNewznabItems is how many releases of one reply are used.
 const maxNewznabItems = 5000
 
@@ -410,6 +454,10 @@ const maxNewznabItems = 5000
 func decodeNewznabFeed(body []byte) (newznabChannel, error) {
 	var ch newznabChannel
 	dec := xml.NewDecoder(bytes.NewReader(body))
+	// Indexers write a bare & in a title now and then; the strict reader would
+	// refuse the whole page for it.
+	dec.Strict = false
+	dec.Entity = xml.HTMLEntity
 	var root xml.StartElement
 	for {
 		tok, err := dec.Token()
@@ -543,12 +591,20 @@ func (item newznabItem) toResult(indexerName string) Result {
 	r := Result{
 		Title:       item.Title,
 		IndexerName: indexerName,
+		GUID:        strings.TrimSpace(item.GUID),
 		DownloadURL: strings.TrimSpace(item.Enclosure.URL),
-		InfoURL:     item.Comments,
+		InfoURL:     strings.TrimSpace(item.Comments),
 		SizeBytes:   item.Enclosure.Length,
 	}
 	if r.DownloadURL == "" {
 		r.DownloadURL = strings.TrimSpace(item.Link)
+	}
+	// Most indexers put the release's page in <comments>; some only in <guid>.
+	// Whatever is kept is checked again by SafeInfoURL before the UI sees it.
+	if r.InfoURL == "" {
+		if g := strings.TrimSpace(item.GUID); strings.HasPrefix(strings.ToLower(g), "http") {
+			r.InfoURL = g
+		}
 	}
 	if magnet := strings.TrimSpace(item.attr("magneturl")); len(magnet) >= 7 && strings.EqualFold(magnet[:7], "magnet:") {
 		r.DownloadURL = "magnet:" + magnet[7:]
@@ -564,9 +620,13 @@ func (item newznabItem) toResult(indexerName string) Result {
 	}
 	r.SizeBytes = saneSize(r.SizeBytes)
 	r.Title = shortenText(strings.Join(strings.Fields(r.Title), " "), maxTitleBytes)
-	if catStr := item.attr("category"); catStr != "" {
-		if n, err := strconv.Atoi(catStr); err == nil {
-			r.Categories = append(r.Categories, n)
+	// A Torznab item names its category more than once (2000 and 2040, and
+	// the indexer's own number): all of them are kept.
+	for _, a := range item.Attrs {
+		if strings.EqualFold(a.Name, "category") {
+			if n, err := strconv.Atoi(strings.TrimSpace(a.Value)); err == nil {
+				r.Categories = append(r.Categories, n)
+			}
 		}
 	}
 	if seeders := item.attr("seeders"); seeders != "" {
@@ -576,6 +636,7 @@ func (item newznabItem) toResult(indexerName string) Result {
 		}
 	}
 	r.InfoHash = strings.ToLower(item.attr("infohash"))
+	r.Discount = discountFromFactor(item.attr("downloadvolumefactor"))
 	if peers := item.attr("peers"); peers != "" {
 		if n, err := strconv.Atoi(peers); err == nil && n > 0 {
 			r.Peers = int(sane(int64(n)))
@@ -591,6 +652,17 @@ func (item newznabItem) toResult(indexerName string) Result {
 		}
 	}
 	return r
+}
+
+// discountFromFactor turns an indexer's download volume factor (0 = freeleech,
+// 0.5 = half of the download counted, 1 or more = no discount) into the percent
+// that is not counted. Anything that is not a number, or is 1 or more, is 0.
+func discountFromFactor(s string) int {
+	f, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	if err != nil || !(f >= 0 && f < 1) {
+		return 0
+	}
+	return int((1-f)*100 + 0.5)
 }
 
 // pubDateLayouts are the ways indexers write an item's date: RFC 822 with a

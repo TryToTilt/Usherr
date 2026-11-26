@@ -98,7 +98,7 @@ func renderEmailHTML(ev Event) string {
 	if s := httpsURL(ev.SettingsURL); s != "" {
 		b.WriteString(`You can choose which emails you get in <a href="` + e(s) + `" style="color:` + mailMuted + `;">Notification settings</a>.`)
 	} else {
-		b.WriteString(`You can choose which emails you get in Mediarium, under Settings &gt; Connections &gt; Notifications.`)
+		b.WriteString(`You can choose which emails you get in Mediarium, under Settings &gt; Media servers and apps &gt; Notifications.`)
 	}
 	b.WriteString(`</td></tr>`)
 
@@ -134,7 +134,7 @@ func renderEmailText(ev Event) string {
 	if link := httpsURL(ev.LinkURL); link != "" {
 		b.WriteString("\nOpen in Mediarium: " + link + "\n")
 	}
-	b.WriteString("\n-- \nYou can choose which emails you get in Mediarium, under Settings > Connections > Notifications")
+	b.WriteString("\n-- \nYou can choose which emails you get in Mediarium, under Settings > Media servers and apps > Notifications")
 	if s := httpsURL(ev.SettingsURL); s != "" {
 		b.WriteString(": " + s)
 	}

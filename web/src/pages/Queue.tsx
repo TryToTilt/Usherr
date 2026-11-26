@@ -7,6 +7,7 @@ import { api, can, isAdmin, type ActivityEntry, type BlocklistEntry, type QueueI
 import { useAuth } from '../AuthContext'
 import Cover from '../components/Cover'
 import Countdown, { stepLabel } from '../components/Elapsed'
+import Dropdown from '../components/Dropdown'
 import Icon, { type IconName } from '../components/Icon'
 import Loading from '../components/Loading'
 import InfoTip from '../components/InfoTip'
@@ -31,11 +32,14 @@ import { lostMarkerFolder } from '../rootMarker'
 import { useModules } from '../ModulesContext'
 import { bulkState, groupQueue, RUNNING, stateNote, statusLabel, stillWaiting, unpackLine } from '../queueView'
 import { useLive } from '../useLive'
+import { useLiveEvents } from '../useLiveEvents'
 import { anyMoving, pollEvery } from '../pollPlan'
 import { etaText, nextSample, type RateSample } from '../transferRate'
+import { DEFAULT_QUEUE_SORT, nextSamples, paceOf, readQueueSort, rememberQueueSort, sortQueueBy, transferBasis, type Pace, type QueueSort, type QueueSortKey } from '../queueSort'
 import { locale, plural, t, tx, st } from '../i18n'
 import { useUrlState } from '../useUrlState'
 import { keptDataText, keptFileLine } from '../keptFile'
+import { originText } from '../origin'
 import '../activity.css'
 import { broadcastOn } from '../neu/look' // Usherr Broadcast: a download with the remote
 import Sheet, { type SheetRow } from '../broadcast/Sheet' // Usherr Broadcast
@@ -150,10 +154,94 @@ const WAITING_READ = 60
 // The most downloads one bulk action may name (bulkQueueMax on the server).
 const BULK_QUEUE_MAX = 200
 
-const itemLink = (q: QueueItem) => (q.bookId ? `/book/${q.bookId}` : q.albumId ? `/music/album/${q.albumId}` : q.seriesId ? `/series/${q.seriesId}` : q.tmdbId ? `/title/${q.tmdbId}` : undefined)
+// When this browser last had the downloads open. Downloads that finished after
+// that are shown once, in a green box at the top, and are "seen" when you leave.
+const SEEN_KEY = 'mediarium.downloads.finishedSeen'
+
+function JustFinished({ items }: { items: QueueItem[] }) {
+  const [since] = useState(() => {
+    try {
+      const v = Number(localStorage.getItem(SEEN_KEY))
+      return v > 0 ? v : Date.now()
+    } catch {
+      return Date.now()
+    }
+  })
+  const [open, setOpen] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
+  const stamp = useCallback(() => {
+    try {
+      localStorage.setItem(SEEN_KEY, String(Date.now()))
+    } catch {
+      /* private window: the box simply shows again next time */
+    }
+  }, [])
+  // The ones shown now count as seen from here on, also when the tab is closed instead of left.
+  useEffect(() => {
+    stamp()
+    window.addEventListener('pagehide', stamp)
+    return () => {
+      window.removeEventListener('pagehide', stamp)
+      stamp()
+    }
+  }, [stamp])
+  const fresh = items.filter((q) => q.completedAt && Date.parse(q.completedAt) > since)
+  if (dismissed || fresh.length === 0) return null
+  const shown = open ? fresh : fresh.slice(0, 1)
+  return (
+    <section className="just-done" aria-label={t('Finished since you last looked')}>
+      <div className="jd-head">
+        <Icon name="check" size={16} />
+        <strong>{plural(fresh.length, '{n} download finished since you last looked', '{n} downloads finished since you last looked')}</strong>
+        {fresh.length > 1 && (
+          <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+            {open ? t('Show less') : t('Show all')}
+          </button>
+        )}
+        <button
+          type="button"
+          className="link-btn jd-ok"
+          onClick={() => {
+            stamp()
+            setDismissed(true)
+          }}
+        >
+          {t('Got it')}
+        </button>
+      </div>
+      <ul>
+        {shown.map((q) => {
+          const to = itemLink(q)
+          return (
+            <li key={q.id}>
+              {to ? <Link to={to}>{q.title}</Link> : <span>{q.title}</span>}
+              {q.subtitle && <span className="jd-sub"> {q.subtitle}</span>}
+              {q.completedAt && <span className="jd-when"> {timeAgo(q.completedAt)}</span>}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
+const itemLink = (q: QueueItem) => (q.otherId ? '/library?kind=other' : q.bookId ? `/book/${q.bookId}` : q.albumId ? `/music/album/${q.albumId}` : q.seriesId ? `/series/${q.seriesId}` : q.tmdbId ? `/title/${q.tmdbId}` : undefined)
 
 // What a button press is doing right now, so only that button says so.
 type Doing = 'pause' | 'resume' | 'stop' | 'other'
+
+// Whether a download is for a title (a movie, series, album or book) a blocklist
+// entry can be limited to.
+const hasTitle = (q: QueueItem) => !!(q.movieId || q.seriesId || q.albumId || q.bookId || q.otherId)
+
+// The choice in the blocklist question: on means only for the title the
+// download is for.
+const blocklistChoice = (failed: boolean) => ({
+  label: t('Only block it for this title'),
+  hint: t('Another movie or show with a similar name can still use this release. Turn it off for a broken file nobody should download.'),
+  // A download that failed is most likely a broken file, which is blocked everywhere.
+  defaultChecked: !failed,
+})
 
 interface RowProps {
   q: QueueItem
@@ -162,10 +250,11 @@ interface RowProps {
   act: (item: QueueItem, fn: () => Promise<unknown>, done: string, doing?: Doing) => Promise<void>
   stop: (item: QueueItem) => Promise<void>
   remove: (item: QueueItem) => Promise<void>
+  blocklistIt: (item: QueueItem) => Promise<void>
   // Picking several downloads at once (administrators): whether this one is
   // picked, and the way to change that. Left out where picking isn't offered.
   picked?: boolean
-  onPick?: (id: number, on: boolean) => void
+  onPick?: (id: number, on: boolean, shift: boolean) => void
 }
 
 // One download. A separate component (not one made inside the page) so a
@@ -198,12 +287,7 @@ function FailureTips({ q, link }: { q: QueueItem; link?: string | null }) {
 function useTransferRate(q: QueueItem): { rate: number; etaSec: number } | null {
   const [sample, setSample] = useState<RateSample | null>(null)
   const last = useRef<RateSample | null>(null)
-  // Unpacking is timed from the bytes of the archive read so far (one archive;
-  // with several the figures start over for each).
-  const unpacking = q.status === 'importing' && !!q.unpack && q.unpack.totalBytes > 0 && q.unpack.count === 1
-  const running = (q.status === 'downloading' && q.sizeBytes > 0) || unpacking
-  const size = unpacking ? q.unpack!.totalBytes : q.sizeBytes
-  const done = unpacking ? q.unpack!.doneBytes : (q.sizeBytes * q.progressPct) / 100
+  const { running, size, done } = transferBasis(q)
   useEffect(() => {
     if (!running) {
       last.current = null
@@ -246,7 +330,7 @@ function QueueDetails({ q, admin }: { q: QueueItem; admin: boolean }) {
           </>
         )}
         <dt>{t('Source')}</dt>
-        <dd>{q.protocol === 'mangadex' ? 'MangaDex' : q.protocol === 'torrent' ? 'Torrent' : 'Usenet'}</dd>
+        <dd>{q.protocol === 'mangadex' ? 'MangaDex' : q.protocol === 'torrent' ? 'Torrent' : q.protocol === 'soulseek' ? 'Soulseek' : 'Usenet'}</dd>
         {q.category && (
           <>
             <dt>{t('Category')}</dt>
@@ -311,7 +395,47 @@ function QueueDetails({ q, admin }: { q: QueueItem; admin: boolean }) {
   )
 }
 
-function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProps) {
+// Each choice names the way it arranges the rows; the button turns it round.
+const SORT_OPTIONS: { key: QueueSortKey; label: () => string }[] = [
+  { key: 'default', label: () => t('Default order') },
+  { key: 'speed', label: () => t('Fastest first') },
+  { key: 'progress', label: () => t('Most done first') },
+  { key: 'name', label: () => t('Name A–Z') },
+  { key: 'size', label: () => t('Largest first') },
+  { key: 'eta', label: () => t('Finishing soonest') },
+  { key: 'added', label: () => t('Newest first') },
+  { key: 'peers', label: () => t('Most peers first') },
+]
+
+function QueueSortBar({ sort, onChange }: { sort: QueueSort; onChange: (s: QueueSort) => void }) {
+  return (
+    <div className="queue-sort">
+      <Dropdown
+        icon="sort"
+        label={t('Sort')}
+        value={sort.key}
+        onChange={(key) => onChange({ key: key as QueueSortKey, reverse: false })}
+        options={SORT_OPTIONS.map((o) => ({ value: o.key, label: o.label() }))}
+      />
+      <button
+        type="button"
+        className="icon-btn"
+        disabled={sort.key === DEFAULT_QUEUE_SORT.key}
+        onClick={() => onChange({ ...sort, reverse: !sort.reverse })}
+        aria-pressed={sort.reverse}
+        title={sort.reverse ? t('Reversed order. Click for the normal order.') : t('Reverse the order')}
+        aria-label={t('Reverse the order')}
+      >
+        <Icon name="sort" size={16} />
+      </button>
+    </div>
+  )
+}
+// A download that failed because its file was far shorter than the movie or
+// episode (the server's own sentence, before it is translated).
+const isShortFailure = (error?: string) => !!error && error.startsWith('The file is only ') && error.trimEnd().endsWith('This looks like a fake or broken release.')
+
+function QueueRow({ q, admin, busy, act, stop, remove, blocklistIt, picked, onPick }: RowProps) {
   const me = useAuth().user
   const navigate = useNavigate() // Usherr Broadcast
   const confirm = useConfirm() // Usherr Broadcast: Remove from the sheet always asks
@@ -364,13 +488,13 @@ function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProp
       }
     : {}
   return (
-    <div className={`qrow st-${q.status}${q.status === 'failed' ? ' failed' : ''} kind-${q.bookId ? 'book' : q.albumId ? 'music' : q.seriesId ? 'tv' : 'movie'}`} {...remoteRow}>
+    <div className={`qrow st-${q.status}${q.status === 'failed' ? ' failed' : ''} kind-${q.otherId ? 'other' : q.bookId ? 'book' : q.albumId ? 'music' : q.seriesId ? 'tv' : 'movie'}`} {...remoteRow}>
       {sheet && <Sheet title={q.title} eyebrow={statusLabel(q)} text={q.releaseTitle} rows={sheetRows()} onClose={() => setSheet(false)} />}
       <div className="qthumb">
         {q.albumId ? <Cover src={q.posterUrl} thumb /> : q.posterUrl ? <img src={q.posterUrl} alt="" loading="lazy" /> : <PosterFallback />}
         {admin && onPick && (
           <label className="qpick" title={t('Pick this download')}>
-            <input type="checkbox" checked={!!picked} onChange={(e) => onPick(q.id, e.target.checked)} aria-label={t('Pick {title}', { title: q.title })} />
+            <input type="checkbox" checked={!!picked} onChange={() => undefined} onClick={(e) => onPick(q.id, e.currentTarget.checked, e.shiftKey)} aria-label={t('Pick {title}', { title: q.title })} />
           </label>
         )}
       </div>
@@ -379,8 +503,8 @@ function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProp
           {link ? <Link to={link}>{q.title}</Link> : <span>{q.title}</span>}
           {q.subtitle && <span className="badge">{q.subtitle}</span>}
           <span className={`badge ${q.status === 'completed' ? 'downloaded' : q.status}`}>{statusLabel(q)}</span>
-          <span className="qproto" title={q.protocol === 'mangadex' ? 'MangaDex' : q.protocol === 'torrent' ? 'Torrent' : 'Usenet'}>
-            {q.protocol === 'mangadex' ? 'mangadex' : q.protocol === 'torrent' ? 'torrent' : 'usenet'}
+          <span className="qproto" title={q.protocol === 'mangadex' ? 'MangaDex' : q.protocol === 'torrent' ? 'Torrent' : q.protocol === 'soulseek' ? 'Soulseek' : 'Usenet'}>
+            {q.protocol === 'mangadex' ? 'mangadex' : q.protocol === 'torrent' ? 'torrent' : q.protocol === 'soulseek' ? 'soulseek' : 'usenet'}
           </span>
           {q.category && (
             <span className="badge qcat" title={t('Torrent category')}>
@@ -389,6 +513,7 @@ function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProp
           )}
         </div>
         <div className="qrelease">{q.releaseTitle}</div>
+        {originText(q.origin) && <div className="qrelease qorigin">{originText(q.origin)}</div>}
         {/* home fork: the fork's fuller tags (HDR, audio, edition, group…), else upstream's */}
         {q.specs ? (
           <ReleaseSpecTags specs={q.specs} />
@@ -522,8 +647,13 @@ function QueueRow({ q, admin, busy, act, stop, remove, picked, onPick }: RowProp
             <Icon name="refresh" size={15} /> {t('Retry')}
           </button>
         )}
+        {q.status === 'failed' && admin && isShortFailure(q.error) && (
+          <button className="btn-sm btn-with-icon" disabled={working} title={t('Download it again and import it even though it is shorter than expected. It will not be turned away for its length again.')} onClick={() => void act(q, () => api.keepShortQueueItem(q.id), t('Downloading it again, and it will be kept.'))}>
+            <Icon name="check" size={15} /> {t('Keep anyway')}
+          </button>
+        )}
         {q.status === 'failed' && admin && (
-          <button className="btn-sm btn-with-icon" disabled={working} title={t('Never use this release again and look for another one')} onClick={() => void act(q, () => api.blocklistQueueItem(q.id), t('Blocklisted. Looking for another release.'))}>
+          <button className="btn-sm btn-with-icon" disabled={working} title={t('Never use this release again and look for another one')} onClick={() => void blocklistIt(q)}>
             <Icon name="ban" size={15} /> {t('Blocklist & search again')}
           </button>
         )}
@@ -564,6 +694,12 @@ export default function Queue() {
   const [openReports, setOpenReports] = useState(0)
   const [reportsOn, setReportsOn] = useState(false)
   const [queue, setQueue] = useState<QueueItem[]>([])
+  // How the downloads are arranged inside each section, kept in this browser.
+  const [sort, setSortState] = useState<QueueSort>(() => readQueueSort())
+  const setSort = (next: QueueSort) => {
+    setSortState(next)
+    rememberQueueSort(next)
+  }
   const [activity, setActivity] = useState<ActivityEntry[]>([])
   // History: how many lines to show, and the words to look for.
   const [actLimit, setActLimit] = useState(100)
@@ -661,6 +797,8 @@ export default function Queue() {
   }, [load])
   // Every 3 seconds while a download moves, every 10 when nothing does.
   useLive(load, pollEvery(anyMoving(queue), 3000, 10000))
+  // And at once when the server says something changed, from the stream the browser tabs share.
+  useLiveEvents(load)
 
   // The number next to the Blocklist tab.
   const loadBlocklistCount = useCallback(() => {
@@ -711,6 +849,25 @@ export default function Queue() {
       if (!r) return
       const del = hasFiles && r.checked
       await act(item, () => api.stopQueueItem(item.id, del), del ? t('Stopped. The partial download was deleted.') : t('Stopped.'), 'stop')
+    },
+    [act, confirm],
+  )
+
+  // Blocklisting asks first when the release is for a title: only for that
+  // title (on by default, the release may just be the wrong film) or everywhere
+  // (for a file that is broken whoever asks for it).
+  const blocklistIt = useCallback(
+    async (item: QueueItem) => {
+      const r = await confirm({
+        title: t('Blocklist this release?'),
+        body: <p>{t('They are never grabbed again, and Mediarium looks for another release for each title.')}</p>,
+        confirmLabel: t('Blocklist release'),
+        danger: true,
+        option: hasTitle(item) ? blocklistChoice(!!item.error) : undefined,
+      })
+      if (!r) return
+      const scope = hasTitle(item) && r.checked ? 'item' : undefined
+      await act(item, () => api.blocklistQueueItem(item.id, scope), t('Blocklisted. Looking for another release.'))
     },
     [act, confirm],
   )
@@ -779,7 +936,24 @@ export default function Queue() {
     }
   }
 
-  const sections = useMemo(() => groupQueue(queue), [queue])
+  // Speed and time left per running download, from the progress seen between
+  // two refreshes: the sorts by speed and by time left need them for every row.
+  const samples = useRef<Map<number, RateSample>>(new Map())
+  const pace = useMemo(() => {
+    samples.current = nextSamples(samples.current, queue, Date.now())
+    const out = new Map<number, Pace>()
+    for (const q of queue) {
+      const p = paceOf(transferBasis(q), samples.current.get(q.id) ?? null)
+      if (p) out.set(q.id, p)
+    }
+    return out
+  }, [queue])
+  const sections = useMemo(() => {
+    const g = groupQueue(queue)
+    if (sort.key === 'default') return g
+    const by = (list: QueueItem[]) => sortQueueBy(list, sort, pace)
+    return { ...g, inProgress: by(g.inProgress), failed: by(g.failed), decision: by(g.decision), stopped: by(g.stopped) }
+  }, [queue, sort, pace])
   const waiting = useMemo(() => stillWaiting(allWaiting, queue), [allWaiting, queue])
   const waitingCount = waiting.length + waitingMore
   const bulk = useMemo(() => bulkState(queue), [queue])
@@ -802,11 +976,20 @@ export default function Queue() {
     return new Set([...picked].filter((id) => live.has(id)))
   }, [picked, pickable])
 
-  const pick = useCallback((id: number, on: boolean) => {
+  // The row ticked last and the rows of its list, so Shift + a tick picks everything between the two.
+  const lastPick = useRef<{ id: number; ids: number[] } | null>(null)
+  const pick = useCallback((id: number, on: boolean, shift: boolean, ids: number[]) => {
+    const last = lastPick.current
+    const from = shift && last ? ids.indexOf(last.id) : -1
+    const to = ids.indexOf(id)
+    lastPick.current = { id, ids }
     setPicked((cur) => {
       const next = new Set(cur)
-      if (on) next.add(id)
-      else next.delete(id)
+      const span = from >= 0 && to >= 0 ? ids.slice(Math.min(from, to), Math.max(from, to) + 1) : [id]
+      for (const n of span) {
+        if (on) next.add(n)
+        else next.delete(n)
+      }
       return next
     })
   }, [])
@@ -819,14 +1002,17 @@ export default function Queue() {
       .map((q) => q.id)
     if (ids.length === 0 || pickBusy) return
     let deleteFiles = false
+    let scope: 'item' | undefined
     if (action === 'blocklist') {
       const r = await confirm({
         title: plural(ids.length, 'Blocklist this release?', 'Blocklist these {n} releases?'),
         body: <p>{t('They are never grabbed again, and Mediarium looks for another release for each title.')}</p>,
         confirmLabel: t('Blocklist releases'),
         danger: true,
+        option: pickable.some((q) => livePicked.has(q.id) && hasTitle(q)) ? blocklistChoice(pickable.filter((q) => livePicked.has(q.id) && hasTitle(q)).every((q) => !!q.error)) : undefined,
       })
       if (!r) return
+      if (r.checked) scope = 'item'
     }
     if (action === 'stop' || action === 'remove') {
       const anyFiles = pickable.some((q) => livePicked.has(q.id) && (q.keptFiles || q.progressPct > 0))
@@ -853,7 +1039,7 @@ export default function Queue() {
       let done = 0
       const failed: { id: number; error: string }[] = []
       for (const batch of batches) {
-        const r = await api.bulkQueue(batch, action, deleteFiles)
+        const r = await api.bulkQueue(batch, action, deleteFiles, scope)
         done += r.done ?? 0
         failed.push(...(r.failed ?? []))
       }
@@ -868,8 +1054,9 @@ export default function Queue() {
     }
   }
 
-  const rows = (list: QueueItem[], pickable = false) =>
-    list.map((q) => (
+  const rows = (list: QueueItem[], pickable = false) => {
+    const ids = list.map((q) => q.id)
+    return list.map((q) => (
       <QueueRow
         key={q.id}
         q={q}
@@ -878,10 +1065,12 @@ export default function Queue() {
         act={act}
         stop={stop}
         remove={remove}
+        blocklistIt={blocklistIt}
         picked={pickable ? livePicked.has(q.id) : undefined}
-        onPick={pickable ? pick : undefined}
+        onPick={pickable ? (id, on, shift) => pick(id, on, shift, ids) : undefined}
       />
     ))
+  }
 
   return (
     <div className="activity-page">
@@ -1001,6 +1190,10 @@ export default function Queue() {
               </p>
             </div>
           )}
+
+          {loaded && !error && <JustFinished items={completed} />}
+
+          {loaded && !error && needsAttention > 1 && <QueueSortBar sort={sort} onChange={setSort} />}
 
           {admin && livePicked.size > 0 && (
             <div className="pick-bar" role="region" aria-label={t('Picked downloads')}>
@@ -1239,43 +1432,97 @@ export default function Queue() {
                   {t('Clear all')}
                 </button>
               </div>
-              <table className="act-table">
-                <thead>
-                  <tr>
-                    <th>{t('Release')}</th>
-                    <th>{t('Why')}</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {blocklist.map((b) => (
-                    <tr key={b.id}>
-                      <td className="mono-cell">{b.releaseTitle}</td>
-                      <td style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>{st(b.reason)}</td>
-                      <td>
-                        <button
-                          className="btn-sm"
-                          disabled={tidying}
-                          onClick={async () => {
-                            setTidying(true)
-                            try {
-                              await api.removeBlocklistEntry(b.id)
-                              toast.success(t('Removed from the blocklist.'))
-                              void load()
-                            } catch (e) {
-                              toast.error(e instanceof Error ? e.message : String(e))
-                            } finally {
-                              setTidying(false)
-                            }
-                          }}
-                        >
-                          {t('Remove')}
-                        </button>
-                      </td>
+              <div className="table-scroll">
+                <table className="act-table blocklist-table">
+                  <thead>
+                    <tr>
+                      <th>{t('Release')}</th>
+                      <th>{t('Blocked for')}</th>
+                      <th>{t('Why')}</th>
+                      <th />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {blocklist.map((b) => {
+                      // The title an entry is tied to can be gone from the library.
+                      const forTitle = b.itemTitle || t('a removed title')
+                      return (
+                        <tr key={b.id}>
+                          <td className="mono-cell">{b.releaseTitle}</td>
+                          <td className="bl-scope">
+                            {b.scope === 'item' ? t('Only for {title}', { title: forTitle }) : t('Everywhere')}
+                          </td>
+                          <td style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>{st(b.reason)}</td>
+                          <td>
+                            <div className="bl-actions">
+                              {(b.scope === 'item' || b.itemId) && (
+                                <button
+                                  className="btn-sm"
+                                  disabled={tidying}
+                                  title={b.scope === 'item' ? t('Block this release for every title again') : t('Only block this release for {title}', { title: forTitle })}
+                                  onClick={async () => {
+                                    setTidying(true)
+                                    try {
+                                      await api.setBlocklistScope(b.id, b.scope === 'item' ? 'all' : 'item')
+                                      toast.success(b.scope === 'item' ? t('Now blocked everywhere.') : t('Now only blocked for this title.'))
+                                      void load()
+                                    } catch (e) {
+                                      toast.error(e instanceof Error ? e.message : String(e))
+                                    } finally {
+                                      setTidying(false)
+                                    }
+                                  }}
+                                >
+                                  {b.scope === 'item' ? t('Block everywhere') : t('Only this title')}
+                                </button>
+                              )}
+                              {b.reason === 'incomplete file' && (
+                                <button
+                                  className="btn-sm"
+                                  disabled={tidying}
+                                  title={t('Stop blocking this release and do not turn it away for its length again. Grab it again from the title or from search.')}
+                                  onClick={async () => {
+                                    setTidying(true)
+                                    try {
+                                      await api.keepBlocklistEntry(b.id)
+                                      toast.success(t('Kept. This release will not be turned away for its length again.'))
+                                      void load()
+                                    } catch (e) {
+                                      toast.error(e instanceof Error ? e.message : String(e))
+                                    } finally {
+                                      setTidying(false)
+                                    }
+                                  }}
+                                >
+                                  {t('Keep anyway')}
+                                </button>
+                              )}
+                              <button
+                                className="btn-sm"
+                                disabled={tidying}
+                                onClick={async () => {
+                                  setTidying(true)
+                                  try {
+                                    await api.removeBlocklistEntry(b.id)
+                                    toast.success(t('Removed from the blocklist.'))
+                                    void load()
+                                  } catch (e) {
+                                    toast.error(e instanceof Error ? e.message : String(e))
+                                  } finally {
+                                    setTidying(false)
+                                  }
+                                }}
+                              >
+                                {t('Remove')}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
               {blocklist.length < blocklistTotal && (
                 <div className="rail-foot">
                   <span style={{ color: 'var(--text-dim)', marginRight: 12 }}>{t('Showing {shown} of {total}', { shown: blocklist.length, total: blocklistTotal })}</span>

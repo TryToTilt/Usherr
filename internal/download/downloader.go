@@ -398,7 +398,11 @@ func forward(ctx context.Context, st *dlState, chans []chan job, i int, j job, o
 			if st.repairable > 0 {
 				reason = "and the PAR2 files in the release can't repair that much"
 			}
-			st.recordFatal(&ReleaseError{fmt.Errorf("%d articles couldn't be found on your Usenet servers %s", n, reason)})
+			noun := "articles"
+			if n == 1 {
+				noun = "article"
+			}
+			st.recordFatal(&ReleaseError{fmt.Errorf("%d %s couldn't be found on your Usenet servers %s", n, noun, reason)})
 		}
 	default:
 		st.recordFatal(o.err)
@@ -544,6 +548,7 @@ func runWorker(ctx context.Context, st *dlState, nzb *NZB, cfg ClientConfig, job
 			if err != nil {
 				var ne *NNTPError
 				if errors.As(err, &ne) && (ne.Code == 430 || ne.Code == 423) {
+					countTraffic(cfg, 0, true)
 					last = outcome{kind: failNotFound, err: &ReleaseError{fmt.Errorf("fetch segment %s: %w", seg.MessageID, err)}}
 					break
 				}
@@ -551,6 +556,7 @@ func runWorker(ctx context.Context, st *dlState, nzb *NZB, cfg ClientConfig, job
 				last = outcome{kind: failConn, err: fmt.Errorf("fetch segment %s: %w", seg.MessageID, err)}
 				continue
 			}
+			countTraffic(cfg, int64(len(body)), false)
 			part, err := DecodeYenc(bytesReader(body))
 			if err != nil {
 				last = outcome{kind: failDecode, err: &ReleaseError{fmt.Errorf("decode segment %s: %w", seg.MessageID, err)}}

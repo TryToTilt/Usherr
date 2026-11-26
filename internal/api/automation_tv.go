@@ -7,9 +7,11 @@ import (
 	"sort"
 	"time"
 
+	"github.com/rdborg/mediarium/internal/blocklist"
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/metadata"
+	"github.com/rdborg/mediarium/internal/origin"
 	"github.com/rdborg/mediarium/internal/parser"
 	"github.com/rdborg/mediarium/internal/quality"
 )
@@ -35,6 +37,10 @@ type tvWant struct {
 	season      int
 	episodes    []library.Episode
 	wholeSeason bool
+	// firstAir is the day the first episode of the season aired ("" when none
+	// has a date): a pack posted well before it is the season of an older show of
+	// the same name.
+	firstAir string
 	// pack is set when the season has ended and a season pack is worth looking
 	// for first (see season_pack.go). With no episodes it is all there is to do
 	// for the season: nothing is missing, a pack could only be an upgrade.
@@ -67,6 +73,9 @@ type tvScope struct {
 	// (for shows that take them). Only the scheduled hunt does: it is the one
 	// run that can keep to the once-a-week spacing.
 	packs bool
+	// by is who is behind the run (a person's search, an import list); empty
+	// for the scheduled search.
+	by origin.Origin
 }
 
 // packedSeason names one season of one show.
@@ -116,6 +125,8 @@ func (s *Server) tvWants(profiles profileSet, scope tvScope) (wants []tvWant, up
 		var searches map[int]library.PackSearch // the searches for a pack of each season, read when first needed
 		bySeason := map[int][]library.Episode{}
 		var order []int
+		var waiting *library.Episode // the next monitored episode that has not aired yet, for the history
+		wantsSomething := false
 		for _, ep := range eps {
 			if _, seen := bySeason[ep.Season]; !seen {
 				order = append(order, ep.Season)
@@ -137,7 +148,11 @@ func (s *Server) tvWants(profiles profileSet, scope tvScope) (wants []tvWant, up
 					// unless they are monitored; asking for specials does not.
 					monitored = ep.Monitored || (scope.force && scope.specials)
 				}
-				aired := ep.AirDate != "" && ep.AirDate <= today && !ep.AirsLater(time.Now())
+				aired := ep.AirDate != "" && (!holdUnreleasedOn() || (ep.AirDate <= today && !ep.AirsLater(time.Now())))
+				if !aired && monitored && ep.Status == library.StatusMissing && ep.AirDate != "" && season > 0 && (waiting == nil || ep.AirDate < waiting.AirDate) {
+					e := ep
+					waiting = &e
+				}
 				if ep.Status != library.StatusMissing || !aired || !monitored {
 					whole = false
 				}
@@ -153,7 +168,10 @@ func (s *Server) tvWants(profiles profileSet, scope tvScope) (wants []tvWant, up
 				}
 			}
 			var plan *packPlan
-			if packsOn && season > 0 {
+			// A pack brings in every episode of the season, so a season with episodes
+			// that are not monitored (the old ones of a show that follows only new
+			// episodes) is not fetched as a pack: only its monitored episodes are.
+			if packsOn && season > 0 && unwantedBySeason(all)[season] == 0 {
 				if searches == nil {
 					var err error
 					if searches, err = s.MovieRepo.SeasonPackSearches(sr.ID); err != nil {
@@ -166,14 +184,54 @@ func (s *Server) tvWants(profiles profileSet, scope tvScope) (wants []tvWant, up
 				}
 			}
 			if len(missing) > 0 || plan != nil {
+				wantsSomething = true
 				withNames()
 				// A season with nothing in it yet is fetched as a pack only for a show that
 				// takes packs; "episode by episode" means what it says.
-				wants = append(wants, tvWant{profile: profile, series: sr, season: season, episodes: missing, wholeSeason: whole && s.wantsSeasonPacks(sr), pack: plan})
+				wants = append(wants, tvWant{profile: profile, series: sr, season: season, episodes: missing, wholeSeason: whole && s.wantsSeasonPacks(sr), firstAir: firstAirDate(all), pack: plan})
 			}
+		}
+		// Nothing to fetch yet because the next episode has not aired: say so in
+		// the show's history, for episodes coming within two weeks.
+		if waiting != nil && !wantsSomething && !scope.force && waiting.AirDate <= time.Now().UTC().AddDate(0, 0, 14).Format("2006-01-02") {
+			s.noteHold(0, sr.ID, unairedHoldNote(*waiting))
 		}
 	}
 	return wants, upgrades, nil
+}
+
+// dropPostedBeforeAiring removes the releases an indexer lists as posted
+// before the episode first aired (more than two days before, to allow for time
+// zones and early leaks). Such a release cannot be this episode: it is the same
+// season and episode number of an older show with the same name (a reboot such
+// as Scrubs 2026 against Scrubs 2001), which has no year in the release name to
+// tell them apart. A release without a post date, or an episode without an air
+// date, is kept.
+func dropPostedBeforeAiring(results []indexers.Result, airDate string) []indexers.Result {
+	aired, err := time.Parse("2006-01-02", airDate)
+	if err != nil {
+		return results
+	}
+	cutoff := aired.AddDate(0, 0, -2)
+	out := results[:0:0]
+	for _, r := range results {
+		if !r.PublishDate.IsZero() && r.PublishDate.Before(cutoff) {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// firstAirDate is the earliest air date among the episodes ("" when none has one).
+func firstAirDate(eps []library.Episode) string {
+	first := ""
+	for _, ep := range eps {
+		if ep.AirDate != "" && (first == "" || ep.AirDate < first) {
+			first = ep.AirDate
+		}
+	}
+	return first
 }
 
 // pickTVResult returns the best release for a season pack (episode == 0) or
@@ -208,8 +266,7 @@ func pickTVResult(results []indexers.Result, series library.Series, season, epis
 // upgrades over current. Season packs are never offered for a single
 // episode — that would download a whole season to fill one gap.
 func pickTVResultFor(results []indexers.Result, series library.Series, season, episode int, profile quality.Profile, current *upgradeBase, mapper func(parser.Release) parser.Release) *indexers.Result {
-	var best *indexers.Result
-	var bestKey pickKey
+	var pk picker
 	for i := range results {
 		parsed := results[i].Parsed()
 		rel := mapped(mapper, parsed)
@@ -236,13 +293,12 @@ func pickTVResultFor(results []indexers.Result, series library.Series, season, e
 		if !builtinSizeOK(quality.Classify(rel), results[i].SizeBytes, eps, knownEpisodeMinutes(series)) || !profile.SizeFits(quality.Classify(rel), results[i].SizeBytes, eps) {
 			continue
 		}
-		key := keyFor(profile, rel, &results[i])
-		if best == nil || key.above(bestKey) || (key == bestKey && preferOver(best, &results[i])) {
-			bestKey = key
-			best = &results[i]
-		}
+		pk.add(i, keyFor(profile, rel, &results[i]), &results[i])
 	}
-	return best
+	if i, ok := pk.best(); ok {
+		return &results[i]
+	}
+	return nil
 }
 
 // autoGrabTV fills every wanted season/episode (and upgrades) using the
@@ -265,7 +321,7 @@ func (s *Server) autoGrabTV(searcher tvSearcher, logPrefix string, profiles prof
 	// limited is the search with the blocklist, the sources, the size table and
 	// the delay profile applied; current is set for an upgrade search.
 	refine := func(series library.Series, season, episode int, current *upgradeBase, raw []indexers.Result) []indexers.Result {
-		found := filterSources(dropBlocked(raw, blocked), s.sourcesFor(series.SourcePref))
+		found := filterSources(dropBlocked(raw, blocked, blocklist.Scope{SeriesID: series.ID}), s.sourcesFor(series.SourcePref))
 		return s.limitTVResults(series, season, episode, s.profileForSeries(profiles, series), current, !scope.force, found)
 	}
 	limited := func(series library.Series, season, episode int, current *upgradeBase) []indexers.Result {
@@ -278,7 +334,11 @@ func (s *Server) autoGrabTV(searcher tvSearcher, logPrefix string, profiles prof
 	// grab queues best for season (and episode, 0 for a season pack) and
 	// returns the episodes it covers, read the way the show numbers them.
 	grab := func(series library.Series, season, episode int, best *indexers.Result) (bool, []int) {
-		if _, err := s.grabTV(series, season, episode, best.Title, best.DownloadURL, best.SizeBytes, best.Protocol, searchKind(scope.force)); err != nil {
+		by := scope.by
+		if logPrefix == "rss-sync" {
+			by = origin.Origin{Kind: origin.Auto, Name: origin.JobRSS}
+		}
+		if _, err := s.grabTVBy(series, season, episode, best.Title, best.DownloadURL, best.SizeBytes, best.Protocol, searchKind(scope.force), by); err != nil {
 			if !errors.Is(err, errAlreadyGrabbed) && !errors.Is(err, errBlocklisted) {
 				log.Printf("automation: %s: tv grab %q for %q: %v", logPrefix, best.Title, series.Title, err)
 			}
@@ -303,7 +363,7 @@ func (s *Server) autoGrabTV(searcher tvSearcher, logPrefix string, profiles prof
 				if w.pack.over != nil {
 					current = w.pack.over
 				}
-				return refine(w.series, w.season, 0, current, raw), raw != nil
+				return dropPostedBeforeAiring(refine(w.series, w.season, 0, current, raw), w.firstAir), raw != nil
 			}
 			if s.trySeasonPack(w, pack, func(best *indexers.Result) bool {
 				ok, _ := grab(w.series, w.season, 0, best)
@@ -320,7 +380,7 @@ func (s *Server) autoGrabTV(searcher tvSearcher, logPrefix string, profiles prof
 			}
 		}
 		if w.wholeSeason && w.pack == nil { // with a pack plan the pack was just looked for
-			if best := pickTVResult(searcher(w.series, w.season, 0), w.series, w.season, 0, w.profile, nil, s.releaseMapper(w.series)); best != nil {
+			if best := pickTVResult(dropPostedBeforeAiring(searcher(w.series, w.season, 0), w.firstAir), w.series, w.season, 0, w.profile, nil, s.releaseMapper(w.series)); best != nil {
 				if ok, _ := grab(w.series, w.season, 0, best); ok {
 					s.noteFallbackGrab(0, w.series.ID, w.series.Title, w.profile, best.Title)
 					continue
@@ -340,7 +400,7 @@ func (s *Server) autoGrabTV(searcher tvSearcher, logPrefix string, profiles prof
 			if rotating && raw != nil { // nil: out of searches, nothing was asked
 				s.huntAt.noteEpisode(ep.ID, time.Now())
 			}
-			best := pickTVResult(refine(w.series, w.season, ep.Episode, nil, raw), w.series, w.season, ep.Episode, w.profile, nil, s.releaseMapper(w.series))
+			best := pickTVResult(dropPostedBeforeAiring(refine(w.series, w.season, ep.Episode, nil, raw), ep.AirDate), w.series, w.season, ep.Episode, w.profile, nil, s.releaseMapper(w.series))
 			if best == nil {
 				continue
 			}
@@ -363,7 +423,7 @@ func (s *Server) autoGrabTV(searcher tvSearcher, logPrefix string, profiles prof
 			continue // the season pack that was queued for it will do the upgrading
 		}
 		current := upgradeBase{Tier: quality.Tier(u.episode.Quality), Release: u.episode.ReleaseTitle}
-		best := pickTVResult(limited(u.series, u.episode.Season, u.episode.Episode, &current), u.series, u.episode.Season, u.episode.Episode, u.profile, &current, s.releaseMapper(u.series))
+		best := pickTVResult(dropPostedBeforeAiring(limited(u.series, u.episode.Season, u.episode.Episode, &current), u.episode.AirDate), u.series, u.episode.Season, u.episode.Episode, u.profile, &current, s.releaseMapper(u.series))
 		if best == nil {
 			continue
 		}
@@ -414,7 +474,7 @@ func (s *Server) targetedTVSearcher(ctx context.Context, instances []indexers.In
 		}
 		budget--
 		series = s.seriesWithAltTitles(ctx, series)
-		outcomes := indexers.SearchAll(ctx, instances, tvSearchQuery(series.Title, season, episode), tvCategory)
+		outcomes := indexers.SearchAll(withSeriesIDs(ctx, series, season, episode), instances, tvSearchQuery(series.Title, season, episode), tvCategory)
 		// The other numberings (an anime's absolute number, a daily show's date)
 		// and the other titles are only tried when nothing for this season or
 		// episode turned up yet (a person's own search tries them all).
@@ -458,6 +518,12 @@ func tvTargetFound(results []indexers.Result, series library.Series, season, epi
 // the episodes that are monitored: "future episodes only" must not fetch the
 // back catalogue.
 func (s *Server) searchSeriesInBackground(seriesID int64) {
+	s.searchSeriesInBackgroundBy(seriesID, origin.Origin{})
+}
+
+// searchSeriesInBackgroundBy is searchSeriesInBackground for a search someone
+// asked for: its downloads are attributed to by.
+func (s *Server) searchSeriesInBackgroundBy(seriesID int64, by origin.Origin) {
 	instances, err := s.searchableIndexers()
 	if err != nil || len(instances) == 0 {
 		return
@@ -466,7 +532,7 @@ func (s *Server) searchSeriesInBackground(seriesID int64) {
 	if err != nil {
 		return
 	}
-	s.autoGrabTV(s.targetedTVSearcher(context.Background(), instances, maxTVSearchesPerHunt, true), "add", profiles, tvScope{seriesID: seriesID, force: true, asMarked: true})
+	s.autoGrabTV(s.targetedTVSearcher(context.Background(), instances, maxTVSearchesPerHunt, true), "add", profiles, tvScope{seriesID: seriesID, force: true, asMarked: true, by: by})
 }
 
 func (s *Server) huntTV(ctx context.Context, instances []indexers.Instance, profiles profileSet) {

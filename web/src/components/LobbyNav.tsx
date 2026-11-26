@@ -15,7 +15,7 @@ import KindGlyph from './KindGlyph'
 export interface LobbyLine {
   to: string
   label: string
-  glyph: 'movie' | 'tv' | 'music' | 'book' | 'audiobook' | 'comic' | 'manga'
+  glyph: 'movie' | 'tv' | 'music' | 'book' | 'audiobook' | 'comic' | 'manga' | 'other' // Usherr: + upstream's Other library
   color: string
   active: boolean
 }

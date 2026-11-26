@@ -191,7 +191,7 @@ func (s *Server) handleAnimeSeries(w http.ResponseWriter, r *http.Request) {
 // animeSeriesList is the ids of the shows that are anime.
 func (s *Server) animeSeriesList(ctx context.Context) ([]int64, error) {
 	// Usherr: the anime folder set in Settings (or ANIME_DIR); /data/anime before there was one.
-	root := s.animeRoot()
+	root := s.homeAnimeRoot()
 	if root == "" {
 		root = "/data/anime"
 	}

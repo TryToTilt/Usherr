@@ -14,6 +14,7 @@ import (
 
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/metadata"
+	"github.com/rdborg/mediarium/internal/origin"
 )
 
 // The Sonarr half of the arr-style API (see arr.go): shows and episodes.
@@ -77,6 +78,8 @@ type arrSeries struct {
 	Added             string          `json:"added"`
 	Ratings           map[string]any  `json:"ratings"`
 	Statistics        *arrSeriesStats `json:"statistics,omitempty"`
+	// OriginalLanguage is what Sonarr v4 apps (Arrmatey, for one) insist on.
+	OriginalLanguage arrLanguage `json:"originalLanguage"`
 }
 
 // arrSeriesContext is what turning many shows into arr objects shares.
@@ -125,7 +128,7 @@ func (s *Server) toArrSeries(sr library.Series, c arrSeriesContext) arrSeries {
 		LanguageProfileID: 1, SeasonFolder: true, Monitored: sr.Monitored, MonitorNewItems: "all",
 		TVDBID: sr.TVDBID, TMDBID: sr.TMDBID, IMDBID: sr.IMDBID, TVMazeID: max(sr.TVmazeID, 0), FirstAired: arrTime(sr.FirstAirDate),
 		SeriesType: sr.SeriesType, Genres: sr.Genres, Tags: tagIDs(c.tags[sr.ID], c.numbers),
-		Added: arrTime(c.added[sr.ID]), Ratings: map[string]any{"votes": 0, "value": 0},
+		Added: arrTime(c.added[sr.ID]), Ratings: map[string]any{"votes": 0, "value": 0}, OriginalLanguage: arrEnglish,
 	}
 	if out.SeriesType == "" {
 		out.SeriesType = library.SeriesStandard
@@ -173,7 +176,7 @@ func tmdbArrSeries(d *metadata.ShowDetail) arrSeries {
 		Seasons: []arrSeason{}, Year: d.Year(), LanguageProfileID: 1, SeasonFolder: true, MonitorNewItems: "all",
 		TVDBID: d.ExternalIDs.TVDBID, TMDBID: d.TMDBID, IMDBID: d.ExternalIDs.IMDBID, FirstAired: arrTime(d.FirstAirDate),
 		SeriesType: library.SeriesStandard, Genres: genres, Tags: []int64{}, Added: "0001-01-01T00:00:00Z",
-		Ratings: map[string]any{"votes": d.VoteCount, "value": d.VoteAverage},
+		Ratings: map[string]any{"votes": d.VoteCount, "value": d.VoteAverage}, OriginalLanguage: arrEnglish,
 	}
 	for _, sn := range d.Seasons {
 		out.Seasons = append(out.Seasons, arrSeason{SeasonNumber: sn.SeasonNumber, Statistics: &arrSeasonStats{TotalEpisodeCount: sn.EpisodeCount}})
@@ -432,7 +435,7 @@ func (s *Server) arrAddSeries(w http.ResponseWriter, r *http.Request) {
 	if problem != "" {
 		rootPath = s.newShowFolder()
 	}
-	created, err := s.addSeriesFromTMDB(ctx, tmdbID, userID, true, rootPath)
+	created, err := s.addSeriesFromTMDB(ctx, tmdbID, userID, true, rootPath, origin.Origin{Kind: origin.API})
 	if err != nil {
 		writeUpstreamError(w, "add that show", err)
 		return

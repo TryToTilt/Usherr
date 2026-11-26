@@ -18,11 +18,12 @@ import (
 	"github.com/rdborg/mediarium/internal/auth"
 	"github.com/rdborg/mediarium/internal/books"
 	"github.com/rdborg/mediarium/internal/metadata"
+	"github.com/rdborg/mediarium/internal/origin"
 	"github.com/rdborg/mediarium/internal/requests"
 )
 
-// Requests: a basic account that may not add titles itself (Settings >
-// Accounts, "Add titles themselves" off) asks instead. The add it sent is
+// Requests: a basic account that may not add titles itself (Settings > People and
+// access > Requests and reports, "Add titles themselves" off) asks instead. The add it sent is
 // kept as it was; an administrator approves it, which runs that same add on
 // the person's behalf, or declines it with a note.
 
@@ -62,6 +63,17 @@ func (s *Server) mayAddNew(w http.ResponseWriter, r *http.Request, kind string) 
 	return true
 }
 
+// mayManage reports whether the account behind r has the manage permission
+// (Search now and monitoring): administrators always do.
+func (s *Server) mayManage(r *http.Request) bool {
+	u := auth.UserFromContext(r.Context())
+	if u == nil || u.IsAdmin {
+		return true
+	}
+	p, err := s.Auth.PermissionsOf(u.ID)
+	return err == nil && p.Allows(auth.PermManage)
+}
+
 type requestInfo struct {
 	title, poster string
 	year          int
@@ -99,6 +111,9 @@ func (s *Server) describeRequest(ctx context.Context, kind string, body []byte) 
 		if json.Unmarshal(body, &req) != nil || req.TMDBID <= 0 {
 			return requestInfo{}, errors.New("Pick a show from the search results.")
 		}
+		if req.Episode != nil {
+			return s.describeEpisodeRequest(ctx, req.TMDBID, *req.Episode)
+		}
 		if _, ok, _ := s.MovieRepo.GetSeriesByTMDBID(req.TMDBID); ok {
 			return requestInfo{inLibrary: true}, nil
 		}
@@ -123,6 +138,9 @@ func (s *Server) describeRequest(ctx context.Context, kind string, body []byte) 
 		title := a.Name
 		if t := strings.TrimSpace(req.AlbumTitle); t != "" && req.AlbumMBID != "" {
 			title += " – " + t
+			if song := strings.TrimSpace(req.Song); song != "" {
+				title += " (only “" + song + "”)"
+			}
 		}
 		return requestInfo{title: title}, nil
 	case "book":
@@ -150,12 +168,13 @@ func (s *Server) describeRequest(ctx context.Context, kind string, body []byte) 
 // "book:OL27448W"). Two requests with the same key ask for the same thing.
 func requestKey(kind, payload string) string {
 	var v struct {
-		TMDBID    int    `json:"tmdbId"`
-		MBID      string `json:"mbid"`
-		AlbumMBID string `json:"albumMbid"`
-		OLKey     string `json:"olKey"`
-		FourK     bool   `json:"fourK"`
-		Seasons   []int  `json:"seasons"` // Usherr
+		TMDBID    int         `json:"tmdbId"`
+		MBID      string      `json:"mbid"`
+		AlbumMBID string      `json:"albumMbid"`
+		OLKey     string      `json:"olKey"`
+		FourK     bool        `json:"fourK"`
+		Seasons   []int       `json:"seasons"` // Usherr
+		Episode   *episodeRef `json:"episode"`
 	}
 	if json.Unmarshal([]byte(payload), &v) != nil {
 		return ""
@@ -166,6 +185,9 @@ func requestKey(kind, payload string) string {
 	switch kind {
 	case "movie", "tv":
 		if v.TMDBID > 0 {
+			if v.Episode != nil && kind == "tv" { // one episode is its own request
+				return fmt.Sprintf("tv:tmdb:%d:%s", v.TMDBID, strings.ToLower(v.Episode.code()))
+			}
 			if v.FourK { // the 4K copy is its own request
 				return fmt.Sprintf("%s:tmdb:%d:4k", kind, v.TMDBID)
 			}
@@ -196,6 +218,13 @@ func (s *Server) fileRequest(w http.ResponseWriter, r *http.Request, kind string
 	fourK := payloadFourK(body)
 	if fourK && !s.fourKReady(kind) {
 		writeError(w, http.StatusBadRequest, "Asking for a 4K copy isn't available here.")
+		return
+	}
+	if _, one := payloadEpisode(string(body)); one && (fourK || kind != "tv") {
+		writeError(w, http.StatusBadRequest, "A single episode can't be asked for in 4K.")
+		return
+	}
+	if !s.mayAskForAge(w, r, kind, payloadTMDBID(string(body))) {
 		return
 	}
 	info, err := s.describeRequest(ctx, kind, body)
@@ -341,13 +370,17 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "This request has already been answered.")
 		return
 	}
+	if req.Action == requests.ActionRemove {
+		s.approveRemoval(w, r, req)
+		return
+	}
 	handler := map[string]http.HandlerFunc{"movie": s.handleAddMovie, "tv": s.handleAddSeries, "music": s.handleAddArtist, "book": s.handleAddBook}[req.Kind]
 	if handler == nil {
 		writeError(w, http.StatusBadRequest, "This request can't be approved.")
 		return
 	}
 	if !s.requestKindOn(req.Kind) {
-		writeError(w, http.StatusConflict, "That kind of media is switched off under Settings > Media types. Switch it on to approve this request.")
+		writeError(w, http.StatusConflict, "That kind of media is switched off under Settings > Basics > Media types. Switch it on to approve this request.")
 		return
 	}
 	// The add runs on the person's behalf, so the library says who asked.
@@ -357,7 +390,7 @@ func (s *Server) handleApproveRequest(w http.ResponseWriter, r *http.Request) {
 			who = u
 		}
 	}
-	ctx := context.WithValue(auth.WithUser(r.Context(), who), approvingKey{}, true)
+	ctx := withOrigin(context.WithValue(auth.WithUser(r.Context(), who), approvingKey{}, true), origin.Origin{Kind: origin.Request})
 	inner := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(req.Payload))).WithContext(ctx)
 	inner.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -442,6 +475,12 @@ func (s *Server) handleDeclineRequest(w http.ResponseWriter, r *http.Request) {
 	adminID, byline := requester(r)
 	if err := s.Requests.Decide(req.ID, requests.Declined, note, adminID); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if req.Action == requests.ActionRemove {
+		s.declineRemoval(req, note, byline)
+		out, _ := s.Requests.Get(req.ID)
+		writeJSON(w, http.StatusOK, out)
 		return
 	}
 	_ = s.QueueRepo.LogActivity(0, "removed", fmt.Sprintf("Request for %s declined%s", requestLabel(req), byline))

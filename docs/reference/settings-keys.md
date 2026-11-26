@@ -7,6 +7,8 @@ The keys the app stores in its settings table. You normally change these from th
 | Key | Notes |
 |---|---|
 | `apps.links` | JSON list of add-ons: other programs next to Mediarium with a link to each (name, address, how it opens) |
+| `archiver.config` | the Channel archiver's settings (JSON: yt-dlp path, folder, format, limits, other websites, the ticked warning) |
+| `arr.config_echo` | JSON: the values the API of those apps was last sent for settings Mediarium does not use; set by the app, not user-editable |
 | `audiobooks.path` | audiobooks library folder; falls back to the AUDIOBOOKS_DIR env default (/audiobooks) when unset |
 | `auth.auto_signin` | "oidc" sends visitors who are not signed in straight to the single sign-on provider from the sign-in page (add ?no-redirect=1 to the address to see the normal page); unset or empty leaves it off. Only a signed-in browser session can set it, and only while single sign-on works |
 | `auth.emailReset` | Usherr: "1" puts Forgot password? on the sign-in page, emailing a one-time link to set a new password; needs an email notification switched on and the public address (server.public_url). Unset or "0" leaves it off |
@@ -27,12 +29,14 @@ The keys the app stores in its settings table. You normally change these from th
 | `backup.cloud` | encrypted; copies of the nightly backup in S3-style storage or a WebDAV folder (JSON: enabled, kind, storage details, passphrase, keep). Off unless enabled is true. Only a signed-in browser session can read or set it, not an API key |
 | `backup.cloud_status` | what the last cloud copy did (JSON; set by the app, not user-editable) |
 | `backup.keep` | how many saved backups are kept in /config/backups; unset = 7 |
+| `books.folder_layout` | "author_series" files new books under Author/Series (an ebook as "01. Title (Year).epub", a book with no series straight under the author); anything else (including unset) is Author/Title (Year) |
 | `books.google_books_api_key` | encrypted; an optional personal Google Books API key. Book search asks Google Books without one. A key is for people who reach Google's limit. |
 | `books.hardcover_token` | encrypted; a personal Hardcover API token for better book series and release dates. Unset = Open Library only |
 | `cleanup.auto` | "0" turns the daily automatic clean-up off; anything else (including unset) leaves it on |
 | `cleanup.history_retention_days` | days finished downloads and activity are kept; unset = 90, "0" = forever |
 | `cleanup.last_run_at` | when clean-up last ran (RFC 3339; set by the app, not user-editable) |
 | `cleanup.rules` | the cleanup rules (JSON: enabled, moviesWatchedDays, moviesUnwatchedDays, episodesWatchedDays, keepTags); off unless enabled is true |
+| `compat.downloader_api` | "1" lets phone apps such as nzb360 use the SABnzbd-style address (/sabnzbd/api) and the qBittorrent-style address (/qbittorrent/api/v2) of the built-in downloaders, with an administrator's API key; unset or "0" keeps both off. Only a signed-in browser session can switch it on, not an API key |
 | `debrid.api_key` | encrypted; the debrid service's API key |
 | `debrid.cached_lower_score` | "1" lets a cached release win over an uncached one of the same quality even when the profile's preferred terms score it lower; unset or "0" only breaks ties between equal scores |
 | `debrid.prefer_cached` | "0" stops asking TorBox or Premiumize which releases it already has (no tag, no ranking); "1" or unset (with TorBox or Premiumize as the service) asks and ranks a cached release ahead of an equal one that is not. Real-Debrid has no such check |
@@ -53,6 +57,7 @@ The keys the app stores in its settings table. You normally change these from th
 | `downloadclient.username` | the client's web login |
 | `downloads.concurrent` | how many downloads run at the same time, Usenet and torrents together: 1 to 500; unset = 1 |
 | `downloads.hours` | when new downloads may start, "1-7" (from 1:00 to 7:00, server time); outside it they wait in line. Unset = any time |
+| `downloads.max_release_gb` | the largest release, in GB, that is taken for any title (searches skip bigger ones and say so); unset or "0" = no limit |
 | `downloads.min_free_gb` | no new download starts while the downloads folder has less free space than this many GB; unset = 5, "0" = off |
 | `downloads.newest_first` | "1": among the downloads the automatic searches added, newer releases start first; unset = in the order they were added |
 | `downloads.nzb_link_holds` | kept by Mediarium itself: JSON of releases whose NZB link answered with a web page or another answer that is not an NZB, and until when automatic searches leave each one alone |
@@ -75,11 +80,23 @@ The keys the app stores in its settings table. You normally change these from th
 | `formats.trash_every_days` | how often the daily update reads the guides: "1" every day (the default) or "7" every week |
 | `formats.trash_last_check` | what the last check of the TRaSH Guides found, as JSON (shown under the switch on the Custom formats card) |
 | `formats.trash_last_update` | when the TRaSH Guides were last read for the daily update (RFC 3339) |
-| `import.check_duration` | "0" turns off the check that a video is about as long as its episode or movie before it is imported (Settings > Library > File names and importing); anything else, including unset, leaves it on |
+| `import.check_duration` | "0" turns off the check that a video is about as long as its episode or movie before it is imported (Settings > Library and files > File names and importing); anything else, including unset, leaves it on |
+| `indexers.prowlarr_api_key` | encrypted; that Prowlarr's API key |
+| `indexers.prowlarr_links` | which Mediarium indexer is each Prowlarr indexer: JSON {"5": 12} |
+| `indexers.prowlarr_result` | what the last sync did, as a sentence, and when (JSON) |
+| `indexers.prowlarr_sync` | "1" keeps the linked Prowlarr's indexers in Mediarium up to date every few hours |
+| `indexers.prowlarr_url` | the address of a running Prowlarr whose indexers Mediarium keeps in step; unset = no link |
 | `info.language` | the language titles, plots, genres and posters are read in, as a TMDB tag like "de-DE" (en-US when unset); with naming.folders_in_info_language on, new movie and show folders and file names use that language's title too |
 | `info.release_country` | the country release dates are read for, as a code like "IN"; unset = the country of the info language |
 | `legal.acknowledged_at` |  |
+| `library.add_keep_better` | "1": a title added without saying otherwise (the add dialog, an import list, a script) keeps being searched for better versions; unset or "0" leaves it alone once downloaded (the setup wizard turns it on for a new install) |
+| `library.add_monitored` | "0" starts the add dialog with monitoring off; unset or "1" leaves it on (each title can still be changed when it is added) |
+| `library.add_search_now` | "0" starts the add dialog with "start searching now" off; unset or "1" leaves it on |
+| `library.anime_episode_format` | with the anime module on, the file name format of anime episodes (tokens as for episodes, plus {Absolute:000}); unset = the TV episode format |
+| `library.anime_movies_path` | with the anime module on, the folder new anime films (animated, in Japanese) go to; unset = where other movies go |
+| `library.anime_path` | with the anime module on, the folder new anime shows go to; unset = the TV folder |
 | `library.default_profile_id` | id of the stored quality profile used by items with no profile of their own |
+| `library.default_profile_id_anime` | with the anime module on, the quality profile anime shows with none of their own use; unset = the TV default |
 | `library.default_profile_id_tv` | id of the quality profile shows with none of their own use; unset = the same default as movies |
 | `library.default_sources` | usenet \| torrent \| both (default both) |
 | `library.downloads_path` |  |
@@ -112,21 +129,32 @@ The keys the app stores in its settings table. You normally change these from th
 | `library.tv_path` | falls back to the TV_DIR env default when unset |
 | `library.unmonitor_downloaded` | "1" stops monitoring a movie once it is downloaded; unset or "0" keeps it monitored |
 | `library.unmonitor_finished_shows` | "1" stops monitoring a show once it has ended and every monitored episode is in; unset or "0" keeps it monitored |
+| `lifecycle.rules` | the library lifecycle rules (JSON: days per rule, graceDays, keepTags, actForReal); nothing is removed unless actForReal is true |
+| `lifecycle.status` | the last lifecycle run (JSON; set by the app, not user-editable) |
 | `log.debug` | "1" writes the extra detail (debug lines) to the log, taking effect at once and after a restart; unset or "0" keeps the log to normal detail |
+| `mcp.downloads` | "1" lets an AI assistant that is connected over MCP search for releases and start the download of one, after a second confirming call; unset or "0" keeps those two tools away. Only a signed-in browser session can switch it on, not an API key |
 | `mcp.enabled` | "1" lets AI assistants connect to the MCP address (POST /mcp) with an administrator's API key; unset or "0" keeps it off. Only a signed-in browser session can switch it on, not an API key |
 | `mediaservers.client_id` | set by the app, not user-editable |
+| `metadata.omdb_api_key` | the person's own OMDb key, for IMDb, Rotten Tomatoes and Metacritic scores (encrypted); unset = off |
 | `metadata.simkl_client_id` | encrypted; the Client ID of a Simkl app (own, or the one a release ships with) |
 | `metadata.simkl_expires` | when the access token runs out (Unix seconds), when Simkl said; unset for a token that does not expire |
 | `metadata.simkl_refresh` | encrypted; the refresh token Simkl gave with the access token, when it gave one |
 | `metadata.simkl_token` | encrypted; the access token of the connected Simkl account |
 | `metadata.tmdb_api_key` | encrypted |
 | `metadata.trakt_client_id` | encrypted |
+| `metadata.tvdb_api_key` | encrypted; a TheTVDB v4 API key, for filling in shows TMDB is missing seasons or episodes of. Unset = TMDB only |
+| `metadata.tvdb_fill` | "1" fills in seasons and episodes TMDB is missing from TheTVDB when a show is refreshed; off by default |
+| `metadata.tvdb_pin` | encrypted; the subscriber PIN that goes with a TheTVDB user key, when it needs one |
 | `metadata.tvmaze_air_times` | "0" stops Mediarium looking up the time episodes air on TVmaze (the calendar then only knows days); anything else (including unset) leaves it on |
+| `modules.anime` | "1" gives anime its own library (tab, folder, quality profile and episode names) inside TV; unset or "0" keeps anime with the other shows |
+| `modules.archiver` | "1" switches the Channel archiver on; unset or "0" leaves it off. It can only be switched on after the warning is ticked and the yt-dlp file answers |
 | `modules.audiobooks` | "1" switches it on; unset or "0" leaves it off |
 | `modules.ebooks` | "1" switches it on; unset or "0" leaves it off |
+| `modules.lifecycle` | "1" switches the library lifecycle rules on (the Leaving soon shelf); unset or "0" leaves them off |
 | `modules.manga` | "1" switches it on; unset or "0" leaves it off (Usherr) |
 | `modules.movies` | "0" switches movies off; anything else (including unset) leaves them on |
 | `modules.music` | "1" switches music on; unset or "0" leaves it off (unset falls back to music.enabled) |
+| `modules.other` | "1" switches the Other media type on; unset or "0" leaves it off |
 | `modules.tv` | "0" switches TV off; anything else (including unset) leaves it on |
 | `monitor.interval_minutes` | minutes between connection checks of your Usenet providers and indexers; unset = 30, "0" = off, under 5 is raised to 5 |
 | `music.default_profile_id` | id of the music profile artists without one of their own use; unset = the first |
@@ -148,7 +176,9 @@ The keys the app stores in its settings table. You normally change these from th
 | `notify.vapid_key` | this server's key for push notifications (encrypted; made on first start) |
 | `numbering.lookup` | "0" stops Mediarium looking up scene and anime numbering (TheXEM, the anime lists, AniList) for anime on its own; on by default. The Refresh mapping button on a show's page still works |
 | `onboarding.done` | "1" once the first-run wizard completes |
+| `other.path` | Other library folder (items that are not movies, shows, music or books); unset = OTHER_DIR (/other) |
 | `quality.language` | the audio language wanted, as a name like "English" (the default when unset); a release clearly in another language only is not picked automatically |
+| `quality.language_ignore_extra` | "1" ranks a release that has a wanted language the same whether or not it carries other languages too; unset or "0" ranks a multi-language release above or below a plain one as before |
 | `quality.language_only` | "1" takes only releases that say they are in a wanted audio language (no untagged, English-only or bare multi releases unless English is wanted); unset or "0" keeps those as a lower-ranked fallback |
 | `quality.size_limits` | size limits per quality for movies in MB per minute of runtime (JSON: enabled, limits); applied only while enabled is true |
 | `quality.size_limits_tv` |  |
@@ -156,8 +186,12 @@ The keys the app stores in its settings table. You normally change these from th
 | `scripts.after_import` | JSON: script (a file name in /config/scripts; empty = off) and timeoutSec (default 300). Only a signed-in browser session can set it, not an API key |
 | `scripts.last_run` | what the last run did (JSON; set by the app, not user-editable) |
 | `search.delay_profile` | delay profile (JSON: preferredProtocol, usenetMinutes, torrentMinutes, bypassIfHighestQuality): automatic searches hold back releases of the less liked protocol for that many minutes; unset or 0 minutes = no wait |
-| `search.min_size_check` | "0" turns the built-in minimum size per quality off (Settings > Library > Quality > Size limits); anything else, including unset, leaves it on |
+| `search.hold_unreleased` | "0" lets automatic searches look for a movie before its release date and an episode before it airs; anything else, including unset, leaves them waiting (Settings > Finding releases > Quality) |
+| `search.min_size_check` | "0" turns the built-in minimum size per quality off (Settings > Finding releases > Quality > Size limits); anything else, including unset, leaves it on |
 | `server.public_url` | the address you open Mediarium at from your own devices (like https://mediarium.example.com); links in notification messages use it; unset = no links |
+| `soulseek.api_key` | encrypted; a read-write slskd API key |
+| `soulseek.folder` | the folder slskd downloads into, as Mediarium sees it |
+| `soulseek.url` | slskd's address (Soulseek for music, api/soulseek.go); unset = off |
 | `stats.choice` | the administrator's answer about sharing anonymous usage numbers: "yes", "no", or unset when not asked yet. Nothing is sent unless it is "yes" (see docs/usage-stats.md) |
 | `stats.install_id` | a random number made when the answer is yes, sent with the numbers so one install counts once; set by the app, cleared on "no" and by "Reset my ID" |
 | `stats.last_sent` | the day (UTC) the numbers were last sent; set by the app, not user-editable |
@@ -177,6 +211,10 @@ The keys the app stores in its settings table. You normally change these from th
 | `subtitles.upgrade` | "0" stops swapping a subtitle for one made for the exact video file later; on by default, and only while subtitles download automatically |
 | `subtitles.wizdom` | "1" also looks for Hebrew subtitles on Wizdom (wizdom.xyz, no key needed); off when unset |
 | `system.auto_restart_when_stuck` | "0" stops Mediarium restarting itself when it has not answered for three minutes; anything else (including unset) leaves it on |
+| `system.config_file_at_start` | "1" applies mediarium-config.yaml, .yml or .json from the config folder at start, when it changed since it was last applied; unset or "0" never reads it. Only a signed-in browser session can switch it on |
+| `system.config_file_hash` | SHA-256 of the file last applied (or tried) at start; set by the app, not user-editable |
+| `system.config_file_result` | what the last apply at start did (JSON); set by the app, not user-editable |
+| `system.version` | the version that last started, written at every start; a copy made before an update keeps the version it belonged to |
 | `torrent.allow_local_addresses` | "1" lets trackers, web seeds and magnet metadata addresses of the built-in client be on the home network or this machine; anything else (including unset) refuses them, because those addresses come from torrents anyone can write. Read when the torrent client starts |
 | `torrent.categories` | JSON list of {name, subfolder}: categories for built-in torrents; the subfolder is made inside the downloads working folder. Unset = none |
 | `torrent.category_map` | JSON {movie, tv, music, book: category name}: the category each kind of grab gets; "" = no category |
@@ -189,6 +227,8 @@ The keys the app stores in its settings table. You normally change these from th
 | `torrent.sequential_default` | "1" downloads every new built-in torrent in order (first to last piece) so a video can be previewed while it downloads; unset or "0" = off. A torrent can override it |
 | `torrent.skip_junk` | "0" downloads every file of a torrent; anything else (including unset) skips samples and .nfo, .txt, .exe, .url files |
 | `torrent.upload_limit_kb` | upload speed limit of the built-in client in KB/s; empty or unset = no limit, "0" = no uploading at all. Applies in the same hours as the download limit |
+| `ui.artwork_proxy` | unset or "1" loads posters, backdrops and pictures of people through this server (resized, kept here, so the browser never contacts the picture host); "0" lets each browser load them straight from the picture host |
+| `ui.feature_offers` | what an administrator chose for each "switch this on?" offer after an update: JSON {"anime": "never" \| "later:4.0.0"} |
 | `ui.show_advanced` | "1" shows custom formats and format scores on the Quality page; unset follows whether any custom format exists |
 | `ui.trailer_background` | unset or "1" plays the trailer behind movie and show pages for everyone, unless a browser chose otherwise; "0" switches it off for everyone |
 | `ui.trailer_sound` | "1" starts the trailer behind a title page with its sound on, where the browser allows it; unset or "0" starts it muted |

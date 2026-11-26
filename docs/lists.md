@@ -1,8 +1,8 @@
 # Import lists
 
-An import list is a list somewhere else (on Trakt, TMDB, IMDb, MDBList, Simkl or Letterboxd) that Mediarium reads on a schedule. Whatever is new on it is added to your library, with the quality profile, folder, monitoring and tags you chose for that list. It is the same idea as Lists in Radarr and Sonarr.
+An import list is a list somewhere else (on Trakt, TMDB, IMDb, MDBList, Simkl or Letterboxd, or an RSS feed) that Mediarium reads on a schedule. Whatever is new on it is added to your library, with the quality profile, folder, monitoring and tags you chose for that list. It is the same idea as Lists in Radarr and Sonarr.
 
-You find it under **Settings > Info, lists and subtitles > Import lists**. It is for administrators. Nothing is added until you add a list yourself.
+You find it under **Settings > Library and files > Import lists**. It is for administrators. Nothing is added until you add a list yourself.
 
 ## The rules every list follows
 
@@ -67,9 +67,28 @@ If the saved sign-in can no longer be read (the key file `secret.key` does not b
 
 Letterboxd does not let programs read its pages (it shows them a check meant for people), so, as with IMDb, you export the file yourself: your watchlist from **Settings > Import & Export** on letterboxd.com, or a single list exported as CSV, and upload it. Letterboxd files do not carry TMDB numbers, so Mediarium finds each movie by its name and year. A title is only taken when the name matches and the year is within one year; a few titles may not be found, and the list's result says how many. Movies only.
 
+### RSS feeds
+
+Any RSS or Atom feed: an indexer's own RSS feed, a tracker's, or a site that posts new releases or titles. Paste the feed's address. If it needs your key, keep the key in the address; the address is kept on your server and only sent to that site.
+
+- **Which title an entry is.** An entry's IMDb, TMDB or TheTVDB id says it exactly, when the feed has one (Newznab and Torznab feeds usually do, and a link to the title's IMDb or TMDB page counts too). Otherwise the entry's name is read like a release name: `Dune.Part.Two.2024.2160p.WEB-DL-GRP` is Dune: Part Two from 2024, and a name with a season or episode (`Fargo.S05E03`) is a show. The many releases of one title count once.
+- **Also download wanted releases from this feed.** Off at first. When it's on, every entry with a download link (an NZB, a torrent file or a magnet link) is checked the way a new release from an indexer is: it is downloaded when it is for a monitored title in your library that is missing, or when it is a better version than the file the title has, under that title's quality profile. The limit of 10 automatic downloads an hour, the blocklist, the size limits and the delay profile all apply. Up to 200 entries are checked each time the feed is read. This works for titles the feed just added and for titles that were already in your library, so a feed of new releases can bring you upgrades (#160).
+
 ### Plex watchlists
 
-The Plex watchlists accounts have connected (**Settings > Account & Access > Linked services > Plex watchlist**) show in the same view, each with **Check now**. They work as before: every 20 minutes, new titles are added, or asked for when the account has to ask. They are managed by the account that connected them.
+The Plex watchlists accounts have connected (**Settings > People and access > Linked services > Plex watchlist**) show in the same view, each with **Check now**. They work as before: every 20 minutes, new titles are added, or asked for when the account has to ask. They are managed by the account that connected them.
+
+## What a list has done: its History
+
+Under each list, **History** opens a summary of what that list has brought in, so you can tell which lists are worth keeping:
+
+- **Titles added**, and how many of them **have a file now**. A list that adds a lot that never gets downloaded is not doing much for you.
+- **Downloads it started**: the releases an RSS feed list grabbed, and the searches that ran for what a list just added. Downloads you cleared from the history are no longer counted. The count belongs to the list itself: renaming the list keeps it, and two lists with the same name each have their own. Downloads from before Mediarium kept this are matched by name, where only one list has that name.
+- **Last added**: when it last brought something in.
+- What it **skipped**, by reason: already in the library, on the list when it was first read, on your Not interested list, below the minimum rating or year, not found on TMDB, or couldn't be added.
+- A list of the titles it added, newest first (up to 300), each with the date and whether it has a file. A title you removed from the library afterwards says so.
+
+The titles are kept when you press **Start this list over**; the skipped counts start again, because they come from what the list remembers. Lists that ran before this existed show what they remembered as added. The same information is also in each title's **Added by** line (see [The Library page](library.md#who-added-a-title)).
 
 ## When a list fails
 
@@ -90,6 +109,7 @@ The list is tried again at its next read.
 Everything below is for administrators.
 
 - `GET /api/import-lists` returns `{"lists": [...], "sources": [...], "plexWatchlists": [...]}`. A list never returns its file or its key: `hasCsv` and `hasKey` say they are set.
+- `GET /api/import-lists/{id}/history` answers `{listId, name, added, withFiles, downloads, lastAddedAt, outcomes, titles, more}`. `outcomes` counts what the list remembers by outcome (`added`, `in-library`, `existing`, `excluded`, `filtered`, `no-match`, `failed`); `titles` is the newest 300 titles it added, each with `title`, `year`, `kind`, `tmdbId`, `at`, `libraryId` (left out when the title is gone) and `hasFile`.
 - `POST /api/import-lists` and `PUT /api/import-lists/{id}` take `name`, `source` (`trakt-list`, `trakt-watchlist`, `trakt-chart`, `tmdb-list`, `tmdb-chart`, `imdb`, `mdblist`, `simkl`, `letterboxd`), `media` (`movie`, `tv`, `both`), `config` (`url`, `chart`, `count`, `genre`, `language`, `csv`, `status` for Simkl: `plantowatch`, `watching`, `completed`, `hold` or `dropped`), `key` (MDBList; empty keeps the saved one), `enabled`, `intervalHours` (1 to 168), `profileId` (0 = default), `movieRoot`, `tvRoot`, `monitored`, `searchNow`, `tags`, `minRating`, `minYear`, `maxPerRun` (1 to 100) and `startFresh`. A new list is read at once.
 - `PUT /api/import-lists/{id}/enabled`, `DELETE /api/import-lists/{id}`, `POST /api/import-lists/{id}/run` (answers `202`; the list shows `running` while it is read), `POST /api/import-lists/{id}/forget`, `POST /api/import-lists/preview` (the same body as create, plus an optional `id`) and `POST /api/import-lists/plex/{userId}/run`.
 - The Simkl account (administrators): `GET /api/settings/simkl` returns `{"connected", "unreadable", "hasClientId"}` and never the token. `POST /api/settings/simkl/pin` starts the sign-in and returns the `code`, the address to enter it at (`url`, and `fullUrl` with the code filled in when Simkl gives one), the `flow` (`device` or `pin`), `expiresIn` and `interval` in seconds. `GET /api/settings/simkl/pin/{code}` answers `{"done": false, "interval"}` while the code waits (`interval` is how many seconds to wait before asking again; it grows when Simkl asks to slow down), `{"done": true, "name", "status": {...}}` once it was entered and `410` when it expired, was declined on Simkl or was never handed out. `POST /api/settings/simkl/test` returns `{"ok", "message"}` with the Simkl account's name. `DELETE /api/settings/simkl` disconnects. The Client ID is the `simklClientId` setting.

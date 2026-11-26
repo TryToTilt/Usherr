@@ -25,7 +25,7 @@ import (
 // library. Each app gets its own address prefix, since Radarr and Sonarr use
 // the same paths: <mediarium>/radarr, /sonarr and /lidarr, which the other
 // app takes as its "URL base". It signs in with an administrator's
-// Mediarium API key, sent as X-Api-Key or ?apikey= like the real apps take it.
+// Mediarium API key, sent as X-Api-Key, a Bearer token or ?apikey= like the real apps take it.
 //
 // Only what those apps use is answered, in the shapes they read; fields that
 // have no meaning here (Radarr's minimum availability, Sonarr's language
@@ -91,6 +91,20 @@ func (s *Server) arrHandler(app arrApp) http.Handler {
 	h("GET", "/qualityprofile", s.arrQualityProfiles(app))
 	h("GET", "/qualityprofile/{id}", s.arrQualityProfile(app))
 	h("GET", "/qualitydefinition", s.arrQualityDefinitions(app))
+	if app != arrLidarr {
+		// What Recyclarr writes: the TRaSH Guides profiles, formats and sizes.
+		h("GET", "/qualityprofile/schema", s.arrProfileSchema(app))
+		h("POST", "/qualityprofile", s.arrSaveProfile(app, true))
+		h("PUT", "/qualityprofile/{id}", s.arrSaveProfile(app, false))
+		h("DELETE", "/qualityprofile/{id}", s.arrDeleteProfile)
+		h("PUT", "/qualitydefinition/update", s.arrUpdateQualityDefinitions(app))
+		h("PUT", "/qualitydefinition/{id}", s.arrUpdateQualityDefinition(app))
+		h("GET", "/customformat/schema", arrCustomFormatSchema(app))
+		h("GET", "/customformat/{id}", s.arrGetCustomFormat(app))
+		h("POST", "/customformat", s.arrCreateCustomFormat(app))
+		h("PUT", "/customformat/{id}", s.arrUpdateCustomFormat(app))
+		h("DELETE", "/customformat/{id}", s.arrDeleteCustomFormat(app))
+	}
 	h("GET", "/language", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, []arrLanguage{arrEnglish}) })
 	h("GET", "/languageprofile", arrLanguageProfiles)
 	h("GET", "/metadataprofile", func(w http.ResponseWriter, r *http.Request) {
@@ -113,7 +127,11 @@ func (s *Server) arrHandler(app arrApp) http.Handler {
 	h("GET", "/calendar", s.arrCalendar(app))
 	h("GET", "/indexer", s.arrIndexers)
 	h("GET", "/downloadclient", arrDownloadClients)
-	h("GET", "/customformat", s.arrCustomFormats)
+	if app == arrLidarr {
+		h("GET", "/customformat", s.arrCustomFormats)
+	} else {
+		h("GET", "/customformat", s.arrCustomFormatsFor(app))
+	}
 	h("GET", "/customfilter", arrEmptyList)
 	h("GET", "/wanted/cutoff", s.arrWantedCutoff(app))
 	h("GET", "/tag/detail", s.arrTagDetails(app))
@@ -148,6 +166,8 @@ func (s *Server) arrHandler(app arrApp) http.Handler {
 		h("DELETE", "/movie/{id}", s.arrDeleteMovie)
 		h("GET", "/moviefile", s.arrMovieFiles)
 		h("GET", "/moviefile/{id}", s.arrGetMovieFile)
+		h("DELETE", "/moviefile/bulk", s.arrDeleteMovieFilesBulk)
+		h("DELETE", "/moviefile/{id}", s.arrDeleteMovieFile)
 		h("GET", "/history/movie", s.arrHistoryList(arrRadarr))
 		h("GET", "/credit", s.arrCredits)
 		h("GET", "/mediacover/{id}/{file}", s.arrMediaCover(arrRadarr))
@@ -170,6 +190,8 @@ func (s *Server) arrHandler(app arrApp) http.Handler {
 		h("PUT", "/episode/monitor", s.arrMonitorEpisodes)
 		h("GET", "/episodefile", s.arrEpisodeFiles)
 		h("GET", "/episodefile/{id}", s.arrGetEpisodeFile)
+		h("DELETE", "/episodefile/bulk", s.arrDeleteEpisodeFilesBulk)
+		h("DELETE", "/episodefile/{id}", s.arrDeleteEpisodeFile)
 		h("GET", "/history/series", s.arrHistoryList(arrSonarr))
 		h("GET", "/mediacover/{id}/{file}", s.arrMediaCover(arrSonarr))
 		mux.HandleFunc("GET /mediacover/{id}/{file}", s.arrMediaCover(arrSonarr))
@@ -266,6 +288,12 @@ func (w *arrStatusWriter) WriteHeader(code int) {
 func (s *Server) arrUser(r *http.Request) *auth.User {
 	key := r.Header.Get("X-Api-Key")
 	if key == "" {
+		// Radarr and Sonarr 5 and 4 also take "Authorization: Bearer <key>".
+		if h := r.Header.Get("Authorization"); len(h) > 7 && strings.EqualFold(h[:7], "bearer ") {
+			key = strings.TrimSpace(h[7:])
+		}
+	}
+	if key == "" {
 		key = r.URL.Query().Get("apikey")
 	}
 	if key == "" {
@@ -322,7 +350,12 @@ func paging(r *http.Request, def int) (page, size int) {
 
 // pageOf cuts one page out of n items.
 func pageOf(n, page, size int) (from, to int) {
-	from = (page - 1) * size
+	size = max(size, 1)
+	// A huge page number must not overflow the offset: it is past the end.
+	if page > 1 && page-1 > n/size {
+		return n, n
+	}
+	from = max(page-1, 0) * size
 	if from > n {
 		from = n
 	}
@@ -702,7 +735,7 @@ func arrQualityOf(app arrApp, t quality.Tier) arrQualityName {
 	}
 	switch t {
 	case quality.TierPreRelease:
-		return q{25, "TELESYNC", "telesync", 720, "none"}
+		return q{26, "TELESYNC", "telesync", 720, "none"}
 	case quality.TierSDTV:
 		return q{1, "SDTV", "tv", 480, "none"}
 	case quality.TierDVD:
@@ -769,8 +802,12 @@ type arrProfile struct {
 	Items             []arrProfileItem `json:"items"`
 	MinFormatScore    int              `json:"minFormatScore"`
 	CutoffFormatScore int              `json:"cutoffFormatScore"`
-	FormatItems       []map[string]any `json:"formatItems"`
-	Language          *arrLanguage     `json:"language,omitempty"`
+	// MinUpgradeFormatScore is the smallest score gain that makes a
+	// release an upgrade. Mediarium keeps none of its own; what an app wrote
+	// is given back, else 1 as the apps default it.
+	MinUpgradeFormatScore int              `json:"minUpgradeFormatScore"`
+	FormatItems           []map[string]any `json:"formatItems"`
+	Language              *arrLanguage     `json:"language,omitempty"`
 }
 
 func toArrProfile(app arrApp, p quality.Profile) arrProfile {
@@ -818,11 +855,15 @@ func toArrProfile(app arrApp, p quality.Profile) arrProfile {
 		}
 	}
 	for _, f := range p.Formats {
+		if f.Format.App != "" && string(f.Format.App) != string(app) {
+			continue // the other app's formats are not this app's to see
+		}
 		out.FormatItems = append(out.FormatItems, map[string]any{"format": f.Format.ID, "name": f.Format.Name, "score": f.Score})
 	}
 	if app == arrRadarr {
 		out.Language = &arrEnglish
 	}
+	applyArrExtra(app, p, &out)
 	return out
 }
 
@@ -893,6 +934,9 @@ func (s *Server) arrQualityProfile(app arrApp) http.HandlerFunc {
 }
 
 func (s *Server) arrQualityDefinitions(app arrApp) http.HandlerFunc {
+	if app != arrLidarr {
+		return s.arrQualityDefinitionList(app)
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		out := []map[string]any{}
 		for i, t := range quality.AllTiers() {
@@ -1079,7 +1123,7 @@ func (s *Server) arrCommand(app arrApp) http.HandlerFunc {
 		case "artistsearch":
 			if req.ArtistID > 0 {
 				id := req.ArtistID
-				jobs = append(jobs, func() { s.searchArtistAlbums(id) })
+				jobs = append(jobs, func() { s.searchArtistAlbums(context.Background(), id) })
 			}
 		case "albumsearch":
 			for _, id := range req.AlbumIDs {

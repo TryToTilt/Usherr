@@ -60,6 +60,9 @@ func (s *Server) albumFolderOnDisk(artist music.Artist, album music.Album) (path
 	} else {
 		clean := music.Sanitizer(s.musicSanitizer())
 		made := music.AlbumPath(root, artist.Name, album.Title, album.Year(), clean)
+		if typed := music.AlbumPath(root, artist.Name, music.FolderTitle(album.Title, album.Type), album.Year(), clean); typed != made {
+			candidates = append(candidates, typed)
+		}
 		candidates = append(candidates, made)
 		if entries, e := os.ReadDir(filepath.Dir(made)); e == nil {
 			want := music.NormalizeName(album.Title)
@@ -125,6 +128,9 @@ func (s *Server) rescanAlbum(ctx context.Context, artist music.Artist, album mus
 		}
 		infos[i] = music.IdentifyFile(f, reader)
 	}
+	if tracks, err = s.tracksForManual(album, tracks, infos); err != nil {
+		return albumRescanReport{}, err
+	}
 	slots := make([]music.TrackSlot, len(tracks))
 	for i, t := range tracks {
 		slots[i] = music.TrackSlot{Disc: t.Disc, Position: t.Position, Title: t.Title}
@@ -188,17 +194,22 @@ func isUnder(dir, file string) bool {
 func (s *Server) settleAlbum(album music.Album, path string, folderFound bool, tracks []music.Track, audioFiles int, rep *albumRescanReport) error {
 	var linked []string
 	rep.MissingTitles = []string{}
+	missing := 0 // wanted tracks without a file; a track that is not wanted is not missing
 	for _, t := range tracks {
 		if t.FilePath != "" {
 			linked = append(linked, t.FilePath)
 			continue
 		}
+		if !t.Monitored {
+			continue
+		}
+		missing++
 		if len(rep.MissingTitles) < maxMissingTitles {
 			rep.MissingTitles = append(rep.MissingTitles, t.Title)
 		}
 	}
 	rep.Matched, rep.Tracks = len(linked), len(tracks)
-	rep.Complete = len(tracks) > 0 && len(linked) == len(tracks)
+	rep.Complete = len(tracks) > 0 && missing == 0
 	rep.Files, rep.Folder = audioFiles, folderFound && audioFiles > 0
 	if rep.Files == 0 && len(linked) == 0 {
 		rep.Folder = false

@@ -1,5 +1,5 @@
 // Usherr: the folders the base app doesn't have (anime, comics, NSFW 18+),
-// next to the TV folder in Settings > Library > Folders. Each is saved on its
+// next to the TV folder in Settings > Library and files > Folders. Each is saved on its
 // own; left empty, the *_DIR variable or the default is used, and the field
 // says which.
 import { useEffect, useState } from 'react'

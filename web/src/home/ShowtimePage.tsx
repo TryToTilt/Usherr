@@ -3,6 +3,7 @@
 // and starts it at showtime: the library's file, or a stream. Below, every
 // booking, to move or cancel.
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ShowtimeArrival } from './ShowtimeHandoff'
 import Icon from '../components/Icon'
 import { useToast } from '../components/Toast'
 import { useConfirm } from '../components/ConfirmProvider'
@@ -22,7 +23,7 @@ import { InviteLinked, LinkedScreenings } from './LinkedScreenings' // Usherr: l
 import { ScreeningRoom } from './ScreeningRoom' // Usherr: linked screenings, step 3: the screening room
 import { useRoomLink, type RoomLink } from './roomLink'
 import { HostPartyButtons, PartyMoments } from './Party' // Usherr: the party: lobby, intermission, verdict
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import './showtime.css'
 import { broadcastOn } from '../neu/look' // Usherr Broadcast
 import { BroadcastLobby, ComingUp, CrewVotes, NightHero } from './ShowtimeBroadcast' // Usherr Broadcast: Movie night's own layout
@@ -194,13 +195,15 @@ export default function ShowtimePage() {
   const [picking, setPicking] = useState<number | null>(null) // Usherr: the booking whose invite picker is open
   const [offset, setOffset] = useState(0) // the server's clock minus this one
   const [now, setNow] = useState(() => Date.now())
-  const [ready, setReady] = useState(false) // pressed: allowed to start with sound
+  // Usherr: moved here from the crew screen as it starts (ShowtimeHandoff): ready, in the lobby.
+  const arrival = (useLocation().state as Partial<ShowtimeArrival> | null)?.showtimeReady
+  const [ready, setReady] = useState(!!arrival) // pressed: allowed to start with sound
   const [started, setStarted] = useState<number | null>(null) // the film is on
   const [starting, setStarting] = useState<number | null>(null) // ... being started
   const [error, setError] = useState('')
   // Usherr Broadcast: the look's own layout, its full-screen lobby, and the pre-show skipped here
   const broadcast = broadcastOn()
-  const [lobby, setLobby] = useState(false)
+  const [lobby, setLobby] = useState(!!arrival)
   const [skipPre, setSkipPre] = useState<number | null>(null)
   const load = useCallback(() => {
     listShowtimes()

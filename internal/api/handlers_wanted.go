@@ -14,6 +14,7 @@ import (
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/metadata"
+	"github.com/rdborg/mediarium/internal/origin"
 	"github.com/rdborg/mediarium/internal/parser"
 	"github.com/rdborg/mediarium/internal/quality"
 )
@@ -133,11 +134,14 @@ func (s *Server) handleMovieSearch(w http.ResponseWriter, r *http.Request) {
 	// the person chose to look for something else, such as a release posted under
 	// another title, and the download still belongs to this movie.
 	custom := customSearchQuery(r)
+	// One limit for every pass, below the 30 seconds the page waits (see manualSearchWait).
+	sctx, cancelSearch := context.WithTimeout(r.Context(), manualSearchWait)
+	defer cancelSearch()
 	var outcomes []indexers.Outcome
 	if custom != "" {
-		outcomes = indexers.SearchAll(indexers.AsManual(r.Context()), asked, custom, movieCategory)
+		outcomes = indexers.SearchAll(indexers.AsManual(sctx), asked, custom, movieCategory)
 	} else {
-		outcomes = s.searchMovieTitles(r.Context(), asked, m, nil)
+		outcomes = s.searchMovieTitles(sctx, asked, m, nil)
 	}
 	merged := indexers.MergeResults(outcomes)
 	out := []searchResultPayload{}
@@ -150,7 +154,7 @@ func (s *Server) handleMovieSearch(w http.ResponseWriter, r *http.Request) {
 		}
 		p := s.toSearchResultPayload(res)
 		p.MatchedTitle = matchedOtherTitle(res.Title, m.Title, m.AltTitles)
-		p.Blocklisted = blocked[blocklist.Key(res.Title)]
+		p.Blocklisted = releaseBlocked(blocked, res, blocklist.Scope{MovieID: m.ID})
 		p.addReasonList(rejectionReasonsFor(res.Title, profile, m.Status == library.StatusDownloaded, m.Quality, m.ReleaseTitle, keeps))
 		p.addReasons("size", sizeReasons(res.Title, res.SizeBytes))
 		if beforeHome && looksLikeHomeCopy(res.Title) {
@@ -164,7 +168,7 @@ func (s *Server) handleMovieSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	markBestMatch(out, found, profile)
 	s.markCachedPayloads(r.Context(), out)
-	writeSearchIgnoring(w, r, out, len(instances), outcomes, notAsked, instances, ignored)
+	writeSearchIgnoring(w, r, out, len(instances), outcomes, notAsked, instances, ignored, releaseFiltered(ignored, out))
 }
 
 type searchNowResponse struct {
@@ -179,7 +183,7 @@ func (s *Server) hasIndexers(w http.ResponseWriter) ([]indexers.Instance, bool) 
 		return nil, false
 	}
 	if len(instances) == 0 {
-		writeError(w, http.StatusPreconditionFailed, "There are no indexers yet. Add one in Settings > Indexers & Search.")
+		writeError(w, http.StatusPreconditionFailed, "There are no indexers yet. Add one in Settings > Finding releases > Indexers & Search.")
 		return nil, false
 	}
 	return instances, true
@@ -215,8 +219,13 @@ func (s *Server) handleMovieSearchNow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if s.huntMovie(r.Context(), m, instances, profiles, s.searchSkipKeys(), true) {
+	if s.huntMovie(withGrabBy(r.Context(), userOrigin(r, origin.Search)), m, instances, profiles, s.searchSkipKeys(), true) {
 		writeJSON(w, http.StatusOK, searchNowResponse{Grabbed: 1, Message: "Started a download. Follow it in Activity."})
+		return
+	}
+	if m.Status == library.StatusDownloaded && m.NoUpgrade {
+		// The usual reason a downloaded movie finds no better copy: the switch is off.
+		writeJSON(w, http.StatusOK, searchNowResponse{Message: "Better versions is off for this movie, so it keeps the file it has. Choose Look for better versions below to turn it on."})
 		return
 	}
 	writeJSON(w, http.StatusOK, searchNowResponse{Message: "Nothing suitable was found right now."})
@@ -233,6 +242,12 @@ func searchNowScope(seriesID int64, req seriesSearchNowRequest) tvScope {
 	if req.Season != nil {
 		sc.season = *req.Season
 		sc.specials = *req.Season == 0
+	} else if req.Episode == 0 {
+		// The whole show: only the episodes marked as monitored. A show that
+		// follows only new episodes has all its old ones unmonitored, and
+		// searching it must not fetch them. A season or an episode asked for by
+		// name is searched even when it is unmonitored.
+		sc.asMarked = true
 	}
 	return sc
 }
@@ -247,7 +262,8 @@ func (s *Server) handleSeriesSearchNow(w http.ResponseWriter, r *http.Request) {
 	}
 	var req seriesSearchNowRequest
 	_ = decodeJSON(r, &req) // an empty body means the whole series
-	if _, err := s.MovieRepo.GetSeries(id); errors.Is(err, sql.ErrNoRows) {
+	sr, err := s.MovieRepo.GetSeries(id)
+	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "That show isn't in your library.")
 		return
 	} else if err != nil {
@@ -263,13 +279,32 @@ func (s *Server) handleSeriesSearchNow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	n := s.autoGrabTV(s.targetedTVSearcher(r.Context(), instances, maxTVSearchesPerHunt, true), "search-now", profiles,
-		searchNowScope(id, req))
+	scope := searchNowScope(id, req)
+	scope.by = userOrigin(r, origin.Search)
+	n := s.autoGrabTV(s.targetedTVSearcher(r.Context(), instances, maxTVSearchesPerHunt, true), "search-now", profiles, scope)
 	msg := "Nothing suitable was found right now."
 	if n > 0 {
 		msg = fmt.Sprintf("Started %s. You can follow the progress in Activity.", plural(n, "download"))
+	} else if scope.asMarked && !s.hasMonitoredEpisodes(id) {
+		msg = "None of this show's episodes are monitored, so there is nothing to look for. Monitor the episodes you want, or use Find missing on a season to fetch one anyway."
+	} else if hint := foreignShowHint(sr); hint != "" {
+		msg += " " + hint
 	}
 	writeJSON(w, http.StatusOK, searchNowResponse{Grabbed: n, Message: msg})
+}
+
+// hasMonitoredEpisodes reports whether any regular episode of a show is monitored.
+func (s *Server) hasMonitoredEpisodes(seriesID int64) bool {
+	eps, err := s.MovieRepo.ListEpisodes(seriesID)
+	if err != nil {
+		return true // say nothing rather than something wrong
+	}
+	for _, ep := range eps {
+		if ep.Season > 0 && ep.Monitored {
+			return true
+		}
+	}
+	return false
 }
 
 type wantedItemPayload struct {
@@ -432,13 +467,11 @@ func (s *Server) wantedEpisodeItems(ctx context.Context, kind string, profiles p
 		if ep.CopyOf != 0 {
 			label = "Second copy · " + label
 		}
-		title, poster := ep.SeriesTitle, wantedPoster(ep.SeriesPoster)
+		var title, poster string
 		if cached, seen := faces[ep.SeriesID]; seen {
 			title, poster = cached[0], cached[1]
 		} else {
-			if sr, err := s.MovieRepo.GetSeries(ep.SeriesID); err == nil {
-				title, poster = s.shownFace("tv", sr.TMDBID, sr.Title, sr.PosterPath)
-			}
+			title, poster = s.shownFace("tv", ep.SeriesTMDB, ep.SeriesTitle, ep.SeriesPoster)
 			faces[ep.SeriesID] = [2]string{title, poster}
 		}
 		item := wantedItemPayload{

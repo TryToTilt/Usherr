@@ -533,7 +533,7 @@ func (s *Server) fileAudiobook(ctx context.Context, j rtvJob, b books.Book, e rt
 		marks = append(marks, chapterMark{Title: titles[i], Start: at, End: at + d})
 		at += d
 	}
-	folder, err := s.bookFolder(b, books.Audiobook)
+	folder, _, err := s.bookFolder(b, books.Audiobook) // Usherr: the stem is the importer's
 	if err != nil {
 		return "", 0, "", err
 	}

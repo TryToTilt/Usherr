@@ -19,6 +19,8 @@ import (
 	"github.com/rdborg/mediarium/internal/blocklist"
 	"github.com/rdborg/mediarium/internal/books"
 	"github.com/rdborg/mediarium/internal/indexers"
+	"github.com/rdborg/mediarium/internal/origin"
+	"github.com/rdborg/mediarium/internal/quality"
 	"github.com/rdborg/mediarium/internal/queue"
 )
 
@@ -75,6 +77,11 @@ type bookPayload struct {
 	Narrators  string `json:"narrators,omitempty"`
 	RuntimeMin int    `json:"runtimeMin,omitempty"`
 	ASIN       string `json:"asin,omitempty"`
+
+	// Origin is how the book came into the library (a person, a request, a
+	// followed author or series, a library folder scan...), for administrators
+	// on GET /api/books/{id}; left out when it was added before that was recorded.
+	Origin *originView `json:"origin,omitempty"`
 }
 
 func toBookPayload(b books.Book, admin bool) bookPayload {
@@ -142,7 +149,11 @@ func (s *Server) bookFromPath(w http.ResponseWriter, r *http.Request) (books.Boo
 func (s *Server) handleGetBook(w http.ResponseWriter, r *http.Request) {
 	if b, ok := s.bookFromPath(w, r); ok {
 		s.lookUpAudioDetailsLater(b)
-		writeJSON(w, http.StatusOK, toBookPayload(b, isAdminRequest(r)))
+		p := toBookPayload(b, isAdminRequest(r))
+		if isAdminRequest(r) {
+			p.Origin = originOut(b.Origin, s.accountNames()(b.AddedBy))
+		}
+		writeJSON(w, http.StatusOK, p)
 	}
 }
 
@@ -277,7 +288,7 @@ func (s *Server) handleAddBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if (req.Ebook && !s.ebooksEnabled()) || (req.Audiobook && !s.audiobooksEnabled()) {
-		writeError(w, http.StatusConflict, "That format is switched off. Switch it on in Settings > Media types.")
+		writeError(w, http.StatusConflict, "That format is switched off. Switch it on in Settings > Basics > Media types.")
 		return
 	}
 	s.finishAddBook(w, r, req)
@@ -308,7 +319,7 @@ func (s *Server) finishAddBook(w http.ResponseWriter, r *http.Request, req addBo
 		}
 	}
 	userID, byline := requester(r)
-	b.AddedBy = userID
+	b.AddedBy, b.Origin = userID, addOrigin(r)
 	created, err := s.BookRepo.Add(b)
 	if errors.Is(err, books.ErrExists) {
 		writeError(w, http.StatusConflict, fmt.Sprintf("%s is already in your library.", b.Title))
@@ -332,12 +343,7 @@ func (s *Server) finishAddBook(w http.ResponseWriter, r *http.Request, req addBo
 	}
 	_ = s.QueueRepo.LogActivity(0, "added", fmt.Sprintf("%s by %s added to the library%s", created.Name(), created.Author, byline))
 	if req.SearchNow {
-		for _, f := range []books.Format{books.Ebook, books.Audiobook} {
-			if created.Wants(f) {
-				f := f
-				s.background(func() { s.searchBook(created.ID, f, false) })
-			}
-		}
+		s.searchNewBook(created, userOrigin(r, origin.Search))
 	}
 	s.lookUpAudioDetailsLater(created)
 	writeJSON(w, http.StatusCreated, toBookPayload(created, isAdminRequest(r)))
@@ -410,6 +416,10 @@ func (s *Server) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 // indexers found by then is shown. (The page gives up after 30 seconds.)
 const bookSearchWait = 25 * time.Second
 
+// manualSearchWait is the same limit for the lists of releases of a movie or a
+// show: all the passes of one search share it.
+const manualSearchWait = 25 * time.Second
+
 // bookWaitFor is the longest a book release search a person waits for may take.
 func (s *Server) bookWaitFor() time.Duration {
 	if s.bookWait > 0 {
@@ -422,17 +432,35 @@ func (s *Server) bookWaitFor() time.Duration {
 // indexers it did not ask.
 type bookSearch struct {
 	Results  []indexers.Result
-	Asked    int                 // how many indexers were asked
-	Skipped  []string            // enabled indexers left out because they don't list this kind of release
-	Outcomes []indexers.Outcome  // what each indexer said, for both passes
-	All      []indexers.Instance // every indexer that could have been asked
+	Fits     []quality.LanguageFit // how each of Results suits the wanted languages (book_language.go)
+	Asked    int                   // how many indexers were asked
+	Skipped  []string              // enabled indexers left out because they don't list this kind of release
+	Outcomes []indexers.Outcome    // what each indexer said, for both passes
+	All      []indexers.Instance   // every indexer that could have been asked
+	// Ignored are the releases that came back but are not this book, and
+	// OtherFormat how many are only in the other format (an audiobook found for
+	// an ebook), for the "Searches used" part. Each release is counted once.
+	Ignored     ignoredReleases
+	OtherFormat int
 }
 
-// bookReleases searches the indexers for one format of a book and returns
+// otherBookFormat is why a release of the book is not in its list: it is only
+// in the other format.
+const otherBookFormat = "Only in the other format (an audiobook for an ebook, or the other way round)."
+
+// autoBookReleases searches the indexers for one format of a book and returns
 // the matching releases, best first.
-func (s *Server) bookReleases(ctx context.Context, b books.Book, f books.Format) ([]indexers.Result, error) {
+// Releases clearly in a language that isn't wanted are left out: automation
+// never takes those.
+func (s *Server) autoBookReleases(ctx context.Context, b books.Book, f books.Format) ([]indexers.Result, error) {
 	found, err := s.searchBookReleases(ctx, b, f, 0)
-	return found.Results, err
+	var out []indexers.Result
+	for i, res := range found.Results {
+		if found.Fits[i].Accepted {
+			out = append(out, res)
+		}
+	}
+	return out, err
 }
 
 // searchBookReleases is bookReleases with the details. Only the indexers that
@@ -470,25 +498,37 @@ func (s *Server) searchBookReleases(ctx context.Context, b books.Book, f books.F
 	// home fork: books.MatchRelease (cleaner names, series positions, other
 	// languages left out); series packs only when no single release is found.
 	var packs []indexers.Result
+	counted := map[string]bool{} // releases already counted as left out, over both passes
 	matching := func(asked []indexers.Instance, query string) []indexers.Result {
 		var out []indexers.Result
 		outcomes := indexers.SearchAll(ctx, asked, query, cats)
 		found.Outcomes = append(found.Outcomes, outcomes...)
 		for _, res := range indexers.MergeResults(outcomes) {
-			if books.ReleaseRank(res.Title, f) == 0 {
+			match, rank := books.MatchRelease(res.Title, b), books.ReleaseRank(res.Title, f)
+			if rank > 0 {
+				if res.Protocol == indexers.ProtocolTorrent && res.Seeders == 0 {
+					continue // home fork: nobody shares it; it would never finish
+				}
+				if f == books.Ebook && res.Protocol == indexers.ProtocolTorrent && res.SizeBytes > maxEbookBytes {
+					continue // home fork: a novel is a few MB; a 1 GB "ebook" torrent is audio or page scans
+				}
+				switch match {
+				case books.SingleBook:
+					out = append(out, res)
+					continue
+				case books.SeriesPack:
+					packs = append(packs, res)
+					continue
+				}
+			}
+			if counted[res.Title] {
 				continue
 			}
-			if res.Protocol == indexers.ProtocolTorrent && res.Seeders == 0 {
-				continue // home fork: nobody shares it; it would never finish
-			}
-			if f == books.Ebook && res.Protocol == indexers.ProtocolTorrent && res.SizeBytes > maxEbookBytes {
-				continue // home fork: a novel is a few MB; a 1 GB "ebook" torrent is audio or page scans
-			}
-			switch books.MatchRelease(res.Title, b) {
-			case books.SingleBook:
-				out = append(out, res)
-			case books.SeriesPack:
-				packs = append(packs, res)
+			counted[res.Title] = true
+			if match == books.NoMatch {
+				found.Ignored.add(res.Title)
+			} else {
+				found.OtherFormat++
 			}
 		}
 		return out
@@ -539,7 +579,9 @@ func (s *Server) searchBookReleases(ctx context.Context, b books.Book, f books.F
 		}
 		return out[i].Protocol == indexers.ProtocolUsenet && out[j].Protocol != indexers.ProtocolUsenet
 	})
-	found.Results = out
+	// A release in a wanted language goes first; the name says the language,
+	// or the indexer's category for it does.
+	found.Results, found.Fits = sortBooksByLanguage(out, s.bookLanguageFits(ctx, out, list))
 	return found, nil
 }
 
@@ -560,14 +602,16 @@ func (s *Server) handleBookReleases(w http.ResponseWriter, r *http.Request) {
 	}
 	blocked := s.searchSkipKeys()
 	out := make([]searchResultPayload, 0, len(found.Results))
-	for _, res := range found.Results {
+	for i, res := range found.Results {
 		p := s.toSearchResultPayload(res)
-		p.Blocklisted = blocked[blocklist.Key(res.Title)]
+		p.Blocklisted = releaseBlocked(blocked, res, blocklist.Scope{BookID: b.ID})
 		p.Categories = res.Categories
+		p.setLanguage(found.Fits[i])
 		out = append(out, p)
 	}
 	s.markCachedPayloads(r.Context(), out)
-	writeSearchAll(w, r, out, found.Asked, found.Outcomes, found.Skipped, found.All)
+	filtered := releaseFiltered(found.Ignored, out, filteredCount{Reason: otherBookFormat, Count: found.OtherFormat})
+	writeSearchIgnoring(w, r, out, found.Asked, found.Outcomes, found.Skipped, found.All, found.Ignored, filtered)
 }
 
 type bookGrabRequest struct {
@@ -595,7 +639,7 @@ func (s *Server) handleGrabBook(w http.ResponseWriter, r *http.Request) {
 	if protocol == "" {
 		protocol = indexers.ProtocolUsenet
 	}
-	id, err := s.grabBook(b, books.Format(req.Format), req.ReleaseTitle, req.DownloadURL, req.SizeBytes, protocol, queue.PriorityManual)
+	id, err := s.grabBook(b, books.Format(req.Format), req.ReleaseTitle, req.DownloadURL, req.SizeBytes, protocol, queue.PriorityManual, userOrigin(r, origin.Manual))
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -603,8 +647,10 @@ func (s *Server) handleGrabBook(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"queueId": id})
 }
 
-// grabBook puts a release for one format of a book in the download line.
-func (s *Server) grabBook(b books.Book, f books.Format, title, url string, size int64, protocol indexers.Protocol, prio queue.Priority) (int64, error) {
+// grabBook puts a release for one format of a book in the download line. by is
+// who asked for it (see grabOrigin); a manual priority is a release a person
+// picked.
+func (s *Server) grabBook(b books.Book, f books.Format, title, url string, size int64, protocol indexers.Protocol, prio queue.Priority, by origin.Origin) (int64, error) {
 	if protocol == indexers.ProtocolTorrent && !s.torrentReleasesOn() {
 		return 0, errTorrentsDisabled
 	}
@@ -615,7 +661,12 @@ func (s *Server) grabBook(b books.Book, f books.Format, title, url string, size 
 	}
 	var id int64
 	if err == nil {
-		id, err = s.QueueRepo.Enqueue(queue.Item{BookID: b.ID, BookFormat: string(f), ReleaseTitle: title, NZBURL: url, SizeBytes: size, Protocol: queue.Protocol(protocol), Priority: prio})
+		kind := grabAutomatic
+		if prio == queue.PriorityManual {
+			kind = grabPicked
+		}
+		id, err = s.QueueRepo.Enqueue(queue.Item{BookID: b.ID, BookFormat: string(f), ReleaseTitle: title, NZBURL: url, SizeBytes: size, Protocol: queue.Protocol(protocol), Priority: prio,
+			Origin: s.grabOrigin(kind, by, "")})
 	}
 	if err == nil {
 		_ = s.BookRepo.SetState(b.ID, f, books.StatusDownloading, "", "")
@@ -630,8 +681,9 @@ func (s *Server) grabBook(b books.Book, f books.Format, title, url string, size 
 }
 
 // searchBook looks for one format of a book and grabs the best release that
-// is not blocklisted. It reports whether it grabbed one.
-func (s *Server) searchBook(bookID int64, f books.Format, retry bool) bool {
+// is not blocklisted. It reports whether it grabbed one. by is who is behind
+// the search (a person's Search now); empty for the scheduled search.
+func (s *Server) searchBook(bookID int64, f books.Format, retry bool, by origin.Origin) bool {
 	if !s.formatEnabled(f) {
 		return false
 	}
@@ -644,17 +696,17 @@ func (s *Server) searchBook(bookID int64, f books.Format, retry bool) bool {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	results, err := s.bookReleases(ctx, b, f)
+	results, err := s.autoBookReleases(ctx, b, f)
 	if err != nil {
 		slog.Info("books: search", "book", bookID, "err", err)
 		return false
 	}
 	blocked := s.searchSkipKeys()
 	for _, res := range filterSources(s.autoCandidates(ctx, results), s.bookSources()) { // home fork: books may use torrents
-		if searchSkips(res, blocked) {
+		if searchSkips(res, blocked, blocklist.Scope{BookID: b.ID}) {
 			continue
 		}
-		if _, err := s.grabBook(b, f, res.Title, res.DownloadURL, res.SizeBytes, res.Protocol, queue.PriorityAutomatic); err == nil {
+		if _, err := s.grabBook(b, f, res.Title, res.DownloadURL, res.SizeBytes, res.Protocol, queue.PriorityAutomatic, by); err == nil {
 			return true
 		}
 		return false
@@ -675,11 +727,31 @@ func (s *Server) handleSearchBookNow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, `Choose the format: "ebook" or "audiobook".`)
 		return
 	}
-	if s.searchBook(b.ID, f, false) {
+	grabbed := s.searchBook(b.ID, f, false, userOrigin(r, origin.Search))
+	if grabbed {
 		writeJSON(w, http.StatusOK, map[string]any{"grabbed": 1, "message": "Found a release. It is downloading now."})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"grabbed": 0, "message": "Nothing suitable was found right now."})
+}
+
+// searchNewBook searches, in the background, for each format a book that was
+// just added wants, both at once. The downloads they start are attributed to
+// by, the person who asked for the search.
+func (s *Server) searchNewBook(b books.Book, by origin.Origin) {
+	s.background(func() {
+		var wg sync.WaitGroup
+		for _, f := range []books.Format{books.Ebook, books.Audiobook} {
+			if b.Wants(f) {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					s.searchBook(b.ID, f, false, by)
+				}()
+			}
+		}
+		wg.Wait()
+	})
 }
 
 // huntBooks is the automatic search: every wanted, missing book, a few per run.
@@ -728,7 +800,7 @@ func (s *Server) huntBooks(ctx context.Context) {
 			return
 		}
 		t := todo[(start+i)%len(todo)]
-		s.searchBook(t.id, t.format, false)
+		s.searchBook(t.id, t.format, false, origin.Origin{})
 	}
 }
 

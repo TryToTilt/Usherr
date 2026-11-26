@@ -29,6 +29,8 @@ import { useOwned, type Owned } from '../useOwned'
 import { useIncludeOlder } from '../useIncludeOlder'
 import { firstError, minMax, required, url } from '../validate'
 import { FieldError, FormProblem, useValidation } from '../useValidation'
+import StreamingServicesFilter from '../components/StreamingServicesFilter'
+import { useMyServices } from '../myServices'
 import { useUrlState } from '../useUrlState'
 import { activeExtraFilters, languageOptions, ratingLabel, RATINGS, runtimeLabel, RUNTIMES } from '../discoverFilters'
 import { plural, t, tx } from '../i18n'
@@ -76,6 +78,8 @@ interface Filters {
   language: string
   minRating: string
   runtime: string
+  // Streaming service keys whose titles are left out; empty while the switch is off.
+  hide: string
   musicType: MusicType
 }
 
@@ -83,7 +87,7 @@ interface Filters {
 // popular and coming soon; or, with a filter picked, everything that matches.
 function TitleRails({ kind, filters, filtering, includeOlder, setIncludeOlder, owned, onAdd, onClear, short }: { kind: Kind; filters: Filters; filtering: boolean; includeOlder: boolean; setIncludeOlder: (v: boolean) => void; owned: Owned; onAdd: (t: AddTarget) => void; onClear: () => void; short: boolean }) {
   if (filtering) {
-    const src: Source = { kind, list: 'browse', genre: filters.genre || undefined, yearFrom: filters.from || undefined, yearTo: filters.to || undefined, sort: filters.sort, language: filters.language || undefined, minRating: filters.minRating || undefined, runtime: filters.runtime || undefined }
+    const src: Source = { kind, list: 'browse', genre: filters.genre || undefined, yearFrom: filters.from || undefined, yearTo: filters.to || undefined, sort: filters.sort, language: filters.language || undefined, minRating: filters.minRating || undefined, runtime: filters.runtime || undefined, hide: filters.hide || undefined }
     return <PagedGrid key={sourceToQuery(src)} title={sourceTitle(src, filters.genreName)} source={src} kind={kind} owned={owned} onAdd={onAdd} rows={3} onClear={onClear} />
   }
   const similar: Source = { kind, list: 'similar', older: includeOlder || undefined }
@@ -106,7 +110,7 @@ function TitleRails({ kind, filters, filtering, includeOlder, setIncludeOlder, o
         headExtra={<Switch checked={includeOlder} onChange={setIncludeOlder} label={t('Include older titles')} />}
       />
       {LISTS.map((list) => {
-        const src: Source = { kind, list }
+        const src: Source = { kind, list, hide: filters.hide || undefined }
         return <DiscoverRail key={sourceToQuery(src)} title={sourceTitle(src)} hint={LIST_HINT[list]} source={src} kind={kind} owned={owned} onAdd={onAdd} rows={2} />
       })}
     </>
@@ -231,10 +235,16 @@ function NotInterestedList() {
 }
 
 function DiscoverPage() {
+  // Movies and shows need a TMDB key. Without one the lists are empty, so say why and where it goes.
+  const [noKey, setNoKey] = useState(false)
+  useEffect(() => {
+    api.getSettings().then((st) => setNoKey(st.hasTmdbApiKey === false)).catch(() => undefined)
+  }, [])
   const [filtersOpen, setFiltersOpen] = useState(false)
   const posterSize = usePosterSize('discover') // Usherr
   const owned = useOwned()
   const [includeOlder, setIncludeOlder] = useIncludeOlder()
+  const { hide } = useMyServices()
   const [adding, setAdding] = useState<AddTarget | null>(null)
   const [addingMusic, setAddingMusic] = useState<AddMusicTarget | null>(null)
   const [addingBook, setAddingBook] = useState<BookFound | null>(null)
@@ -332,7 +342,7 @@ function DiscoverPage() {
   const titleKind = show !== 'music' && show !== 'book'
   const bookFilters = { subject: genre, subjectName: subjects.find((s) => s.subject === genre)?.label, from, to, sort }
   const orders = show === 'all' ? SHARED_ORDERS : DISCOVER_KINDS[show].orders
-  const filters: Filters = { genre, genreName: genres.find((g) => String(g.id) === genre)?.name, from, to, sort, ...extra, musicType }
+  const filters: Filters = { genre, genreName: genres.find((g) => String(g.id) === genre)?.name, from, to, sort, ...extra, hide: titleKind ? hide : '', musicType }
   const musicFilters = { type: musicType, genre, yearFrom: from, yearTo: to, sort }
 
   async function onImport() {
@@ -393,6 +403,11 @@ function DiscoverPage() {
 
   return (
     <div style={posterSize.style}>
+      {noKey && titleKind && (
+        <div className="notice notice-warn" style={{ marginBottom: 14 }}>
+          {t('Add your TMDB API key first (Settings > Library and files > Movie and show info).')} <Link to="/settings/metadata">{t('Movie and show info')}</Link>
+        </div>
+      )}
       {/* Usherr: one slim row, pinned under the top bar (search and AI are in the top bar) */}
       <CompactBar
         open={filtersOpen && !special}
@@ -429,7 +444,7 @@ function DiscoverPage() {
                 value={extra.language}
                 onChange={(v) => patchUi({ language: v })}
                 disabled={browseMissing}
-                title={t('The language the title was first made in. This is separate from the language Mediarium shows names and summaries in, which you pick under Settings > Info, lists and subtitles > Movie and show info.')}
+                title={t('The language the title was first made in. This is separate from the language Mediarium shows names and summaries in, which you pick under Settings > Library and files > Movie and show info.')}
                 options={languageOptions(t('Original language: any'))}
               />
               <Dropdown
@@ -467,6 +482,7 @@ function DiscoverPage() {
         }
         chips={!special && <ActiveChips filters={activeFilters} onClearAll={clearAll} />}
       />
+      {!special && (show === 'all' || extraOn) && <StreamingServicesFilter />}
       {yearProblem && (
         <p className="field-error" role="alert" style={{ margin: '0 0 14px' }}>
           {yearProblem}
@@ -478,7 +494,7 @@ function DiscoverPage() {
           <h2>{t('Import a Trakt list')}</h2>
           <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', margin: 0 }}>
             {tx('Paste the address of any public Trakt list to see everything on it here. Trakt is a free site where people keep lists of what they watch. See {link}.', {
-              link: <Link to="/settings/metadata">{t('Settings > Info, lists and subtitles > Movie and show info')}</Link>,
+              link: <Link to="/settings/metadata">{t('Settings > Library and files > Movie and show info')}</Link>,
             })}
           </p>
           <input value={listUrl} onChange={(e) => setListUrl(e.target.value)} placeholder="trakt.tv/users/…/lists/…" aria-label={t('Trakt list address')} {...v.bind('listUrl', listUrl, setListUrl)} />

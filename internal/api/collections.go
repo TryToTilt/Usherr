@@ -13,6 +13,7 @@ import (
 
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/metadata"
+	"github.com/rdborg/mediarium/internal/origin"
 )
 
 // Collections: a series of films on TMDB (a trilogy, a franchise). A movie
@@ -129,7 +130,7 @@ func (s *Server) handleGetCollection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.TMDB().HasAPIKey() {
-		writeError(w, http.StatusPreconditionFailed, "Add your TMDB API key first (Settings > Info, lists and subtitles > Movie and show info).")
+		writeError(w, http.StatusPreconditionFailed, "Add your TMDB API key first (Settings > Library and files > Movie and show info).")
 		return
 	}
 	col, err := s.displayTMDB().GetCollection(r.Context(), id)
@@ -202,11 +203,12 @@ func (s *Server) addCollectionMovie(ctx context.Context, tmdbID, collectionID in
 	if problem != "" {
 		rootPath = s.newMovieFolder() // the folder was taken out of the settings
 	}
+	rootPath = s.animeMovieFolderFor(*tm, rootPath)
 	created, err := s.MovieRepo.Add(library.Movie{
 		TMDBID: tm.TMDBID, Title: tm.Title, Year: tm.Year(),
 		Overview: tm.Overview, PosterPath: tm.PosterPath, Monitored: o.Monitored, ReleaseDate: tm.ReleaseDate,
 		NoUpgrade: true, AddedBy: o.AddedBy, Genres: s.TMDB().MovieGenres(ctx, *tm),
-		RootPath: rootPath,
+		RootPath: rootPath, Origin: origin.Origin{Kind: origin.Manual},
 	})
 	if err != nil {
 		return library.Movie{}, err
@@ -264,7 +266,7 @@ func (s *Server) handleAddCollection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.TMDB().HasAPIKey() {
-		writeError(w, http.StatusPreconditionFailed, "Add your TMDB API key first (Settings > Info, lists and subtitles > Movie and show info).")
+		writeError(w, http.StatusPreconditionFailed, "Add your TMDB API key first (Settings > Library and files > Movie and show info).")
 		return
 	}
 	if !validSourcePref(req.Sources) {
@@ -413,7 +415,7 @@ func (s *Server) handleFollowCollection(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if !s.TMDB().HasAPIKey() {
-		writeError(w, http.StatusPreconditionFailed, "Add your TMDB API key first (Settings > Info, lists and subtitles > Movie and show info).")
+		writeError(w, http.StatusPreconditionFailed, "Add your TMDB API key first (Settings > Library and files > Movie and show info).")
 		return
 	}
 	col, err := s.displayTMDB().GetCollection(r.Context(), id)

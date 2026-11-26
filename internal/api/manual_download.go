@@ -24,16 +24,22 @@ import (
 	"github.com/anacrolix/torrent/metainfo"
 
 	"github.com/rdborg/mediarium/internal/bencsafe"
+	"github.com/rdborg/mediarium/internal/books"
 	"github.com/rdborg/mediarium/internal/download"
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/library"
+	"github.com/rdborg/mediarium/internal/music"
+	"github.com/rdborg/mediarium/internal/origin"
+	"github.com/rdborg/mediarium/internal/other"
+	"github.com/rdborg/mediarium/internal/parser"
+	"github.com/rdborg/mediarium/internal/queue"
 )
 
 // Adding a download by hand: an NZB or .torrent file, an address that points
-// to one, or a magnet link, attached to a movie or an episode the person
-// picks. It goes into the download line the same way a release picked from a
-// search does (grabRelease, grabTVRelease), so everything after it is the
-// usual pipeline.
+// to one, or a magnet link, attached to a movie, an episode, an album or a
+// book (one format of it) the person picks. It goes into the download line the
+// same way a release picked from a search does (grabRelease, grabTVRelease,
+// grabAlbum, grabBook), so everything after it is the usual pipeline.
 
 const (
 	// maxManualNZB is the biggest NZB file taken. Real ones are a few MB; a
@@ -180,6 +186,10 @@ type releaseInfo struct {
 	name  string   // the release's own name (a torrent's name), "" for an NZB
 	size  int64    // total size in bytes, 0 when unknown
 	files []string // the names of the files inside
+	// inside is a release name read from inside the file: the name in an NZB's
+	// head or the name of its biggest file, or the name of a torrent's biggest
+	// file. "" when it says nothing.
+	inside string
 }
 
 func (k releaseKind) protocol() indexers.Protocol {
@@ -210,7 +220,7 @@ func inspectRelease(data []byte) (releaseInfo, error) {
 			}
 			return releaseInfo{}, errors.New("That isn't a working NZB file. Check that you chose the right file.")
 		}
-		return releaseInfo{kind: kindNZB, size: nzb.TotalBytes(), files: nzb.FileNames()}, nil
+		return releaseInfo{kind: kindNZB, size: nzb.TotalBytes(), files: nzb.FileNames(), inside: nzb.ReleaseName()}, nil
 	case 'd':
 		// An uploaded file is untrusted: the library's decoder has no limit on
 		// nesting, so a crafted one is turned away before it gets there.
@@ -226,8 +236,13 @@ func inspectRelease(data []byte) (releaseInfo, error) {
 			return releaseInfo{}, errors.New("That isn't a working .torrent file. Check that you chose the right file.")
 		}
 		var names []string
+		var biggest string
+		var biggestSize int64 = -1
 		for _, f := range info.UpvertedFiles() {
 			names = append(names, strings.Join(f.BestPath(), "/"))
+			if path := f.BestPath(); f.Length > biggestSize && len(path) > 0 {
+				biggest, biggestSize = path[len(path)-1], f.Length
+			}
 		}
 		if len(names) == 0 || info.TotalLength() <= 0 {
 			return releaseInfo{}, errors.New("That torrent has no files in it.")
@@ -238,9 +253,19 @@ func inspectRelease(data []byte) (releaseInfo, error) {
 				names[i] = info.BestName()
 			}
 		}
-		return releaseInfo{kind: kindTorrent, name: info.BestName(), size: info.TotalLength(), files: names}, nil
+		return releaseInfo{kind: kindTorrent, name: info.BestName(), size: info.TotalLength(), files: names, inside: withoutMediaExt(biggest)}, nil
 	}
 	return releaseInfo{}, errNotARelease
+}
+
+// withoutMediaExt is a file name without the ending of a video, an audio file or a
+// book, so a release name is not read with ".mkv" on the end.
+func withoutMediaExt(file string) string {
+	switch strings.ToLower(filepath.Ext(file)) {
+	case ".mkv", ".mp4", ".avi", ".m4v", ".ts", ".m2ts", ".wmv", ".mov", ".mpg", ".mpeg", ".iso", ".flac", ".mp3", ".m4a", ".m4b", ".ogg", ".opus", ".epub", ".mobi", ".azw3", ".pdf", ".cbz", ".cbr":
+		return strings.TrimSuffix(file, filepath.Ext(file))
+	}
+	return file
 }
 
 // magnetInfo checks a magnet link and returns the name it carries.
@@ -302,27 +327,63 @@ func nameFromAddress(raw string) string {
 }
 
 // chooseReleaseName picks the name the download goes by: the one the person
-// typed, else a name found in the file or address, else a plain placeholder.
+// typed, else the best of the names found in the file or address, else a plain
+// placeholder. The names are given in the order to prefer when they are equally
+// good.
 func chooseReleaseName(typed string, candidates ...string) string {
 	if n := cleanReleaseName(typed); n != "" {
 		return n
 	}
+	best, bestScore := "", -1
 	for _, c := range candidates {
-		if n := cleanReleaseName(c); n != "" {
-			return n
+		n := cleanReleaseName(c)
+		if n == "" {
+			continue
+		}
+		if score := releaseNameScore(n); score > bestScore {
+			best, bestScore = n, score
 		}
 	}
+	if best != "" {
+		return best
+	}
 	return "Download added by hand"
+}
+
+// releaseNameScore says how much a name tells about a release: the quality, the
+// source, the year, the season and episode and the group each count. A file
+// called "m2" scores nothing, a real release name scores a lot, so the name
+// read from inside an NZB beats a file name like that.
+func releaseNameScore(name string) int {
+	r := parser.Parse(name)
+	score := 0
+	for _, has := range []bool{
+		r.Resolution != "", r.Source != "", r.Codec != "", r.Year > 0,
+		r.Season > 0 || len(r.Episodes) > 0 || r.AirDate != "", r.Group != "", r.AudioCodec != "",
+	} {
+		if has {
+			score++
+		}
+	}
+	return score
 }
 
 // --- the request ---
 
 // manualTarget is what the download is for, as the person picked it.
 type manualTarget struct {
-	movieID  int64
-	seriesID int64
-	season   int // 0 is the specials
-	episode  int // 0 is the whole season
+	movieID    int64
+	seriesID   int64
+	season     int // 0 is the specials
+	episode    int // 0 is the whole season
+	albumID    int64
+	bookID     int64
+	bookFormat books.Format
+	// otherID is an item of the Other library; newOther asks for a new one,
+	// named otherName (or after the release when that is empty).
+	otherID   int64
+	newOther  bool
+	otherName string
 }
 
 type manualDownloadResponse struct {
@@ -333,12 +394,14 @@ type manualDownloadResponse struct {
 }
 
 // handleManualDownload adds an NZB, a torrent or a magnet link to the download
-// line for a chosen movie or episode. The request is a multipart form:
+// line for a chosen movie, episode, album or book. The request is a multipart form:
 //
 //	file    an .nzb or .torrent file (or url, not both)
 //	url     an address of an NZB or .torrent file, or a magnet link
 //	name    the release name (optional; the file or address gives one)
-//	movieId, or seriesId with season and episode (episode 0 = the whole season)
+//	movieId, or seriesId with season and episode (episode 0 = the whole season),
+//	or albumId, or bookId with format ("ebook" or "audiobook"),
+//	or otherId (an Other item), or other=new with an optional otherName
 func (s *Server) handleManualDownload(w http.ResponseWriter, r *http.Request) {
 	allowLongUpload(w)
 	r.Body = http.MaxBytesReader(w, r.Body, maxManualNZB+(1<<20))
@@ -348,7 +411,7 @@ func (s *Server) handleManualDownload(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("That file is too large. NZB files can be up to %d MB and .torrent files up to %d MB.", maxManualNZB>>20, maxManualTorrent>>20))
 			return
 		}
-		writeError(w, http.StatusBadRequest, "Send a file or an address, with the movie or episode it is for.")
+		writeError(w, http.StatusBadRequest, "Send a file or an address, with the title it is for.")
 		return
 	}
 	if r.MultipartForm != nil {
@@ -382,7 +445,67 @@ func (s *Server) handleManualDownload(w http.ResponseWriter, r *http.Request) {
 	// The title comes first: nothing is stored for one that isn't there.
 	var movie library.Movie
 	var series library.Series
-	if target.movieID > 0 {
+	var album music.Album
+	var artist music.Artist
+	var book books.Book
+	var otherItem other.Item
+	switch {
+	case target.albumID > 0:
+		if !s.requireModule(w, moduleMusic) {
+			return
+		}
+		a, err := s.MusicRepo.GetAlbum(target.albumID)
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "That album isn't in your library.")
+			return
+		}
+		if err == nil {
+			artist, err = s.MusicRepo.GetArtist(a.ArtistID)
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		album = a
+	case target.otherID > 0 || target.newOther:
+		if !s.requireModule(w, moduleOther) {
+			return
+		}
+		if target.otherID > 0 {
+			o, err := s.OtherRepo.Get(target.otherID)
+			if errors.Is(err, sql.ErrNoRows) {
+				writeError(w, http.StatusNotFound, "That item isn't in your library.")
+				return
+			}
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			otherItem = o
+		}
+	case target.bookID > 0:
+		module := moduleEbooks
+		if target.bookFormat == books.Audiobook {
+			module = moduleAudiobooks
+		}
+		if !s.requireModule(w, module) {
+			return
+		}
+		b, err := s.BookRepo.Get(target.bookID)
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "That book isn't in your library.")
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !b.Wants(target.bookFormat) {
+			writeError(w, http.StatusConflict, "This book isn't kept in that format. Turn that format on for the book first.")
+			return
+		}
+		book = b
+	case target.movieID > 0:
 		if !s.requireModule(w, moduleMovies) {
 			return
 		}
@@ -396,7 +519,7 @@ func (s *Server) handleManualDownload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		movie = m
-	} else {
+	default:
 		if !s.requireModule(w, moduleTV) {
 			return
 		}
@@ -431,15 +554,56 @@ func (s *Server) handleManualDownload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	createdOther := false
+	if target.newOther {
+		// A new item is named by the person, else after the release.
+		name := target.otherName
+		if name == "" {
+			name = otherNameFromRelease(src.title)
+		}
+		userID, _ := requester(r)
+		o := addOrigin(r)
+		made, aerr := s.OtherRepo.Add(name, userID, o.Kind, o.Name)
+		switch {
+		case errors.Is(aerr, other.ErrExists):
+			// The same name is the same item: the download goes into it.
+			made, aerr = s.OtherRepo.FindByName(name)
+		default:
+			createdOther = aerr == nil
+		}
+		if aerr != nil {
+			s.removeUpload(src.ref)
+			if !writeOtherNameError(w, aerr) {
+				writeError(w, http.StatusInternalServerError, aerr.Error())
+			}
+			return
+		}
+		otherItem = made
+	}
+
 	var queueID int64
-	if target.movieID > 0 {
+	switch {
+	case otherItem.ID > 0:
+		queueID, err = s.grabOther(otherItem, src.title, src.ref, src.size, src.protocol, userOrigin(r, origin.Manual))
+	case target.albumID > 0:
+		queueID, err = s.grabAlbum(artist, album, src.title, src.ref, src.size, src.protocol, grabPicked, userOrigin(r, origin.Manual))
+	case target.bookID > 0:
+		queueID, err = s.grabBook(book, target.bookFormat, src.title, src.ref, src.size, src.protocol, queue.PriorityManual, userOrigin(r, origin.Manual))
+	case target.movieID > 0:
 		queueID, err = s.grabRelease(movie, src.title, src.ref, src.size, src.protocol)
-	} else {
+	default:
 		queueID, err = s.grabTVRelease(series, target.season, target.episode, src.title, src.ref, src.size, src.protocol)
 	}
 	if err != nil {
 		s.removeUpload(src.ref)
-		writeGrabError(w, err, http.StatusInternalServerError)
+		if createdOther {
+			_ = s.OtherRepo.Delete(otherItem.ID) // nothing was added, so no empty item is left behind
+		}
+		failed := http.StatusInternalServerError
+		if target.bookID > 0 || otherItem.ID > 0 {
+			failed = http.StatusConflict // a book's grab only fails because a download is already there
+		}
+		writeGrabError(w, err, failed)
 		return
 	}
 	writeJSON(w, http.StatusAccepted, manualDownloadResponse{
@@ -458,9 +622,32 @@ func parseManualTarget(r *http.Request) (manualTarget, string) {
 	}
 	movieID, hasMovie := num("movieId")
 	seriesID, hasSeries := num("seriesId")
+	albumID, hasAlbum := num("albumId")
+	bookID, hasBook := num("bookId")
+	otherID, hasOther := num("otherId")
+	newOther := strings.TrimSpace(r.FormValue("other")) == "new"
+	chosen := 0
+	for _, has := range []bool{hasMovie, hasSeries, hasAlbum, hasBook, hasOther || newOther} {
+		if has {
+			chosen++
+		}
+	}
 	switch {
-	case hasMovie && hasSeries:
-		return manualTarget{}, "Choose a movie or a show, not both."
+	case chosen > 1:
+		return manualTarget{}, "Choose one title for this download, not both."
+	case hasOther && otherID > 0:
+		return manualTarget{otherID: int64(otherID)}, ""
+	case newOther:
+		return manualTarget{newOther: true, otherName: cleanReleaseName(r.FormValue("otherName"))}, ""
+	case hasAlbum && albumID > 0:
+		return manualTarget{albumID: int64(albumID)}, ""
+
+	case hasBook && bookID > 0:
+		f := books.Format(strings.TrimSpace(r.FormValue("format")))
+		if !f.Valid() {
+			return manualTarget{}, `Choose the format: "ebook" or "audiobook".`
+		}
+		return manualTarget{bookID: int64(bookID), bookFormat: f}, ""
 	case hasMovie && movieID > 0:
 		return manualTarget{movieID: int64(movieID)}, ""
 	case hasSeries && seriesID > 0:
@@ -474,7 +661,7 @@ func parseManualTarget(r *http.Request) (manualTarget, string) {
 		}
 		return manualTarget{seriesID: int64(seriesID), season: season, episode: episode}, ""
 	}
-	return manualTarget{}, "Choose the movie, or the show with its season and episode, this download is for."
+	return manualTarget{}, "Choose the movie, show, album, book or item this download is for."
 }
 
 // tvTargetMismatch says so when the release name names another season or
@@ -484,6 +671,16 @@ func tvTargetMismatch(title string, t manualTarget) string {
 	season, episodes := resolveTVTarget(title, -1, 0)
 	if season == -1 {
 		return "" // the name says nothing about the season
+	}
+	if lo, hi := releaseSeasonRange(title, season); hi > lo {
+		// A pack of several seasons, or of the whole series.
+		switch {
+		case t.episode > 0:
+			return fmt.Sprintf("The name says this holds several seasons, but you chose episode %d.", t.episode)
+		case t.season < lo || t.season > hi:
+			return fmt.Sprintf("The name says seasons %d to %d, but you chose season %d.", lo, min(hi, 99), t.season)
+		}
+		return ""
 	}
 	if season != t.season {
 		return fmt.Sprintf("The name says season %d, but you chose season %d.", season, t.season)
@@ -586,7 +783,9 @@ func (s *Server) acceptFile(data []byte, fileName, typedName string) (manualSour
 	if info.kind == kindNZB && len(info.files) > 0 {
 		fallback = stemOf(info.files[0])
 	}
-	title := chooseReleaseName(typedName, info.name, fileName, fallback)
+	// A torrent's own name comes first; an NZB's file name and what is inside it compete,
+	// so "m2.nzb" does not hide the release it holds.
+	title := chooseReleaseName(typedName, info.name, fileName, info.inside, fallback)
 	ref, err := s.saveUpload(data, string(info.kind))
 	if err != nil {
 		slog.Error("api: save an uploaded release", "err", err)

@@ -2,7 +2,7 @@
 // the browser's (home/Player.tsx keeps <video controls> for Neu and Classic).
 // From the mock-up: the title, a seek bar (Left and Right move 10 seconds
 // while it has the focus, the FF and RW keys 30, OK or Play/Pause pauses),
-// then Subtitles, Audio, Version and Start over. They go away after a few
+// then Volume, Subtitles, Audio, Picture, Full screen, Version and Start over. They go away after a few
 // seconds of playing; any key brings them back; Back hides them, then leaves.
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import Icon from '../components/Icon'
@@ -11,6 +11,55 @@ import { t } from '../i18n'
 import { moveFocus, remoteOn, useRemote } from '../remote'
 import { CONTROLS_FOR_MS, percentOf, playClock, playerBack, SEEK_JUMP, SEEK_STEP, seekTarget } from './logic'
 import './player.css'
+
+// Usherr: the volume this browser last played at (0 to 1), and whether it was muted.
+const VOLUME_KEY = 'usherr.player.volume'
+function savedVolume(): { level: number; muted: boolean } | null {
+  try {
+    const raw = JSON.parse(localStorage.getItem(VOLUME_KEY) ?? 'null') as { level?: unknown; muted?: unknown } | null
+    if (!raw || typeof raw.level !== 'number') return null
+    return { level: Math.max(0, Math.min(1, raw.level)), muted: raw.muted === true }
+  } catch {
+    return null
+  }
+}
+// Usherr: how the picture fills the screen, and how big subtitles are, kept on this device.
+type Fit = 'contain' | 'cover' | 'fill'
+const FITS: Fit[] = ['contain', 'cover', 'fill']
+const SUB_SIZES = [0.8, 1, 1.3, 1.6]
+const PICTURE_KEY = 'usherr.player.picture'
+function savedPicture(): { fit: Fit; subSize: number } {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PICTURE_KEY) ?? 'null') as { fit?: unknown; subSize?: unknown } | null
+    return {
+      fit: FITS.includes(raw?.fit as Fit) ? (raw!.fit as Fit) : 'contain',
+      subSize: SUB_SIZES.includes(raw?.subSize as number) ? (raw!.subSize as number) : 1,
+    }
+  } catch {
+    return { fit: 'contain', subSize: 1 }
+  }
+}
+function keepPicture(fit: Fit, subSize: number) {
+  try {
+    localStorage.setItem(PICTURE_KEY, JSON.stringify({ fit, subSize }))
+  } catch {
+    // private window: it's only not remembered
+  }
+}
+function fitLabel(f: Fit): string {
+  return f === 'cover' ? t('Fill the screen') : f === 'fill' ? t('Stretch') : t('Fit')
+}
+function subSizeLabel(n: number): string {
+  return n < 1 ? t('Small') : n > 1.5 ? t('Extra large') : n > 1 ? t('Large') : t('Regular')
+}
+
+function keepVolume(level: number, muted: boolean) {
+  try {
+    localStorage.setItem(VOLUME_KEY, JSON.stringify({ level, muted }))
+  } catch {
+    // private window: it's only not remembered
+  }
+}
 
 export interface PlayerControlsProps {
   video: RefObject<HTMLVideoElement | null>
@@ -33,7 +82,7 @@ export interface PlayerControlsProps {
   onShown?: (shown: boolean) => void
 }
 
-type List = 'subs' | 'audio' | null
+type List = 'subs' | 'audio' | 'picture' | null
 
 export default function PlayerControls(p: PlayerControlsProps) {
   const { video, shift } = p
@@ -42,6 +91,10 @@ export default function PlayerControls(p: PlayerControlsProps) {
   const [paused, setPaused] = useState(false)
   const [at, setAt] = useState(0)
   const [length, setLength] = useState(0)
+  const [volume, setVolume] = useState(1)
+  const [muted, setMuted] = useState(false)
+  const [picture, setPicture] = useState(savedPicture)
+  const [full, setFull] = useState(false)
   const bar = useRef<HTMLButtonElement>(null)
   const box = useRef<HTMLDivElement>(null)
   const listBox = useRef<HTMLDivElement>(null)
@@ -106,6 +159,67 @@ export default function PlayerControls(p: PlayerControlsProps) {
       v.removeEventListener('click', tap)
     }
   }, [video, wake])
+
+  // Volume: this person's own (a watch party's host never sets it), kept for next time.
+  useEffect(() => {
+    const v = video.current
+    if (!v) return
+    const was = savedVolume()
+    if (was) {
+      v.volume = was.level
+      if (!v.muted) v.muted = was.muted // a silent preview stays silent
+    }
+    const level = () => {
+      setVolume(v.volume)
+      setMuted(v.muted)
+    }
+    level()
+    v.addEventListener('volumechange', level)
+    return () => v.removeEventListener('volumechange', level)
+  }, [video])
+  const setLevel = useCallback(
+    (level: number, mute?: boolean) => {
+      const v = video.current
+      if (!v) return
+      v.volume = Math.max(0, Math.min(1, level))
+      v.muted = mute ?? (level <= 0 ? true : false)
+      keepVolume(v.volume, v.muted)
+      wake()
+    },
+    [video, wake],
+  )
+
+  // Picture: fit and subtitle size on the picture itself.
+  useEffect(() => {
+    const v = video.current
+    if (!v) return
+    v.style.objectFit = picture.fit
+    v.classList.toggle('bp-cue-s', picture.subSize < 1)
+    v.classList.toggle('bp-cue-l', picture.subSize > 1 && picture.subSize < 1.5)
+    v.classList.toggle('bp-cue-xl', picture.subSize > 1.5)
+  }, [video, picture])
+  const choosePicture = (next: { fit: Fit; subSize: number }) => {
+    setPicture(next)
+    keepPicture(next.fit, next.subSize)
+  }
+
+  // Full screen: the stage, so a watch party's chat and reactions come along.
+  useEffect(() => {
+    const on = () => setFull(!!document.fullscreenElement)
+    on()
+    document.addEventListener('fullscreenchange', on)
+    return () => document.removeEventListener('fullscreenchange', on)
+  }, [])
+  const fullScreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
+    else {
+      const v = video.current
+      const el = (v?.closest('.hp-stage') as HTMLElement | null) ?? v
+      void el?.requestFullscreen?.().catch(() => undefined)
+    }
+    wake()
+  }
+  const canFull = typeof document !== 'undefined' && !!document.fullscreenEnabled
 
   // The seek bar has the remote's first focus, so OK pauses.
   useEffect(() => {
@@ -274,6 +388,20 @@ export default function PlayerControls(p: PlayerControlsProps) {
           <span className="bp-clock">{clock}</span>
         </button>
         <div className="bp-row">
+          <span className="bp-vol">
+            <button type="button" className="bp-btn" aria-pressed={muted} onClick={() => setLevel(muted && volume <= 0 ? 0.5 : volume, !muted)} title={muted ? t('Turn the sound on') : t('Mute')}>
+              <Icon name={muted || volume <= 0 ? 'volume-x' : 'volume'} size={20} /> {muted || volume <= 0 ? t('Muted') : t('Volume {n}%', { n: Math.round(volume * 100) })}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={muted ? 0 : Math.round(volume * 100)}
+              aria-label={t('Volume')}
+              onChange={(e) => setLevel(Number(e.target.value) / 100)}
+            />
+          </span>
           {tracks && tracks.subtitles.length > 0 && (
             <button type="button" className="bp-btn" aria-haspopup="menu" aria-expanded={list === 'subs'} onClick={(e) => openList('subs', e.currentTarget)}>
               <Icon name="captions" size={20} /> {t('Subtitles: {name}', { name: subOn ? shortLang(subOn) : t('Off') })}
@@ -282,6 +410,14 @@ export default function PlayerControls(p: PlayerControlsProps) {
           {tracks && tracks.audio.length > 1 && (
             <button type="button" className="bp-btn" aria-haspopup="menu" aria-expanded={list === 'audio'} onClick={(e) => openList('audio', e.currentTarget)}>
               <Icon name="volume" size={20} /> {t('Audio: {name}', { name: audioOn ? soundLabel(audioOn) : '' })}
+            </button>
+          )}
+          <button type="button" className="bp-btn" aria-haspopup="menu" aria-expanded={list === 'picture'} onClick={(e) => openList('picture', e.currentTarget)}>
+            <Icon name="image" size={20} /> {t('Picture: {name}', { name: fitLabel(picture.fit) })}
+          </button>
+          {canFull && (
+            <button type="button" className="bp-btn" aria-pressed={full} onClick={fullScreen}>
+              <Icon name="maximize" size={20} /> {full ? t('Leave full screen') : t('Full screen')}
             </button>
           )}
           {p.another && (
@@ -296,7 +432,42 @@ export default function PlayerControls(p: PlayerControlsProps) {
           )}
         </div>
       </div>
-      {list && tracks && (
+      {list === 'picture' && (
+        <div className="bp-list" role="menu" ref={listBox} aria-label={t('Picture')}>
+          <strong>{t('Picture')}</strong>
+          {FITS.map((f) => (
+            <button
+              key={f}
+              type="button"
+              role="menuitemradio"
+              aria-checked={picture.fit === f}
+              onClick={() => {
+                choosePicture({ ...picture, fit: f })
+                closeList()
+              }}
+            >
+              {picture.fit === f ? <Icon name="check" size={18} /> : <span className="bp-dot" />} {fitLabel(f)}
+              <span className="bp-list-help">{f === 'cover' ? t('No black bars; the edges are cut off') : f === 'fill' ? t('No black bars; the picture is squeezed') : t('The whole picture')}</span>
+            </button>
+          ))}
+          <strong className="bp-list-sub">{t('Subtitle size')}</strong>
+          {SUB_SIZES.map((n) => (
+            <button
+              key={n}
+              type="button"
+              role="menuitemradio"
+              aria-checked={picture.subSize === n}
+              onClick={() => {
+                choosePicture({ ...picture, subSize: n })
+                closeList()
+              }}
+            >
+              {picture.subSize === n ? <Icon name="check" size={18} /> : <span className="bp-dot" />} {subSizeLabel(n)}
+            </button>
+          ))}
+        </div>
+      )}
+      {list && list !== 'picture' && tracks && (
         <div className="bp-list" role="menu" ref={listBox} aria-label={list === 'subs' ? t('Subtitles') : t('Audio')}>
           <strong>{list === 'subs' ? t('Subtitles') : t('Audio')}</strong>
           {list === 'subs' && (

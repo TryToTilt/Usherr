@@ -3,6 +3,7 @@ package organizer
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -62,9 +63,15 @@ var tokenDefs = []tokenDef{
 	{"Series TitleYear", TokenTV, "Show", func(c NamingContext) string { return withYear(c.SeriesTitle, c.Year) }},
 	{"Series CleanTitleYear", TokenTV, "Show", func(c NamingContext) string { return withYear(cleanTitle(c.SeriesTitle), c.Year) }},
 	{"Series TitleThe", TokenTV, "Show", func(c NamingContext) string { return titleThe(c.SeriesTitle) }},
+	// The title and the year apart, as the TRaSH Guides write a show's name:
+	// {Series CleanTitleWithoutYear} {(Series Year)}.
+	{"Series TitleWithoutYear", TokenTV, "Show", func(c NamingContext) string { return c.SeriesTitle }},
+	{"Series CleanTitleWithoutYear", TokenTV, "Show", func(c NamingContext) string { return cleanTitle(c.SeriesTitle) }},
+	{"Series Year", TokenTV, "Show", func(c NamingContext) string { return yearText(c.Year) }},
 	{"Season", TokenTV, "Episode", func(c NamingContext) string { return fmt.Sprintf("%d", c.Season) }},
 	{"Episode", TokenTV, "Episode", func(c NamingContext) string { return fmt.Sprintf("%d", c.Episode) }},
 	{"Episode Title", TokenTV, "Episode", func(c NamingContext) string { return c.EpisodeTitle }},
+	{"Absolute", TokenTV, "Episode", func(c NamingContext) string { return idText(c.Absolute) }},
 	{"Episode CleanTitle", TokenTV, "Episode", func(c NamingContext) string { return cleanTitle(c.EpisodeTitle) }},
 	{"Air-Date", TokenTV, "Episode", func(c NamingContext) string { return c.AirDate }},
 
@@ -78,9 +85,9 @@ var tokenDefs = []tokenDef{
 	{"MediaInfo Full", TokenBoth, "Media info", func(c NamingContext) string { return joinNonEmpty(" ", c.Codec, c.AudioCodec) }},
 	{"MediaInfo VideoCodec", TokenBoth, "Media info", func(c NamingContext) string { return c.Codec }},
 	{"MediaInfo AudioCodec", TokenBoth, "Media info", func(c NamingContext) string { return c.AudioCodec }},
-	{"MediaInfo AudioChannels", TokenBoth, "Media info", func(c NamingContext) string { return "" }},
+	{"MediaInfo AudioChannels", TokenBoth, "Media info", func(c NamingContext) string { return c.AudioChannels }},
 	{"MediaInfo AudioLanguages", TokenBoth, "Media info", func(c NamingContext) string { return strings.Join(c.Languages, "+") }},
-	{"MediaInfo SubtitleLanguages", TokenBoth, "Media info", func(c NamingContext) string { return "" }},
+	{"MediaInfo SubtitleLanguages", TokenBoth, "Media info", func(c NamingContext) string { return strings.Join(c.SubtitleLanguages, "+") }},
 	{"MediaInfo VideoDynamicRange", TokenBoth, "Media info", func(c NamingContext) string {
 		if c.HDR != "" {
 			return "HDR"
@@ -88,7 +95,7 @@ var tokenDefs = []tokenDef{
 		return ""
 	}},
 	{"MediaInfo VideoDynamicRangeType", TokenBoth, "Media info", func(c NamingContext) string { return c.HDR }},
-	{"MediaInfo VideoBitDepth", TokenBoth, "Media info", func(c NamingContext) string { return "" }},
+	{"MediaInfo VideoBitDepth", TokenBoth, "Media info", func(c NamingContext) string { return idText(c.BitDepth) }},
 	{"MediaInfo 3D", TokenBoth, "Media info", func(c NamingContext) string {
 		if c.Is3D {
 			return "3D"
@@ -143,6 +150,7 @@ type tokenPart struct {
 	def            tokenDef
 	sep            string // " " (normal), "." or "_"
 	pad            string // "00" in {Season:00}
+	trunc          int    // 30 in {Episode Title:30}: at most that many characters
 	known          bool
 	raw            string // the name as written
 }
@@ -170,7 +178,28 @@ func parseToken(inner string) tokenPart {
 		key = a
 	}
 	p.def, p.known = tokensByKey[key]
+	// A number that is not zeros shortens the text, as Sonarr and Radarr do:
+	// {Episode CleanTitle:90} is at most 90 characters.
+	if n, err := strconv.Atoi(pad); err == nil && n > 0 && strings.Trim(pad, "0123456789") == "" {
+		p.trunc, p.pad = min(n, maxTruncWidth), ""
+	}
 	return p
+}
+
+// maxTruncWidth caps "{Token:90}": a file name is never longer than this.
+const maxTruncWidth = 255
+
+// shorten cuts text to n characters, the last one an ellipsis when something
+// was left off.
+func shorten(s string, n int) string {
+	r := []rune(s)
+	if n <= 0 || len(r) <= n {
+		return s
+	}
+	if n == 1 {
+		return string(r[:1])
+	}
+	return strings.TrimRight(string(r[:n-1]), " ") + "…"
 }
 
 func (p tokenPart) render(ctx NamingContext) string {
@@ -178,6 +207,9 @@ func (p tokenPart) render(ctx NamingContext) string {
 		return ""
 	}
 	v := applyPad(p.def.value(ctx), p.pad)
+	if p.trunc > 0 {
+		v = shorten(v, p.trunc)
+	}
 	if p.def.name == "Episode" {
 		for _, n := range ctx.MoreEpisodes {
 			v += "-E" + applyPad(fmt.Sprintf("%d", n), p.pad)

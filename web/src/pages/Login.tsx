@@ -333,8 +333,8 @@ export default function Login() {
           )}
           <p>
             {methods.emailReset
-              ? t("An administrator can also set a new password in Settings > Account & Access > All accounts. If you're the only administrator and the email doesn't come, run this on the machine that runs Usherr (swap 1000:1000 for your own PUID:PGID):")
-              : t("Mediarium can't send reset emails. Ask an administrator to set a new password in Settings > Account & Access > All accounts. If you're the only administrator, run this on the machine that runs Mediarium (swap 1000:1000 for your own PUID:PGID):")}
+              ? t("An administrator can also set a new password in Settings > People and access > All accounts. If you're the only administrator and the email doesn't come, run this on the machine that runs Usherr (swap 1000:1000 for your own PUID:PGID):")
+              : t("Mediarium can't send reset emails. Ask an administrator to set a new password in Settings > People and access > All accounts. If you're the only administrator, run this on the machine that runs Mediarium (swap 1000:1000 for your own PUID:PGID):")}
           </p>
           <code className="forgot-cmd">docker exec -it -u 1000:1000 mediarium /app/app reset-password &lt;username&gt;</code>
           <p>
@@ -464,7 +464,7 @@ function CodeStep({ challenge, onSignedIn, onStartOver }: { challenge: string; o
         </button>
         <details className="forgot">
           <summary>{t('Lost your phone and your recovery codes?')}</summary>
-          <p>{t("An administrator can switch two-step sign-in off for your account in Settings > Account & Access > All accounts. If you're the only administrator, run this on the machine that runs Mediarium:")}</p>
+          <p>{t("An administrator can switch two-step sign-in off for your account in Settings > People and access > All accounts. If you're the only administrator, run this on the machine that runs Mediarium:")}</p>
           <code className="forgot-cmd">docker exec -it -u 1000:1000 mediarium /app/app reset-two-step &lt;username&gt;</code>
         </details>
       </form>

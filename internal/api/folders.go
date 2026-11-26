@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -42,7 +43,7 @@ func (s *Server) tvCopiesRoot() string {
 }
 
 // extraFolders are the folders added next to the main one for a kind of media
-// (Settings > Library > Folders), tidied and without repeats.
+// (Settings > Library and files > Folders), tidied and without repeats.
 func (s *Server) extraFolders(key, main string) []string {
 	v, _ := s.Settings.Get(key)
 	if strings.TrimSpace(v) == "" {
@@ -75,10 +76,21 @@ func (s *Server) movieFolders() []string {
 	if main != "" {
 		out = append(out, main)
 	}
-	return append(out, s.extraFolders(settings.KeyMoviesExtraPaths, main)...)
+	out = append(out, s.extraFolders(settings.KeyMoviesExtraPaths, main)...)
+	// The anime films folder (anime.go) is one of them while it is set, like
+	// the anime folder for shows.
+	if a, _ := s.Settings.Get(settings.KeyAnimeMoviesPath); strings.TrimSpace(a) != "" {
+		a = filepath.Clean(strings.TrimSpace(a))
+		if !slices.ContainsFunc(out, func(f string) bool { return filepath.Clean(f) == a }) {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
-// tvFolders is movieFolders for shows.
+// tvFolders is movieFolders for shows. The anime folder (anime.go) is one of
+// them while it is set, also with the anime module off, so the shows already
+// in it keep their folder.
 func (s *Server) tvFolders() []string {
 	main := s.tvRoot()
 	out := []string{}
@@ -86,14 +98,19 @@ func (s *Server) tvFolders() []string {
 		out = append(out, main)
 	}
 	out = append(out, s.extraFolders(settings.KeyTVExtraPaths, main)...)
-	// Usherr: the anime folder is one of the TV folders too.
-	if a := s.animeRoot(); a != "" {
-		for _, f := range out {
-			if filepath.Clean(f) == filepath.Clean(a) {
-				return out
-			}
+	if a, _ := s.Settings.Get(settings.KeyAnimePath); strings.TrimSpace(a) != "" {
+		a = filepath.Clean(strings.TrimSpace(a))
+		if !slices.ContainsFunc(out, func(f string) bool { return filepath.Clean(f) == a }) {
+			out = append(out, a)
 		}
-		out = append(out, a)
+	}
+	// Usherr: the home anime folder (ANIME_DIR, Settings > Library > Folders)
+	// is one of the TV folders too.
+	if a := s.extraFolderRoot("anime"); a != "" {
+		a = filepath.Clean(a)
+		if !slices.ContainsFunc(out, func(f string) bool { return filepath.Clean(f) == a }) {
+			out = append(out, a)
+		}
 	}
 	return out
 }
@@ -214,6 +231,18 @@ func (s *Server) audiobooksRoot() string {
 		return v
 	}
 	return s.cfg.AudiobooksDir
+}
+
+// otherRoot is the Other library: the Settings value, falling back to
+// OTHER_DIR (/other by default).
+func (s *Server) otherRoot() string {
+	if v, _ := s.Settings.Get(settings.KeyOtherPath); v != "" {
+		return v
+	}
+	if s.cfg.OtherDir != "" {
+		return s.cfg.OtherDir
+	}
+	return "/other"
 }
 
 type folderPayload struct {

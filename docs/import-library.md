@@ -11,7 +11,7 @@ Open **Library** and press **Import existing** (or **Import what you already hav
 3. **Choose what happens next** (see below), or just press **Import**.
 4. **Confirm.** This answers in about a second, however many titles you chose. Every title is added to the library straight away with what the scan already knows: its name, year, the file, and the quality read from the file name. The titles show in the Library at once, with a "Getting details..." mark until their posters and summaries arrive.
 
-![The import review: the folder box, the two-line summary of what will happen, and a table of what was found on disk with the match for each](images/import-review.png)
+![The import review: the folder box, the switch to watch titles for better versions with what happens next, and a table of what was found on disk with the match for each](images/import-review.png)
 
 *The review step for a movie folder. Confident matches are ticked.*
 
@@ -33,6 +33,10 @@ Files that carry only the TheTVDB season and episode, as Sonarr names them (`One
 A file never takes an episode that another file names for certain, and a title never moves a file that one of the rules above placed. The import's note says how many episodes were placed this way ("Placed 55 episodes by the TheTVDB season numbers." and "Placed 10 episodes by their titles."), and still lists what was left out and why, with the names of up to five of the files that were left out.
 
 A season and episode that the show does list are always taken as the file says. When nothing says for certain which episode a file is, it is left out and the report's note tells you why: "Left out 55 episodes that the movie database doesn't list for this show" is followed by what to do, which is either to set the show's **Episode numbering** to **Anime** on its page and import the folder again, or to rename the files to the season and episode the show's page shows. Nothing is guessed. The same rule applies to a show's folder when you [move over from Sonarr](./migrate.md), and **Import a file by hand** places a file of an anime by the number in its name when the season and episode you typed do not exist.
+
+## Files left out because TMDB counts differently
+
+The movie database counts a double-length episode as one; TheTVDB counts it as two, and many file names follow TheTVDB (The Office season 4 is 14 episodes on TMDB and 19 on TheTVDB, so `S04E03-E04.mkv` has no match). When files are left out and you have saved a TheTVDB key, the report adds a line saying the show can be switched to **TheTVDB order** (the show page's **Episode order**, see [Episode order](library.md#episode-order)). Switch it and import the folder again; nothing is switched for you.
 
 ## What happens in the background
 

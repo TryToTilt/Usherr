@@ -142,3 +142,14 @@
   .crw-wrapped .cw-line { font-size: 1.1rem; }
   .crw-wrapped .cw-save { margin-left: 0; }
 }
+/* Usherr: a showtime starting soon, on the crew screen */
+.crw-handoff { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.crw-handoff strong { color: var(--text); }
+.crw-handoff-tools { display: flex; gap: 0.5rem; margin-left: auto; }
+/* Usherr: Send to a friend (a title's More) */
+.send-friend { width: min(520px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 14px; }
+.send-friend-field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
+.send-friend-field select, .send-friend-field textarea { font: inherit; font-weight: 400; }
+.send-friend-field textarea { resize: vertical; min-height: 84px; }
+.send-friend-count { align-self: flex-end; font-size: 0.8rem; font-weight: 400; color: var(--text-dim); }
+.send-friend-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }

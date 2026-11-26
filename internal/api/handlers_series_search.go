@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/library"
 	"github.com/rdborg/mediarium/internal/metadata"
+	"github.com/rdborg/mediarium/internal/origin"
 	"github.com/rdborg/mediarium/internal/parser"
 )
 
@@ -51,6 +53,13 @@ func matchesShowRel(rel parser.Release, series library.Series) bool {
 	}
 	if withCountryTag(want, normalizeTitle(series.Title), rel.Year, series.Year) {
 		return true
+	}
+	// "Love.Island.US" for a show called "Love Island USA": the same country,
+	// written two ways.
+	if relBase, relCode := parser.SplitCountryTag(rel.Title); relCode != "" {
+		if serBase, serCode := parser.SplitCountryTag(series.Title); serCode == relCode && normalizeTitle(relBase) != "" && normalizeTitle(relBase) == normalizeTitle(serBase) {
+			return true
+		}
 	}
 	if len(want) < 3 {
 		return false
@@ -177,12 +186,14 @@ func (s *Server) handleSeriesSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	season, _ := strconv.Atoi(r.URL.Query().Get("season"))
 	episode, _ := strconv.Atoi(r.URL.Query().Get("episode"))
-	specials := season == 0 && r.URL.Query().Get("season") == "0"
+	// complete=1 lists the packs that hold several seasons or the whole series.
+	complete := r.URL.Query().Get("complete") == "1"
+	specials := !complete && season == 0 && r.URL.Query().Get("season") == "0"
 	if specials && episode <= 0 {
 		writeError(w, http.StatusBadRequest, "Choose a special to search for: specials are searched one at a time.")
 		return
 	}
-	if season < 0 || (season == 0 && !specials) {
+	if !complete && (season < 0 || (season == 0 && !specials)) {
 		writeError(w, http.StatusBadRequest, "Choose a season to search.")
 		return
 	}
@@ -218,13 +229,27 @@ func (s *Server) handleSeriesSearch(w http.ResponseWriter, r *http.Request) {
 	// Words typed by hand are searched as they are and every answer is shown; the
 	// download still goes to the season or episode that was chosen.
 	custom := customSearchQuery(r)
+	// The page gives up after 30 seconds, so every pass shares one limit and what
+	// the quick indexers found by then is shown (a slow one is listed as not answering).
+	sctx, cancelSearch := context.WithTimeout(r.Context(), manualSearchWait)
+	defer cancelSearch()
 	var outcomes []indexers.Outcome
 	if custom != "" {
-		outcomes = indexers.SearchAll(indexers.AsManual(r.Context()), asked, custom, tvCategory)
+		outcomes = indexers.SearchAll(indexers.AsManual(sctx), asked, custom, tvCategory)
+	} else if complete {
+		last := 0
+		if eps, err := s.MovieRepo.ListEpisodes(series.ID); err == nil {
+			for _, ep := range eps {
+				last = max(last, ep.Season)
+			}
+		}
+		for _, q := range wholeSeriesQueries(series.Title, last) {
+			outcomes = append(outcomes, indexers.SearchAll(indexers.AsManual(sctx), asked, q, tvCategory)...)
+		}
 	} else {
-		outcomes = indexers.SearchAll(indexers.AsManual(r.Context()), asked, tvSearchQuery(series.Title, season, episode), tvCategory)
+		outcomes = indexers.SearchAll(withSeriesIDs(indexers.AsManual(sctx), series, season, episode), asked, tvSearchQuery(series.Title, season, episode), tvCategory)
 		for _, q := range s.extraTVQueries(series, season, episode) {
-			outcomes = append(outcomes, indexers.SearchAll(indexers.AsManual(r.Context()), asked, q, tvCategory)...)
+			outcomes = append(outcomes, indexers.SearchAll(indexers.AsManual(sctx), asked, q, tvCategory)...)
 		}
 	}
 	merged := indexers.MergeResults(outcomes)
@@ -241,14 +266,30 @@ func (s *Server) handleSeriesSearch(w http.ResponseWriter, r *http.Request) {
 	keeps := s.tvImportKeeps(series, season, episode)
 	out := []searchResultPayload{}
 	var found []indexers.Result
+	// What was left out, for the "Searches used" part: releases of another show
+	// or another season or episode, and in the list for the whole series the
+	// ones of this show that are not a pack of several seasons.
+	var ignored ignoredReleases
+	notAPack := filteredCount{Reason: notMultiSeasonPack}
 	for _, res := range merged {
 		parsed := res.Parsed()
-		if custom == "" && (!matchesShowForRel(parsed, series, season) || !coversTarget(mapped(mapper, parsed), season, episode)) {
+		if complete && custom == "" {
+			// Only packs of more than one season, or of the whole series, belong in this list.
+			if !matchesShowRel(parsed, series) || untaggedForOtherShow(parsed, series) {
+				ignored.add(res.Title)
+				continue
+			}
+			if _, _, ok := parsed.SeasonSpan(); !ok {
+				notAPack.Count++
+				continue
+			}
+		} else if custom == "" && (!matchesShowForRel(parsed, series, season) || !coversTarget(mapped(mapper, parsed), season, episode)) {
+			ignored.add(res.Title)
 			continue
 		}
 		payload := s.toSearchResultPayload(res)
 		payload.MatchedTitle = matchedOtherTitle(res.Title, series.Title, series.AltTitles)
-		payload.Blocklisted = blocked[blocklist.Key(res.Title)]
+		payload.Blocklisted = releaseBlocked(blocked, res, blocklist.Scope{SeriesID: series.ID})
 		payload.addReasonList(rejectionReasonsFor(res.Title, profile, keeps != keepsNothing, "", "", keeps))
 		payload.addReasons("size", sizeReasons(res.Title, res.SizeBytes))
 		payload.addStateReasons()
@@ -259,8 +300,12 @@ func (s *Server) handleSeriesSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	markBestMatch(out, found, profile)
 	s.markCachedPayloads(r.Context(), out)
-	writeSearchAll(w, r, out, len(instances), outcomes, notAsked, instances)
+	writeSearchIgnoring(w, r, out, len(instances), outcomes, notAsked, instances, ignored, releaseFiltered(ignored, out, notAPack))
 }
+
+// notMultiSeasonPack is why a release of the show is not in the list for the
+// whole series.
+const notMultiSeasonPack = "Not a pack of several seasons or of the whole show."
 
 // coversTarget reports whether a parsed release satisfies a season/episode
 // request: for an episode, that episode itself, a multi-episode release
@@ -320,7 +365,7 @@ func (s *Server) grabFromSearchTV(w http.ResponseWriter, r *http.Request, req gr
 			return
 		}
 		userID, byline := requester(r)
-		series, err = s.addSeriesFromTMDB(r.Context(), match.TMDBID, userID, true, s.newShowFolder())
+		series, err = s.addSeriesFromTMDB(r.Context(), match.TMDBID, userID, true, s.newShowFolder(), origin.Origin{Kind: origin.Manual})
 		if err != nil {
 			writeUpstreamError(w, "add that show", err)
 			return
@@ -328,7 +373,7 @@ func (s *Server) grabFromSearchTV(w http.ResponseWriter, r *http.Request, req gr
 		_ = s.QueueRepo.LogSeriesActivity(series.ID, "added", series.Title+" (series) added to library"+byline)
 	}
 
-	queueID, err := s.grabTVOpts(series, 0, 0, req.ReleaseTitle, req.DownloadURL, req.SizeBytes, req.protocol(), grabPicked, req.Replace)
+	queueID, err := s.grabTVOpts(series, 0, 0, req.ReleaseTitle, req.DownloadURL, req.SizeBytes, req.protocol(), grabPicked, req.Replace, userOrigin(r, origin.Manual))
 	if err != nil {
 		writeGrabError(w, err, http.StatusBadRequest)
 		return

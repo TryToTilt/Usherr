@@ -56,6 +56,7 @@ const (
 	MaxHouses   = 12  // in a crew, the owner's own first
 	MaxPeople   = 12  // people of one house who opted in
 	MaxText     = 500 // characters of a chat line
+	MaxNote     = 280 // Usherr: characters of a note sent with a film (older Usherrs keep 120)
 	MaxList     = 40  // films on the shared watchlist
 	MaxBallot   = 8   // films on a ballot
 	MaxVoters   = 100 // names listed under one film of a ballot
@@ -574,7 +575,7 @@ func (v *Chat) Check() bool {
 		if !c.Film.check() || c.To < 0 || c.To > MaxHouses {
 			return false
 		}
-		c.Note = CleanText(c.Note, 120)
+		c.Note = CleanText(c.Note, MaxNote)
 		c.ToWho = CleanText(c.ToWho, MaxWho)
 	}
 	return v.Text != "" || v.Card != nil

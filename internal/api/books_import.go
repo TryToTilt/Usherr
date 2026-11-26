@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/rdborg/mediarium/internal/books"
+	"github.com/rdborg/mediarium/internal/origin"
 )
 
 // Importing books already on disk: the ebooks and audiobooks folders are read
@@ -340,7 +341,7 @@ func (s *Server) attachBook(ctx context.Context, res bookImportResult, match boo
 	}
 	if !ok {
 		nb := books.Book{OLKey: match.Key, Title: match.Title, Author: match.Author, AuthorKey: match.AuthorKey, Year: match.Year, CoverID: match.CoverID,
-			WantEbook: res.Kind == books.Ebook, WantAudiobook: res.Kind == books.Audiobook}
+			WantEbook: res.Kind == books.Ebook, WantAudiobook: res.Kind == books.Audiobook, Origin: origin.Origin{Kind: origin.Import}}
 		if hcMatch != nil { // home fork: a book on disk matched on Hardcover by the import
 			nb.Description = hcMatch.Description
 			b, err = s.BookRepo.Add(nb)
@@ -430,7 +431,7 @@ func (s *Server) importOneBookViaAudnexus(ctx context.Context, res bookImportRes
 	}
 	if !ok {
 		nb := books.Book{OLKey: key, Title: d.Title, Author: res.Author, WantAudiobook: true,
-			SeriesName: d.SeriesName, SeriesPosition: d.SeriesPosition, ReleaseDate: d.ReleaseDate}
+			SeriesName: d.SeriesName, SeriesPosition: d.SeriesPosition, ReleaseDate: d.ReleaseDate, Origin: origin.Origin{Kind: origin.Import}}
 		if len(d.ReleaseDate) >= 4 {
 			nb.Year, _ = strconv.Atoi(d.ReleaseDate[:4])
 		}
@@ -488,7 +489,7 @@ func (s *Server) importOneComic(res bookImportResult) bookImportResult {
 	}
 	if !ok {
 		b, err = s.BookRepo.Add(books.Book{OLKey: key, Title: res.Title, Author: res.Author, Year: res.Year, WantEbook: true,
-			SeriesName: res.Series, SeriesPosition: res.Position})
+			SeriesName: res.Series, SeriesPosition: res.Position, Origin: origin.Origin{Kind: origin.Import}})
 		if errors.Is(err, books.ErrExists) {
 			b, _, err = s.BookRepo.GetByKey(key)
 		}

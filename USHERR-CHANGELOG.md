@@ -5,6 +5,55 @@ whose changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## [Unreleased]
 
+## [2.65.0] - 2026-11-26
+
+Built on Mediarium 4.1.2 (was 3.9.4). Everything in its 4.0.0 to 4.1.2 releases comes in; see [CHANGELOG.md](CHANGELOG.md).
+
+### Added (from Mediarium 4.0 to 4.1.2)
+
+- Requests: ask for a single episode, age limits per account, and Ask to remove for people who aren't administrators.
+- Choose a release: "Why this release?" under each release, Try this profile, a choice for a whole series, freeleech marks, and blocklisting a release for one title only.
+- Files: edit a file's release group, unlink a file from a title, a release size limit and a free-space reserve, and searches that wait until a title is out.
+- Library and Activity: an In folder filter, Long wanted, an Other library, a tablet view with the list beside the title, sorting downloads, Shift-click ranges and a "finished since you last looked" box.
+- Recyclarr can sync the TRaSH Guides, a settings file to download and check, Ctrl+K type-ahead search, pure black for OLED screens, larger text, and Simplified Chinese.
+- Upstream's Library lifecycle, channel archiver (your own yt-dlp) and Soulseek through slskd arrive switched off.
+
+### Changed
+
+- Classic and Neu use upstream's regrouped Settings menu (Basics, Library and files, Finding releases, Downloading, Media servers and apps, People and access, System); Usherr's Extras, Movie night and Re-Posterr stay as their own groups. Broadcast keeps its own menu and seven groups.
+- On a title's page in Classic and Neu, Watch in Plex / Jellyfin / Emby comes first, as upstream has it. Broadcast keeps its own main button.
+- Upstream's bottom bar on phones shows in Classic only; Broadcast and Neu keep their own.
+
+### Fixed
+
+- Usherr's app no longer answers its built files from its background worker. Loading many pages in a row over the secure (https) address could stall the browser with its connections used up; the browser's own cache keeps those files instead.
+- Usherr's messages name the settings groups the way the menu does now.
+
+## [2.64.4] - 2026-11-09
+
+### Changed
+
+- Crews: on a film sent to you that you don't have, **Add to my list** (and **Get it**) now asks how to add it to the library: as a stream, on disk, or not at all. It's the same Add window as the film's page, so quality and folder work as usual, and accounts that ask still send a request.
+
+## [2.64.3] - 2026-11-09
+
+### Added
+
+- Crews: hanging out on the crew screen when a showtime starts moves you to Showtime by yourself, into the lobby and ready, when its pre-show begins (or the film, without one). A few minutes before, the crew screen says so, with Go now and Stay here.
+- Broadcast: **Send to a friend** in a film's More. Pick a friend from your crews and add a note of your own (up to 280 characters); it arrives as a film card with your note, and their Usherr lets them know.
+
+## [2.64.2] - 2026-11-09
+
+### Added
+
+- Crews: a film a friend sends you now says whether you have it, and has a **Get it** button when you don't. It adds the film (or asks for it, for accounts that have to ask).
+- Broadcast player: a volume control (mute button and slider), in watch parties too. Your volume is your own and is remembered on that device.
+- Broadcast player: **Picture** (Fit, Fill the screen or Stretch, and subtitle size from Small to Extra large) and **Full screen**, which keeps a watch party's chat and reactions on screen. Both are your own and are remembered on that device.
+
+### Fixed
+
+- Notifications: the help under "This device" says Usherr, not Mediarium.
+
 ## [2.64.1] - 2026-11-08
 
 ### Fixed

@@ -3,6 +3,7 @@ import { api, takeEarlyModules, type ModuleKey, type Modules } from './api'
 import { useAuth } from './AuthContext'
 import { useLive } from './useLive'
 import { t } from './i18n'
+import { setArtworkThroughServer } from './base'
 
 // Until the answer arrives (or when it cannot be read) the app behaves as it
 // always did: movies and TV on, music off. That way nothing flickers away on
@@ -14,6 +15,10 @@ const FALLBACK: Modules = {
   audiobooks: { enabled: false, available: false },
   ebooks: { enabled: false, available: false },
   manga: { enabled: false, available: false },
+  other: { enabled: false, available: false },
+  anime: { enabled: false, available: false },
+  lifecycle: { enabled: false, available: false },
+  archiver: { enabled: false, available: false },
 }
 
 interface ModulesState {
@@ -28,6 +33,9 @@ interface ModulesState {
   // Whether torrent releases can be downloaded at all (the built-in client, a
   // debrid service or a download client). True until the server says otherwise.
   torrentsOn: boolean
+  // Whether a TMDB API key is set. Without one the movie and show search can't
+  // answer. True until the server says otherwise.
+  tmdbOn: boolean
   // Whether a kind of media is switched on.
   on: (key: ModuleKey) => boolean
   refresh: () => Promise<void>
@@ -48,18 +56,25 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
   const [trailerOn, setTrailerOn] = useState(false)
   const [trailerSoundOn, setTrailerSoundOn] = useState(false)
   const [torrentsOn, setTorrentsOn] = useState(true)
+  const [tmdbOn, setTmdbOn] = useState(true)
   const [loaded, setLoaded] = useState(false)
 
   const refresh = useCallback(async () => {
     if (!signedIn) return
     try {
       const early = takeEarlyModules()
-      const { subtitlesEnabled, trailerBackground, trailerSound, torrentsOn: torrents, ...kinds } = await (early ? early.catch(() => api.modules()) : api.modules())
-      setModules({ ...FALLBACK, ...kinds })
+      const { subtitlesEnabled, trailerBackground, trailerSound, artworkProxy, torrentsOn: torrents, tmdbKey, ...kinds } = await (early ? early.catch(() => api.modules()) : api.modules())
+      // The same answer as before changes nothing, so the many parts of the app that read this are not drawn again
+      // every minute (and every time the tab is focused) for no reason.
+      const next = { ...FALLBACK, ...kinds }
+      setModules((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
       setSubtitlesOn(subtitlesEnabled === true)
       setTrailerOn(trailerBackground === true)
       setTrailerSoundOn(trailerSound === true)
+      // Remembered for the next page load, whose first answers already need it.
+      if (artworkProxy !== undefined) setArtworkThroughServer(artworkProxy)
       setTorrentsOn(torrents !== false)
+      setTmdbOn(tmdbKey !== false)
     } catch {
       // Keep whatever we had: an older server has no switchboard.
     } finally {
@@ -74,6 +89,7 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
       setTrailerOn(false)
       setTrailerSoundOn(false)
       setTorrentsOn(true)
+      setTmdbOn(true)
       setLoaded(false)
       return
     }
@@ -89,6 +105,7 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
       trailerOn,
       trailerSoundOn,
       torrentsOn,
+      tmdbOn,
       on: (key) => modules[key]?.enabled === true,
       refresh,
       set: (next) => {
@@ -96,7 +113,7 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
         setLoaded(true)
       },
     }),
-    [modules, loaded, subtitlesOn, trailerOn, trailerSoundOn, torrentsOn, refresh],
+    [modules, loaded, subtitlesOn, trailerOn, trailerSoundOn, torrentsOn, tmdbOn, refresh],
   )
   return <ModulesContext.Provider value={value}>{children}</ModulesContext.Provider>
 }

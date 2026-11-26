@@ -3,7 +3,7 @@ set -e
 
 # ---- Installed updates ---------------------------------------------------------
 # Mediarium can install a newer program file into <config>/update/app (from the
-# Settings > System page, or pushed through the API; see docs/INSTALL.md). Before
+# Settings > Basics > General page, or pushed through the API; see docs/INSTALL.md). Before
 # starting the app this script decides which program to run: the one inside the
 # image, or the installed one. The installed one is used only when ALL of these hold:
 #   - it is an executable file, and its checksum matches app.sha256 (when present);
@@ -27,9 +27,8 @@ say() { echo "Mediarium: $*" >&2; }
 # permissions away from the usual 666 for files and 777 for folders: 022 gives
 # files 644 and folders 755, 002 gives 664 and 775. Unset leaves the container's
 # own umask (022) alone. A value that is not one to four octal digits is ignored
-# with a note. The permissions can also be set in Settings > Library > Folders
-# and file names, which applies them to what Mediarium puts in the library and
-# does not depend on the umask.
+# with a note. The permissions can also be set in Settings > Library and files >
+# Folders, which applies them to what Mediarium puts in the library and does not depend on the umask.
 apply_umask() {
   [ -n "${UMASK:-}" ] || return 0
   case "$UMASK" in
@@ -132,7 +131,7 @@ choose_app() {
 # PGID do not apply, and nothing can be chowned. Create missing folders if
 # possible, say which ones cannot be written, and start the app as this user.
 if [ "$(id -u)" != "0" ]; then
-  for dir in "${CONFIG_DIR:-/config}" "${DOWNLOADS_DIR:-/downloads}" "${MOVIES_DIR:-/movies}" "${TV_DIR:-/tv}" ${MUSIC_DIR:+"$MUSIC_DIR"} ${EBOOKS_DIR:+"$EBOOKS_DIR"} ${AUDIOBOOKS_DIR:+"$AUDIOBOOKS_DIR"}; do
+  for dir in "${CONFIG_DIR:-/config}" "${DOWNLOADS_DIR:-/downloads}" "${MOVIES_DIR:-/movies}" "${TV_DIR:-/tv}" ${MUSIC_DIR:+"$MUSIC_DIR"} ${EBOOKS_DIR:+"$EBOOKS_DIR"} ${AUDIOBOOKS_DIR:+"$AUDIOBOOKS_DIR"} ${OTHER_DIR:+"$OTHER_DIR"}; do
     [ -d "$dir" ] || mkdir -p "$dir" 2>/dev/null || true
     if [ ! -w "$dir" ]; then
       echo "WARNING: $dir is not writable by uid $(id -u)/gid $(id -g). Fix the folder permissions on the host." >&2
@@ -213,8 +212,8 @@ is_fresh() {
 # The folders checked are the ones the app uses: DOWNLOADS_DIR, MOVIES_DIR and
 # TV_DIR (by default /downloads, /movies and /tv, or /data/downloads,
 # /data/movies and /data/tv with one /data mount). MUSIC_DIR, EBOOKS_DIR and
-# AUDIOBOOKS_DIR are checked the same way, but only when you set them.
-for dir in "${DOWNLOADS_DIR:-/downloads}" "${MOVIES_DIR:-/movies}" "${TV_DIR:-/tv}" ${MUSIC_DIR:+"$MUSIC_DIR"} ${EBOOKS_DIR:+"$EBOOKS_DIR"} ${AUDIOBOOKS_DIR:+"$AUDIOBOOKS_DIR"}; do
+# AUDIOBOOKS_DIR and OTHER_DIR are checked the same way, but only when you set them.
+for dir in "${DOWNLOADS_DIR:-/downloads}" "${MOVIES_DIR:-/movies}" "${TV_DIR:-/tv}" ${MUSIC_DIR:+"$MUSIC_DIR"} ${EBOOKS_DIR:+"$EBOOKS_DIR"} ${AUDIOBOOKS_DIR:+"$AUDIOBOOKS_DIR"} ${OTHER_DIR:+"$OTHER_DIR"}; do
   if [ ! -d "$dir" ]; then
     parent="$(dirname "$dir")"
     if [ "$parent" = "/" ]; then

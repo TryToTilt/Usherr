@@ -37,8 +37,8 @@ const PAGE_WORDS: Record<string, string> = {
   modules: 'movies tv shows music books ebooks audiobooks enable disable turn on off',
   media: 'paths directories library root storage movies tv music books downloads hardlinks',
   naming: 'rename naming format pattern template nfo artwork script import',
-  quality: 'profiles resolution 1080p 4k upgrade cutoff custom formats size language',
-  automation: 'automatic search schedule rss monitor upgrade delay',
+  quality: 'profiles resolution 1080p 4k upgrade upgrades cutoff upgrade until automatic quality upgrades automatic quality updates better quality replace with better custom formats size language',
+  automation: 'automatic search schedule rss monitor upgrade upgrades automatic quality upgrades better quality replace with better new titles add default delay',
   indexers: 'newznab torznab prowlarr jackett sites flaresolverr irc',
   usenet: 'provider server nntp newshosting connections ssl',
   torrents: 'qbittorrent debrid seeding client',
@@ -49,7 +49,7 @@ const PAGE_WORDS: Record<string, string> = {
   subtitles: 'opensubtitles captions srt languages',
   'media-servers': 'plex jellyfin emby kodi scan',
   notifications: 'discord telegram email webhook alerts push ntfy gotify',
-  'other-apps': 'overseerr jellyseerr homepage nzb360 lunasea ruddarr radarr sonarr api',
+  'other-apps': 'overseerr jellyseerr homepage nzb360 lunasea ruddarr radarr sonarr api sabnzbd qbittorrent phone downloads',
   addons: 'links apps sidebar',
   profile: 'name email password api key avatar',
   security: 'passkey sessions devices api keys',
@@ -97,13 +97,14 @@ function cardSpecs(): Spec[] {
     { to: 'naming', label: t('Rename existing files'), words: 'rename bulk fix names' },
     { to: 'naming', label: t('Run a script after each import'), words: 'script post processing hook custom command' },
     // Quality
-    { to: 'quality', label: t('Quality profiles'), words: 'profile cutoff upgrade resolution 1080p 4k allowed qualities' },
+    { to: 'quality', label: t('Quality profiles'), words: 'profile cutoff upgrade until upgrades automatic quality upgrades automatic quality updates better quality replace with better keep looking resolution 1080p 4k allowed qualities' },
     { to: 'quality', label: t('Custom formats'), words: 'score formats trash guides hdr atmos' },
     { to: 'quality', label: t('Audio language'), words: 'language dub original multi audio' },
     { to: 'quality', label: t('Size limits'), words: 'size minimum maximum megabytes per minute file size' },
     { to: 'quality', label: t('Advanced options'), words: 'advanced custom formats scores' },
     // Automatic searching
-    { to: 'automation', label: t('Automation'), words: 'automatic search interval rss monitor schedule upgrade' },
+    { to: 'automation', label: t('Automation'), words: 'automatic search interval rss monitor schedule upgrade upgrades automatic quality upgrades better quality replace with better' },
+    { to: 'automation', label: t('When you add a title'), words: 'defaults new movies new shows add dialog monitor search now keep looking for better versions automatic quality upgrades default upgrade better quality replace with better' },
     { to: 'automation', label: t('Wait for a better protocol'), words: 'delay profile usenet torrent wait prefer' },
     // Indexers & Search
     { to: 'indexers', label: t('Your indexers'), words: 'newznab torznab prowlarr jackett sites list' },
@@ -159,6 +160,7 @@ function cardSpecs(): Spec[] {
     { to: 'notifications', label: t('Connection watch'), words: 'offline alert health down' },
     // Other apps
     { to: 'other-apps', label: t('Connect apps made for Radarr, Sonarr and Lidarr'), words: 'overseerr jellyseerr homepage homarr nzb360 lunasea ruddarr api' },
+    { to: 'other-apps', label: t('Phone apps for downloads (nzb360 and others)'), words: 'nzb360 sabnzbd qbittorrent speed queue time left phone app api' },
     { to: 'other-apps', label: t('The API key'), words: 'api key token integration' },
     { to: 'other-apps', label: t('Let AI assistants connect (MCP)'), words: 'mcp ai assistant chat voice home assistant llm' },
     // Your profile

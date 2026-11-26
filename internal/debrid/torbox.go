@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -56,10 +57,18 @@ func (t *torBox) call(ctx context.Context, method, path string, query url.Values
 	var a tbAnswer
 	_ = json.Unmarshal(data, &a)
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		// A 403 is also how TorBox says the plan doesn't include something:
+		// that is not a wrong key, and its own words say what it is.
+		if code, _ := a.Error.(string); code != "" && a.Detail != "" && !strings.Contains(strings.ToUpper(code), "AUTH") && !strings.Contains(strings.ToUpper(code), "TOKEN") {
+			return fmt.Errorf("TorBox: %s", a.Detail)
+		}
 		return ErrAuth
 	}
 	if resp.StatusCode >= 300 || !a.Success {
 		msg := a.Detail
+		if msg == "" && resp.StatusCode == http.StatusTooManyRequests {
+			msg = "too many requests, Mediarium will try again in a moment"
+		}
 		if msg == "" {
 			msg = fmt.Sprintf("HTTP %d", resp.StatusCode)
 		}
@@ -174,6 +183,30 @@ func (t *torBox) Files(ctx context.Context, id string) ([]File, error) {
 		return nil, fmt.Errorf("TorBox has no files for this torrent")
 	}
 	return out, nil
+}
+
+// FreshLink asks for a new link to one file, without asking for a link to
+// every other file in the torrent.
+func (t *torBox) FreshLink(ctx context.Context, id string, f File) (string, error) {
+	tt, err := t.torrent(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	for _, tf := range tt.Files {
+		if tf.Name != f.Name {
+			continue
+		}
+		var link string
+		q := url.Values{"token": {t.key}, "torrent_id": {id}, "file_id": {strconv.FormatInt(tf.ID, 10)}}
+		if err := t.call(ctx, http.MethodGet, "/torrents/requestdl", q, nil, "", &link); err != nil {
+			return "", err
+		}
+		if link == "" {
+			return "", errors.New("TorBox gave no link for this file")
+		}
+		return link, nil
+	}
+	return "", errors.New("the file is no longer listed on TorBox")
 }
 
 func (t *torBox) Remove(ctx context.Context, id string) error {

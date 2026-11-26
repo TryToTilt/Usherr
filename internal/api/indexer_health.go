@@ -1,13 +1,16 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
 	"time"
 
+	"github.com/rdborg/mediarium/internal/download"
 	"github.com/rdborg/mediarium/internal/indexers"
 )
 
@@ -84,6 +87,7 @@ type indexerStatPayload struct {
 	Failures    int     `json:"failures"`
 	Results     int     `json:"results"`
 	Grabs       int     `json:"grabs"`
+	GrabBytes   int64   `json:"grabBytes"`   // the size of the releases grabbed
 	SuccessRate float64 `json:"successRate"` // 0 to 1, -1 when it was not searched
 	PausedUntil string  `json:"pausedUntil,omitempty"`
 }
@@ -91,6 +95,20 @@ type indexerStatPayload struct {
 type indexerStatsPayload struct {
 	Days     int                  `json:"days"`
 	Indexers []indexerStatPayload `json:"indexers"`
+	// Servers is what each Usenet server delivered to the built-in
+	// downloader over the same days (#167).
+	Servers []serverTrafficPayload `json:"servers"`
+}
+
+// serverTrafficPayload is one Usenet server's line on the Statistics page.
+type serverTrafficPayload struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Host     string `json:"host"`
+	Enabled  bool   `json:"enabled"`
+	Bytes    int64  `json:"bytes"`
+	Articles int64  `json:"articles"`
+	Missing  int64  `json:"missing"` // articles the server didn't have
 }
 
 // statsDays is the period the Statistics page adds up.
@@ -120,7 +138,7 @@ func (s *Server) handleIndexerStats(w http.ResponseWriter, r *http.Request) {
 		inst := byID[st.IndexerID]
 		p := indexerStatPayload{
 			ID: st.IndexerID, Name: st.Name, Protocol: string(inst.Protocol), Enabled: inst.Enabled,
-			Queries: st.Queries, Failures: st.Failures, Results: st.Results, Grabs: st.Grabs, SuccessRate: st.SuccessRate(),
+			Queries: st.Queries, Failures: st.Failures, Results: st.Results, Grabs: st.Grabs, GrabBytes: st.GrabBytes, SuccessRate: st.SuccessRate(),
 		}
 		if until, paused := tr.PausedUntil(st.IndexerID); paused {
 			p.PausedUntil = until.UTC().Format(time.RFC3339)
@@ -129,5 +147,83 @@ func (s *Server) handleIndexerStats(w http.ResponseWriter, r *http.Request) {
 	}
 	// The busiest first.
 	sort.SliceStable(out.Indexers, func(i, j int) bool { return out.Indexers[i].Queries > out.Indexers[j].Queries })
+	out.Servers = []serverTrafficPayload{}
+	_ = s.ClientRepo.SaveTraffic(now) // what was counted in the last minute, too
+	if servers, err := s.ClientRepo.TrafficSince(now.AddDate(0, 0, -(indexerStatsDays - 1))); err == nil {
+		for _, t := range servers {
+			out.Servers = append(out.Servers, serverTrafficPayload{ID: t.ServerID, Name: t.Name, Host: t.Host, Enabled: t.Enabled, Bytes: t.Bytes, Articles: t.Articles, Missing: t.Missing})
+		}
+	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// usenetMonthsPayload is what each Usenet server delivered per calendar month.
+type usenetMonthsPayload struct {
+	Months []usenetMonthPayload `json:"months"`
+}
+
+type usenetMonthPayload struct {
+	Month   string                 `json:"month"` // "2026-11"
+	Servers []serverTrafficPayload `json:"servers"`
+}
+
+// maxUsenetMonths is the longest history the month view gives.
+const maxUsenetMonths = 24
+
+// handleUsenetMonths gives each Usenet server's traffic month by month, newest
+// month first, for the last `months` months (default 12, at most 24), so a
+// yearly plan can be judged over the year (#167).
+func (s *Server) handleUsenetMonths(w http.ResponseWriter, r *http.Request) {
+	n := 12
+	if v, err := strconv.Atoi(r.URL.Query().Get("months")); err == nil && v >= 1 {
+		n = min(v, maxUsenetMonths)
+	}
+	now := time.Now().UTC()
+	first := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -(n - 1), 0)
+	_ = s.ClientRepo.SaveTraffic(now)
+	servers, err := s.ClientRepo.ListAll()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	byID := map[int64]serverTrafficPayload{}
+	for _, sc := range servers {
+		byID[sc.ID] = serverTrafficPayload{ID: sc.ID, Name: sc.Name, Host: sc.Config.Host, Enabled: sc.Enabled}
+	}
+	rows, err := s.ClientRepo.TrafficByMonth(first)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	// Every month in the range is listed, also the ones with nothing.
+	out := usenetMonthsPayload{Months: []usenetMonthPayload{}}
+	idx := map[string]int{}
+	for m := now.AddDate(0, 0, 1-now.Day()); !m.Before(first); m = m.AddDate(0, -1, 0) {
+		key := m.Format("2006-01")
+		idx[key] = len(out.Months)
+		out.Months = append(out.Months, usenetMonthPayload{Month: key, Servers: []serverTrafficPayload{}})
+	}
+	for _, row := range rows {
+		i, ok := idx[row.Month]
+		p, known := byID[row.ServerID]
+		if !ok || !known {
+			continue
+		}
+		p.Bytes, p.Articles, p.Missing = row.Bytes, row.Articles, row.Missing
+		out.Months[i].Servers = append(out.Months[i].Servers, p)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// serverTrafficJob saves what each Usenet server delivered, and once a day
+// forgets days older than the indexer counters keep.
+func (s *Server) serverTrafficJob(context.Context) {
+	now := time.Now()
+	if err := s.ClientRepo.SaveTraffic(now); err != nil {
+		slog.Warn("statistics: save usenet server traffic", "err", err)
+	}
+	if day := now.UTC().Format("2006-01-02"); day != s.trafficPrunedOn { // the scheduler runs one job at a time
+		s.trafficPrunedOn = day
+		s.ClientRepo.PruneTraffic(now, download.TrafficKeepDays)
+	}
 }

@@ -13,6 +13,8 @@ The screenshots in these pages come from demo mode: the movies, shows, artists, 
 | See what it can and cannot do today, and what is planned | [FEATURES.md](./FEATURES.md) |
 | Move over from Radarr, Sonarr, Prowlarr, SABnzbd and other apps without redoing your setup or moving files | [migrate.md](./migrate.md) |
 | Add movies and shows you already have on disk (Import existing in the Library) | [import-library.md](./import-library.md) |
+| Use the whole screen of a foldable or dual-screen phone, and tune it | [foldable-phones.md](./foldable-phones.md) |
+| Know where posters and backdrops come from, why your browsers no longer contact TMDB, the sizes and the cache, and how to switch it off | [artwork.md](./artwork.md) |
 | Find something to add (Discover): more like your library, browse more, older titles, and the Add dialog | [discover.md](./discover.md) |
 | Open the torrent port (58264), seeding, Real-Debrid, TorBox and Premiumize, qBittorrent, RDT-Client and Decypharr, how many downloads run at once, cleaning up the downloads folder, what removing a title deletes | [downloads.md](./downloads.md) |
 | Send torrent traffic through the built-in WireGuard VPN, and what the kill switch does | [vpn.md](./vpn.md) |
@@ -25,21 +27,27 @@ The screenshots in these pages come from demo mode: the movies, shows, artists, 
 | Reach Mediarium from the internet safely (reverse proxy checklist, trusted proxies, what the app protects) | [security.md](./security.md) |
 | Seed the same files on more than one tracker (cross-seeding) next to Mediarium, with Qui or cross-seed | [cross-seeding.md](./cross-seeding.md) |
 | Choose a quality profile (the built-in presets, cutoffs, upgrades, fallback profiles) | [quality-profiles.md](./quality-profiles.md) |
-| Use Mediarium in Spanish, German, French, Italian, Dutch, Polish, Russian, Ukrainian or Portuguese (Brazil or Portugal), or help with a translation | [languages.md](./languages.md) |
+| Sync the TRaSH Guides profiles, custom formats and sizes into Mediarium with Recyclarr | [quality-profiles.md](./quality-profiles.md#using-recyclarr) |
+| Use Mediarium in Spanish, German, French, Italian, Dutch, Polish, Russian, Ukrainian, Simplified Chinese or Portuguese (Brazil or Portugal), or help with a translation | [languages.md](./languages.md) |
 | Report a problem or share an idea from inside Mediarium, privately or on GitHub, with a screenshot and the support report | [report-a-problem.md](./report-a-problem.md) |
 | Know what the optional anonymous usage numbers are, what is sent, where it goes, and how to switch it off or use the survey instead | [usage-stats.md](./usage-stats.md) |
 | See who suggested what, and how to suggest something yourself | [community.md](./community.md) |
 | Tell others about Mediarium, star it or send an idea (the profile menu has **Share Mediarium** with ready-made posts and pictures) | [README.md](#sharing-and-feedback) |
 | See why a title has not downloaded, read the Activity page, pause, resume or stop a download, retry without downloading again | [activity.md](./activity.md) |
 | Subtitles: the on/off switch, release subtitles, offers, daily limits, dismissing | [subtitles.md](./subtitles.md) |
-| Switch movies, TV, music, ebooks and audiobooks on or off (Settings > Media types) | [modules.md](./modules.md) |
+| Switch movies, TV, music, ebooks and audiobooks on or off (Settings > Basics > Media types) | [modules.md](./modules.md) |
+| Remove what nobody watches, with a dry run, a Leaving soon shelf and a Keep button | [lifecycle.md](./lifecycle.md) |
+| Follow YouTube channels and playlists and keep their videos or just the audio, with a yt-dlp you supply yourself (off by default, with a warning) | [archiver.md](./archiver.md) |
 | Change many movies, shows or artists at once from the Library (monitor, better versions, quality profile, download from, search now, remove) | [library.md](./library.md) |
 | Manage music (switch on the music module, artists and albums, audio quality, importing a collection) | [music.md](./music.md) |
 | Ebooks and audiobooks (switch them on, add books, which release is picked, where files go) | [books.md](./books.md) |
+| Other (anything that is not a movie, show, song or book: items by name, NZB or torrent, import) | [other.md](./other.md) |
 | Connect Plex, Jellyfin or Emby (library refresh after imports, "Watch in" links, finding the token or API key, path mapping) | [media-servers.md](./media-servers.md) |
 | Run a script of your own after each import (what it is told, how to try it) | [scripts.md](./scripts.md) |
 | Keep your settings in a YAML file (for git or a deploy script) and apply it | [config-file.md](./config-file.md) |
+| Download your settings as one file, check a file and see what it would change, then apply it (or apply it at start) | [config-as-code.md](./config-as-code.md) |
 | Connect Overseerr, Jellyseerr, Homepage, Homarr, nzb360, LunaSea or Ruddarr (apps made for Radarr, Sonarr and Lidarr) | [other-apps.md](./other-apps.md) |
+| Watch downloads from nzb360 and other phone apps (the built-in downloaders answer like SABnzbd and qBittorrent) | [download-apps.md](./download-apps.md) |
 | Ask your library questions from a chat program or a voice assistant (MCP) | [mcp.md](./mcp.md) |
 | Set up notifications (email, ntfy, Gotify, Pushover, Slack, Discord, Telegram, Matrix, Home Assistant, Apprise, webhook), turn them on and off, test them | [notifications.md](./notifications.md) |
 | Find out what went wrong (a failed download, "too many connections", a full disk) and what to try, copy a report for support | [logs-and-errors.md](./logs-and-errors.md) |
@@ -54,21 +62,19 @@ The screenshots in these pages come from demo mode: the movies, shows, artists, 
 
 ## Where to find a setting
 
-Settings has one entry in the sidebar. It always lists its groups, and one group at a time shows its pages. Older addresses such as `/settings/downloads` still open, on the page that now holds that setting.
+Settings has one entry in the sidebar. It always lists its groups, in the order most people set things up, and one group at a time shows its pages. Hover a page in the sidebar to see what it is for. Opening **Settings** itself shows an overview: every group side by side, each page with a line about what is on it. If you can't find a setting, press `Ctrl+K` (or `Cmd+K` on a Mac) or use the search bar at the top and type a few words. Older addresses such as `/settings/downloads` still open, on the page that now holds that setting.
 
 | Group | Pages | What is there |
 |---|---|---|
-| General | General | The language of the app, light or dark, the time zone note, the address you open Mediarium at, updates and the legal notice. Everyone sees the first three. |
-| Media types | Media types | Switch movies, shows, music, ebooks and audiobooks on or off. |
-| Library | Folders, File names and importing, Quality, Automatic searching | Where files live; how they are named, NFO and artwork files and the script after an import; quality profiles, size limits and the audio language you want; when Mediarium searches by itself. |
-| Indexers & Search | Indexers & Search | Indexers, FlareSolverr and IRC announce. |
+| Basics | General, Media types | The language of the app, light or dark, the time zone note, the address you open Mediarium at, updates and the legal notice (everyone sees the first three); switching movies, shows, music, ebooks and audiobooks on or off. |
+| Library and files | Folders, File names and importing, Movie and show info, Import lists, Subtitles | Where files live; how they are named, NFO and artwork files and the script after an import; TMDB and the info language, trailers; lists, the Trakt key and the Simkl account; subtitles. |
+| Finding releases | Indexers & Search, Quality, Automatic searching | Indexers, FlareSolverr and IRC announce; quality profiles (including how far upgrades go), size limits and the audio language you want; when Mediarium searches by itself and what a new title starts with. |
 | Downloading | Usenet, Torrents, VPN and proxy, Download rules | Your Usenet provider; the torrent client, debrid and your own client; the VPN; where to download from, speed, hours and checks. |
-| Info, lists and subtitles | Movie and show info, Import lists, Subtitles | TMDB and the info language, trailers; lists, the Trakt key and the Simkl account; subtitles. |
-| Connections | Media servers, Notifications, Other apps | Plex, Jellyfin and Emby; messages; Overseerr and phone apps. |
-| Accounts | Your profile, Security, Linked services, All accounts, Requests and reports, Ways to sign in | Your own details, passkeys, two-step sign-in and API keys, Plex watchlist, ListenBrainz and e-reader; for administrators the accounts, requests and every way to sign in. |
+| Media servers and apps | Media servers, Notifications, Other apps, Add-ons | Plex, Jellyfin and Emby; messages; Overseerr and phone apps; links to other programs you run. |
+| People and access | Your profile, Security, Linked services, All accounts, Requests and reports, Ways to sign in | Your own details, passkeys, two-step sign-in and API keys, Plex watchlist, ListenBrainz and e-reader; for administrators the accounts, requests and every way to sign in. |
 | System | Server, Backup and restore, Statistics, Logs and errors, Move from other apps, About and credits | The server and its clean-up, backups, numbers, errors and the report for support. |
 
-The app language is only about the app itself. The audio language you want is under Settings > Library > Quality, and the subtitle languages are under Settings > Info, lists and subtitles > Subtitles.
+The app language is only about the app itself. The audio language you want is under Settings > Finding releases > Quality, and the subtitle languages are under Settings > Library and files > Subtitles.
 
 ## Keeping the docs current
 

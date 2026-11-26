@@ -157,7 +157,7 @@ type lineupChannel struct {
 // names don't cover, and then only for News and Sports.
 func categoryOf(c gnChannel) string {
 	name := strings.ToUpper(strings.TrimSpace(c.CallSign + " " + c.AffiliateName))
-	for _, r := range categoryNames {
+	for _, r := range lineupCategoryNames {
 		for _, w := range r.words {
 			if hasWord(name, w) {
 				return r.category
@@ -181,9 +181,9 @@ func categoryOf(c gnChannel) string {
 	return "Entertainment"
 }
 
-// categoryNames: words in a channel's call sign or name that say its kind, in
+// lineupCategoryNames: words in a channel's call sign or name that say its kind, in
 // the order they're tried.
-var categoryNames = []struct {
+var lineupCategoryNames = []struct {
 	category string
 	words    []string
 }{

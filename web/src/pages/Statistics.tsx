@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, isAdmin, type DashboardData, type IndexerStat, type LibraryStats, type WatchStats, type WatchedStatTitle } from '../api'
+import { api, isAdmin, type DashboardData, type IndexerStat, type ServerTraffic, type UsenetMonth, type LibraryStats, type WatchStats, type WatchedStatTitle } from '../api'
 import { useAuth } from '../AuthContext'
 import { formatBytes, timeAgo } from '../format'
 import KindGlyph, { type GlyphKind } from '../components/KindGlyph'
@@ -213,13 +213,18 @@ export default function Statistics() {
 // names the indexers.
 function IndexerStats() {
   const admin = isAdmin(useAuth().user)
-  const [data, setData] = useState<{ days: number; indexers: IndexerStat[] } | null>(null)
+  const [data, setData] = useState<{ days: number; indexers: IndexerStat[]; servers?: ServerTraffic[] } | null>(null)
   useEffect(() => {
     if (admin) api.indexerStats().then(setData).catch(() => undefined)
   }, [admin])
-  if (!admin || !data || data.indexers.length === 0) return null
+  if (!admin || !data) return null
   const busiest = Math.max(1, ...data.indexers.map((i) => i.queries))
+  const servers = (data.servers ?? []).filter((s) => s.enabled || s.bytes > 0)
   return (
+    <>
+    {servers.length > 0 && <ServerTrafficStats days={data.days} servers={servers} />}
+    {servers.length > 0 && <UsenetMonthsStats servers={servers} />}
+    {data.indexers.length > 0 && (
     <section className="card" style={{ marginTop: 16 }}>
       <h2><TipLabel help="indexers#how-each-indexer-is-doing">{plural(data.days, 'Indexers, last {n} day', 'Indexers, last {n} days')}</TipLabel></h2>
       <div style={{ overflowX: 'auto' }}>
@@ -249,13 +254,113 @@ function IndexerStats() {
                 <td style={{ textAlign: 'right' }}>{i.failures}</td>
                 <td style={{ textAlign: 'right' }}>{i.successRate < 0 ? '–' : `${Math.round(i.successRate * 100)}%`}</td>
                 <td style={{ textAlign: 'right' }}>{i.results}</td>
-                <td style={{ textAlign: 'right' }}>{i.grabs}</td>
+                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  {i.grabs}
+                  {(i.grabBytes ?? 0) > 0 && <small className="mono" style={{ color: 'var(--text-dim)' }}> · {formatBytes(i.grabBytes ?? 0)}</small>}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="field-hint">{t('A search is one question to one indexer. Grabs count the releases taken from it, by hand or by Mediarium. An indexer that is paused after repeated failures is not asked, and those skipped searches are not counted.')}</p>
+      <p className="field-hint">{t('A search is one question to one indexer. Grabs count the releases taken from it, by hand or by Mediarium, with their size. An indexer that is paused after repeated failures is not asked, and those skipped searches are not counted.')}</p>
+    </section>
+    )}
+    </>
+  )
+}
+
+// What each Usenet provider delivered over the same days, so you can see which
+// paid plan or block account does the work (#167). Only the built-in
+// downloader counts: SABnzbd and NZBGet don't say which server served what.
+function ServerTrafficStats({ days, servers }: { days: number; servers: ServerTraffic[] }) {
+  const most = Math.max(1, ...servers.map((s) => s.bytes))
+  return (
+    <section className="card" style={{ marginTop: 16 }}>
+      <h2><TipLabel help="downloads#how-much-each-provider-delivered">{plural(days, 'Usenet providers, last {n} day', 'Usenet providers, last {n} days')}</TipLabel></h2>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="indexer-stats" style={{ width: '100%' }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left' }}>{t('Server')}</th>
+              <th style={{ textAlign: 'right' }}>{t('Downloaded')}</th>
+              <th style={{ textAlign: 'right' }}>{t('Articles')}</th>
+              <th style={{ textAlign: 'right' }}>{t('Missing')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {servers.map((s) => {
+              const asked = s.articles + s.missing
+              return (
+                <tr key={s.id} style={{ opacity: s.enabled ? 1 : 0.55 }}>
+                  <td>
+                    <strong>{s.name}</strong> <small className="mono" style={{ color: 'var(--text-dim)' }}>{s.host}</small>
+                    {!s.enabled && <small> · {t('Off')}</small>}
+                    <span className="bar-track" style={{ display: 'block', marginTop: 4, maxWidth: 220 }}>
+                      <span className="bar-fill" style={{ width: `${(s.bytes * 100) / most}%` }} />
+                    </span>
+                  </td>
+                  <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{formatBytes(s.bytes)}</td>
+                  <td className="mono" style={{ textAlign: 'right' }}>{s.articles.toLocaleString(locale())}</td>
+                  <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{asked > 0 ? `${s.missing.toLocaleString(locale())} (${((s.missing * 100) / asked).toFixed(1)}%)` : '–'}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="field-hint">{t('What each server delivered to the built-in downloader, and the articles it did not have, which the next server was then asked for. Downloads that SABnzbd or NZBGet make are not counted here.')}</p>
+    </section>
+  )
+}
+
+// The same traffic month by month, for a provider that is paid by the year:
+// which months used how much, and the total over the whole range (#167).
+function UsenetMonthsStats({ servers }: { servers: ServerTraffic[] }) {
+  const [months, setMonths] = useState<UsenetMonth[] | null>(null)
+  const [count, setCount] = useState(12)
+  useEffect(() => {
+    api.usenetMonths(count).then((r) => setMonths(r.months)).catch(() => undefined)
+  }, [count])
+  if (!months) return null
+  const ids = servers.map((s) => s.id)
+  const cell = (m: UsenetMonth, id: number) => m.servers.find((x) => x.id === id)?.bytes ?? 0
+  const total = (id: number) => months.reduce((sum, m) => sum + cell(m, id), 0)
+  const label = (key: string) => new Date(`${key}-01T12:00:00Z`).toLocaleDateString(locale(), { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  return (
+    <section className="card" style={{ marginTop: 16 }}>
+      <h2 style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <TipLabel help="downloads#how-much-each-provider-delivered">{t('Usenet providers, month by month')}</TipLabel>
+        <select className="input" value={count} onChange={(e) => setCount(Number(e.target.value))} aria-label={t('Months shown')} style={{ width: 'auto' }}>
+          {[6, 12, 24].map((n) => <option key={n} value={n}>{t('Last {n} months', { n })}</option>)}
+        </select>
+      </h2>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="indexer-stats" style={{ width: '100%' }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left' }}>{t('Month')}</th>
+              {servers.map((s) => <th key={s.id} style={{ textAlign: 'right' }}>{s.name}</th>)}
+              {servers.length > 1 && <th style={{ textAlign: 'right' }}>{t('Total')}</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {months.map((m) => (
+              <tr key={m.month}>
+                <td style={{ whiteSpace: 'nowrap' }}>{label(m.month)}</td>
+                {ids.map((id) => <td key={id} className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{cell(m, id) > 0 ? formatBytes(cell(m, id)) : '–'}</td>)}
+                {servers.length > 1 && <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{formatBytes(m.servers.reduce((a, x) => a + x.bytes, 0))}</td>}
+              </tr>
+            ))}
+            <tr>
+              <td><strong>{t('Total')}</strong></td>
+              {ids.map((id) => <td key={id} className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><strong>{formatBytes(total(id))}</strong></td>)}
+              {servers.length > 1 && <td className="mono" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}><strong>{formatBytes(ids.reduce((a, id) => a + total(id), 0))}</strong></td>}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p className="field-hint">{t('Months are counted in UTC and are kept for about two years. Counting started with version 4.0, so earlier months are empty.')}</p>
     </section>
   )
 }
@@ -265,7 +370,7 @@ function titleLink(item: WatchedStatTitle): string {
 }
 
 // What gets watched, read from Plex, Jellyfin and Emby (Settings > Media
-// servers > "Read what's been watched").
+// servers and apps > Media servers > "Read what's been watched").
 function WatchedStats({ w }: { w: WatchStats }) {
   const pct = (a: number, b: number) => (a + b > 0 ? Math.round((a * 100) / (a + b)) : 0)
   const topMax = Math.max(1, ...w.top.map((item) => item.plays))

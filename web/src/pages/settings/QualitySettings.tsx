@@ -8,12 +8,14 @@ import Switch from '../../components/Switch'
 import { AUDIO_LANGUAGES } from '../../languages'
 import { useAutosaveSetting } from '../../useAutosave'
 import QualityProfilesSection from '../../components/QualityProfiles'
+import ProfileSimulator from '../../components/ProfileSimulator'
 import SizeLimitsCard from '../../components/SizeLimitsCard'
 import TagRulesCard from '../../components/TagRulesCard'
 import MusicProfilesSection from '../../components/MusicProfiles'
 import MusicFiltersCard from '../../components/MusicFiltersCard'
 import QuietForAWhile from '../../components/QuietForAWhile'
-import { t } from '../../i18n'
+import { Link } from 'react-router-dom'
+import { t, tx } from '../../i18n'
 import TipLabel from '../../components/TipLabel'
 
 function AutomationSection() {
@@ -34,6 +36,12 @@ function AutomationSection() {
     (v) => ({ unmonitorFinished: v }),
     (saved) => (saved ? t('Saved: finished shows stop being monitored once complete.') : t('Saved: finished shows stay monitored.')),
     false,
+  )
+  const holdUnreleased = useAutosaveSetting<boolean>(
+    (s) => s.holdUnreleased ?? true,
+    (v) => ({ holdUnreleased: v }),
+    (saved) => (saved ? t('Saved: automatic searches wait until a title is out.') : t('Saved: automatic searches also look for titles that are not out yet.')),
+    true,
   )
   const seasonPacks = useAutosaveSetting<boolean>(
     (s) => s.seasonPacks ?? false,
@@ -72,6 +80,14 @@ function AutomationSection() {
         description={t("Checked when the show's details are refreshed and after each import. Shows that are still running stay monitored.")}
       />
       <Switch
+        checked={holdUnreleased.value}
+        onChange={holdUnreleased.change}
+        disabled={!holdUnreleased.loaded || holdUnreleased.saving}
+        label={t("Wait until a title is out before searching")}
+        description={t("A movie isn't searched for before its release date and an episode isn't searched for before it airs. The title's history says what it is waiting for. Search now always looks.")}
+        showState
+      />
+      <Switch
         checked={seasonPacks.value}
         onChange={seasonPacks.change}
         disabled={!seasonPacks.loaded || seasonPacks.saving}
@@ -96,6 +112,12 @@ function LanguageSection() {
     (s) => s.qualityLanguageOnly ?? false,
     (v) => ({ qualityLanguageOnly: v }),
     (saved) => (saved ? t('Saved: only releases in these languages are taken.') : t('Saved: releases with no language in the name are taken too when nothing else is found.')),
+    false,
+  )
+  const ignoreExtra = useAutosaveSetting<boolean>(
+    (s) => s.qualityLanguageIgnoreExtra ?? false,
+    (v) => ({ qualityLanguageIgnoreExtra: v }),
+    (saved) => (saved ? t('Saved: extra languages no longer change the ranking.') : t('Saved: releases with extra languages are ranked as before.')),
     false,
   )
   const list = language.value.split(',').map((l) => l.trim()).filter(Boolean)
@@ -152,6 +174,14 @@ function LanguageSection() {
         description={t("Off, a release with no language in the name (counted as English) or tagged English only is still taken when nothing better turns up. On, it is skipped unless English is on your list, and so is a MULTi or DUAL release that doesn't name one of your languages. You can still pick any release yourself.")}
         showState
       />
+      <Switch
+        checked={ignoreExtra.value}
+        onChange={ignoreExtra.change}
+        disabled={!ignoreExtra.loaded || ignoreExtra.saving}
+        label={t("Extra languages don't change the ranking")}
+        description={t("Off, a release with more audio languages than yours is placed above or below one in just your language, as described above. On, the other languages a release carries are ignored: it only counts which language on your list it has, the first one best, and then the quality and your preferred terms decide. Releases still have to be in one of your languages to be taken.")}
+        showState
+      />
     </section>
   )
 }
@@ -168,9 +198,13 @@ export default function QualitySettings() {
   )
   return (
     <div className="settings-stack">
+      <p className="settings-pointer span-all">
+        {tx('Want better versions to replace what you have? Each profile below has a switch to keep looking for better versions and a quality where it stops. When and how often Mediarium searches is under {link}.', { link: <Link to="/settings/automation">{t('Automatic searching')}</Link> })}
+      </p>
       <div data-walk="quality-profiles">
         <QualityProfilesSection rev={profilesRev} onChanged={() => setFormatsRev((n) => n + 1)} advanced={advanced.value} onAdvanced={(v) => void advanced.change(v)} />
       </div>
+      <ProfileSimulator />
       {advanced.value && <CustomFormatsSection rev={formatsRev} onChanged={() => setProfilesRev((n) => n + 1)} />}
       <LanguageSection />
       <SizeLimitsCard />
@@ -182,10 +216,67 @@ export default function QualitySettings() {
 
 // The third Library page: when Mediarium looks for things by itself, and
 // whether it waits for a Usenet or torrent release.
+// What the add dialog starts with, for every film, show and artist you add.
+// Each title can still be changed in the dialog; requests and import lists
+// have their own settings and are not affected.
+function AddDefaultsSection() {
+  const monitored = useAutosaveSetting<boolean>(
+    (s) => s.addMonitored ?? true,
+    (v) => ({ addMonitored: v }),
+    (saved) => (saved ? t('Saved: new titles start out monitored.') : t('Saved: new titles start out not monitored.')),
+    true,
+  )
+  const searchNow = useAutosaveSetting<boolean>(
+    (s) => s.addSearchNow ?? true,
+    (v) => ({ addSearchNow: v }),
+    (saved) => (saved ? t('Saved: adding a title starts a search.') : t('Saved: adding a title does not start a search.')),
+    true,
+  )
+  const keepBetter = useAutosaveSetting<boolean>(
+    (s) => s.addKeepBetter ?? false,
+    (v) => ({ addKeepBetter: v }),
+    (saved) => (saved ? t('Saved: new titles keep looking for better versions.') : t('Saved: new titles stay as first downloaded.')),
+    false,
+  )
+  return (
+    <section className="card">
+      <h2>{t('When you add a title')}</h2>
+      <Switch
+        checked={monitored.value}
+        onChange={monitored.change}
+        disabled={!monitored.loaded || monitored.saving}
+        label={t('Monitor new titles by default')}
+        description={t('The starting choice in the add dialog for films, shows and artists. You can still change it for each title.')}
+        showState
+      />
+      <Switch
+        checked={searchNow.value}
+        onChange={searchNow.change}
+        disabled={!searchNow.loaded || searchNow.saving}
+        label={t('Start searching when a title is added')}
+        description={t('Whether "Start searching now" is ticked in the add dialog. If it is off, a new title waits for the next automatic search.')}
+        showState
+      />
+      <Switch
+        checked={keepBetter.value}
+        onChange={keepBetter.change}
+        disabled={!keepBetter.loaded || keepBetter.saving}
+        label={t('Keep looking for better versions on new titles')}
+        description={t('The starting choice in the add dialog, and what a title gets when an import list or a script does not say. A title only swaps its file when its quality profile has better versions on too. Titles you already have keep their own choice.')}
+        showState
+      />
+    </section>
+  )
+}
+
 export function AutomationSettings() {
   return (
     <div className="settings-stack">
+      <p className="settings-pointer span-all">
+        {tx('Looking for automatic quality upgrades? Whether a profile keeps looking for better versions, and where it stops, is set in each profile under {link}. A title can also be set to keep looking when you add it, and on its own page.', { link: <Link to="/settings/quality">{t('Quality')}</Link> })}
+      </p>
       <AutomationSection />
+      <AddDefaultsSection />
       <DelayProfileCard />
       <TagRulesCard />
     </div>

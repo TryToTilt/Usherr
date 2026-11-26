@@ -13,8 +13,8 @@ import (
 
 const keyAnimePath = "home.anime_path"
 
-// animeRoot is the anime folder, "" when there is none (see home_extra_folders.go).
-func (s *Server) animeRoot() string { return s.extraFolderRoot("anime") }
+// homeAnimeRoot is the anime folder, "" when there is none (see home_extra_folders.go).
+func (s *Server) homeAnimeRoot() string { return s.extraFolderRoot("anime") }
 
 // isAnimeShow: animation made in Japan, or in Japanese.
 func isAnimeShow(sh metadata.Show) bool {
@@ -39,10 +39,10 @@ func isAnimeShow(sh metadata.Show) bool {
 	return false
 }
 
-// animeFolderFor is the folder a newly added show goes to when none was
+// homeAnimeFolderFor is the folder a newly added show goes to when none was
 // picked: the anime folder for anime, else "" (the main TV folder).
-func (s *Server) animeFolderFor(ctx context.Context, tmdbID int) string {
-	root := s.animeRoot()
+func (s *Server) homeAnimeFolderFor(ctx context.Context, tmdbID int) string {
+	root := s.homeAnimeRoot()
 	if root == "" || !s.TMDB().HasAPIKey() {
 		return ""
 	}

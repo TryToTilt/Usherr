@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/rdborg/mediarium/internal/indexers"
 	"github.com/rdborg/mediarium/internal/netproxy"
@@ -38,6 +39,44 @@ type searchAnswer[T any] struct {
 	// found" from "releases came back, but none of them is this film".
 	Ignored        int      `json:"ignored,omitempty"`
 	IgnoredSamples []string `json:"ignoredSamples,omitempty"`
+	// Filtered says how many of the releases that came back were left out of
+	// the list, or marked as ones automation would skip, and why. It feeds the
+	// "Searches used" part of the page.
+	Filtered []filteredCount `json:"filtered,omitempty"`
+}
+
+// filteredCount is a number of releases set aside for one reason.
+type filteredCount struct {
+	Reason string `json:"reason"`
+	Count  int    `json:"count"`
+}
+
+// searchedQuery is one search an indexer was asked: the words, and how many
+// releases it sent back for them.
+type searchedQuery struct {
+	Query      string `json:"query"`
+	Categories []int  `json:"categories,omitempty"`
+	Count      int    `json:"count"`
+	Failed     bool   `json:"failed,omitempty"`
+}
+
+// queriesFrom lists what an indexer was asked, from its outcomes (one per
+// query). The same words sent twice are listed once.
+func queriesFrom(outs []indexers.Outcome) []searchedQuery {
+	var out []searchedQuery
+	for _, o := range outs {
+		if o.Query == "" || o.Skipped {
+			continue
+		}
+		i := slices.IndexFunc(out, func(q searchedQuery) bool { return q.Query == o.Query })
+		if i < 0 {
+			out = append(out, searchedQuery{Query: o.Query, Categories: o.Categories})
+			i = len(out) - 1
+		}
+		out[i].Count += len(o.Results)
+		out[i].Failed = out[i].Failed || o.Err != nil
+	}
+	return out
 }
 
 // ignoredReleases counts the releases a search left out because they are not the
@@ -49,11 +88,79 @@ type ignoredReleases struct {
 
 const maxIgnoredSamples = 3
 
+// filtered is the count in the shape the page's "Searches used" part reads.
+func (g *ignoredReleases) filtered() []filteredCount {
+	if g.count == 0 {
+		return nil
+	}
+	return []filteredCount{{Reason: "not this title", Count: g.count}}
+}
+
 func (g *ignoredReleases) add(title string) {
 	g.count++
 	if len(g.samples) < maxIgnoredSamples {
 		g.samples = append(g.samples, title)
 	}
+}
+
+// tallyReasons counts, for each reason, the releases that have it (one list
+// of reasons per release, a reason named twice for one release counted once),
+// most frequent first. It is added to out.
+func tallyReasons(out []filteredCount, perRelease [][]string) []filteredCount {
+	from := len(out)
+	for _, reasons := range perRelease {
+		for i, why := range reasons {
+			if why == "" || slices.Contains(reasons[:i], why) {
+				continue
+			}
+			j := slices.IndexFunc(out[from:], func(c filteredCount) bool { return c.Reason == why })
+			if j < 0 {
+				out = append(out, filteredCount{Reason: why})
+				j = len(out) - 1 - from
+			}
+			out[from+j].Count++
+		}
+	}
+	slices.SortStableFunc(out[from:], func(a, b filteredCount) int { return b.Count - a.Count })
+	return out
+}
+
+// payloadReasons is every reason automation would skip a release in a movie,
+// show or book list: what was found against the profile, and what the flags
+// on it say (blocklisted, too few seeders, another language) for a list that
+// did not write those out.
+func payloadReasons(p searchResultPayload) []string {
+	var out []string
+	for _, r := range p.Reasons {
+		out = append(out, r.Text)
+	}
+	flags := p
+	flags.Reasons = nil
+	flags.addStateReasons()
+	for _, r := range flags.Reasons {
+		if !slices.Contains(out, r.Text) {
+			out = append(out, r.Text)
+		}
+	}
+	return out
+}
+
+// releaseFiltered is what the "Searches used" part of a movie, show or book
+// search lists: the releases left out for not being this title (ignored),
+// and the ones in the list that automation would skip, by reason. extra are
+// other groups that were left out (a book in the other format).
+func releaseFiltered(ignored ignoredReleases, list []searchResultPayload, extra ...filteredCount) []filteredCount {
+	out := ignored.filtered()
+	for _, c := range extra {
+		if c.Count > 0 {
+			out = append(out, c)
+		}
+	}
+	reasons := make([][]string, 0, len(list))
+	for _, p := range list {
+		reasons = append(reasons, payloadReasons(p))
+	}
+	return tallyReasons(out, reasons)
 }
 
 // What a searched indexer did.
@@ -81,6 +188,8 @@ type searchedIndexer struct {
 	// Detail is the technical text behind Reason, when Reason is an
 	// explanation written for the person ("flaresolverr", "gone").
 	Detail string `json:"detail,omitempty"`
+	// Queries is what this indexer was asked, one entry for each search.
+	Queries []searchedQuery `json:"queries,omitempty"`
 }
 
 // namedIndexer is a result that knows which indexer it came from.
@@ -202,6 +311,7 @@ func searchedFrom(all []indexers.Instance, outcomes []indexers.Outcome, counts m
 			return
 		default:
 			l = searchedLine(l, outs)
+			l.Queries = queriesFrom(outs)
 		}
 		out = append(out, l)
 	}
@@ -278,12 +388,12 @@ func writeSearchSkipping[T any](w http.ResponseWriter, r *http.Request, results 
 // writeSearchAll is writeSearchSkipping that also lists, in "searched", every
 // indexer in all with what it found.
 func writeSearchAll[T any](w http.ResponseWriter, r *http.Request, results []T, sources int, outcomes []indexers.Outcome, skipped []string, all []indexers.Instance) {
-	writeSearchIgnoring(w, r, results, sources, outcomes, skipped, all, ignoredReleases{})
+	writeSearchIgnoring(w, r, results, sources, outcomes, skipped, all, ignoredReleases{}, nil)
 }
 
-// writeSearchIgnoring is writeSearchAll that also says how many releases were
-// left out for not being the title asked for.
-func writeSearchIgnoring[T any](w http.ResponseWriter, r *http.Request, results []T, sources int, outcomes []indexers.Outcome, skipped []string, all []indexers.Instance, ignored ignoredReleases) {
+// writeSearchWith is writeSearchAll that also adds lines to "searched" for
+// sources that are not indexers (Soulseek).
+func writeSearchWith[T any](w http.ResponseWriter, r *http.Request, results []T, sources int, outcomes []indexers.Outcome, skipped []string, all []indexers.Instance, extra []searchedIndexer, filtered ...filteredCount) {
 	if results == nil {
 		results = []T{}
 	}
@@ -291,5 +401,25 @@ func writeSearchIgnoring[T any](w http.ResponseWriter, r *http.Request, results 
 		writeJSON(w, http.StatusOK, results)
 		return
 	}
-	writeJSON(w, http.StatusOK, searchAnswer[T]{Results: results, Sources: sources, Unanswered: unansweredFrom(outcomes), Warnings: limitWarnings(outcomes), Skipped: skipped, Searched: searchedFrom(all, outcomes, indexerCounts(results), skipped), Ignored: ignored.count, IgnoredSamples: ignored.samples})
+	searched := append(searchedFrom(all, outcomes, indexerCounts(results), skipped), extra...)
+	writeJSON(w, http.StatusOK, searchAnswer[T]{Results: results, Sources: sources, Unanswered: unansweredFrom(outcomes), Warnings: limitWarnings(outcomes), Skipped: skipped, Searched: searched, Filtered: filtered})
+}
+
+// writeSearchIgnoring is writeSearchAll that also says how many releases were
+// left out for not being the title asked for.
+//
+// filtered is what the "Searches used" part lists (see releaseFiltered); nil
+// lists only the releases that are not this title.
+func writeSearchIgnoring[T any](w http.ResponseWriter, r *http.Request, results []T, sources int, outcomes []indexers.Outcome, skipped []string, all []indexers.Instance, ignored ignoredReleases, filtered []filteredCount) {
+	if filtered == nil {
+		filtered = ignored.filtered()
+	}
+	if results == nil {
+		results = []T{}
+	}
+	if r.URL.Query().Get("detail") != "1" {
+		writeJSON(w, http.StatusOK, results)
+		return
+	}
+	writeJSON(w, http.StatusOK, searchAnswer[T]{Results: results, Sources: sources, Unanswered: unansweredFrom(outcomes), Warnings: limitWarnings(outcomes), Skipped: skipped, Searched: searchedFrom(all, outcomes, indexerCounts(results), skipped), Ignored: ignored.count, IgnoredSamples: ignored.samples, Filtered: filtered})
 }

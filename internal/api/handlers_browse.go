@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/rdborg/mediarium/internal/metadata"
 )
@@ -119,6 +121,10 @@ func (s *Server) handleDiscoverList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	page = metadata.ClampPage(page)
+	hide, ok := s.hidingFromRequest(w, r)
+	if !ok {
+		return
+	}
 	if list == listSimilar {
 		s.handleDiscoverSimilar(w, r, kind, page)
 		return
@@ -129,7 +135,7 @@ func (s *Server) handleDiscoverList(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	if kind == "movie" {
-		p, err := s.displayTMDB().MovieList(ctx, list, page)
+		p, err := s.displayTMDB().MovieListHiding(ctx, list, page, hide)
 		if err != nil {
 			writeUpstreamError(w, "load the "+list+" movies", err)
 			return
@@ -137,12 +143,31 @@ func (s *Server) handleDiscoverList(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, s.moviePagePayload(ctx, p))
 		return
 	}
-	p, err := s.displayTMDB().TVList(ctx, list, page)
+	p, err := s.displayTMDB().TVListHiding(ctx, list, page, hide)
 	if err != nil {
 		writeUpstreamError(w, "load the "+list+" shows", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, s.showPagePayload(ctx, p))
+}
+
+// hidingFromRequest reads the optional hide parameter of a Discover request:
+// streaming service keys separated by commas, whose titles are left out. It
+// answers a 400 itself and returns false for a key it does not know.
+func (s *Server) hidingFromRequest(w http.ResponseWriter, r *http.Request) (metadata.Hiding, bool) {
+	keys, ok := metadata.ParseServices(r.URL.Query().Get("hide"))
+	if !ok {
+		var names []string
+		for _, svc := range metadata.StreamingServices() {
+			names = append(names, svc.Key)
+		}
+		writeError(w, http.StatusBadRequest, "hide must be streaming service names separated by commas: "+strings.Join(names, ", "))
+		return metadata.Hiding{}, false
+	}
+	if len(keys) == 0 {
+		return metadata.Hiding{}, true
+	}
+	return metadata.Hiding{Services: keys, Region: s.releaseRegion()}, true
 }
 
 // queryInt reads an optional non-negative integer parameter.
@@ -195,6 +220,11 @@ func (s *Server) handleDiscoverBrowse(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, `runtime must be "under90", "90to120" or "over120"`)
 		return
 	}
+	hide, ok := s.hidingFromRequest(w, r)
+	if !ok {
+		return
+	}
+	q.Hide = hide
 	if q.YearFrom > 0 && q.YearTo > 0 && q.YearFrom > q.YearTo {
 		writeError(w, http.StatusBadRequest, "yearFrom must not be after yearTo")
 		return
@@ -220,4 +250,75 @@ func (s *Server) handleDiscoverBrowse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, s.showPagePayload(ctx, page))
+}
+
+// discoverServicesPayload is a person's streaming services for Discover.
+// Saved is false until they have picked once (so the app may move over what
+// an older version kept in the browser); Account is false when nobody is
+// signed in (sign-in switched off), where nothing can be kept on the server.
+type discoverServicesPayload struct {
+	Services []string `json:"services"`
+	On       bool     `json:"on"`
+	Saved    bool     `json:"saved"`
+	Account  bool     `json:"account"`
+}
+
+// handleGetDiscoverServices answers GET /api/auth/discover-services.
+func (s *Server) handleGetDiscoverServices(w http.ResponseWriter, r *http.Request) {
+	uid, _ := requester(r)
+	out := discoverServicesPayload{Services: []string{}}
+	if uid == 0 {
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
+	out.Account = true
+	var csv sql.NullString
+	var on int
+	err := s.db.QueryRow(`SELECT discover_services, discover_hide FROM users WHERE id = ?`, uid).Scan(&csv, &on)
+	if err != nil && err != sql.ErrNoRows {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if csv.Valid {
+		out.Saved = true
+		if keys, ok := metadata.ParseServices(csv.String); ok && keys != nil {
+			out.Services = keys
+		}
+		out.On = on != 0 && len(out.Services) > 0
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// handlePutDiscoverServices answers PUT /api/auth/discover-services
+// {"services": ["netflix"], "on": true}. The switch cannot be on with no
+// service picked.
+func (s *Server) handlePutDiscoverServices(w http.ResponseWriter, r *http.Request) {
+	uid, _ := requester(r)
+	if uid == 0 {
+		writeError(w, http.StatusBadRequest, "Sign in to keep your streaming services with your account.")
+		return
+	}
+	var body struct {
+		Services []string `json:"services"`
+		On       bool     `json:"on"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "Couldn't read that. Reload the page and try again.")
+		return
+	}
+	keys, ok := metadata.ParseServices(strings.Join(body.Services, ","))
+	if !ok {
+		names := make([]string, 0, 8)
+		for _, svc := range metadata.StreamingServices() {
+			names = append(names, svc.Key)
+		}
+		writeError(w, http.StatusBadRequest, "services must be streaming service names: "+strings.Join(names, ", "))
+		return
+	}
+	on := body.On && len(keys) > 0
+	if _, err := s.db.Exec(`UPDATE users SET discover_services = ?, discover_hide = ? WHERE id = ?`, strings.Join(keys, ","), b2i(on), uid); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.handleGetDiscoverServices(w, r)
 }

@@ -19,6 +19,7 @@ import { laterChoices } from '../newTitleFolder'
 import { sortProfiles } from './qualityBlurb'
 import { useConfirm } from './ConfirmProvider'
 import Icon from './Icon'
+import ListHistory from './ImportListHistory'
 import { MediaServerMark } from './mediaServerBrand'
 import Switch from './Switch'
 import { TagChips, TagInput } from './Tags'
@@ -26,7 +27,7 @@ import { useToast } from './Toast'
 import './ImportLists.css'
 import TipLabel from './TipLabel'
 
-// Settings > Info, lists and subtitles > Import lists: lists on Trakt, TMDB,
+// Settings > Library and files > Import lists: lists on Trakt, TMDB,
 // IMDb, MDBList, Simkl and Letterboxd that Mediarium reads on a schedule, adding
 // what is on them to the library. Nothing is ever removed because a title
 // left a list.
@@ -122,6 +123,7 @@ export default function ImportLists() {
   const [editing, setEditing] = useState<{ id?: number; draft: ImportListInput; hasKey: boolean; hasCsv: boolean } | null>(null)
   const [adding, setAdding] = useState(false)
   const [busy, setBusy] = useState(0)
+  const [history, setHistory] = useState(0) // the list whose History is open
 
   const load = useCallback(() => {
     api
@@ -296,6 +298,9 @@ export default function ImportLists() {
               .filter(Boolean)
               .join(' · ')}
           </p>
+          <button className="link-btn il-forget" aria-expanded={history === l.id} onClick={() => setHistory(history === l.id ? 0 : l.id)}>
+            {history === l.id ? t('Hide history') : t('History')}
+          </button>
           {l.lastRunAt && (
             <button
               className="link-btn il-forget"
@@ -312,6 +317,7 @@ export default function ImportLists() {
               {t('Start this list over')}
             </button>
           )}
+          {history === l.id && <ListHistory id={l.id} />}
         </section>
       ))}
 
@@ -362,7 +368,7 @@ function PlexRow({ row, onChanged }: { row: PlexWatchlistRow; onChanged: () => v
         {row.lastError ? row.lastError : row.checkedAt ? t('Last checked {when}.', { when: timeAgo(row.checkedAt) }) : t('Not checked yet.')}{' '}
         {row.added > 0 && t('{n} added so far.', { n: row.added })} {row.requested > 0 && t('{n} asked for so far.', { n: row.requested })}
       </p>
-      <p className="il-meta">{tx('The account connects and disconnects its own watchlist under {link}.', { link: <Link to="/settings/services">{t('Settings > Account & Access > Linked services')}</Link> })}</p>
+      <p className="il-meta">{tx('The account connects and disconnects its own watchlist under {link}.', { link: <Link to="/settings/services">{t('Settings > People and access > Linked services')}</Link> })}</p>
     </section>
   )
 }
@@ -493,7 +499,7 @@ function ListForm({
 
           {(d.source === 'trakt-list' || d.source === 'tmdb-list' || d.source === 'mdblist' || d.source === 'trakt-watchlist') && (
             <label className="il-wide">
-              {d.source === 'trakt-watchlist' ? t('Trakt user name or watchlist address') : t('Address of the list')}
+              {d.source === 'trakt-watchlist' ? t('Trakt username or watchlist address') : t('Address of the list')}
               <input
                 value={d.config.url ?? ''}
                 onChange={(e) => setCfg({ url: e.target.value })}
@@ -509,6 +515,22 @@ function ListForm({
               />
               {d.source === 'trakt-watchlist' && <small className="field-hint">{t('Only a public watchlist can be read. Set the profile to public on Trakt first.')}</small>}
             </label>
+          )}
+
+          {d.source === 'rss' && (
+            <>
+              <label className="il-wide">
+                {t('Address of the feed')}
+                <input value={d.config.url ?? ''} onChange={(e) => setCfg({ url: e.target.value })} placeholder="https://indexer.example/rss?t=2000&apikey=…" spellCheck={false} autoComplete="off" />
+                <small className="field-hint">{t('If the feed needs your key, keep it in the address. The address is kept on your server and only sent to that site.')}</small>
+              </label>
+              <label className="check-row il-check il-wide">
+                <input type="checkbox" checked={!!d.config.grab} onChange={(e) => setCfg({ grab: e.target.checked })} />
+                <TipLabel text={t('Releases in the feed that have a download link are checked like a new release from an indexer: one that fits the quality profile of a title you have, missing or as a better version than its file, is downloaded. The usual limit of 10 automatic downloads an hour applies.')} learnMore="adding#rss-feeds">
+                  {t('Also download wanted releases from this feed')}
+                </TipLabel>
+              </label>
+            </>
           )}
 
           {d.source === 'simkl' && (

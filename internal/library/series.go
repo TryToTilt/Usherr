@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/rdborg/mediarium/internal/origin"
 )
 
 // Series is a TV show in the library. Metadata is keyed by TMDB id (TMDB
@@ -22,6 +24,8 @@ type Series struct {
 	ProfileID    int64  // quality profile; 0 = the default profile
 	SourcePref   string // "" = follow Settings; else usenet, torrent or both
 	AddedBy      int64  // account that added it; 0 = unknown
+	// Origin is how it came into the library, as on Movie.
+	Origin origin.Origin
 	// Genres are TMDB genre names; nil means not fetched yet (as for Movie).
 	Genres []string
 	// NoUpgrade leaves every episode out of the search for better versions.
@@ -32,6 +36,9 @@ type Series struct {
 	// SeriesType is how release names number the episodes: SeriesStandard,
 	// SeriesAnime or SeriesDaily.
 	SeriesType string
+	// EpisodeOrder is the list a show's regular seasons follow:
+	// EpisodeOrderTMDB (the default) or EpisodeOrderTVDB.
+	EpisodeOrder string
 	// CopyOf is the main show's id when this row is a second copy of it,
 	// with its own episodes, kept in another quality; 0 for the main show.
 	CopyOf int64
@@ -132,7 +139,7 @@ const seriesSelect = `
 	       COALESCE(s.profile_id, 0), s.source_pref, COALESCE(s.added_by, 0), s.genres, s.no_upgrade, s.details_state, s.details_note, s.series_type,
 	       COALESCE(s.copy_of, 0), s.tvdb_id, s.imdb_id, s.tmdb_status, s.root_path, s.season_pack,
 	       COALESCE((SELECT names FROM title_names WHERE kind = 'tv' AND tmdb_id = s.tmdb_id), ''),
-	       s.origin_country, s.status_checked_at, s.tvmaze_id, s.tvmaze_checked_at
+	       s.origin_country, s.status_checked_at, s.tvmaze_id, s.tvmaze_checked_at, s.episode_order, s.origin_kind, s.origin_name, COALESCE(s.origin_list_id, 0)
 	FROM series s`
 
 func scanSeries(scan func(dest ...any) error) (Series, error) {
@@ -142,9 +149,10 @@ func scanSeries(scan func(dest ...any) error) (Series, error) {
 		alts   string
 		origin sql.NullString
 	)
-	if err := scan(&s.ID, &s.TMDBID, &s.Title, &s.Year, &s.Overview, &s.PosterPath, &s.FirstAirDate, &s.Monitored, &s.EpisodeCount, &s.DownloadedCount, &s.ProfileID, &s.SourcePref, &s.AddedBy, &genres, &s.NoUpgrade, &s.DetailsState, &s.DetailsNote, &s.SeriesType, &s.CopyOf, &s.TVDBID, &s.IMDBID, &s.TMDBStatus, &s.RootPath, &s.SeasonPack, &alts, &origin, &s.StatusCheckedAt, &s.TVmazeID, &s.TVmazeCheckedAt); err != nil {
+	if err := scan(&s.ID, &s.TMDBID, &s.Title, &s.Year, &s.Overview, &s.PosterPath, &s.FirstAirDate, &s.Monitored, &s.EpisodeCount, &s.DownloadedCount, &s.ProfileID, &s.SourcePref, &s.AddedBy, &genres, &s.NoUpgrade, &s.DetailsState, &s.DetailsNote, &s.SeriesType, &s.CopyOf, &s.TVDBID, &s.IMDBID, &s.TMDBStatus, &s.RootPath, &s.SeasonPack, &alts, &origin, &s.StatusCheckedAt, &s.TVmazeID, &s.TVmazeCheckedAt, &s.EpisodeOrder, &s.Origin.Kind, &s.Origin.Name, &s.Origin.ListID); err != nil {
 		return Series{}, fmt.Errorf("scan series: %w", err)
 	}
+	s.EpisodeOrder = ValidEpisodeOrder(s.EpisodeOrder)
 	s.OriginCountry = decodeCountries(origin)
 	s.Genres = decodeGenres(genres)
 	s.AltTitles = decodeTitleNames(alts)
@@ -166,8 +174,8 @@ func (r *Repo) AddSeries(s Series, episodes []Episode) (Series, error) {
 		return Series{}, err
 	}
 	res, err := tx.Exec(
-		`INSERT INTO series (tmdb_id, title, year, overview, poster_path, first_air_date, monitored, added_by, genres, no_upgrade, series_type, root_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		s.TMDBID, s.Title, s.Year, s.Overview, s.PosterPath, s.FirstAirDate, s.Monitored, nullID(s.AddedBy), genres, s.NoUpgrade, ValidSeriesType(s.SeriesType), s.RootPath,
+		`INSERT INTO series (tmdb_id, title, year, overview, poster_path, first_air_date, monitored, added_by, genres, no_upgrade, series_type, root_path, origin_kind, origin_name, origin_list_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		s.TMDBID, s.Title, s.Year, s.Overview, s.PosterPath, s.FirstAirDate, s.Monitored, nullID(s.AddedBy), genres, s.NoUpgrade, ValidSeriesType(s.SeriesType), s.RootPath, s.Origin.Clean().Kind, s.Origin.Clean().Name, nullID(s.Origin.Clean().ListID),
 	)
 	if err != nil {
 		return Series{}, fmt.Errorf("insert series: %w", err)
@@ -176,7 +184,7 @@ func (r *Repo) AddSeries(s Series, episodes []Episode) (Series, error) {
 	if err != nil {
 		return Series{}, fmt.Errorf("get inserted series id: %w", err)
 	}
-	if err := upsertEpisodes(tx, id, episodes, s.Monitored); err != nil {
+	if err := upsertEpisodes(tx, id, episodes, s.Monitored, ""); err != nil {
 		return Series{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -189,13 +197,40 @@ func (r *Repo) AddSeries(s Series, episodes []Episode) (Series, error) {
 // title/overview/air date of ones that do (new seasons appear and air
 // dates get announced/moved over a show's life) — never touching an
 // existing episode's status, quality, or file, which are download state.
+//
+// monitorNew says whether new episodes start monitored. A show that is
+// following only what is still to come (some of its aired episodes are not
+// monitored) is not given its back catalogue as monitored when TMDB adds or
+// renumbers old episodes: a new episode that aired more than
+// newEpisodeGraceDays ago starts unmonitored there, or the whole show would be
+// downloaded again from season one.
 func (r *Repo) UpsertEpisodes(seriesID int64, episodes []Episode, monitorNew bool) error {
+	return r.upsertEpisodesOn(seriesID, episodes, monitorNew, time.Now().UTC())
+}
+
+// newEpisodeGraceDays is how long after airing a brand new episode row of a
+// show that follows only future episodes is still monitored (TMDB can list an
+// episode a few days late).
+const newEpisodeGraceDays = 7
+
+func (r *Repo) upsertEpisodesOn(seriesID int64, episodes []Episode, monitorNew bool, now time.Time) error {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin upsert episodes: %w", err)
 	}
 	defer tx.Rollback()
-	if err := upsertEpisodes(tx, seriesID, episodes, monitorNew); err != nil {
+	notBefore := ""
+	if monitorNew {
+		var n int
+		if err := tx.QueryRow(`SELECT COUNT(*) FROM episodes WHERE series_id = ? AND season > 0 AND monitored = 0 AND COALESCE(air_date, '') <> '' AND air_date < ?`,
+			seriesID, now.Format("2006-01-02")).Scan(&n); err != nil {
+			return fmt.Errorf("read series %d monitoring: %w", seriesID, err)
+		}
+		if n > 0 {
+			notBefore = now.AddDate(0, 0, -newEpisodeGraceDays).Format("2006-01-02")
+		}
+	}
+	if err := upsertEpisodes(tx, seriesID, episodes, monitorNew, notBefore); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -257,7 +292,9 @@ func (r *Repo) PruneEpisodes(seriesID int64, keep []Episode) (int, error) {
 	return len(stale), nil
 }
 
-func upsertEpisodes(tx *sql.Tx, seriesID int64, episodes []Episode, monitorNew bool) error {
+// notBefore (YYYY-MM-DD, "" for no limit) keeps a new episode that aired before
+// that date from starting monitored.
+func upsertEpisodes(tx *sql.Tx, seriesID int64, episodes []Episode, monitorNew bool, notBefore string) error {
 	stmt, err := tx.Prepare(`
 		INSERT INTO episodes (series_id, season, episode, title, overview, air_date, monitored)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -271,7 +308,8 @@ func upsertEpisodes(tx *sql.Tx, seriesID int64, episodes []Episode, monitorNew b
 	for _, e := range episodes {
 		// Specials (season 0) start unmonitored: they are rarely posted in a
 		// searchable form, so they would only ever show as missing.
-		if _, err := stmt.Exec(seriesID, e.Season, e.Episode, e.Title, e.Overview, e.AirDate, monitorNew && e.Season > 0); err != nil {
+		monitored := monitorNew && e.Season > 0 && (notBefore == "" || e.AirDate == "" || e.AirDate >= notBefore)
+		if _, err := stmt.Exec(seriesID, e.Season, e.Episode, e.Title, e.Overview, e.AirDate, monitored); err != nil {
 			return fmt.Errorf("upsert episode S%02dE%02d: %w", e.Season, e.Episode, err)
 		}
 	}
@@ -359,8 +397,8 @@ func (r *Repo) AddSeriesCopy(mainID, profileID int64) (Series, error) {
 	}
 	defer tx.Rollback()
 	res, err := tx.Exec(
-		`INSERT INTO series (tmdb_id, title, year, overview, poster_path, first_air_date, monitored, profile_id, source_pref, added_by, genres, series_type, origin_country, copy_of)
-		 SELECT tmdb_id, title, year, overview, poster_path, first_air_date, monitored, ?, source_pref, added_by, genres, series_type, origin_country, id FROM series WHERE id = ?
+		`INSERT INTO series (tmdb_id, title, year, overview, poster_path, first_air_date, monitored, profile_id, source_pref, added_by, genres, series_type, origin_country, episode_order, copy_of)
+		 SELECT tmdb_id, title, year, overview, poster_path, first_air_date, monitored, ?, source_pref, added_by, genres, series_type, origin_country, episode_order, id FROM series WHERE id = ?
 		 AND NOT EXISTS (SELECT 1 FROM series WHERE copy_of = ? AND profile_id = ?)`, profileID, mainID, mainID, profileID)
 	if err != nil {
 		return Series{}, fmt.Errorf("add a second copy: %w", err)

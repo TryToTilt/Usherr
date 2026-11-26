@@ -53,11 +53,17 @@ func (e *mcpArgError) Error() string { return e.msg }
 // mcpTool is one tool. write marks tools that change something: they need an
 // administrator's key that is not read-only, and confirm set to true.
 type mcpTool struct {
-	name   string
-	desc   string
-	write  bool
-	schema map[string]any
-	run    func(c *mcpCtx, args json.RawMessage) (any, error)
+	name  string
+	desc  string
+	write bool
+	// download marks the tools that pick a release and start its download
+	// (find_releases, grab_release) and the ones that add a title or search
+	// for it, which ends in a download (add_movie, add_series, search_now).
+	// Like write tools they need a key that is not read-only, and they are only
+	// there while an administrator has switched on downloads for assistants.
+	download bool
+	schema   map[string]any
+	run      func(c *mcpCtx, args json.RawMessage) (any, error)
 }
 
 // ---- Schema helpers ----
@@ -112,7 +118,7 @@ var (
 
 func mcpTools() []*mcpTool {
 	toolsOnce.Do(func() {
-		toolsList = append(mcpReadTools(), mcpWriteTools()...)
+		toolsList = append(append(mcpReadTools(), mcpWriteTools()...), mcpDownloadTools()...)
 		toolsByID = map[string]*mcpTool{}
 		for _, t := range toolsList {
 			toolsByID[t.name] = t
@@ -124,8 +130,11 @@ func mcpTools() []*mcpTool {
 func (c *mcpCtx) listTools() []map[string]any {
 	out := []map[string]any{}
 	for _, t := range mcpTools() {
-		if t.write && c.user.ReadOnly() {
+		if (t.write || t.download) && c.user.ReadOnly() {
 			continue // a read-only key doesn't even see them
+		}
+		if t.download && !c.s.mcpDownloadsOn() {
+			continue
 		}
 		ann := map[string]any{"readOnlyHint": !t.write}
 		if t.write {
@@ -161,8 +170,10 @@ func (c *mcpCtx) callTool(params json.RawMessage) (any, *rpcError) {
 		result map[string]any
 	)
 	switch {
-	case tool.write && c.user.ReadOnly():
+	case (tool.write || tool.download) && c.user.ReadOnly():
 		err = toolErr("This API key is read-only, so it can't change anything. Use an administrator's key that is not read-only for this tool.")
+	case tool.download && !c.s.mcpDownloadsOn():
+		err = toolErr("Downloads are not allowed for AI assistants, and this tool can start one. An administrator can turn on Let assistants pick releases and start downloads under Settings > Media servers and apps > Other apps. Nothing was added, searched for or downloaded.")
 	default:
 		out, err = c.runTool(tool, coerceArgs(p.Arguments, tool.schema))
 	}
@@ -337,7 +348,7 @@ func (m *memResponse) Write(p []byte) (int, error) {
 // sent as JSON; the answer is decoded into out when given. A refusal or a
 // failure comes back as an mcpToolError carrying the app's own sentence.
 func (c *mcpCtx) call(method, path string, body, out any) error {
-	var rd io.Reader
+	var rd io.Reader = http.NoBody
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {

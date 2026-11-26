@@ -24,6 +24,7 @@ import { useLive } from '../useLive'
 import { anyMoving, pollEvery } from '../pollPlan'
 import { useUnreadErrors } from '../useProblems'
 import TwoStepTip from '../components/TwoStepTip'
+import LeavingSoon from '../components/LeavingSoon'
 
 const LEVEL_ICON: Record<HealthItem['level'], IconName> = { error: 'warning', warn: 'warning', info: 'info' }
 
@@ -438,7 +439,7 @@ export default function Dashboard() {
           ) : (
             <ul className="mini-list compact">
               {data.upcoming.map((e) => (
-                <li key={`${e.kind}-${e.id}`}>
+                <li key={`${e.kind}-${e.id}-${e.release ?? ''}-${e.releaseDate}`}>
                   <Link className="mini-link" to={e.kind === 'movie' ? `/title/${e.tmdbId}` : e.kind === 'episode' ? `/series/${e.seriesId}` : `/music/artist/${e.artistId}`}>
                   <span className="date-chip">
                     <b>{chipDay(e).getDate()}</b>
@@ -470,6 +471,7 @@ export default function Dashboard() {
         </Tile>
       </div>
 
+      {on('lifecycle') && <LeavingSoon />} {/* upstream 4.1; Usherr: folders stay off the Dashboard */}
 
     </div>
   )

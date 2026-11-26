@@ -21,6 +21,8 @@ import type { Owned } from '../useOwned'
 import type { AddTarget } from './AddDialog'
 import { pickKey, usePicks } from '../discoverPicks'
 import Icon from './Icon'
+import { useAuth } from '../AuthContext'
+import { isAdmin } from '../api'
 import PosterCard from './PosterCard'
 import { t } from '../i18n'
 import { showtimeAction } from '../home/ShowtimePill' // Usherr
@@ -50,6 +52,7 @@ export function DiscoverCards({ items, kind, owned, onAdd, why }: { items: Disco
             meta={coming ? <><span className="coming-soon">{coming}</span>{why?.[m.tmdbId] && <span className="card-why">{why[m.tmdbId]}</span>}</> : why?.[m.tmdbId] ? <>{m.year || ''}<span className="card-why">{why[m.tmdbId]}</span></> : <>{m.year || ''}<CardScores kind={kind} tmdbId={m.tmdbId} /></>} // scores: home fork
             genres={m.genres}
             rating={coming ? undefined : m.rating}
+            scores={coming ? undefined : m.scores}
             kind={kind}
             state={own?.state ?? (streamed(m.tmdbId) ? describeState('streams') : undefined)} // Usherr: streamed titles say so
             actions={[...voteActions(votes, kind, m.tmdbId, { title: m.title, year: m.year, image: m.posterUrl }), stackAction(stack, { kind, tmdbId: m.tmdbId, title: m.title, year: m.year, posterUrl: m.posterUrl }), ...(kind === 'movie' ? [showtimeAction({ tmdbId: m.tmdbId, title: m.title, year: m.year, posterUrl: m.posterUrl })] : [])]} // home fork: votes; Usherr: your stack, a showtime
@@ -136,7 +139,12 @@ export default function DiscoverRail({ title, hint, kind, owned, onAdd, source, 
   const [page, setPage] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [failed, setFailed] = useState(false)
+  const [failure, setFailure] = useState('')
+  const admin = isAdmin(useAuth().user)
   const busy = useRef(false)
+  // Empty pages in a row. The server can answer an empty page that still says
+  // more follow (a filtered list catching up), so a few are allowed before giving up.
+  const emptyRun = useRef(0)
   const [hideSetting] = useHideOwned()
   const hideOwned = hideSetting && !keepOwned
   const isHad = useIsHad(kind, owned) // home fork: also streamed and media-server titles
@@ -162,16 +170,47 @@ export default function DiscoverRail({ title, hint, kind, owned, onAdd, source, 
           const seen = new Set(cur.map((x) => x.tmdbId))
           return [...cur, ...r.results.filter((x) => !seen.has(x.tmdbId))]
         })
-        setTotalPages(r.results.length === 0 ? page + 1 : r.totalPages)
+        emptyRun.current = r.results.length === 0 ? emptyRun.current + 1 : 0
+        const ended = r.results.length === 0 && (r.totalPages <= page + 1 || emptyRun.current >= 3)
+        setTotalPages(ended ? page + 1 : r.totalPages)
         setPage(page + 1)
       })
-      .catch(() => setFailed(true))
+      .catch((e) => {
+        setFailure(e instanceof Error ? e.message : '')
+        setFailed(true)
+      })
       .finally(() => {
         busy.current = false
       })
   }, [source, near, failed, visible.length, want, page, totalPages, pageLimit])
 
   const loading = !!source && page === 0 && !failed
+  // A list that could not be read says so, with a way on, instead of leaving an empty gap under its heading.
+  if (failed && visible.length === 0)
+    return (
+      <section className="discover-rail">
+        <div className="rail-head">
+          <h2>{title}</h2>
+        </div>
+        <div className="load-failed-actions" style={{ alignItems: 'center' }}>
+          {failure && <p className="error-text" style={{ margin: 0 }}>{failure}</p>}
+          <button
+            className="btn-sm"
+            onClick={() => {
+              setFailed(false)
+              setFailure('')
+            }}
+          >
+            {t('Try again')}
+          </button>
+          {admin && /TMDB/.test(failure) && (
+            <Link className="btn-link" to="/settings/metadata">
+              {t('Movie and show info')}
+            </Link>
+          )}
+        </div>
+      </section>
+    )
   if (!loading && visible.length === 0) return null
 
   // Whole rows only, unless this is everything there is.

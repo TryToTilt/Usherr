@@ -143,7 +143,7 @@ services:
   # Optional: only needed for torrent sites that show a Cloudflare
   # "checking your browser" page. Start everything with:
   #   docker compose --profile cloudflare up -d
-  # then enter http://flaresolverr:8191 in Mediarium under Settings > Indexers & Search.
+  # then enter http://flaresolverr:8191 in Mediarium under Settings > Finding releases > Indexers & Search.
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
     restart: unless-stopped
@@ -225,9 +225,10 @@ Each kind of media has its own folder setting. You only need the ones you use.
 
 | Media | Environment variable | Default | Notes |
 |---|---|---|---|
-| Music | `MUSIC_DIR` | `/music` | Works today. Switch it on under Settings > Media types ([music.md](./music.md)). |
-| Ebooks | `EBOOKS_DIR` | `/ebooks` | Works today. Switch it on under Settings > Media types ([books.md](./books.md)). |
-| Audiobooks | `AUDIOBOOKS_DIR` | `/audiobooks` | Works today. Switch it on under Settings > Media types ([books.md](./books.md)). |
+| Music | `MUSIC_DIR` | `/music` | Works today. Switch it on under Settings > Basics > Media types ([music.md](./music.md)). |
+| Ebooks | `EBOOKS_DIR` | `/ebooks` | Works today. Switch it on under Settings > Basics > Media types ([books.md](./books.md)). |
+| Audiobooks | `AUDIOBOOKS_DIR` | `/audiobooks` | Works today. Switch it on under Settings > Basics > Media types ([books.md](./books.md)). |
+| Other | `OTHER_DIR` | `/other` | For things that are not movies, shows, music or books. Switch it on under Settings > Basics > Media types ([other.md](./other.md)). |
 | Comics | `COMICS_DIR` | `/comics`, else `/data/comics` | Usherr. Made on the first download when it doesn't exist. |
 | Manga | `MANGA_DIR` | `/manga`, else `/data/manga` | Usherr. Made on the first download when it doesn't exist. |
 | Anime | `ANIME_DIR` | `/anime`, else `/data/anime` when it exists | Usherr. Without one, anime goes in the TV folder. |
@@ -246,7 +247,7 @@ The compose file above has these as commented lines you can switch on. After cha
 
 1. Create the folder on your server (on a NAS, before the next step).
 2. Add the `environment` line or the `volumes` line as described above, then run `docker compose up -d`. In a NAS app, stop the project, rebuild it and start it again.
-3. In Mediarium, switch the type on under **Settings > Media types** (music today) and check the folder under **Settings > Library > Folders**. The page shows the folder Mediarium really uses and whether it is **Mapped to your device**.
+3. In Mediarium, switch the type on under **Settings > Basics > Media types** (music today) and check the folder under **Settings > Library and files > Folders**. The page shows the folder Mediarium really uses and whether it is **Mapped to your device**.
 
 ## Why one /data folder? (hardlinks)
 
@@ -262,9 +263,9 @@ To check after your first download: on the server run `stat -c '%h %n' /your/sto
 
 ### What Mediarium never does to your folders
 
-- **Folders inside your library made by another app** may belong to a different user (an older Sonarr or Radarr with another PUID, for example). Mediarium checks the folders inside Movies and TV, each title and its season folders, and warns in setup, in Settings > Library > Folders and on the dashboard when some can't be written to, with an example path. Give the user Mediarium runs as write access to them, or run Mediarium with the same `PUID`/`PGID` as that app.
+- **Folders inside your library made by another app** may belong to a different user (an older Sonarr or Radarr with another PUID, for example). Mediarium checks the folders inside Movies and TV, each title and its season folders, and warns in setup, in Settings > Library and files > Folders and on the dashboard when some can't be written to, with an example path. Give the user Mediarium runs as write access to them, or run Mediarium with the same `PUID`/`PGID` as that app.
 - It never changes the owner or permissions of your existing media folders (only of its own `/config`). The one exception is a brand-new, empty folder that Docker made for you because the folder you mapped did not exist: that one folder is handed to your `PUID`/`PGID` user so Mediarium can write to it.
-- It never replaces a file that is already in your library unless you say so. **If a file already exists** (Settings > Library > File names and importing) can skip the new file (the default), ask you each time, always overwrite, or overwrite only if the new file is better. With the default, a title that looks for better versions (**Look for better versions** is on for it) still takes a better file in place of the old one, because otherwise the better file would be downloaded and then turned away; a file that is not better, or a title set to leave its file alone, is skipped. That holds when the new release has another file name than the one in your library too (names in the Radarr and Sonarr "TRaSH" style, with the quality in brackets, are read for their quality): a release that may not take the place of the file you have is not added next to it, and the file you have stays the one Mediarium points at. A file whose quality can't be told from its record or its name is never counted as worse than a new release. Whatever the setting, a download never replaces a file that belongs to another movie or episode (two titles can get the same file name, such as a remake with the same title and year): it fails with a reason instead, and two files of one season pack never overwrite each other. A replacement is written next to the original first and then swapped in, so a failure can't destroy the original. If the new file has a different name (another quality tag or file type), the old one is removed too, together with the subtitles and other files named after it, but only when the new file may take its place (you chose to overwrite, or it is a better version and the title may be upgraded) and only inside your library folder. The old files go to the recycle bin while it is on. A release you pick yourself is a different matter. Under **Choose a release**, when the movie or episode already has a file, Mediarium asks first: *This will replace <the file you have, with its quality and size> with <the release, with its quality and size>*. For a season pack it says how many episodes already have a file. If you press **Replace**, that download takes the old file's place even when the title is set to **Leave what I have alone** or the release is not better, and only for that title: the **If a file already exists** setting itself does not change. It is swapped the careful way described above (the new file is written next to the old one and swapped in only when it is complete, and if anything goes wrong the old file stays), and the old file and the files named after it go to the recycle bin, or are deleted when the recycle bin is off. A file that belongs to another movie or episode is still never touched. Searches Mediarium starts by itself keep following the settings. For scripts, add `"replace": true` to `POST /api/movies/{id}/grab` or `POST /api/series/{id}/grab`; without it a grab behaves as before. The release list also tells you in advance: a release the import would turn away for an automatic download is not marked **Best match** and says *Not picked automatically: this title is set to leave what you have alone. You can still pick it by hand and replace the file.* A same-quality release with a higher custom-format score counts as a better version in the list and at the import alike. A file copied to another drive is written under a temporary name (`.mediarium-tmp`) until the copy is complete, so Plex, Jellyfin or Emby never see half a movie.
+- It never replaces a file that is already in your library unless you say so. **If a file already exists** (Settings > Library and files > File names and importing) can skip the new file (the default), ask you each time (for movies; for a show or a season pack there is nothing to park, so it keeps the file you have, like Skip, and says so on the show's page), always overwrite, or overwrite only if the new file is better. With the default, a title that looks for better versions (**Look for better versions** is on for it) still takes a better file in place of the old one, because otherwise the better file would be downloaded and then turned away; a file that is not better, or a title set to leave its file alone, is skipped. A movie or episode that has no file of its own, with a file already at its place (a title you removed with its files left on the disk and then added again, say), takes that file as its own, so it doesn't stay wanted and the same release isn't downloaded again and again. That holds when the new release has another file name than the one in your library too (names in the Radarr and Sonarr "TRaSH" style, with the quality in brackets, are read for their quality): a release that may not take the place of the file you have is not added next to it, and the file you have stays the one Mediarium points at. A file whose quality can't be told from its record or its name is never counted as worse than a new release. Whatever the setting, a download never replaces a file that belongs to another movie or episode (two titles can get the same file name, such as a remake with the same title and year): it fails with a reason instead, and two files of one season pack never overwrite each other. A replacement is written next to the original first and then swapped in, so a failure can't destroy the original. If the new file has a different name (another quality tag or file type), the old one is removed too, together with the subtitles and other files named after it, but only when the new file may take its place (you chose to overwrite, or it is a better version and the title may be upgraded) and only inside your library folder. The old files go to the recycle bin while it is on. A release you pick yourself is a different matter. Under **Choose a release**, when the movie or episode already has a file, Mediarium asks first: *This will replace <the file you have, with its quality and size> with <the release, with its quality and size>*. For a season pack it says how many episodes already have a file. If you press **Replace**, that download takes the old file's place even when the title is set to **Leave what I have alone** or the release is not better, and only for that title: the **If a file already exists** setting itself does not change. It is swapped the careful way described above (the new file is written next to the old one and swapped in only when it is complete, and if anything goes wrong the old file stays), and the old file and the files named after it go to the recycle bin, or are deleted when the recycle bin is off. A file that belongs to another movie or episode is still never touched. Searches Mediarium starts by itself keep following the settings. For scripts, add `"replace": true` to `POST /api/movies/{id}/grab` or `POST /api/series/{id}/grab`; without it a grab behaves as before. The release list also tells you in advance: a release the import would turn away for an automatic download is not marked **Best match** and says *Not picked automatically: this title is set to leave what you have alone. You can still pick it by hand and replace the file.* A same-quality release with a higher custom-format score counts as a better version in the list and at the import alike. A file copied to another drive is written under a temporary name (`.mediarium-tmp`) until the copy is complete, so Plex, Jellyfin or Emby never see half a movie.
 - It only deletes library files when you remove a title with its delete-files box ticked, or when a new version replaces a file and **If a file already exists** is set to overwrite. **Also delete everything on disk** starts unticked and shows how many files and how much space would go. The same goes for **Also delete the files of all ... from the disk** when you remove several titles at once. Through the API, files are only deleted when the request says `deleteFiles=true`. Even then they wait in the recycle bin (`.mediarium-trash` in the library folder) for 7 days before they are deleted for good.
 - It only tidies up its own working folder (`incomplete` inside its downloads folder). Torrent data is kept while it seeds.
 
@@ -277,7 +278,7 @@ Mediarium writes files as the user and group you give it, so that you (and Plex,
   - Synology and QNAP: whatever `id` prints for the user that owns your shared folders (see the [Synology guide](./synology.md#2-find-your-user-numbers)).
   - Already running Radarr, Sonarr or SABnzbd in Docker? Use the same `PUID` and `PGID` as those containers.
   - Advanced: you can instead start the container as a user directly (`user: "1000:1000"` in the compose file). `PUID` and `PGID` are then ignored, and the folders must already be writable by that user.
-- **UMASK** (optional): the permissions new files and folders get, the same variable the linuxserver.io images use. `022` gives files `644` and folders `755` (only you can write); `002` gives `664` and `775` (your group can write too). It works by taking permissions away from `666` for files and `777` for folders, so it is not the same as `chmod`. Left out, the container keeps its own `022`. A value that is not one to four octal digits is ignored, with a note in the container log. To give the files Mediarium puts in your library exact permissions whatever the umask, use [Settings > Library > Folders](./library.md#file-permissions).
+- **UMASK** (optional): the permissions new files and folders get, the same variable the linuxserver.io images use. `022` gives files `644` and folders `755` (only you can write); `002` gives `664` and `775` (your group can write too). It works by taking permissions away from `666` for files and `777` for folders, so it is not the same as `chmod`. Left out, the container keeps its own `022`. A value that is not one to four octal digits is ignored, with a note in the container log. To give the files Mediarium puts in your library exact permissions whatever the umask, use [Settings > Library and files > Folders](./library.md#file-permissions).
 - **TZ:** your timezone, from the [list of tz names](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones), for example `Europe/London`, `Europe/Berlin` or `America/New_York`. It sets the time in logs and schedules.
 
 Mediarium changes the owner of its own `/config` folder, and of a media folder only when that folder is brand new, empty and made by Docker (see above). It never changes the owner or permissions of your existing media folders. If it cannot write to one, the container log says `WARNING: /data/... is not writable by uid ...` and the dashboard shows it; fix the folder on the server, or change `PUID`/`PGID`.
@@ -287,7 +288,7 @@ Mediarium changes the owner of its own `/config` folder, and of a media folder o
 | Port | What it is for | Notes |
 |---|---|---|
 | `8264` | The web page | Change the **left** number to use another port, for example `"8300:8264"`. |
-| `58264` TCP and UDP | Torrent peers connecting to you | Optional. Without it torrents still download, but with it you find more peers and can seed. Keep both numbers the same, and the same as the **Listen port** under Settings > Downloading > Usenet. Forward it on your router for peers from the internet. It isn't used while the built-in VPN is connected. |
+| `58264` TCP and UDP | Torrent peers connecting to you | Optional. Without it torrents still download, but with it you find more peers and can seed. Keep both numbers the same, and the same as the **Listen port** under Settings > Downloading > Torrents. Forward it on your router for peers from the internet. It isn't used while the built-in VPN is connected. |
 
 Mediarium serves plain HTTP. **Do not open port 8264 to the internet.** To reach it from outside your home, use a VPN into your network (Tailscale, WireGuard) or a reverse proxy with HTTPS; [security.md](./security.md) has the checklist and examples for Nginx Proxy Manager, Traefik, Caddy, Cloudflare Tunnel and Synology.
 
@@ -306,6 +307,7 @@ Most settings live under **Settings**. Besides the folders, `PUID`, `PGID` and `
 | `MEDIARIUM_PAUSE_AUTOMATION` | Set to `1` to start in **safe mode**: nothing searches, downloads, refreshes, checks connections or looks for new versions by itself. Downloads waiting in line come back paused. You can still search and download by hand, and the dashboard says "Safe mode is on". Remove it to go back to normal. See [Troubleshooting](#troubleshooting). |
 | `MEDIARIUM_DISABLE_SSO` | Set to `1` as a way back in if single sign-on or directory sign-in locked people out: both are switched off and password sign-in is on, whatever is saved in Settings. Remove it to use the saved settings again. See [accounts.md](./accounts.md#if-you-are-locked-out). |
 | `MEDIARIUM_SUPERVISED` | Set to `1` only for a program you run yourself when a service manager other than Docker, systemd or launchd starts it again after it exits. It lets the Restart buttons work. |
+| `GOMEMLIMIT` | Normally not needed. When the container has a memory limit (`mem_limit` or `--memory`), Mediarium keeps its memory use under about 85% of it by itself, so a small NAS or Raspberry Pi cleans up before the system kills the container. Set `GOMEMLIMIT` (for example `600MiB`) only to choose another value; then Mediarium leaves it alone. |
 | `MEDIARIUM_SKIP_INSTALLED_UPDATE` | Set to any value to make the Docker entrypoint ignore an [installed update](#update-now-docker-image) and start the program inside the image. |
 
 The Docker images set `BUNDLED_FLARESOLVERR` (the `-full` image only) and `MEDIARIUM_IMAGE_VERSION` themselves. Don't set those two.
@@ -408,9 +410,9 @@ Open `http://<your-server-ip>:8264`. The first time, a short wizard walks you th
 1. **Admin account.** The first account you make is the administrator. From outside your home network (through a reverse proxy, or on a server), and also when you open it on the same computer Docker runs on (Docker hands those visits over from its own gateway address), the page also asks for a one-time setup code. Find it in the log: `docker logs mediarium`, look for `setup_code`. You also tick that you have read the responsible-use notice ([LEGAL.md](./LEGAL.md)).
 2. **Media types.** Pick movies, TV shows, music, ebooks and audiobooks. At least one has to stay on. Later steps only ask about what you picked.
 3. **Library paths.** One box for each kind you picked, plus downloads. They show the folders your compose file maps (from `MOVIES_DIR`, `TV_DIR`, `DOWNLOADS_DIR`, `MUSIC_DIR` and so on) and check each one live: whether it exists, whether Mediarium can write to it, whether it is **Mapped to your device**, and the free space. A folder that isn't mapped shows the exact line to add to your compose file. When your folders share one mapped folder such as `/data`, the wizard suggests a folder inside it (for example `/data/Ebooks`) and can create it for you.
-4. **Connect services.** Movie and show details, subtitles and lists come from TMDB, OpenSubtitles and Trakt. The official image has these built in, so there is usually nothing to do. If a key is needed, the wizard explains how to get a free one. Subtitles are switched on later, under Settings > Info, lists and subtitles > Subtitles.
+4. **Connect services.** Movie and show details, subtitles and lists come from TMDB, OpenSubtitles and Trakt. The official image has these built in, so there is usually nothing to do. If a key is needed, the wizard explains how to get a free one. Subtitles are switched on later, under Settings > Library and files > Subtitles.
 5. **Indexers** (where Mediarium looks for releases) and **Usenet provider** (your Usenet provider's login; skip it if you only use torrents).
-6. **Quality & naming.** The default quality, and the media player you use (Plex, Jellyfin, Emby, Kodi or something else), which picks the matching file naming style.
+6. **Quality & naming.** The default quality, whether to **Keep looking for better versions** (on at first on a new install: the profile you pick gets better versions switched on and new titles start with it ticked), and the media player you use (Plex, Jellyfin, Emby, Kodi or something else), which picks the matching file naming style. Switch it off to keep the first good download of everything. An install that was set up before this existed is not changed.
 7. **Media server** (optional). Sign in to Plex, Jellyfin or Emby so "Watch in" links work and the server refreshes when something new arrives.
 8. **VPN** (optional). If you will use the built-in VPN, you can turn on **UDP trackers and DHT through the VPN**. It stays off until you do. The VPN connection itself is added later under Settings > Downloading > VPN and proxy, where the switch can be changed.
 
@@ -424,7 +426,7 @@ Open `http://<your-server-ip>:8264`. The first time, a short wizard walks you th
 
 ![Setup step 6, Quality and naming: the default quality, the media player question and the naming style](images/onboarding-quality-naming.png)
 
-*Step 6, Quality & naming. The media player you pick chooses the naming style.*
+*Step 6, Quality & naming. The switch under the qualities keeps better versions on for the profile you pick. The media player you pick chooses the naming style.*
 
 ![Setup step 7, Media server: Plex, Jellyfin and Emby with a Sign in with Plex button](images/onboarding-media-server.png)
 
@@ -452,9 +454,9 @@ Some torrent sites show a Cloudflare "checking your browser" page that only a re
 image: ghcr.io/rdborg/mediarium:latest-full
 ```
 
-Then run `docker compose pull && docker compose up -d`. Nothing else to set up: **Settings > Indexers & Search** shows "Built in and running". You can switch between `latest` and `latest-full` at any time. Your settings and library stay.
+Then run `docker compose pull && docker compose up -d`. Nothing else to set up: **Settings > Finding releases > Indexers & Search** shows "Built in and running". You can switch between `latest` and `latest-full` at any time. Your settings and library stay.
 
-The `-full` download is about 300 MB instead of about 20 MB, takes about 1.2 GB on disk and uses about 250 MB of memory when idle (more for a moment when it opens a page). The helper only listens inside the container, so nothing on your network can reach it. The image is rebuilt every week, so browser fixes arrive quickly.
+The `-full` download is about 320 MB instead of about 30 MB, takes about 1.2 GB on disk and uses about 250 MB of memory when idle (more for a moment when it opens a page). The helper only listens inside the container, so nothing on your network can reach it. The image is rebuilt every week, so browser fixes arrive quickly.
 
 **Or run FlareSolverr as its own container.** It is already in the compose file, switched off:
 
@@ -462,7 +464,7 @@ The `-full` download is about 300 MB instead of about 20 MB, takes about 1.2 GB 
 docker compose --profile cloudflare up -d
 ```
 
-Then in Mediarium go to **Settings > Indexers & Search** and enter `http://flaresolverr:8191`. More in [indexers.md](./indexers.md).
+Then in Mediarium go to **Settings > Finding releases > Indexers & Search** and enter `http://flaresolverr:8191`. More in [indexers.md](./indexers.md).
 
 ## Everyday commands
 
@@ -479,11 +481,16 @@ Run these in the folder with your `docker-compose.yml`:
 
 ## Using it as an app on a phone, tablet or computer
 
-Mediarium installs like an app. In Chrome, Edge or Safari on a computer, choose **Install** in the address bar; on an Android phone or tablet, **Add to Home screen** (or **Install app**); on an iPhone or iPad, Share > **Add to Home Screen**. It then opens in its own window, with its own icon, and a long press on the icon (or a right click) offers shortcuts to Activity, Calendar, Library and Discover. Installing needs an https address (or `localhost`), for example through a reverse proxy.
+Mediarium installs like an app. In Chrome, Edge or Safari on a computer, choose **Install** in the address bar; on an Android phone or tablet, **Add to Home screen** (or **Install app**); on an iPhone or iPad, Share > **Add to Home Screen**. It then opens in its own window, with its own icon, and a long press on the icon (or a right click) offers shortcuts to Activity, Calendar, Library and Discover. Installing needs an https address (or `localhost`), for example through a reverse proxy: browsers only allow installing, and the background program below, on a secure address. Over plain `http` on your home network the page works as always, but there is nothing to install.
 
-- The menu fits tablets (a narrower menu on a tablet in landscape, a wider drawer in portrait, bigger touch targets on a screen you press) and foldable phones.
+**Settings > Basics > General > Install as an app** helps with it. Chrome, Edge and Android show an **Install app** button. Safari has no such button, so the card gives the steps instead: on an iPhone, Share > **Add to Home Screen**; on an iPad, Share at the top > **Add to Home Screen**; in Safari on a Mac (Sonoma or newer), **File > Add to Dock**. The card disappears once Mediarium runs as an app.
+
+- **Your look:** under **Settings > Basics > General > Light or dark**, besides light and dark, **Pure black background** gives the dark look a black ground for OLED screens (and a black browser bar on a phone), and **Text size** makes all text Large or Larger. Both are kept in each browser, so a phone and a computer can differ.
+- **On a phone** the main pages sit in a bar along the bottom of the screen, where your thumb reaches them: Home, Discover, Library, Activity (with the number of downloads running) and **More**, which opens the menu with everything else. Pop-ups rise from the bottom edge, and the phone's Back button (or the back swipe) closes a pop-up or the menu instead of leaving the page.
+- The menu fits tablets (a narrower menu on a tablet in landscape, a wider drawer in portrait, bigger touch targets on a screen you press) and foldable phones. On a tablet the [Library](./library.md) shows its list on the left and the open film, show, artist or book on the right.
 - When the server can't be reached (you are away from the home network and the VPN is off, or the server is down), the installed app shows a short "Mediarium can't be reached" page with a **Try again** button instead of the browser's error. There is no offline mode: Mediarium shows nothing from memory, so it never shows stale data.
-- The same small background program (`push-sw.js`) also receives [push notifications](./notifications.md#push-to-this-device). It saves only that one page.
+- The small background program (`push-sw.js`, a service worker) keeps the program's own scripts and styles, so the app opens faster. It never keeps pages, anything from the API (your library, queue, settings) or the live updates, so nothing you see can be out of date or readable by someone else on the device. It also receives [push notifications](./notifications.md#push-to-this-device).
+- After an update the new version takes over by itself, and a small notice says **A new version is ready** with a **Reload** button. Under a [sub-path](#running-under-a-sub-path-url-base) it works the same: it lives at that path.
 
 ## Updating
 
@@ -494,32 +501,41 @@ docker compose up -d
 
 That downloads the newest image and restarts Mediarium with it. Your settings and library stay put, and the database updates itself on start. Nothing updates on its own unless you switch on **Install new versions overnight** (see below). A restart pauses running downloads; press **Resume** in Activity.
 
-- Read the [changelog](../CHANGELOG.md) first, and [back up](#backup-and-restore) `/config` before a big update. There is no way back to an older version once the database has been updated, except restoring a backup. When an update is going to change the database, Mediarium first saves a copy next to it (`pre-migration-<number>-<date>-<time>.db` in `/config`, the newest two are kept); that is the file to put back as `app.db` if an update goes wrong. From 3.1.3 on, if that version or a later one is started on a database that a newer version already changed, it still starts, but writes a warning to the log and to Health that says so. Versions before 3.1.3 don't check this and start without any warning.
+- Read the [changelog](../CHANGELOG.md) first, and [back up](#backup-and-restore) `/config` before a big update. When an update is going to change the database, Mediarium first saves a copy next to it (`pre-migration-<number>-<date>-<time>.db` in `/config`, the newest two are kept). If one step of an update can't be applied, that step is undone, Mediarium stops with a message that names the step and the copy, and your data stays as it was, and [Going back after an update](#going-back-after-an-update) puts it back. From 3.1.3 on, if that version or a later one is started on a database that a newer version already changed, it still starts, but writes a warning to the log and to Health that says so. Versions before 3.1.3 don't check this and start without any warning.
 - `:latest` always follows the newest release. To stay on a version, use its number instead. Each release has these tags (add `-full` for the [Cloudflare helper version](#optional-getting-past-cloudflare-checks)):
 
   | Tag | Moves when |
   |---|---|
-  | `ghcr.io/rdborg/mediarium:3.0.0` (`:3.0.0-full`) | never |
-  | `ghcr.io/rdborg/mediarium:3.0` (`:3.0-full`) | a bug-fix release of 3.0 comes out (3.0.1, 3.0.2...) |
+  | `ghcr.io/rdborg/mediarium:4.0.3` (`:4.0.3-full`) | never |
+  | `ghcr.io/rdborg/mediarium:4.0` (`:4.0-full`) | a bug-fix release of 4.0 comes out (4.0.4, 4.0.5...) |
   | `ghcr.io/rdborg/mediarium:latest` (`:latest-full`) | any new release |
 
-  A pre-release (for example `3.1.0-beta.1`) only gets its exact tag. What the numbers mean: [RELEASING.md](./RELEASING.md#what-the-version-numbers-mean).
+  A pre-release (for example `4.1.0-beta.1`) only gets its exact tag. What the numbers mean: [RELEASING.md](./RELEASING.md#what-the-version-numbers-mean).
 
 ### Knowing when there is a new version
 
-Once a day Mediarium asks GitHub for the newest release (the first time about two minutes after it starts, and again in an hour after a failed try). If yours is older, administrators see a card on the dashboard and in the **Updates** box under **Settings > General**. It shows what is new and the steps for your kind of install (Synology Container Manager, Unraid or Docker Compose, plus a note for the `-full` image; a program you run yourself gets its own steps). The card has **Hide until the next version**. If a [notification](./notifications.md) target has **New version** ticked, you also get one message per new version. A pre-release is only offered to someone already running one.
+Once a day Mediarium asks GitHub for the newest release (the first time about two minutes after it starts, and again in an hour after a failed try). If yours is older, administrators see a card on the dashboard and in the **Updates** box under **Settings > Basics > General**. It shows what is new and the steps for your kind of install (Synology Container Manager, Unraid or Docker Compose, plus a note for the `-full` image; a program you run yourself gets its own steps). The card has **Hide until the next version**. If a [notification](./notifications.md) target has **New version** ticked, you also get one message per new version. A pre-release is only offered to someone already running one.
 
-- **What it sends:** one plain web request to `api.github.com` with the program name and version (`Mediarium/3.0.0`) and nothing else: no account, no library, no settings. GitHub sees your address, as any website does.
+- **What it sends:** one plain web request to `api.github.com` with the program name and version (`Mediarium/4.0.3`) and nothing else: no account, no library, no settings. GitHub sees your address, as any website does.
 - **Turning it off:** untick **Look for new versions once a day** in the Updates box (stored as `updates.check`). Then Mediarium never contacts GitHub by itself. **Check now** still works when you press it.
 - If GitHub cannot be reached or is limiting requests, the card says "Couldn't check just now." with the reason (for example that GitHub is limiting requests, or that the address could not be found), and Mediarium tries again later. A failed check (other than one held back by GitHub's limit) is also listed under Settings > System > Logs and errors. Nothing else is affected.
 
-![The Updates, Restart and Updates pushed through the API boxes on Settings > General and Settings > System > Server](images/system-updates.png)
+![The Updates box and, opened under Advanced, the Updates pushed through the API box on Settings > Basics > General](images/system-updates.png)
 
-*Updates and the pushed-updates switch on General, and Restart on Server. This one shows an up-to-date install.*
+*Updates and the pushed-updates switch (under Advanced) on General. Restart is on Settings > System > Server. This one shows an up-to-date install.*
 
 ### What's new after an update
 
 The first time you open Mediarium after it moves to a newer version, a short note lists the highlights, with a link to every change. It shows once in each browser and not at all on a fresh install.
+
+### Going back after an update
+
+If an update goes wrong, **Settings > Basics > General > Going back after an update** lists the copies of the database Mediarium made before updates changed it (the newest two), each with the date of the update and the version that used it. The box only shows when there is something to go back to.
+
+- **Go back to this** asks first, then restarts and puts that copy back in place of the database. Anything that changed since then is lost: titles added, downloads that finished, settings you changed. The database in use until then is not deleted: it moves to a `before-restore-<date>-<time>` folder in `/config`, the same as when you [restore a backup](#backup-and-restore).
+- **The older program:** if the update was installed from inside the app (**Update now** or overnight), the newest copy also brings back the program that ran before, so the older version starts by itself. After a `docker compose pull`, change the image tag in your compose file to the version you had (for example `ghcr.io/rdborg/mediarium:3.9.2`) and recreate the container. If the newer version starts again instead, it updates the database again, and nothing is lost by that either.
+- Copies from before 4.0 don't say which version used them; they show as "From an earlier version".
+- Only from a signed-in browser: a request with an API key is refused.
 
 ### Update now (Docker image)
 
@@ -542,8 +558,8 @@ Mediarium also watches itself. Every 30 seconds it checks that its database and 
 
 This is for testing, and for people who can't rebuild their container. An administrator sends a new program file to the running Mediarium, which restarts into it. It needs no Docker socket and no extra privileges. Leave it off unless you use it: [security.md](./security.md#updating-the-program) explains what it allows.
 
-1. As an administrator, switch on **Allow updates pushed through the API** in **Advanced: updates pushed through the API** under **Settings > General**. It asks you to confirm. This can only be switched on here, while you are signed in, never with an API key.
-2. Create an administrator API key under **Settings > Account & Access > Security > API keys**.
+1. As an administrator, switch on **Allow updates pushed through the API** in **Advanced: updates pushed through the API** under **Settings > Basics > General**. It asks you to confirm. This can only be switched on here, while you are signed in, never with an API key.
+2. Create an administrator API key under **Settings > People and access > Security > API keys**.
 3. Send the file:
 
    ```bash
@@ -613,7 +629,7 @@ To restore by hand: stop Mediarium, put the backup folder back in place of `conf
 
 ## Monitoring with Prometheus
 
-Mediarium has a page of numbers for [Prometheus](https://prometheus.io) and Grafana, at `/metrics` (also `/api/metrics`; with a [URL base](#running-under-a-sub-path-url-base) it is `/mediarium/metrics`). It is for administrators only, so it is never open: a request needs an administrator's API key, sent as `Authorization: Bearer <key>` (what Prometheus sends) or as the `X-API-Key` header. Make the key with **Make a key for other apps** on Settings > Connections > Other apps, or under **Settings > Account & Access > Security > API keys**. A basic account's key is refused.
+Mediarium has a page of numbers for [Prometheus](https://prometheus.io) and Grafana, at `/metrics` (also `/api/metrics`; with a [URL base](#running-under-a-sub-path-url-base) it is `/mediarium/metrics`). It is for administrators only, so it is never open: a request needs an administrator's API key, sent as `Authorization: Bearer <key>` (what Prometheus sends) or as the `X-API-Key` header. Make the key with **Make a key for other apps** on Settings > Media servers and apps > Other apps, or under **Settings > People and access > Security > API keys**. A basic account's key is refused.
 
 Put the key in a file and tell Prometheus where it is. This is a complete scrape config:
 
@@ -726,13 +742,13 @@ The `DOWNLOADS_DIR`, `MOVIES_DIR` and `TV_DIR` lines are missing, or you changed
 That folder only exists inside the container, so it is lost when the container is recreated. Check the `volumes` lines, and that `DOWNLOADS_DIR`, `MOVIES_DIR` and `TV_DIR` point inside `/data`.
 
 **Search finds nothing, or downloads never start.**
-Add at least one indexer under Settings > Indexers & Search and press its **Test** button. For Usenet, add your provider under Settings > Downloading > Usenet and press **Test connection**. More in [indexers.md](./indexers.md) and [downloads.md](./downloads.md).
+Add at least one indexer under Settings > Finding releases > Indexers & Search and press its **Test** button. For Usenet, add your provider under Settings > Downloading > Usenet and press **Test connection**. More in [indexers.md](./indexers.md) and [downloads.md](./downloads.md).
 
 **A download finished but was not imported.**
 Open the title and look at its activity log: it says what happened in plain words ([activity.md](./activity.md)). Password-protected or damaged releases are blocklisted and the next one is tried.
 
 **Pages do not load, or say "Reconnecting to Mediarium".**
-Update to the newest version first. Then check that the settings folder (`/config`) is on a disk inside your server, not on a network share: the dashboard says so when it isn't. Mediarium logs any database call that takes more than three seconds, and a page that waits more than ten seconds shows "Mediarium is taking longer than usual to answer" with a **Try again** button. If the pages still won't open, start in safe mode: add `MEDIARIUM_PAUSE_AUTOMATION=1` under `environment` and run `docker compose up -d`. Nothing searches, downloads, refreshes or checks connections by itself, so the pages load and you can pause things or read the log. Remove the line and run `docker compose up -d` again to go back to normal. If the pages do open, **Restart with automation paused** (see [Restarting Mediarium](#restarting-mediarium)) does the same for one start.
+Update to the newest version first. Then check that the settings folder (`/config`) is on a disk inside your server, not on a network share: the dashboard says so when it isn't (Health names NFS, SMB and Ceph shares even when the database still manages its faster mode there), and the support report says which kind of share `/config` and the downloads folder are on. Every few hours, and once after each start, Mediarium lets SQLite refresh the statistics it plans its queries with (`PRAGMA optimize`), which keeps the lists quick as a library grows. Mediarium logs any database call that takes more than three seconds, and a page that waits more than ten seconds shows "Mediarium is taking longer than usual to answer" with a **Try again** button. If the pages still won't open, start in safe mode: add `MEDIARIUM_PAUSE_AUTOMATION=1` under `environment` and run `docker compose up -d`. Nothing searches, downloads, refreshes or checks connections by itself, so the pages load and you can pause things or read the log. Remove the line and run `docker compose up -d` again to go back to normal. If the pages do open, **Restart with automation paused** (see [Restarting Mediarium](#restarting-mediarium)) does the same for one start.
 
 **The time in the log is wrong.**
 Set `TZ` and run `docker compose up -d`.

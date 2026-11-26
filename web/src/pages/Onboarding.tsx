@@ -49,6 +49,8 @@ import * as check from '../validate'
 import { FieldError, FormProblem, useValidation, type Errors } from '../useValidation'
 import { chooseLanguage, currentLanguage, LANGUAGES, t, tc, tx, type Lang } from '../i18n'
 import AmbientBackdrop from '../components/AmbientBackdrop'
+import TheTVDBCard from '../components/TheTVDBCard'
+import OMDbCard from '../components/OMDbCard'
 
 // First-run onboarding wizard: linear, can't be skipped, each
 // step validated before moving on. Every step is also independently
@@ -63,6 +65,7 @@ const SETTING_FIELD = {
   music: 'musicPath',
   ebooks: 'ebooksPath',
   audiobooks: 'audiobooksPath',
+  other: 'otherPath',
   downloads: 'downloadsPath',
 } as const
 
@@ -72,6 +75,7 @@ const FOLDER_REQUIRED: Record<FolderKind, string> = {
   music: t('Add the folder your music goes in, for example /music.'),
   ebooks: t('Add the folder your ebooks go in, for example /books.'),
   audiobooks: t('Add the folder your audiobooks go in, for example /audiobooks.'),
+  other: t('Add the folder your other items go in, for example /other.'),
   downloads: t('Add the folder downloads are saved in, for example /downloads.'),
 }
 
@@ -90,6 +94,7 @@ function foldersInUse(s: SettingsData): FolderValues {
     music: s.musicPath,
     ebooks: s.ebooksPath,
     audiobooks: s.audiobooksPath,
+    other: s.otherPath,
     downloads: s.downloadsPath,
   }
 }
@@ -139,8 +144,8 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
       .catch(() => undefined)
   }, [])
 
-  // Which kinds of media to manage (saved to Settings > Media types).
-  const [chosen, setChosen] = useState<Chosen>({ movies: true, tv: true, music: false, ebooks: false, audiobooks: false })
+  // Which kinds of media to manage (saved to Settings > Basics > Media types).
+  const [chosen, setChosen] = useState<Chosen>({ movies: true, tv: true, music: false, ebooks: false, audiobooks: false, other: false })
   const [lastOneHint, setLastOneHint] = useState(false)
   const typesLoaded = useRef(false)
   useEffect(() => {
@@ -148,16 +153,17 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
     typesLoaded.current = true
     api
       .modules()
-      .then((m) => setChosen({ movies: m.movies?.enabled !== false, tv: m.tv?.enabled !== false, music: m.music?.enabled === true, ebooks: m.ebooks?.enabled === true, audiobooks: m.audiobooks?.enabled === true }))
+      .then((m) => setChosen({ movies: m.movies?.enabled !== false, tv: m.tv?.enabled !== false, music: m.music?.enabled === true, ebooks: m.ebooks?.enabled === true, audiobooks: m.audiobooks?.enabled === true, other: m.other?.enabled === true, anime: m.anime?.enabled === true, lifecycle: m.lifecycle?.enabled === true }))
       .catch(() => undefined)
   }, [step])
   function toggleType(key: keyof Chosen) {
-    if (chosen[key] && Object.values({ ...chosen, [key]: false }).every((on) => !on)) {
+    if (key !== 'anime' && key !== 'lifecycle' && chosen[key] && nothingChosen({ ...chosen, [key]: false })) {
       setLastOneHint(true)
       return
     }
     setLastOneHint(false)
-    setChosen({ ...chosen, [key]: !chosen[key] })
+    // The anime library goes with TV.
+    setChosen({ ...chosen, [key]: !chosen[key], ...(key === 'tv' && chosen.tv ? { anime: false } : {}) })
   }
 
   const [svc, setSvc] = useState<SettingsData | null>(null)
@@ -179,7 +185,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
           // folder, put those inside it instead of an unmapped /music.
           const { parent, sample } = coreParent(mapped)
           if (parent) {
-            for (const k of ['music', 'ebooks', 'audiobooks'] as const) {
+            for (const k of ['music', 'ebooks', 'audiobooks', 'other'] as const) {
               if (mapped[k] !== FOLDER_INFO[k].fallback) continue
               api
                 .folderCheck(mapped[k] ?? '')
@@ -225,6 +231,8 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
   }
   const [profiles, setProfiles] = useState<QualityProfile[]>([])
   const [profileId, setProfileId] = useState(0)
+  // A new install keeps looking for better versions unless this is switched off here.
+  const [keepBetter, setKeepBetter] = useState(true)
   useEffect(() => {
     if (step !== S.quality) return
     api
@@ -364,7 +372,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
         await api.putSettings({ legalAcknowledged: true })
         legalSaved.current = true
       }
-      await api.setModules({ movies: chosen.movies, tv: chosen.tv, music: chosen.music, ebooks: !!chosen.ebooks, audiobooks: !!chosen.audiobooks })
+      await api.setModules({ movies: chosen.movies, tv: chosen.tv, music: chosen.music, ebooks: !!chosen.ebooks, audiobooks: !!chosen.audiobooks, other: !!chosen.other, anime: !!chosen.anime && chosen.tv, lifecycle: !!chosen.lifecycle })
       loadSvc()
       setStep(S.paths)
     })
@@ -406,7 +414,14 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
 
   async function submitNaming() {
     await guard(async () => {
-      if (hasVideo(chosen)) await api.putSettings({ namingPreset, ...(profileId ? { defaultProfileId: profileId } : {}) })
+      if (hasVideo(chosen)) {
+        await api.putSettings({ namingPreset, addKeepBetter: keepBetter, ...(profileId ? { defaultProfileId: profileId } : {}) })
+        // Titles only swap their file when the profile allows it too, so the one chosen here does.
+        const picked = profiles.find((p) => p.id === profileId)
+        if (keepBetter && picked && !picked.upgradeAllowed) {
+          await api.updateProfile(picked.id, { name: picked.name, allowed: picked.allowed, cutoff: picked.cutoff, upgradeAllowed: true, mustContain: picked.mustContain, mustNotContain: picked.mustNotContain, preferred: picked.preferred })
+        }
+      }
       setStep(S.server)
     })
   }
@@ -605,24 +620,26 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
                   title="TMDB"
                   does={t('Movie and show details, posters, episode lists, Discover and the calendar.')}
                   limits={t("TMDB's limit is generous enough for home use.")}
-                  own={t('Having trouble? Get a free key at themoviedb.org and add it under Settings > Info, lists and subtitles > Movie and show info.')}
+                  own={t('Having trouble? Get a free key at themoviedb.org and add it under Settings > Library and files > Movie and show info.')}
                 />
               ) : (
                 <ServiceKeyCard service="tmdb" {...TMDB_COPY} builtIn={false} configured={svc.hasTmdbApiKey} onSaved={loadSvc} />
               )}
               <InfoLanguageCard />
+              {chosen.tv && <TheTVDBCard />}
+              {(chosen.movies || chosen.tv) && <OMDbCard />}
               {svc.openSubtitlesKeyBuiltIn ? (
                 <ConnectedServiceCard
                   icon="chat"
                   title="OpenSubtitles"
                   does={t('Finding and downloading subtitles.')}
                   limits={t('Searching is free. Downloads are capped at about 5 a day per connection, or about 20 with a free OpenSubtitles account.')}
-                  own={t('Turn subtitles on under Settings > Info, lists and subtitles > Subtitles. Your own account or key goes there too.')}
+                  own={t('Turn subtitles on under Settings > Library and files > Subtitles. Your own account or key goes there too.')}
                 />
               ) : (
                 <>
                   <ServiceKeyCard service="opensubtitles" {...OPENSUBTITLES_COPY} builtIn={false} configured={!!svc.hasOpenSubtitlesApiKey} onSaved={loadSvc} />
-                  <p style={{ color: 'var(--text-dim)' }}>{t('Turn subtitles on under Settings > Info, lists and subtitles > Subtitles.')}</p>
+                  <p style={{ color: 'var(--text-dim)' }}>{t('Turn subtitles on under Settings > Library and files > Subtitles.')}</p>
                 </>
               )}
               {svc.traktClientIdBuiltIn ? (
@@ -631,7 +648,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
                   title="Trakt"
                   does={t('Imports public Trakt lists so you can add everything on a list in one go.')}
                   limits={t('Everyone shares this key, and Trakt allows 500 requests every 5 minutes across all of them. List imports use very few.')}
-                  own={t('If Trakt starts refusing requests, get a free Client ID and add it under Settings > Info, lists and subtitles > Import lists.')}
+                  own={t('If Trakt starts refusing requests, get a free Client ID and add it under Settings > Library and files > Import lists.')}
                 />
               ) : (
                 <ServiceKeyCard service="trakt" {...TRAKT_COPY} builtIn={false} configured={svc.hasTraktClientId} onSaved={loadSvc} />
@@ -706,7 +723,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
               }}
             >
               <p>{t("Without an indexer, Mediarium can't find anything to download.")}</p>
-              <p>{t('Add one any time under Settings > Indexers & Search. The dashboard will remind you.')}</p>
+              <p>{t('Add one any time under Settings > Finding releases > Indexers & Search. The dashboard will remind you.')}</p>
             </ConfirmDialog>
           )}
         </div>
@@ -793,7 +810,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
               <h2>{t('What quality do you want?')}</h2>
               <WizardHelp step="quality" />
               <p className="wizard-lead">
-                {tx('Pick the quality for {what} you add. {recommended} suits most people. Upgrades and your own profiles are under Settings > Library > Quality.', {
+                {tx('Pick the quality for {what} you add. {recommended} suits most people. Upgrades and your own profiles are under Settings > Finding releases > Quality.', {
                   what: qualityFor,
                   recommended: <strong>1080p</strong>,
                 })}
@@ -808,7 +825,14 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
                 ))}
                 {profiles.length === 0 && <div className="skeleton" style={{ height: 90, gridColumn: '1 / -1' }} />}
               </div>
-              {chosen.music && <p className="wizard-small">{t('Music quality is under Settings > Library > Quality.')}</p>}
+              <Switch
+                checked={keepBetter}
+                onChange={setKeepBetter}
+                label={t('Keep looking for better versions')}
+                description={t('When a better release of something you already have turns up, such as Blu-ray after a web download, Mediarium swaps it in, up to the quality where your profile stops. Turn it off to keep the first good download. You can change it later under Settings > Finding releases > Automatic searching.')}
+                showState
+              />
+              {chosen.music && <p className="wizard-small">{t('Music quality is under Settings > Finding releases > Quality.')}</p>}
               <hr className="soft-rule" />
               <h2>{t('How should your files be named?')}</h2>
               <p className="wizard-lead">{t('Every download is renamed and put in its own folder, so your media player shows the right poster, title and episode.')}</p>
@@ -840,7 +864,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
           ) : (
             <>
               <h2>{t('Quality & naming')}</h2>
-              <p className="wizard-lead">{t('Music quality and file names are under Settings > Library. Nothing to pick here, so press Continue.')}</p>
+              <p className="wizard-lead">{t('Music quality is under Settings > Finding releases > Quality. File names are under Settings > Library and files > File names and importing. Nothing to pick here, so press Continue.')}</p>
             </>
           )}
           <div className="wizard-nav">
@@ -859,7 +883,7 @@ export default function Onboarding({ startStep = 0 }: { startStep?: number }) {
           <WizardHelp step="server" />
           <WizardPhone what={t('Media server')} onDone={phoneDone} /> {/* Usherr Broadcast */}
           <p className="wizard-lead">
-            {t('Optional. Connect Plex, Jellyfin or Emby to get "Watch in" links and have new files show up there on their own. Or do it later under Settings > Connections > Media servers.')}
+            {t('Optional. Connect Plex, Jellyfin or Emby to get "Watch in" links and have new files show up there on their own. Or do it later under Settings > Media servers and apps > Media servers.')}
           </p>
           {(player === 'kodi' || player === 'other') && (
             <p className="wizard-small">

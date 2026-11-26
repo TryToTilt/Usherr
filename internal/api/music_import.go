@@ -13,6 +13,7 @@ import (
 
 	"github.com/rdborg/mediarium/internal/music"
 	"github.com/rdborg/mediarium/internal/musicbrainz"
+	"github.com/rdborg/mediarium/internal/origin"
 	"github.com/rdborg/mediarium/internal/queue"
 )
 
@@ -244,7 +245,7 @@ func (m *musicScans) start(root string) (job *musicScanJob, created bool) {
 func (s *Server) handleMusicImportScan(w http.ResponseWriter, r *http.Request) {
 	root := s.musicRoot()
 	if root == "" {
-		writeError(w, http.StatusPreconditionFailed, "The music folder isn't set. Choose one in Settings > Library > Folders.")
+		writeError(w, http.StatusPreconditionFailed, "The music folder isn't set. Choose one in Settings > Library and files > Folders.")
 		return
 	}
 	job, created := s.music.scans.start(root)
@@ -431,7 +432,7 @@ func (s *Server) resolveScanArtist(ctx context.Context, cache map[string]*scanAr
 	if err == nil && !ok {
 		// New to the library: listed with its albums, none monitored, so
 		// finding your collection never starts a wave of downloads.
-		artist, _, err = s.addArtistFromMusicBrainz(ctx, mb.ID, monitorNone, 0, userID)
+		artist, _, err = s.addArtistFromMusicBrainz(ctx, mb.ID, monitorNone, 0, userID, origin.Origin{Kind: origin.Import})
 		if err == nil {
 			_ = s.MusicRepo.SetArtistMonitored(artist.ID, true)
 			artist.Monitored = true
@@ -602,6 +603,10 @@ func (s *Server) registerScannedAlbum(ctx context.Context, res *musicScanResult,
 	}
 	tracks, err := s.ensureTracks(ctx, album)
 	if err != nil {
+		res.Status, res.Message = musicResultFailed, err.Error()
+		return
+	}
+	if tracks, err = s.tracksForManual(album, tracks, infos); err != nil {
 		res.Status, res.Message = musicResultFailed, err.Error()
 		return
 	}

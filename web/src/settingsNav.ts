@@ -1,11 +1,12 @@
-import { BRAND } from './brand' // Usherr
+import { BRAND } from './brand.ts' // Usherr
 import type { IconName } from './components/Icon'
 import { t, tc } from './i18n.ts'
 import { lobbyOn } from './neu/look.ts' // Usherr: the new layout
 import { broadcastOn } from './onemenu/broadcast.ts' // Usherr Broadcast: its own settings groups
 import { BROADCAST_GROUPS, broadcastPages } from './onemenu/broadcastNav.ts' // Usherr Broadcast
 
-// The settings pages, in the order they appear under Settings in the sidebar.
+// The settings pages, in the order they appear under Settings in the sidebar
+// (the order of the groups below, page by page).
 // Each has its own soft colour so the list is easy to scan. Pages marked
 // `member` are open to every account; the rest are for administrators only.
 // `notViewer` pages are left out of the list for view-only accounts, which
@@ -17,19 +18,19 @@ export const SETTINGS_NAV: { to: string; label: string; icon: IconName; color: s
   { to: '/settings/modules', label: t('Media types'), icon: 'grid', color: '#ff9f6b', blurb: t('Switch movies, shows, music, ebooks, audiobooks and manga on or off.'), help: 'getting-started#media-types' },
   { to: '/settings/media', label: t('Folders'), icon: 'folder', color: '#7cc4f8', blurb: t('Where your movies, shows, music, books and downloads are kept.'), help: 'install-docker#why-one-data-folder-hardlinks' },
   { to: '/settings/naming', label: t('File names and importing'), icon: 'list', color: '#7cc4f8', blurb: t('How imported files are named, the info files saved next to them, and what runs after an import.'), help: 'library#file-names' },
-  { to: '/settings/quality', label: t('Quality'), icon: 'star', color: '#f5c76a', blurb: t('What counts as good enough, which release wins, and which audio language you want.'), help: 'quality' },
-  { to: '/settings/automation', label: t('Automatic searching'), icon: 'sliders', color: '#f0b46a', blurb: t('When Mediarium looks for things by itself, and whether it waits for Usenet or torrents.'), help: 'quality#automatic-searching' },
+  { to: '/settings/metadata', label: t('Movie and show info'), icon: 'globe', color: '#c1acf7', blurb: t('Where titles, posters, episode numbers and trailers come from.') },
+  { to: '/settings/lists', label: t('Import lists'), icon: 'list', color: '#c1acf7', blurb: t('Add movies and shows by themselves from lists on Trakt, TMDB, IMDb, MDBList and Letterboxd.'), help: 'adding#import-lists' },
+  { to: '/settings/subtitles', label: t('Subtitles'), icon: 'chat', color: '#f4a3c8', blurb: t('Where subtitles come from and which languages to keep.'), help: 'subtitles' },
   { to: '/settings/manga', label: t('Manga'), icon: 'book', color: '#8fa8ff', blurb: t('Where manga comes from: official English editions, fan scans, Nyaa, and your own files.'), help: 'manga' }, // Usherr
   { to: '/settings/manga-account', label: t('MangaDex account'), icon: 'book', color: '#8fa8ff', blurb: t('Connect your own MangaDex account, so your follows, read chapters and lists stay the same in both.'), member: true, notViewer: true, help: 'manga' }, // Usherr
   { to: '/settings/indexers', label: t('Indexers & Search'), icon: 'search', color: '#a5b4fc', blurb: t('The sites Mediarium searches for releases.'), help: 'indexers' },
+  { to: '/settings/quality', label: t('Quality'), icon: 'star', color: '#f5c76a', blurb: t('What counts as good enough, which release wins, and which audio language you want.'), help: 'quality' },
+  { to: '/settings/automation', label: t('Automatic searching'), icon: 'sliders', color: '#f0b46a', blurb: t('When Mediarium looks for things by itself, and whether it waits for Usenet or torrents.'), help: 'quality#automatic-searching' },
   { to: '/settings/usenet', label: t('Usenet'), icon: 'server', color: '#86dca4', blurb: t('Your Usenet provider and the built-in downloader.'), help: 'downloads#usenet-connections' },
   { to: '/settings/torrents', label: t('Torrents'), icon: 'magnet', color: '#86dca4', blurb: t('The built-in torrent client and its options, a debrid service, or a client you already run.'), help: 'downloads#controls-of-the-built-in-torrent-client' },
   { to: '/settings/vpn', label: t('VPN and proxy'), icon: 'shield', color: '#6fd6c8', blurb: t('Keep torrent traffic behind a VPN, or send it through a proxy.'), help: 'downloads#vpn-protection' },
   { to: '/settings/download-rules', label: t('Download rules'), icon: 'download', color: '#86dca4', blurb: t('Where to download from, how many at once, how fast and when, and which releases to skip.'), help: 'downloads#checks-on-releases' },
   { to: '/settings/schedules', label: t('Schedules'), icon: 'clock', color: '#86dca4', blurb: t('Time windows for downloads and heavy jobs.') }, // home fork
-  { to: '/settings/metadata', label: t('Movie and show info'), icon: 'globe', color: '#c1acf7', blurb: t('Where titles, posters, episode numbers and trailers come from.') },
-  { to: '/settings/lists', label: t('Import lists'), icon: 'list', color: '#c1acf7', blurb: t('Add movies and shows by themselves from lists on Trakt, TMDB, IMDb, MDBList and Letterboxd.'), help: 'adding#import-lists' },
-  { to: '/settings/subtitles', label: t('Subtitles'), icon: 'chat', color: '#f4a3c8', blurb: t('Where subtitles come from and which languages to keep.'), help: 'subtitles' },
   { to: '/settings/media-servers', label: t('Media servers'), icon: 'monitor', color: '#f2c14e', blurb: t('Plex, Jellyfin and the rest: scan after a download and link to them.'), help: 'media-servers' },
   { to: '/settings/notifications', label: t('Notifications'), icon: 'mail', color: '#f7b27a', blurb: t('Messages when something is added, downloaded or goes wrong.'), help: 'notifications' },
   { to: '/settings/other-apps', label: t('Other apps'), icon: 'server', color: '#9fd4a8', blurb: t('Let Overseerr, Homepage and phone apps talk to Mediarium.'), help: 'media-servers#overseerr-dashboards-and-phone-apps' },
@@ -79,27 +80,31 @@ type NavPage = (typeof SETTINGS_NAV)[number]
 export interface SettingsGroup {
   key: string
   label: string
+  blurb: string
   icon: IconName
   color: string
   pages: NavPage[]
 }
 
-// Settings pages on the same topic share one sidebar entry. The entries stay
-// open in the sidebar; one entry at a time shows its pages as indented items
-// underneath, so the sidebar stays short.
-const GROUPS: { key: string; label: string; icon: IconName; color: string; pages: string[] }[] = [
-  { key: 'general', label: t('General'), icon: 'sliders', color: '#e7a6f2', pages: ['/settings/general', '/settings/setup'] }, // home fork: the setup checklist
-  { key: 'modules', label: t('Media types'), icon: 'grid', color: '#ff9f6b', pages: ['/settings/modules'] },
-  { key: 'library', label: t('Library'), icon: 'folder', color: '#7cc4f8', pages: ['/settings/media', '/settings/naming', '/settings/quality', '/settings/automation', '/settings/manga', '/settings/manga-account'] },
-  { key: 'indexers', label: t('Indexers & Search'), icon: 'search', color: '#a5b4fc', pages: ['/settings/indexers'] },
-  { key: 'downloads', label: tc('section', 'Downloading'), icon: 'download', color: '#86dca4', pages: ['/settings/usenet', '/settings/torrents', '/settings/vpn', '/settings/download-rules', '/settings/schedules'] }, // home fork: schedules
-  { key: 'metadata', label: t('Info, lists and subtitles'), icon: 'globe', color: '#c1acf7', pages: ['/settings/metadata', '/settings/lists', '/settings/subtitles'] },
-  { key: 'connections', label: t('Connections'), icon: 'monitor', color: '#f2c14e', pages: ['/settings/media-servers', '/settings/notifications', '/settings/other-apps', '/settings/addons'] },
-  { key: 'extras', label: t('Extras'), icon: 'sparkles', color: '#6fd6c8', pages: ['/settings/extras'] }, // home fork
-  { key: 'marquee', label: t('Movie night'), icon: 'monitor', color: '#f2c14e', pages: ['/marquee/manage', '/preshow/manage', '/settings/community', '/settings/linked'] }, // Usherr: the Marquee and the pre-show; linked Usherrs
-  { key: 'reposterr', label: 'Re-Posterr', icon: 'image', color: '#f59e8b', pages: ['/settings/re-posterr', '/settings/collections', '/settings/poster-badges'] }, // Usherr: artwork picking, collections, poster badges
-  { key: 'profile', label: t('Account & Access'), icon: 'user', color: '#8fb8f5', pages: ['/settings/profile', '/settings/security', '/settings/services', '/settings/accounts', '/settings/requests', '/settings/sign-in'] },
-  { key: 'system', label: t('System'), icon: 'hard', color: '#b4bfcc', pages: ['/settings/system', '/settings/service-checks', '/settings/backup', '/settings/statistics', '/settings/watching', '/settings/logs', '/settings/migrate', '/settings/about'] },
+// Settings pages are grouped in the order a person sets things up: the basics,
+// then the library, then finding and downloading releases, then the apps around
+// Mediarium, then people, then the system itself. Each group is one sidebar
+// entry. The entries stay open in the sidebar; one entry at a time shows its
+// pages as indented items underneath, so the sidebar stays short. `blurb` is
+// the line shown for the group on the Settings overview.
+// Usherr: this is the Classic and Neu sidebar; Broadcast has its own groups (onemenu/broadcastNav.ts).
+// Usherr's own pages sit in the closest group; Extras, Movie night and Re-Posterr keep groups of their own.
+const GROUPS: { key: string; label: string; blurb: string; icon: IconName; color: string; pages: string[] }[] = [
+  { key: 'basics', label: t('Basics'), blurb: t('Language, look, address, the setup checklist and which media types you use.'), icon: 'sliders', color: '#e7a6f2', pages: ['/settings/general', '/settings/setup', '/settings/modules'] }, // home fork: the setup checklist
+  { key: 'library', label: t('Library and files'), blurb: t('Folders, file names, movie and show info, import lists, subtitles and manga.'), icon: 'folder', color: '#7cc4f8', pages: ['/settings/media', '/settings/naming', '/settings/metadata', '/settings/lists', '/settings/subtitles', '/settings/manga', '/settings/manga-account'] }, // Usherr: manga
+  { key: 'releases', label: t('Finding releases'), blurb: t('Indexers, quality profiles and when Mediarium searches by itself.'), icon: 'search', color: '#a5b4fc', pages: ['/settings/indexers', '/settings/quality', '/settings/automation'] },
+  { key: 'downloads', label: tc('section', 'Downloading'), blurb: t('Usenet, torrents, a VPN, the rules for downloads and their time windows.'), icon: 'download', color: '#86dca4', pages: ['/settings/usenet', '/settings/torrents', '/settings/vpn', '/settings/download-rules', '/settings/schedules'] }, // home fork: schedules
+  { key: 'connections', label: t('Media servers and apps'), blurb: t('Plex, Jellyfin, notifications and the apps that connect to Mediarium.'), icon: 'monitor', color: '#f2c14e', pages: ['/settings/media-servers', '/settings/notifications', '/settings/other-apps', '/settings/addons'] },
+  { key: 'extras', label: t('Extras'), blurb: t('Streaming, Live TV, playing on a TV, comics and more.'), icon: 'sparkles', color: '#6fd6c8', pages: ['/settings/extras'] }, // home fork
+  { key: 'marquee', label: t('Movie night'), blurb: t('The Marquee, the pre-show, Community and linked Usherrs.'), icon: 'monitor', color: '#f2c14e', pages: ['/marquee/manage', '/preshow/manage', '/settings/community', '/settings/linked'] }, // Usherr: the Marquee and the pre-show; linked Usherrs
+  { key: 'reposterr', label: 'Re-Posterr', blurb: t('Artwork, collections and poster badges in Jellyfin and Plex.'), icon: 'image', color: '#f59e8b', pages: ['/settings/re-posterr', '/settings/collections', '/settings/poster-badges'] }, // Usherr: artwork picking, collections, poster badges
+  { key: 'profile', label: t('People and access'), blurb: t('Your profile, sign-in security, accounts and requests.'), icon: 'user', color: '#8fb8f5', pages: ['/settings/profile', '/settings/security', '/settings/services', '/settings/accounts', '/settings/requests', '/settings/sign-in'] },
+  { key: 'system', label: t('System'), blurb: t('The server, service checks, backups, statistics, watching, logs and moving from other apps.'), icon: 'hard', color: '#b4bfcc', pages: ['/settings/system', '/settings/service-checks', '/settings/backup', '/settings/statistics', '/settings/watching', '/settings/logs', '/settings/migrate', '/settings/about'] }, // Usherr: service checks, watching
 ]
 
 export const inPage = (pathname: string, to: string) => pathname === to || pathname.startsWith(to + '/')
@@ -109,8 +114,9 @@ export const inPage = (pathname: string, to: string) => pathname === to || pathn
 export function settingsGroupsFor(admin: boolean, viewer = false): SettingsGroup[] {
   const pages = settingsNavFor(admin, viewer)
   return (broadcastOn() ? BROADCAST_GROUPS : GROUPS).map((g) => { // Usherr Broadcast: seven groups and Your settings
+    // Usherr: Broadcast's groups have no blurb of their own (upstream's Settings overview shows one per group), so it is empty there.
     const visible = g.pages.map((to) => pages.find((p) => p.to === to)).filter((p): p is NavPage => !!p)
-    return { ...g, label: visible.length === 1 && g.pages.length > 1 ? visible[0].label : visible.length === 1 && !admin ? visible[0].label : g.label, pages: visible }
+    return { blurb: '', ...g, label: visible.length === 1 && g.pages.length > 1 ? visible[0].label : visible.length === 1 && !admin ? visible[0].label : g.label, pages: visible }
   }).filter((g) => g.pages.length > 0)
 }
 

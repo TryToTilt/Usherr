@@ -248,7 +248,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	case errors.Is(err, auth.ErrUsernameTaken):
 		slog.Warn("auth: directory sign-in refused, the user name is taken by another account", "user", typedName, "ip", ip)
-		writeError(w, http.StatusConflict, "An account with your user name already exists here and isn't linked to the directory. Ask an administrator.")
+		writeError(w, http.StatusConflict, "An account with your username already exists here and isn't linked to the directory. Ask an administrator.")
 		return
 	case errors.Is(err, errMediaUnreachable): // Usherr
 		slog.Error("auth: Jellyfin could not be used for a sign-in", "err", err)

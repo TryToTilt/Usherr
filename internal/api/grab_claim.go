@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
+	"runtime/debug"
 	"time"
 
 	"github.com/rdborg/mediarium/internal/blocklist"
@@ -23,12 +25,21 @@ var errAlreadyGrabbed = errors.New("already being downloaded")
 var errBlocklisted = errors.New("on the blocklist")
 
 // releaseBlocklisted looks the release up in the blocklist as it is right
-// now. An automation run builds its view of the blocklist when it starts; a
+// now, for the title sc it is meant for. An automation run builds its view of the blocklist when it starts; a
 // download that fails while the run is still going puts its release there
 // afterwards, and the run must not grab it again. Call with grabMu held.
-func (s *Server) releaseBlocklisted(releaseTitle string) bool {
+func (s *Server) releaseBlocklisted(releaseTitle, releaseID string, sc blocklist.Scope) bool {
+	if releaseID == "" {
+		return s.releaseBlocklistedAny(releaseTitle, nil, sc)
+	}
+	return s.releaseBlocklistedAny(releaseTitle, []string{releaseID}, sc)
+}
+
+// releaseBlocklistedAny is releaseBlocklisted for an upload known by several
+// ids (see blocklist.ReleaseIDs).
+func (s *Server) releaseBlocklistedAny(releaseTitle string, releaseIDs []string, sc blocklist.Scope) bool {
 	keys, err := s.Blocklist.Keys()
-	return err == nil && keys[blocklist.Key(releaseTitle)]
+	return err == nil && blocklist.BlockedAny(keys, releaseTitle, releaseIDs, sc)
 }
 
 // errNZBLinkHeld is what a grab that is not a person's own pick is refused
@@ -39,11 +50,11 @@ var errNZBLinkHeld = fmt.Errorf("held back for a few hours because its indexer s
 // grabRefused says why a grab of this kind may not take the release now:
 // it is on the blocklist, or held back after its link sent no NZB. A release
 // a person picked is never refused here. Call with grabMu held.
-func (s *Server) grabRefused(kind grabKind, releaseTitle, downloadURL string) error {
+func (s *Server) grabRefused(kind grabKind, releaseTitle, downloadURL string, sizeBytes int64, sc blocklist.Scope) error {
 	if !kind.refusesDuplicates() {
 		return nil
 	}
-	if s.releaseBlocklisted(releaseTitle) {
+	if s.releaseBlocklistedAny(releaseTitle, s.downloadReleaseIDs(downloadURL, sizeBytes), sc) {
 		return errBlocklisted
 	}
 	if s.nzbLinkHeld(downloadURL, releaseTitle) {
@@ -86,7 +97,24 @@ func holdBack(job string) {
 
 // background runs fn as tracked background work (a download pipeline or an
 // automatic retry), so tests can wait for all of it to finish.
-func (s *Server) background(fn func()) { s.bg.Go(fn) }
+//
+// A crash in the work is logged and ends that work only: these run in their
+// own goroutines, where a panic nobody catches would stop the whole app.
+func (s *Server) background(fn func()) {
+	s.bg.Go(func() {
+		defer logTaskPanic("a background task")
+		fn()
+	})
+}
+
+// logTaskPanic is deferred at the top of a goroutine to keep a panic in it
+// from ending the program: it writes the panic and where it came from to the
+// log and lets the goroutine finish.
+func logTaskPanic(what string) {
+	if p := recover(); p != nil {
+		slog.Error("a task crashed and was stopped", "task", what, "panic", fmt.Sprint(p), "stack", string(debug.Stack()))
+	}
+}
 
 // claimMovie reports whether an automatic grab for movieID may go ahead:
 // not while another download for it is still running. Call with grabMu held.

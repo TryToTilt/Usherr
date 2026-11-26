@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type CollectionInfo, type CollectionRef, type QualityProfile, type SourcePref } from '../api'
 import { plural, st, t } from '../i18n'
 import type { NewTitleFolder } from '../api'
@@ -9,6 +9,7 @@ import { sortProfiles } from './qualityBlurb'
 import { describeState } from './state'
 import Switch from './Switch'
 import { useToast } from './Toast'
+import { addStart } from '../addDefaults'
 
 // On a movie's page: the collection (series of films) it belongs to, the films
 // in it and which are in the library, and, for administrators, "Add the whole
@@ -132,6 +133,8 @@ function AddAll({ info, missing, onClose, onDone }: { info: CollectionInfo; miss
   const [rootPath, setRootPath] = useState(info.followRootPath ?? '')
   const [monitored, setMonitored] = useState(true)
   const [searchNow, setSearchNow] = useState(true)
+  // What the person already changed is not undone when the defaults arrive.
+  const edited = useRef({ monitored: false, searchNow: false })
   const [follow, setFollow] = useState(info.follow)
   const [sources] = useState<SourcePref>('')
   const [busy, setBusy] = useState(false)
@@ -143,6 +146,9 @@ function AddAll({ info, missing, onClose, onDone }: { info: CollectionInfo; miss
       .then((r) => {
         setProfiles(sortProfiles(r.profiles))
         setDefaultProfileId(r.defaultId)
+        const start = addStart(r)
+        if (!edited.current.monitored) setMonitored(start.monitored)
+        if (!edited.current.searchNow) setSearchNow(start.searchNow)
       })
       .catch(() => undefined)
     api
@@ -198,13 +204,13 @@ function AddAll({ info, missing, onClose, onDone }: { info: CollectionInfo; miss
         )}
         <label data-walk="collection-monitor">
           {t('Monitoring')}
-          <select value={monitored ? 'yes' : 'no'} onChange={(e) => setMonitored(e.target.value === 'yes')} disabled={busy}>
+          <select value={monitored ? 'yes' : 'no'} onChange={(e) => { edited.current.monitored = true; setMonitored(e.target.value === 'yes') }} disabled={busy}>
             <option value="yes">{t('Monitored: search for them and download them')}</option>
             <option value="no">{t('Not monitored: just add them to the library')}</option>
           </select>
         </label>
       </div>
-      <Switch checked={searchNow && monitored} onChange={setSearchNow} disabled={busy || !monitored} label={t('Start searching right away')} description={t('Films that are not out yet wait until they are.')} />
+      <Switch checked={searchNow && monitored} onChange={(v) => { edited.current.searchNow = true; setSearchNow(v) }} disabled={busy || !monitored} label={t('Start searching right away')} description={t('Films that are not out yet wait until they are.')} />
       <div data-walk="collection-follow">
       <Switch checked={follow} onChange={setFollow} disabled={busy} label={t('Also add new films in this collection')} description={t('Films that join the collection later are added with these choices.')} />
       </div>

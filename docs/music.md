@@ -11,7 +11,7 @@ Mediarium can look after a music collection: artists, their albums and the track
    ```
 
    Or map a folder of its own, for example `- /volume1/music:/music` (no `MUSIC_DIR` line is needed while the right side stays `/music`). The compose file in the install guide has both as commented lines you can switch on. On a NAS, create the folder first, or Docker stops with `Bind mount failed ... does not exist`. The folder is only used once the module is on.
-2. As an administrator, open **Settings > Media types** and switch on **Music** (see [modules.md](./modules.md)). Then you can change the music folder on the **Folders** page (Settings > Library). The value in Settings wins over `MUSIC_DIR`.
+2. As an administrator, open **Settings > Basics > Media types** and switch on **Music** (see [modules.md](./modules.md)). Then you can change the music folder on the **Folders** page (Settings > Library and files). The value in Settings wins over `MUSIC_DIR`.
 
 In the first-run setup wizard, choosing Music on the **Media types** step adds a music box to the **Library paths** step. It starts from `MUSIC_DIR`. If nothing is mapped at `/music` but your movies and TV share a parent folder such as `/data`, it suggests a folder inside it (for example `/data/Music`). If the folder isn't mapped at all, it shows the exact compose line to add.
 
@@ -23,7 +23,7 @@ For scripts: `PUT /api/settings` with `{"musicEnabled": true, "musicPath": "/dat
 
 With the module on, music shows up next to movies and TV. Basic users can browse, add artists and grab releases. The buttons that delete things or change settings are for administrators.
 
-![The Music tab of the Library with five artists as cards showing how many albums are downloaded](images/music-library.png)
+![The Music tab of the Library with six artists as cards showing how many albums are downloaded](images/music-library.png)
 
 *Library, Music tab: your artists, with how many of their albums you have.*
 
@@ -39,7 +39,8 @@ With the module on, music shows up next to movies and TV. Basic users can browse
 - **Artist page** (`/music/artist/{id}`): the artist with a summary (releases, downloaded, missing, the quality profile in use, monitored) and their **Albums**, **EPs** and **Singles** as cards. Each card shows the cover, year, quality, what it's doing (Waiting for a release, Downloading with a progress bar, Downloaded, Not monitored) and:
   - an eye button to monitor or stop monitoring the album,
   - **Search now** (or **Look for better** once downloaded),
-  - **Choose a release**, the list of releases found, with the quality and the reason automation would skip a release, or a "fallback" label when only a fallback profile accepts it. Grabbing is always allowed,
+  - **Add a download by hand** (administrators), to give the album an NZB or torrent you already have, see [Add a download by hand](activity.md#add-a-download-by-hand),
+  - **Choose a release**, the list of releases found (filter it by indexer or by quality, such as FLAC or MP3 320), with the quality and the reason automation would skip a release, or a "fallback" label when only a fallback profile accepts it. Grabbing is always allowed,
   - **Details**, which opens the album across the page: **Tracks** (each track with "in library" or "missing"), **Releases**, **What happened** (the album's own activity log, newest first) and **Files** (everything in the album's folder, see below).
 
   The page refreshes every few seconds while it's open. **Search for N missing albums** searches every monitored album that's missing. Administrators can **Remove** the artist (the "Also delete everything on disk" option is unticked, and shows how many files and how much space the albums take) and change two things right in the summary: **Follow this artist** (whether releases that come out later are picked up, see "Following an artist") and the artist's **Quality profile** (Default, or one of the music profiles). Basic users see both as labels. The cover on the page is the artist's picture (the cover of their first album that has one). When there's none, a music note takes its place.
@@ -49,7 +50,7 @@ With the module on, music shows up next to movies and TV. Basic users can browse
 - **Header search**: with music on, the search box at the top also lists matching **Artists** under the movies and shows, each with Add or Open when already in the library. Add opens the same "Add <artist>" dialog as Discover: the choice of what to follow, **Quality profile** and a tick box to start searching now.
 - **Album files**: the **Files** tab lists what's in the album's folder (songs, cover, notes) with sizes and dates. **Play** on a song opens a small player in front of the page. **View** shows the cover or a text file. Playing is direct, so it depends on your browser: MP3 and AAC/M4A play everywhere, FLAC in current browsers and Apple Lossless only in Safari. If your browser can't play a file, the player says so. The file itself is untouched.
 - **Calendar**: with music on, albums with a release date show up on the Upcoming calendar with their cover in a pink sleeve with the record peeking out (and a "Music" entry in the legend). Clicking one opens the album on its artist page.
-- **Settings > Library > Quality > Music** (administrators): all music profiles as cards with their formats, where they stop upgrading (highlighted), fallback and how many artists use them. **New profile** and **Edit** open the same kind of editor as for movies, scrolled into view with the cursor in the name (name, accepted qualities, the quality at which upgrading stops, upgrades on or off, and the fallback order, which you drag). **Make default** sets the profile artists without one of their own use. **Delete** asks first, and a profile that's the default or that artists use is refused with the reason.
+- **Settings > Finding releases > Quality > Music** (administrators): all music profiles as cards with their formats, where they stop upgrading (highlighted), fallback and how many artists use them. **New profile** and **Edit** open the same kind of editor as for movies, scrolled into view with the cursor in the name (name, accepted qualities, the quality at which upgrading stops, upgrades on or off, and the fallback order, which you drag). **Make default** sets the profile artists without one of their own use. **Delete** asks first, and a profile that's the default or that artists use is refused with the reason.
 - **Upcoming, Wanted**: with more than one kind of media on, chips (All, Movies, TV shows, Music, each with its own icon) filter the list. Albums that are monitored, released and missing (or below the profile's cutoff, under Upgrades) are listed as "Artist – Album" with the cover, the profile and the last search result on hover, a **Search now** button and a link that opens the album on its artist page. The counts on the Missing and Upgrades tabs include albums.
 - **Activity**: album downloads appear in the queue like movie downloads, titled "Artist – Album" with the cover and an orange edge, and with the same retry, blocklist-and-search-again and remove buttons. A failed one opens the album from the arrow. Albums still waiting for a release join the "Waiting for a release" list. Recently added and recently downloaded albums on the dashboard open their album too.
 - **When MusicBrainz is busy**: to import an album Mediarium needs its track list from MusicBrainz, which now and then answers "busy" (or doesn't answer) for a while. Mediarium asks again with longer and longer pauses (2 seconds, 5, 15, 45 and 2 minutes), never faster than one request a second. If it still gets no answer, the download does not fail and is not downloaded again: the row in Activity says **Waiting for MusicBrainz** with "MusicBrainz is busy. Mediarium will try again later.", the files stay where they are, and the import is tried again every 15 minutes for up to a day. **Retry now** on the row tries the import at once. If MusicBrainz is still not answering after a day, the row fails with a message saying the files are kept, and **Retry** then runs only the import again, from the same files, without downloading. A restart of Mediarium pauses a waiting row like any other download in progress: **Resume** it.
@@ -58,6 +59,46 @@ With the module on, music shows up next to movies and TV. Basic users can browse
 ## Adding an artist
 
 Search for the artist by name. A short description ("jazz", "UK rock band") tells artists with the same name apart. When you add one, Mediarium lists its **albums, EPs and singles**. Live albums, compilations, remixes, soundtracks and DJ mixes are left out unless you change that (see [Choosing what to show](#choosing-what-to-show)), so by default the list is the artist's own studio releases.
+
+### Adding an album by hand
+
+When the music database doesn't have an album, or has it under the wrong name, press **Can't find it? Add it by hand** under the results on the Music tab of Search (it needs the permission to add titles yourself). Choose **Album**, type the album title and the artist, and optionally the year, the type (album, EP or single), an ID of your own such as a catalogue number, and a cover picture (the cover picker is only there for people who may change covers, the **Search now and monitoring** permission). If the library has an artist of that name, the album goes to it; otherwise a new artist is made. The album is monitored, searched for, downloaded and imported like any other.
+
+Nothing is looked up for an album added by hand: there is no tracklist from the music database, so the tracks are made from the files when they arrive (numbered by their tags or file names, in name order when there are none). Following the artist doesn't add releases for it, its page has no "hidden by the filter" list, and the schedule that refreshes artists skips it, so it keeps exactly what you typed. The same album title for the same artist is refused. For scripts: `POST /api/music/manual` with `{artist, album, year?, type?, externalId?, searchNow?}` answers `{artistId, albumId, newArtist, album}`; the ids start with `manual:`, and the artist and album payloads carry `manual: true`. The cover goes up afterwards with `POST /api/music/albums/{id}/cover` (multipart, field `file`, only for albums added by hand); it is kept in the `music-own-covers` folder in your config folder and is written into the album folder on import. When the artist is removed from the library, the covers of its albums added by hand are deleted from that folder too.
+
+### Searching by album or song
+
+On the **Music** tab of the search page there is one box. Type an artist, an album, a song or a mix such as "Gul Anuv Jain", and the answer is one list with artists, albums and songs together, best match first. Each card has a chip that says **Artist**, **Album** or **Song**. The buttons **All** (the default), **Artists**, **Albums** and **Songs** above the list show only one kind. A song is found by its own title ("Cornfield Chase" finds the song and its album *Interstellar*).
+
+#### One search for music
+
+How the list is ordered:
+
+- The words can be in any order and in the title or the artist, so "Gul Anuv Jain" finds the song *Gul* by Anuv Jain, and "jain anuv" finds the artist Anuv Jain. Capitals and accents do not matter, and a word a letter or two off ("Jian") still counts, a little less than the right spelling.
+- An exact name comes before a name that only starts with what you typed, and that before names with more words around it. "(Deluxe Edition)" and other brackets are not counted as extra words.
+- Studio albums come before EPs, and those before singles. Compilations, remixes, live albums and bootlegs are pushed down, unless you typed "live" yourself.
+- A film or show name leads to its soundtrack: "Interstellar" puts *Interstellar (Original Motion Picture Soundtrack)* above singles and bands that share the name.
+- A song that sits on several releases is one card, on its studio album (or its soundtrack). A song that is on many releases counts as better known.
+- The score the music database gives each match is part of the order too.
+
+The three searches run at the same time. If one of them cannot answer (the music database is slow or busy), the other two still show, with a note that some results may be missing. The same words typed again give the same list straight away, and when a search fails Mediarium tries it once more before it shows an error.
+
+**Add** on an artist or an album opens the same dialog as everywhere else (**Only this album** is picked for an album). For an album, **Songs on this album** in that dialog opens the track list, so you can see what you are adding. A soundtrack or compilation that isn't one of the artist's own albums is added to that artist all the same, as a wanted album.
+
+#### Adding just one song
+
+A song card has two buttons: **Add the whole album** and **Add only this song**. Mediarium works in albums, so a song is added by adding its album, and the artist if you don't have them yet. With **Add only this song**:
+
+- The album is searched for and downloaded as a whole, like any album. Nothing about the search or the quality profile changes.
+- Only the song you picked is **wanted**. When the download is imported, the track with that name (capitals, accents and brackets such as "(Remastered)" or "(feat. ...)" don't matter) is put in your music folder and the other tracks are left out: they stay in the download folder and are cleaned up with it. The album is then **downloaded** and is not listed as missing anything.
+- If no track on the album has the song's name (the music database spells it differently), nothing is left out and the whole album is imported, so you are never left with nothing. The album's log says how many tracks are wanted.
+- If the release you pick has no file for that song, it is treated like any release that doesn't match the album: it is blocklisted and the next one is tried.
+- The **Tracks** tab of the album says "Added for one song" and shows **not wanted** on the other tracks. Press **not wanted** on a track to want it after all, or **Want the whole album** to bring all of them back, then use **Search for missing tracks** to download what is missing.
+- The song buttons are for an album you don't have yet. For an artist you already have, only that album and that song are added.
+
+Every album that is added in the usual way, and every album you already have, keeps all tracks wanted. A request from an account that has to ask carries the song along, and the request reads "Artist – Album (only “Song”)".
+
+Scripts: `GET /api/music/search?type=all&q=` answers `{items: [{kind, rank, name, mbid, title, artistName, artistMbid, type, releaseDate, coverUrl, inLibrary, artistId, albumId, song, soundtrack, ...}], note}` with `kind` artist, album or song (for a song, `title` is its album and `mbid` the album's id). `type=album` and `type=song` answer as before, and the search without `type` still answers the plain list of artists (#143, SanketBaraiya). `POST /api/music/artists` takes `song` with `albumMbid`; `POST /api/music/artists/{id}/albums` takes `song`; `PUT /api/music/albums/{id}/monitored` takes `song` (an empty one wants every track again); `PUT /api/music/tracks/{id}/monitored` switches one track.
 
 The Add dialog is the same everywhere you can add an artist (Discover and the header search), with these choices:
 
@@ -74,7 +115,7 @@ Adding a large discography can take a few seconds, because the music database al
 
 ## Choosing what to show
 
-By default an artist's page lists albums, EPs and singles, and leaves out every release that has a secondary type (live, remix, compilation and so on). You can change that for the whole library under **Settings > Quality**, in the card **Music: what to show**, and for one artist on its own page. Changes are saved as you make them.
+By default an artist's page lists albums, EPs and singles, and leaves out every release that has a secondary type (live, remix, compilation and so on). You can change that for the whole library under **Settings > Finding releases > Quality**, in the card **Music: what to show**, and for one artist on its own page. Changes are saved as you make them.
 
 - **Release types to show**: Albums, EPs and Singles. At least one has to stay on.
 - **Kinds to hide**: Live, Remix, Compilation, DJ-mix, Soundtrack, Demo, Mixtape/Street, Spokenword, Interview, Audiobook, Audio drama and Other (any kind the music database adds later). A release is hidden when any of its kinds is ticked. Everything is ticked by default, which is what Mediarium always did. Untick **Live** and live albums are listed.
@@ -92,7 +133,7 @@ Mediarium searches your indexers for **"Artist Album"** in the audio categories 
 - `Artist - Album (2020) [FLAC 24bit-96kHz]`
 - `Artist_Name-Album_Title-(CAT001)-WEB-2020-GROUP`
 
-A release is skipped when it's another artist or another album, a discography or collection instead of one album, dated before the album came out (a later year is fine: that's a reissue or remaster), blocklisted, or of a quality the album's profile doesn't take. The album's page shows every result with these reasons (interactive search), and its activity log records each automatic search: how many releases were found, how many were acceptable, why the others weren't, and which one was picked.
+A release is skipped when it's another artist or another album, a discography or collection instead of one album, dated before the album came out (a later year is fine: that's a reissue or remaster), blocklisted (for every title, or for this album only), or of a quality the album's profile doesn't take. The blocklist is checked again at the moment an automatic search starts a download, so a release you blocklisted while a search was running is not taken. Umlauts count the same either way: "Björk" and "Bjoerk", "Die Ärzte" and "Die Aerzte", "für" and "fuer" are one name, and an album with umlauts is searched under both spellings. A scene name that keeps spaces inside the names and uses only dashes between the fields (`Artist-Album Name-16BIT-44-KHZ-WEB-FLAC-2024-GROUP`) is read as artist and album too, and an artist with a dash in the name (AC-DC, Jay-Z, Blink-182) is still recognised in such a name. The album's page shows every result with these reasons (interactive search), with a box to search for other words and a **Searches used** part that lists the words sent to each indexer, and its activity log records each automatic search: how many releases were found, how many were acceptable, why the others weren't, and which one was picked.
 
 Wanted albums are searched on the same schedule as movies and shows (see [Automatic searching](./quality-profiles.md#automatic-searching)), at most 25 albums per run. A longer wanted list is worked through over the next runs.
 
@@ -113,7 +154,7 @@ Two profiles are built in:
 | **Lossy (MP3 320)** (default) | MP3 320/V0, AAC 256 | MP3-320/V0 |
 | **Lossless (FLAC)** | FLAC, FLAC 24bit; falls back to *Lossy* when no lossless release exists | FLAC |
 
-Upgrades start off on both, so an album is downloaded once and left alone. "Stops upgrading at" is where a profile stops if you switch upgrades on (Settings > Library > Quality > Music, *Keep looking for better versions after it is downloaded*). An album that's only there because of a fallback profile is still replaced when a release the main profile accepts appears, with upgrades on or off.
+Upgrades start off on both, so an album is downloaded once and left alone. "Stops upgrading at" is where a profile stops if you switch upgrades on (Settings > Finding releases > Quality > Music, *Keep looking for better versions after it is downloaded*). An album that's only there because of a fallback profile is still replaced when a release the main profile accepts appears, with upgrades on or off.
 
 MP3 is the default because it's the most common format. With the Lossless profile, an album that's only available as MP3 320 is downloaded as MP3 (a fallback), and replaced as soon as a FLAC release turns up. New installs start with this order. Profiles and the default you already chose are not changed, and they keep the upgrade setting they were saved with. 24-bit FLAC is taken when it's the best release found, but not hunted for: those files are several times larger.
 
@@ -124,9 +165,10 @@ After the download is repaired and unpacked (as for movies), Mediarium finds the
 ```
 <music folder>/<Artist>/<Album> (<Year>)/01 - Title.flac        one disc
 <music folder>/<Artist>/<Album> (<Year>)/2-01 - Title.flac      albums with several discs
+<music folder>/<Artist>/<Single> [Single] (<Year>)/01 - Title.flac   singles (and `[EP]` for EPs)
 ```
 
-Plex, Jellyfin and Navidrome all read this layout. Files are hardlinked from the downloads folder when both are on the same disk (no extra space), otherwise copied. `cover.jpg` and `folder.jpg` (or `.png`, or `.webp`) are kept beside the tracks. Other files (`.nfo`, `.log`, `.cue`) aren't copied.
+Plex, Jellyfin and Navidrome all read this layout. A name too long for a folder is shortened and the year kept. Two artists with the same name get the second one's disambiguation or the start of its id after the name (`Blue Ruin (US punk)`), and a new single or EP always gets `[Single]` or `[EP]` after the title (`Sinnerman [Single] (1965)`), so it is easy to tell from the album of the same name and their files never meet in one folder. Albums have no tag. Only imports from now on are named this way: folders that already exist keep their names, and a single imported earlier stays where it is. Files are hardlinked from the downloads folder when both are on the same disk (no extra space), otherwise copied. `cover.jpg` and `folder.jpg` (or `.png`, or `.webp`) are kept beside the tracks. Other files (`.nfo`, `.log`, `.cue`) aren't copied.
 
 Files are matched by disc and track number first (from the file name, or a `CD1`/`Disc 2` folder), then by title, then by number alone. If none of a release's files can be matched, the release is blocklisted as bad and the next-best one is tried, as for movies. Tracks the release doesn't have, and extra files it has, are listed in the album's activity. When an album is upgraded (MP3 to FLAC), the old files are removed once the new ones are in place.
 
@@ -213,7 +255,7 @@ Crossfade and ReplayGain use the browser's Web Audio. It is only switched on whe
 
 ### Sending your plays to ListenBrainz
 
-Each account can send what it plays to its own [ListenBrainz](https://listenbrainz.org) account. In **Settings > Profile > ListenBrainz** copy your user token from listenbrainz.org/settings, paste it and press **Connect**. Mediarium asks ListenBrainz whether the token is good before keeping it. It is stored encrypted, belongs to your account, is never shown again and never written to the log. **Send my plays to ListenBrainz** switches sending on and off without losing the token, and **Disconnect** forgets it.
+Each account can send what it plays to its own [ListenBrainz](https://listenbrainz.org) account. In **Settings > People and access > Linked services > ListenBrainz** copy your user token from listenbrainz.org/settings, paste it and press **Connect**. Mediarium asks ListenBrainz whether the token is good before keeping it. It is stored encrypted, belongs to your account, is never shown again and never written to the log. **Send my plays to ListenBrainz** switches sending on and off without losing the token, and **Disconnect** forgets it.
 
 - When a track starts, ListenBrainz is told what is playing now.
 - A track counts as a listen once you have heard half of it or four minutes, whichever is less (seeking ahead doesn't count as listening). It is sent with the time it started.
@@ -352,7 +394,7 @@ Album, artist and release information, cover art and the popular and new-release
 
 | Method | Path | Body / query | Answer |
 |---|---|---|---|
-| GET | `/api/music/search?q=` | | `[{mbid, name, sortName, disambiguation, type, country, score, artistId}]` (`artistId` 0 when not added) |
+| GET | `/api/music/search?q=` | | `[{mbid, name, sortName, disambiguation, type, country, score, artistId}]` (`artistId` 0 when not added); `&type=all` answers `{items, note}` with artists, albums and songs ranked together |
 | GET | `/api/music/discover?list=&type=&range=&genre=&yearFrom=&yearTo=&sort=&page=&pageSize=` | see "Discover" | `{page, totalPages, items: [{mbid, title, type, artistName, artistMbid, releaseDate, genres, coverUrl, inLibrary, artistId?, albumId?}], note?}` |
 | GET | `/api/music/discover/artists?range=&page=&pageSize=` | | `{page, totalPages, items: [{mbid, name, listenCount, inLibrary, artistId?, coverUrl?}], note?}` |
 | GET | `/api/music/covers/release-group/{mbid}` | | the front cover of a release group (JPEG or PNG), or a plain 404 |
@@ -401,4 +443,4 @@ Album, artist and release information, cover art and the popular and new-release
 | POST | `/api/music/listenbrainz/playing` | `{trackId}` | `{sent}` |
 | POST | `/api/music/listenbrainz/listen` | `{trackId, listenedAt}` | `{sent, submitted, pending}` |
 
-An artist is `{id, mbid, name, sortName, disambiguation, monitored, monitorNew, profileId, profileName, addedAt, addedBy, albumCount, monitoredCount, downloadedCount, coverUrl, imageUrl}` (and, on `GET /api/music/artists/{id}`, `filter: {types, hideSecondary, hideBootlegs, useLibrary}`); an album `{id, artistId, mbid, title, type, releaseDate, year, monitored, status, quality, path, coverUrl, coverArchiveUrl}`; a track `{id, disc, position, title, lengthMs, hasFile, filePath}`. A release in the interactive search carries what its name says (`artist, album, year, format, bitrate, bitDepth, source, discography, quality`) beside the usual `title, indexerName, protocol, downloadUrl, sizeBytes, publishDate, seeders, peers, blocklisted, rejections, acceptedBy`. `coverUrl` (and, on artists, `imageUrl`, the same address) point at the cover routes above. `coverArchiveUrl` is the address of the original picture at the cover-art service. Album downloads appear in `GET /api/queue` with `albumId` and the title "Artist – Album".
+An artist is `{id, mbid, name, sortName, disambiguation, monitored, monitorNew, profileId, profileName, addedAt, addedBy, albumCount, monitoredCount, downloadedCount, coverUrl, imageUrl}` (and, on `GET /api/music/artists/{id}`, `filter: {types, hideSecondary, hideBootlegs, useLibrary}` and, for administrators, `origin`); an album `{id, artistId, mbid, title, type, releaseDate, year, monitored, status, quality, path, coverUrl, coverArchiveUrl}` (with `origin` for administrators on the artist's and the album's own answer); a track `{id, disc, position, title, lengthMs, hasFile, filePath, monitored}` (`monitored` is false for a track that is not wanted; `GET /api/music/albums/{id}` also has `onlySong`). A release in the interactive search carries what its name says (`artist, album, year, format, bitrate, bitDepth, source, discography, quality`) beside the usual `title, indexerName, protocol, downloadUrl, sizeBytes, publishDate, seeders, peers, blocklisted, rejections, acceptedBy`. `coverUrl` (and, on artists, `imageUrl`, the same address) point at the cover routes above. `coverArchiveUrl` is the address of the original picture at the cover-art service. Album downloads appear in `GET /api/queue` with `albumId` and the title "Artist – Album". `origin` says how an artist or album came into the library: `manual` (with the person), `request`, `api`, `import` (a library folder scan) or `auto` with `name` `follow` for a new release found because the artist is followed; see [Who added a title](library.md#who-added-a-title).

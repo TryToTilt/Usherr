@@ -6,6 +6,8 @@ import (
 
 	"github.com/rdborg/mediarium/internal/books"
 	"github.com/rdborg/mediarium/internal/library"
+	"github.com/rdborg/mediarium/internal/other"
+	"github.com/rdborg/mediarium/internal/parser"
 	"github.com/rdborg/mediarium/internal/queue"
 )
 
@@ -20,6 +22,7 @@ type queueNamer struct {
 	series  map[int64]library.TitleBrief
 	albums  map[int64]albumName
 	books   map[int64]books.Book
+	others  map[int64]other.Item
 	missing map[string]bool // lookups that found nothing, so they are not repeated
 }
 
@@ -33,6 +36,7 @@ func (s *Server) newQueueNamer(lists ...[]queue.Item) *queueNamer {
 		series:  map[int64]library.TitleBrief{},
 		albums:  map[int64]albumName{},
 		books:   map[int64]books.Book{},
+		others:  map[int64]other.Item{},
 		missing: map[string]bool{},
 	}
 	var movieIDs, seriesIDs []int64
@@ -40,7 +44,7 @@ func (s *Server) newQueueNamer(lists ...[]queue.Item) *queueNamer {
 	for _, items := range lists {
 		for _, it := range items {
 			switch {
-			case it.AlbumID > 0 || it.BookID > 0:
+			case it.AlbumID > 0 || it.BookID > 0 || it.OtherID > 0:
 			case it.SeriesID > 0:
 				if !seenSeries[it.SeriesID] {
 					seenSeries[it.SeriesID] = true
@@ -128,6 +132,21 @@ func (n *queueNamer) book(id int64) (books.Book, bool) {
 	return books.Book{}, false
 }
 
+func (n *queueNamer) other(id int64) (other.Item, bool) {
+	if o, ok := n.others[id]; ok {
+		return o, true
+	}
+	if n.missing[fmt.Sprintf("other:%d", id)] {
+		return other.Item{}, false
+	}
+	if o, err := n.s.OtherRepo.Get(id); err == nil {
+		n.others[id] = o
+		return o, true
+	}
+	n.missing[fmt.Sprintf("other:%d", id)] = true
+	return other.Item{}, false
+}
+
 // describe is describeQueueItem for a namer: the same words, from the
 // remembered lookups.
 func (n *queueNamer) describe(it queue.Item) (title, subtitle, poster string) {
@@ -148,6 +167,10 @@ func (n *queueNamer) describe(it queue.Item) (title, subtitle, poster string) {
 		if a, ok := n.album(it.AlbumID); ok {
 			title, subtitle, poster = a.title, a.subtitle, a.cover
 		}
+	case it.OtherID > 0:
+		if o, ok := n.other(it.OtherID); ok {
+			title, subtitle = o.Name, "Other"
+		}
 	case it.BookID > 0:
 		if b, ok := n.book(it.BookID); ok {
 			title, poster = b.Title, b.CoverPath("M")
@@ -163,7 +186,7 @@ func (n *queueNamer) describe(it queue.Item) (title, subtitle, poster string) {
 			case it.Episode > 0:
 				subtitle = fmt.Sprintf("S%02dE%02d", it.Season, it.Episode)
 			case it.Season > 0:
-				subtitle = fmt.Sprintf("Season %d", it.Season)
+				subtitle = packSubtitle(it)
 			}
 			if sr.CopyOf != 0 {
 				subtitle = strings.TrimSuffix("Second copy · "+subtitle, " · ")
@@ -181,4 +204,18 @@ func (n *queueNamer) describe(it queue.Item) (title, subtitle, poster string) {
 		}
 	}
 	return title, subtitle, poster
+}
+
+// packSubtitle names a season-level download. A pack that holds several seasons
+// or the whole show is stored against its first season, so the release name
+// decides: "Seasons 1-9" or "Complete series" instead of "Season 1".
+func packSubtitle(it queue.Item) string {
+	rel := parser.Parse(it.ReleaseTitle)
+	switch {
+	case rel.SeasonTo > it.Season:
+		return fmt.Sprintf("Seasons %d-%d", it.Season, rel.SeasonTo)
+	case rel.Complete:
+		return "Complete series"
+	}
+	return fmt.Sprintf("Season %d", it.Season)
 }

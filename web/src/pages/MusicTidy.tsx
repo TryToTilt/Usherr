@@ -286,7 +286,7 @@ export default function MusicTidy() {
 
       {loaded && !on('music') && (
         <div className="notice notice-warn" style={{ marginBottom: 18 }}>
-          {tx('Music is switched off. {link} first.', { link: <Link to="/settings/modules">{t('Switch it on in Settings > Media types')}</Link> })}
+          {tx('Music is switched off. {link} first.', { link: <Link to="/settings/modules">{t('Switch it on in Settings > Basics > Media types')}</Link> })}
         </div>
       )}
 

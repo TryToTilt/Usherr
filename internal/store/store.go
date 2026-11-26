@@ -158,6 +158,13 @@ func enableWAL(conn *sql.DB) Info {
 	return Info{JournalMode: ModeWAL}
 }
 
+// renumbered lists migrations that 3.x shipped under another number than 4.0
+// uses (4.0 already had files at those numbers). New name -> name 3.x recorded.
+var renumbered = map[string]string{
+	"0238_display_faces":         "0234_display_faces",
+	"0239_display_face_overview": "0235_display_face_overview",
+}
+
 func migrate(conn *sql.DB, path string, info *Info) error {
 	if _, err := conn.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')))`); err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
@@ -179,7 +186,21 @@ func migrate(conn *sql.DB, path string, info *Info) error {
 	if err != nil {
 		return err
 	}
+	// A change that 3.x recorded under its old number is the same change as
+	// the renumbered file here: record the new name and do not run it again
+	// (adding a column twice fails).
+	for newName, oldName := range renumbered {
+		if applied[oldName] && !applied[newName] {
+			if _, err := conn.Exec(`INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)`, newName); err != nil {
+				return fmt.Errorf("record %s: %w", newName, err)
+			}
+			applied[newName] = true
+		}
+	}
 	known := map[string]bool{}
+	for _, oldName := range renumbered {
+		known[oldName] = true
+	}
 	var pending []string
 	for _, name := range names {
 		version := strings.TrimSuffix(name, filepath.Ext(name))
@@ -225,10 +246,22 @@ func migrate(conn *sql.DB, path string, info *Info) error {
 			return fmt.Errorf("read %s: %w", name, err)
 		}
 		if err := applyMigration(conn, name, version, string(sqlBytes)); err != nil {
-			return err
+			return failedUpdate(err, info.SafetyCopy)
 		}
 	}
 	return nil
+}
+
+// failedUpdate says in plain words what a change that could not be applied left
+// behind. Each change runs in one transaction, so the one that failed is
+// undone whole and the ones before it stay applied; the app then does not
+// start, rather than run on tables it does not understand.
+func failedUpdate(err error, safetyCopy string) error {
+	msg := "That change was undone and the database was left as it was, so nothing is lost. Mediarium stops here instead of running on a half-updated database"
+	if safetyCopy != "" {
+		msg += ". A copy from before the update is saved as " + filepath.Base(safetyCopy) + " next to the database"
+	}
+	return fmt.Errorf("%w. %s", err, msg)
 }
 
 // brokenLinks counts the rows whose foreign key points at nothing.

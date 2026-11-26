@@ -93,7 +93,7 @@ While a connection is switched on but not working, torrents wait instead of conn
 
 A torrent that started without a VPN doesn't keep going from your home address once a VPN connects, or once the kill switch is switched on while none is connected (or a switched-on VPN is down). Within about a minute it is stopped with "the VPN connection changed" (a torrent that was only seeding just stops seeding). Press **Retry** to carry on through the VPN.
 
-**The "Torrenting without a VPN" notice.** The dashboard warns when you have a torrent indexer and no VPN is connected. If your torrent client already runs behind a VPN of its own (a Gluetun container, for example), press **My download client is already behind a VPN** on the notice, or switch the same option on here under **Settings > VPN**. The notice then stays away (administrators only). Switch the option off to show it again. The notice is also left out by itself when the built-in torrent client is off and your torrents go to an external client, since Mediarium doesn't connect to any peers then. In scripts it is `vpnNoticeAcknowledged` in `/api/settings` (setting `vpn.notice_acknowledged`).
+**The "Torrenting without a VPN" notice.** The dashboard warns when you have a torrent indexer and no VPN is connected. If your torrent client already runs behind a VPN of its own (a Gluetun container, for example), press **My download client is already behind a VPN** on the notice, or switch the same option on here under **Settings > Downloading > VPN and proxy**. The notice then stays away (administrators only). Switch the option off to show it again. The notice is also left out by itself when the built-in torrent client is off and your torrents go to an external client, since Mediarium doesn't connect to any peers then. In scripts it is `vpnNoticeAcknowledged` in `/api/settings` (setting `vpn.notice_acknowledged`).
 
 **Check my IP address** appears while connected. It makes a real request through the tunnel and shows the public address the internet sees, so you can check that it is your VPN's address and not your own.
 
@@ -121,6 +121,13 @@ Docker gives a container IPv4 only unless you turn IPv6 on. If the server addres
 - Turn on IPv6 for Docker. In `/etc/docker/daemon.json` set `{"ipv6": true, "fixed-cidr-v6": "fd00:db8:1::/64"}` and restart Docker. In a compose file, give the network `enable_ipv6: true` and an IPv6 subnet. Then recreate the container.
 
 When a host name has both kinds of address and your container can reach IPv6, Mediarium tries IPv4 first and switches to IPv6 if the server doesn't answer within a few seconds.
+
+### Speed
+
+The built-in VPN runs entirely inside Mediarium, so it needs no special container rights, and the tunnel itself is fast (well over 100 MB/s on a home server). What sets the speed is the path to the VPN server: the further away it is, the more a lost packet now and then slows each connection down. Mediarium's tunnel uses CUBIC, as Linux does, so a connection recovers from a loss quickly. Two things help most:
+
+- **A VPN server near you.** Pick one in your own country or the next one over.
+- **More peers for torrents.** Behind a VPN, other peers can only connect to you through a forwarded port, and most providers don't forward one. Then only the peers you reach yourself count, and a torrent with few peers stays slow. A download client outside Mediarium gets peers that connect to it as well, which is why it can be faster on the same line.
 
 ## The kill switch
 

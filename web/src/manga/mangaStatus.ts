@@ -48,7 +48,7 @@ export function mangaStatus(s: MangaSeries, src: MangaSources, problems: readonl
   const haveAll = s.total > 0 && s.have >= s.total
   const having = s.total > 0 ? t('You have {have} of {total} volumes.', { have: s.have, total: s.total }) : ''
   if (problems.includes('no-folder') && !haveAll) {
-    return { line: t('Nothing can be filed yet: Usherr has no manga folder. Choose one in Settings > Library > Folders.'), askFan: false, label: t('Needs a folder'), tone: 'warn' }
+    return { line: t('Nothing can be filed yet: Usherr has no manga folder. Choose one in Settings > Library and files > Folders.'), askFan: false, label: t('Needs a folder'), tone: 'warn' }
   }
   // Chapters come from MangaDex, whatever the volumes are doing.
   if (s.following && !haveAll && (s.have === 0 || s.wanted === 0)) {
@@ -57,7 +57,7 @@ export function mangaStatus(s: MangaSeries, src: MangaSources, problems: readonl
     return { line: volumes + plural(n, 'Following chapters from MangaDex: {n} here so far.', 'Following chapters from MangaDex: {n} here so far.'), askFan: false, label: n > 0 ? plural(n, '{n} chapter', '{n} chapters') : t('Following'), tone: 'manga' }
   }
   if (problems.includes('no-indexers') && !haveAll) {
-    return { line: [having, t('You have no indexers set up, so there is nowhere to look. Add one in Settings > Indexers & Search.')].filter(Boolean).join(' '), askFan: false, label: t('Needs an indexer'), tone: 'warn' }
+    return { line: [having, t('You have no indexers set up, so there is nowhere to look. Add one in Settings > Finding releases > Indexers & Search.')].filter(Boolean).join(' '), askFan: false, label: t('Needs an indexer'), tone: 'warn' }
   }
   if (!src.official && !src.fan && !haveAll) {
     return { line: [having, t('Every source is switched off, so only your own files count here.')].filter(Boolean).join(' '), askFan: false, label: s.total ? `${s.have} / ${s.total}` : t('Sources off'), tone: 'warn' }
@@ -143,7 +143,7 @@ function rejectPhrase(key: string, n: number): string {
 // The lines under "Why nothing yet?".
 export function mangaWhy(sum: MangaSummary, number?: string): string[] {
   const lines: string[] = []
-  if (sum.noIndex) return [t('You have no indexers to search. Add one in Settings > Indexers & Search.')]
+  if (sum.noIndex) return [t('You have no indexers to search. Add one in Settings > Finding releases > Indexers & Search.')]
   const asked = sum.asked - (sum.failed ?? 0)
   if (asked > 0) {
     lines.push(number ? plural(asked, 'Searched {n} indexer for Volume {number}.', 'Searched {n} indexers for Volume {number}.', { number }) : plural(asked, 'Searched {n} indexer by the series’ name.', 'Searched {n} indexers by the series’ name.'))

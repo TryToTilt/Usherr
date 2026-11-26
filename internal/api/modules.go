@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -21,11 +22,19 @@ const (
 	moduleEbooks     = "ebooks"
 	moduleAudiobooks = "audiobooks"
 	moduleManga      = "manga" // Usherr
+	moduleAnime      = "anime"
+	moduleOther      = "other"
+	moduleLifecycle  = "lifecycle"
+	moduleArchiver   = "archiver"
 )
 
 var (
 	errComingSoon = errors.New("Coming soon")
 	errNoModules  = errors.New("At least one media type has to stay switched on.")
+	// errAnimeNeedsTV: anime shows are shows, so the anime library lives inside TV.
+	errAnimeNeedsTV = errors.New("Anime is part of TV. Switch TV on first.")
+	// errArchiverNotReady wraps what the Channel archiver still needs.
+	errArchiverNotReady = errors.New("the Channel archiver isn't set up yet")
 )
 
 // moduleOnByDefault reads a module switch that is on unless it was set to "0".
@@ -57,6 +66,28 @@ func (s *Server) audiobooksEnabled() bool {
 	return v == "1"
 }
 
+// otherEnabled reports whether the Other media type is on (other.go).
+func (s *Server) otherEnabled() bool {
+	v, _ := s.Settings.Get(settings.KeyModulesOther)
+	return v == "1"
+}
+
+// animeEnabled reports whether anime has its own library (anime.go). It is
+// part of TV, so it is off while TV is.
+func (s *Server) animeEnabled() bool {
+	v, _ := s.Settings.Get(settings.KeyModulesAnime)
+	return v == "1" && s.tvEnabled()
+}
+
+// lifecycleEnabled reports whether the library lifecycle rules are switched on
+// (lifecycle.go). It is off until an administrator switches it on.
+func (s *Server) lifecycleEnabled() bool {
+	v, _ := s.Settings.Get(settings.KeyModulesLifecycle)
+	return v == "1"
+}
+
+// archiverEnabled (archiver.go) reports whether the Channel archiver is on.
+
 // booksEnabled reports whether either book module is on.
 func (s *Server) booksEnabled() bool { return s.ebooksEnabled() || s.audiobooksEnabled() }
 
@@ -72,6 +103,18 @@ type modulesPayload struct {
 	Audiobooks moduleState `json:"audiobooks"`
 	Ebooks     moduleState `json:"ebooks"`
 	Manga      moduleState `json:"manga"` // Usherr
+	// Other is the library for things that are not movies, shows, music or
+	// books. Its items are made by name and never looked up anywhere.
+	Other moduleState `json:"other"`
+	// Anime is the anime library inside TV (its own tab, folder, profile and names).
+	Anime moduleState `json:"anime"`
+	// Lifecycle is the library lifecycle rules and the Leaving soon shelf. It is
+	// not a kind of media: it only looks after what the library already holds.
+	Lifecycle moduleState `json:"lifecycle"`
+	// Archiver is the Channel archiver (archiver.go). It follows channels with a
+	// yt-dlp file the administrator supplies, and stays off until its warning
+	// is ticked and that file answers.
+	Archiver moduleState `json:"archiver"`
 	// SubtitlesEnabled says whether the subtitles switch is on, so every
 	// account's pages can show or hide the subtitle parts. It is not a media
 	// type and is not changed here (see PUT /api/settings).
@@ -81,11 +124,18 @@ type modulesPayload struct {
 	TrailerBackground bool `json:"trailerBackground"`
 	// TrailerSound starts that trailer with its sound on.
 	TrailerSound bool `json:"trailerSound"`
+	// ArtworkProxy says artwork is loaded through this server instead of
+	// straight from the picture host (Settings > Library and files).
+	ArtworkProxy bool `json:"artworkProxy"`
 	// TorrentsOn says whether torrent releases can be downloaded at all (the
 	// built-in client, a debrid service or a download client), so every
 	// account's release lists can say when they can't. Only an administrator
 	// can change it (Settings > Downloading > Torrents).
 	TorrentsOn bool `json:"torrentsOn"`
+	// TMDBKey says whether a TMDB API key is set. Without one the movie and
+	// show search (and Discover's lists of titles) cannot answer, so the pages
+	// say so instead of sending a request that is bound to fail.
+	TMDBKey bool `json:"tmdbKey"`
 }
 
 func (s *Server) modulesPayload() modulesPayload {
@@ -96,13 +146,19 @@ func (s *Server) modulesPayload() modulesPayload {
 		Audiobooks: moduleState{Enabled: s.audiobooksEnabled(), Available: true},
 		Ebooks:     moduleState{Enabled: s.ebooksEnabled(), Available: true},
 		Manga:      moduleState{Enabled: s.mangaEnabled(), Available: true},
+		Other:      moduleState{Enabled: s.otherEnabled(), Available: true},
+		Anime:      moduleState{Enabled: s.animeEnabled(), Available: true},
+		Lifecycle:  moduleState{Enabled: s.lifecycleEnabled(), Available: true},
+		Archiver:   moduleState{Enabled: s.archiverEnabled(), Available: true},
 
 		SubtitlesEnabled: s.subtitlesEnabled(),
 
 		TrailerBackground: s.trailerBackground(),
 		TrailerSound:      s.trailerSound(),
+		ArtworkProxy:      s.artworkProxy(),
 
 		TorrentsOn: s.torrentReleasesOn(),
+		TMDBKey:    s.TMDB().HasAPIKey(),
 	}
 }
 
@@ -121,6 +177,10 @@ type moduleChanges struct {
 	Audiobooks *bool `json:"audiobooks"`
 	Ebooks     *bool `json:"ebooks"`
 	Manga      *bool `json:"manga"` // Usherr
+	Other      *bool `json:"other"`
+	Anime      *bool `json:"anime"`
+	Lifecycle  *bool `json:"lifecycle"`
+	Archiver   *bool `json:"archiver"`
 }
 
 // handlePutModules switches modules on or off (administrators) and answers
@@ -140,7 +200,7 @@ func (s *Server) handlePutModules(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeModulesError(w http.ResponseWriter, err error) {
-	if errors.Is(err, errComingSoon) || errors.Is(err, errNoModules) {
+	if errors.Is(err, errComingSoon) || errors.Is(err, errNoModules) || errors.Is(err, errAnimeNeedsTV) || errors.Is(err, errArchiverNotReady) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -167,9 +227,21 @@ func (s *Server) setModulesIn(st settingSetter, c moduleChanges) error {
 	}
 	movies, tv, music := pick(c.Movies, s.moviesEnabled()), pick(c.TV, s.tvEnabled()), pick(c.Music, s.musicEnabled())
 	ebooks, audiobooks := pick(c.Ebooks, s.ebooksEnabled()), pick(c.Audiobooks, s.audiobooksEnabled())
-	mangaOn := pick(c.Manga, s.mangaEnabled())
-	if !movies && !tv && !music && !ebooks && !audiobooks && !mangaOn {
+	mangaOn := pick(c.Manga, s.mangaEnabled()) // Usherr
+	other := pick(c.Other, s.otherEnabled())
+	if !movies && !tv && !music && !ebooks && !audiobooks && !other && !mangaOn {
 		return errNoModules
+	}
+	stored, _ := s.Settings.Get(settings.KeyModulesAnime)
+	anime := pick(c.Anime, stored == "1")
+	if c.Anime != nil && anime && !tv {
+		return errAnimeNeedsTV
+	}
+	if c.Archiver != nil && *c.Archiver && !s.archiverEnabled() {
+		// Switching it on needs the ticked warning and a yt-dlp file that answers.
+		if err := s.archiverReady(context.Background()); err != nil {
+			return &archiverGateError{err}
+		}
 	}
 	flag := func(on bool) string {
 		if on {
@@ -189,6 +261,10 @@ func (s *Server) setModulesIn(st settingSetter, c moduleChanges) error {
 		{c.Ebooks, settings.KeyModulesEbooks, ebooks},
 		{c.Audiobooks, settings.KeyModulesAudiobooks, audiobooks},
 		{c.Manga, settings.KeyModulesManga, mangaOn},
+		{c.Other, settings.KeyModulesOther, other},
+		{c.Anime, settings.KeyModulesAnime, anime},
+		{c.Lifecycle, settings.KeyModulesLifecycle, pick(c.Lifecycle, false)},
+		{c.Archiver, settings.KeyModulesArchiver, pick(c.Archiver, false)},
 	} {
 		if w.changed == nil {
 			continue
@@ -206,22 +282,27 @@ func (s *Server) requireModule(w http.ResponseWriter, module string) bool {
 	switch module {
 	case moduleMovies:
 		if !s.moviesEnabled() {
-			writeError(w, http.StatusConflict, "Movies are switched off. Switch them on in Settings > Media types.")
+			writeError(w, http.StatusConflict, "Movies are switched off. Switch them on in Settings > Basics > Media types.")
 			return false
 		}
 	case moduleTV:
 		if !s.tvEnabled() {
-			writeError(w, http.StatusConflict, "TV is switched off. Switch it on in Settings > Media types.")
+			writeError(w, http.StatusConflict, "TV is switched off. Switch it on in Settings > Basics > Media types.")
 			return false
 		}
 	case moduleEbooks:
 		if !s.ebooksEnabled() {
-			writeError(w, http.StatusConflict, "Ebooks are switched off. Switch them on in Settings > Media types.")
+			writeError(w, http.StatusConflict, "Ebooks are switched off. Switch them on in Settings > Basics > Media types.")
+			return false
+		}
+	case moduleOther:
+		if !s.otherEnabled() {
+			writeError(w, http.StatusConflict, "Other is switched off. Switch it on in Settings > Basics > Media types.")
 			return false
 		}
 	case moduleAudiobooks:
 		if !s.audiobooksEnabled() {
-			writeError(w, http.StatusConflict, "Audiobooks are switched off. Switch them on in Settings > Media types.")
+			writeError(w, http.StatusConflict, "Audiobooks are switched off. Switch them on in Settings > Basics > Media types.")
 			return false
 		}
 	case moduleManga:
@@ -234,7 +315,7 @@ func (s *Server) requireModule(w http.ResponseWriter, module string) bool {
 }
 
 // trailerBackground says whether the trailer plays behind movie and show pages
-// for everyone (Settings > Info, lists and subtitles > Movie and show info). It
+// for everyone (Settings > Library and files > Movie and show info). It
 // is on until an administrator switches it off, so it works out of the box; the
 // video comes from YouTube, which the setting and the docs say, and a browser
 // can switch it off for itself with the button on the page.
@@ -245,7 +326,21 @@ func (s *Server) trailerSound() bool {
 	return v == "1"
 }
 
+// artworkProxy says whether posters and backdrops are loaded through this
+// server. It is on until an administrator switches it off.
+func (s *Server) artworkProxy() bool {
+	v, _ := s.Settings.Get(settings.KeyArtworkProxy)
+	return v != "0"
+}
+
 func (s *Server) trailerBackground() bool {
 	v, _ := s.Settings.Get(settings.KeyTrailerBackground)
 	return v != "0"
 }
+
+// archiverGateError is what stopped the Channel archiver from being switched on,
+// in the words to show.
+type archiverGateError struct{ cause error }
+
+func (e *archiverGateError) Error() string { return e.cause.Error() }
+func (e *archiverGateError) Unwrap() error { return errArchiverNotReady }

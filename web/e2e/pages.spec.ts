@@ -55,7 +55,6 @@ for (const [path, title] of PAGES) {
 const MOVED: [string, string][] = [
   ['/settings/downloads', '/settings/usenet'],
   ['/settings/language', '/settings/general'],
-  ['/settings', '/settings/general'],
 ]
 for (const [from, to] of MOVED) {
   test(`${from} opens ${to}`, async ({ page }) => {
@@ -63,6 +62,12 @@ for (const [from, to] of MOVED) {
     await expect(page).toHaveURL(new RegExp(`${to}$`))
   })
 }
+
+test('/settings is the overview of every group', async ({ page }) => {
+  await page.goto('/settings')
+  await expect(page).toHaveURL(/\/settings$/)
+  await expect(page.locator('.settings-overview')).toBeVisible()
+})
 
 // Usherr Broadcast: the look the browser shows (the one menu is Broadcast's).
 const broadcast = (page: Page) => page.evaluate(() => document.documentElement.dataset.look === 'broadcast')

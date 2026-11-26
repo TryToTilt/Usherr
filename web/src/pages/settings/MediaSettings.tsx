@@ -64,6 +64,8 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
   const [musicPath, setMusicPath] = useState('')
   const [ebooksPath, setEbooksPath] = useState('')
   const [audiobooksPath, setAudiobooksPath] = useState('')
+  const [otherPath, setOtherPath] = useState('')
+  const [booksLayout, setBooksLayout] = useState('author_title')
   const [downloadsPath, setDownloadsPath] = useState('')
   const [namingPreset, setNamingPreset] = useState('plex')
   const [customFormat, setCustomFormat] = useState('')
@@ -83,6 +85,7 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
   const musicOn = on('music')
   const ebooksOn = on('ebooks')
   const audiobooksOn = on('audiobooks')
+  const otherOn = on('other')
   const pathErrors = {
     moviesPath: firstError(required(moviesPath, t('Add the folder your movies live in, for example /movies.')), folderPath(moviesPath, '/movies')),
     tvPath: folderPath(tvPath, '/tv'),
@@ -91,6 +94,7 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
     musicPath: musicOn ? folderPath(musicPath, '/music') : null,
     ebooksPath: ebooksOn ? firstError(required(ebooksPath, t('Add the folder your ebooks go in, for example /books.')), folderPath(ebooksPath, '/books')) : null,
     audiobooksPath: audiobooksOn ? firstError(required(audiobooksPath, t('Add the folder your audiobooks go in, for example /audiobooks.')), folderPath(audiobooksPath, '/audiobooks')) : null,
+    otherPath: otherOn ? firstError(required(otherPath, t('Add the folder your other items go in, for example /other.')), folderPath(otherPath, '/other')) : null,
     downloadsPath: firstError(required(downloadsPath, t('Add the folder downloads should go to, for example /downloads.')), folderPath(downloadsPath, '/downloads')),
   }
   const namingErrors = {
@@ -128,6 +132,8 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
         setMusicPath(s.musicPath ?? '')
         setEbooksPath(s.ebooksPath ?? '')
         setAudiobooksPath(s.audiobooksPath ?? '')
+        setOtherPath(s.otherPath ?? '')
+        setBooksLayout(s.booksFolderLayout === 'author_series' ? 'author_series' : 'author_title')
         setDownloadsPath(s.downloadsPath)
         setNamingPreset(s.namingPreset || 'plex')
         setCustomFormat(s.movieNameFormat)
@@ -158,6 +164,8 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
               musicPath: musicPath.trim(),
               ebooksPath: ebooksPath.trim() || undefined,
               audiobooksPath: audiobooksPath.trim() || undefined,
+              otherPath: otherPath.trim() || undefined,
+              booksFolderLayout: ebooksOn || audiobooksOn ? booksLayout : undefined,
               downloadsPath,
             }
           : {
@@ -263,6 +271,14 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
             </label>
             {audiobooksOn ? <FolderStatus path={audiobooksPath} suggest={suggestFor('audiobooks')} onUse={setAudiobooksPath} /> : <small className="path-note">{t('Turn on Audiobooks in Media types first.')}</small>}
           </div>
+          <div className={`path-col${otherOn ? '' : ' path-off'}`}>
+            <label>
+              {t('Other folder')}
+              <input value={otherPath} onChange={(e) => setOtherPath(e.target.value)} placeholder="/other" spellCheck={false} disabled={!otherOn} {...v.bind('otherPath', otherPath, setOtherPath)} />
+              <FieldError v={v} name="otherPath" />
+            </label>
+            {otherOn ? <FolderStatus path={otherPath} suggest={suggestFor('other')} onUse={setOtherPath} /> : <small className="path-note">{t('Turn on Other in Media types first.')}</small>}
+          </div>
           {comicsOn && <ExtraFolder kind="comics" />} {/* Usherr */}
           {on('manga') && <ExtraFolder kind="manga" />} {/* Usherr */}
           {nsfwOn && <ExtraFolder kind="nsfw" />} {/* Usherr */}
@@ -275,6 +291,22 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
             <FolderStatus path={downloadsPath} />
           </div>
         </div>
+        {(ebooksOn || audiobooksOn) && (
+          <div className="grid-form">
+            <label>
+              {t('How new books are filed')}
+              <select value={booksLayout} onChange={(e) => setBooksLayout(e.target.value)}>
+                <option value="author_title">{t('Author, then book')}</option>
+                <option value="author_series">{t('Author, then series, then book')}</option>
+              </select>
+            </label>
+            <small style={{ color: 'var(--text-dim)', textWrap: 'balance' }}>
+              {booksLayout === 'author_series'
+                ? t('New ebooks go in Author/Series/01. Title (Year).epub, new audiobooks in Author/Series/Title (Year)/, and a book with no series straight under its author. Books you already have stay where they are.')
+                : t('New books go in Author/Title (Year)/. Choose Author, then series, then book to group them by series. Books you already have stay where they are.')}
+            </small>
+          </div>
+        )}
         <HardlinkWarning
           libraries={[
             { label: t('movies'), path: moviesPath },
@@ -282,6 +314,7 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
             ...(musicOn ? [{ label: t('music'), path: musicPath }] : []),
             ...(ebooksOn ? [{ label: t('ebooks'), path: ebooksPath }] : []),
             ...(audiobooksOn ? [{ label: t('audiobooks'), path: audiobooksPath }] : []),
+            ...(otherOn ? [{ label: t('other media'), path: otherPath }] : []),
           ]}
           downloads={downloadsPath}
         />
@@ -385,15 +418,15 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
           </div>
           <div className="grid-form">
             <label>
-              <TipLabel text={t('What to do when an import would replace a file already in your library. Ask me parks the download in Activity until you decide.')}>{t('If a file already exists')}</TipLabel>
+              <TipLabel text={t('What to do when an import would replace a file already in your library. Ask me parks a movie download in Activity until you decide. A show or a season pack is never parked: Mediarium keeps the file you have, like Skip.')}>{t('If a file already exists')}</TipLabel>
               <select value={importConflictPolicy} onChange={(e) => setImportConflictPolicy(e.target.value)}>
                 <option value="skip">{t('Skip (leave the existing file alone)')}</option>
                 <option value="overwrite">{t('Always overwrite')}</option>
                 <option value="overwrite_if_better">{t('Overwrite only if the new file is better')}</option>
-                <option value="ask">{t('Ask me each time (in Activity)')}</option>
+                <option value="ask">{t('Ask me each time (movies only, in Activity)')}</option>
               </select>
             </label>
-            <small style={{ color: 'var(--text-dim)' }}>{t('What to do when a download would replace a file already in your library. With Skip, a title that looks for better versions still takes a better file in place of the old one.')}</small>
+            <small style={{ color: 'var(--text-dim)' }}>{t('What to do when a download would replace a file already in your library. With Skip, a title that looks for better versions still takes a better file in place of the old one. Ask me only waits for you with movies; for shows and season packs it keeps the file you have, like Skip.')}</small>
           </div>
           <div className="grid-form">
             <label className="check-row">
@@ -425,7 +458,7 @@ function LibrarySection({ part, onSettings }: { part: 'folders' | 'naming'; onSe
   )
 }
 
-// Settings > Library > Folders: where the files live.
+// Settings > Library and files > Folders: where the files live.
 export default function MediaSettings() {
   return (
     <div className="settings-stack">
@@ -435,7 +468,7 @@ export default function MediaSettings() {
   )
 }
 
-// Settings > Library > File names and importing: how files are named and what
+// Settings > Library and files > File names and importing: how files are named and what
 // happens after a download, including the script that can run afterwards.
 export function NamingSettings() {
   const [keepNames, setKeepNames] = useState(false)

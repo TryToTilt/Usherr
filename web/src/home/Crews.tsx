@@ -9,7 +9,9 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import Switch from '../components/Switch'
 import { useToast } from '../components/Toast'
 import { useConfirm } from '../components/ConfirmProvider'
-import { api, type ImportCandidate } from '../api'
+import { api, isViewer, type ImportCandidate } from '../api'
+import AddDialog from '../components/AddDialog'
+import { useAuth } from '../AuthContext'
 import { useDocumentTitle } from '../documentTitle'
 import { plural, t } from '../i18n'
 import { preshowApi } from './preshowApi'
@@ -17,6 +19,7 @@ import { whenLabel } from './showtimes'
 import { addToStack } from './stack'
 import { crewFilmIn, crewsApi, crewTitle, posterOf, wrappedFeatured, type ActivityLine, type ChatLine, type Club, type Crew, type CrewFilm, type CrewList, type CrewSpace, type CrewVote, type HouseHas, type ListEntry } from './crewsApi'
 import CrewWrapped from './CrewWrapped'
+import ShowtimeHandoff from './ShowtimeHandoff' // Usherr: moved to Showtime when it starts
 import './crews.css'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -256,6 +259,19 @@ function ChatItem({ m, crew }: { m: ChatLine; crew: Crew }) {
   const toast = useToast()
   const mine = m.h === crew.myHid
   const forMe = m.card?.to === crew.myHid
+  // Usherr: a film sent to you that isn't here yet can be got right from the card: the Add
+  // dialog asks how (as a stream, on disk, or not at all; or asks an admin, for accounts that ask).
+  const { user } = useAuth()
+  const [have, setHave] = useState(m.have)
+  const [adding, setAdding] = useState(false)
+  const canAdd = forMe && have === 'no' && !isViewer(user)
+  const addToList = () => {
+    if (!m.card) return
+    void addToStack({ kind: 'movie', tmdbId: m.card.tmdb, title: m.card.title, year: m.card.year, posterUrl: posterOf(m.card.poster) || undefined })
+      .then(() => toast.success(t('{title} is on your list.', { title: m.card!.title })))
+      .catch((e: unknown) => toast.error(errText(e)))
+    if (canAdd) setAdding(true) // and: to the library too?
+  }
   return (
     <li className="crw-line">
       <span className="crw-face sm" style={{ ['--tone' as string]: toneOf(m.h) }} aria-hidden="true">
@@ -273,19 +289,28 @@ function ChatItem({ m, crew }: { m: ChatLine; crew: Crew }) {
               <strong>{crewTitle(m.card)}</strong>
               <span className="crw-accent">{forMe ? t('Sent to you') : m.card.toWho ? t('Sent to {who}', { who: m.card.toWho }) : t('Sent to the crew')}</span>
               {m.card.note && <span className="crw-dim">{m.card.note}</span>}
+              {forMe && have === 'yes' && <span className="crw-dim">{t('You have it')}</span>}
+              {forMe && have === 'getting' && <span className="crw-dim">{t('You’re getting it')}</span>}
             </div>
-            <button
-              type="button"
-              className="btn-sm"
-              onClick={() =>
-                void addToStack({ kind: 'movie', tmdbId: m.card!.tmdb, title: m.card!.title, year: m.card!.year, posterUrl: posterOf(m.card!.poster) || undefined })
-                  .then(() => toast.success(t('{title} is on your list.', { title: m.card!.title })))
-                  .catch((e: unknown) => toast.error(errText(e)))
-              }
-            >
+            {canAdd && (
+              <button type="button" className="primary btn-sm" onClick={() => setAdding(true)}>
+                {t('Get it')}
+              </button>
+            )}
+            <button type="button" className="btn-sm" onClick={addToList}>
               {t('Add to my list')}
             </button>
           </div>
+        )}
+        {adding && m.card && (
+          <AddDialog
+            target={{ kind: 'movie', tmdbId: m.card.tmdb, title: m.card.title, year: m.card.year, posterUrl: posterOf(m.card.poster) || undefined }}
+            onClose={() => setAdding(false)}
+            onAdded={() => {
+              setAdding(false)
+              setHave('getting')
+            }}
+          />
         )}
       </div>
     </li>
@@ -970,6 +995,7 @@ export default function Crews() {
           </button>
         </div>
       </div>
+      <ShowtimeHandoff />
       {!data.on && <p className="notice notice-warn">{t('Crews need Link with other Usherrs switched on (Settings, Linked Usherrs).')}</p>}
       {making && (
         <section className="card">

@@ -32,9 +32,9 @@ test('a cast member opens the person page with their work', async ({ page }) => 
   // Usherr: on a phone or tablet the film page is in tabs (the Cinema layout), the cast behind Cast.
   const castTab = page.getByRole('tab', { name: 'Cast' })
   if (await castTab.count()) await castTab.click()
-  await page.getByRole('link', { name: /Actor One/ }).first().click()
+  await page.getByRole('link', { name: /Ines Marlow/ }).first().click()
   await expect(page).toHaveURL(/\/person\/9001$/)
-  await expect(page.getByRole('heading', { name: 'Actor One' }).first()).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Ines Marlow' }).first()).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Movies' })).toBeVisible()
   await page.getByRole('combobox', { name: 'Kind of work' }).selectOption('directing') // Usherr: a menu, with sort and filters beside it
   await expect(page).toHaveURL(/role=directing/)

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { useOpenFromList } from '../useTwoPane'
 import { api, can, isRequested, type Book, type BookFormat, type BookFound, type QueueItem } from '../api'
 import BookImport from '../components/BookImport'
 import { listenPath, openBookApp, readPath } from '../bookshelf/open'
@@ -11,6 +12,7 @@ import { useToast } from '../components/Toast'
 import { ActiveChips, CompactBar, FiltersButton, type ActiveFilter } from '../components/CompactBar' // Usherr
 import { t } from '../i18n'
 import { useUrlState } from '../useUrlState'
+import { useAddSearchNow } from '../useAddSearchNow'
 import { useModules } from '../ModulesContext'
 import Shelves from '../home/Shelves' // home fork
 import { groupShelves, letterShelves, monthShelves, RowsByPick, ShelfControls, useShelfView } from '../home/shelfKit' // home fork
@@ -88,6 +90,7 @@ export default function BookLibrary({
   reload: () => void
   admin: boolean
 }) {
+  const openFromList = useOpenFromList()
   // The search and filters live in the address, so Back from a book returns to the same list.
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [ui, patchUi] = useUrlState({ bq: '', bf: 'all', bs: 'added', bv: '' })
@@ -153,7 +156,7 @@ export default function BookLibrary({
     return (
       <PosterCard
         key={b.id}
-        to={`/book/${b.id}`}
+        to={openFromList(`/book/${b.id}`)}
         kind={format === 'audiobook' ? 'audiobook' : 'book'}
         poster={b.coverUrl}
         title={b.title}
@@ -317,6 +320,8 @@ function AddBook({ format, onAdded }: { format: BookFormat; onAdded: () => void 
   const [both, setBoth] = useState(false)
   const [asked, setAsked] = useState<ReadonlySet<string>>(new Set())
   const [busy, setBusy] = useState('')
+  // Searching when a book is added follows Settings > Finding releases > Automatic searching.
+  const { searchNow } = useAddSearchNow()
 
   useEffect(() => {
     const term = q.trim()
@@ -354,14 +359,14 @@ function AddBook({ format, onAdded }: { format: BookFormat; onAdded: () => void 
         googleId: f.googleId,
         ebook: format === 'ebook' || wantOther,
         audiobook: format === 'audiobook' || wantOther,
-        searchNow: true,
+        searchNow,
       })
       if (isRequested(b)) {
         toast.success(b.message)
         setAsked((s) => new Set(s).add(f.key)) // the button stays off, so the same request isn't sent twice
         return
       }
-      toast.success(t('{title} added. Mediarium is looking for it now.', { title: b.title }))
+      toast.success(searchNow ? t('{title} added. Mediarium is looking for it now.', { title: b.title }) : t('{title} added.', { title: b.title }))
       setResults((r) => r?.map((x) => (x.key === f.key ? { ...x, libraryId: b.id } : x)) ?? r)
       onAdded()
     } catch (e) {
